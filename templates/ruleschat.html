@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Rules Chat</title>
+</head>
+<body>
+  <h1>Ask a Question</h1>
+  <div>
+    <input id="userMessage" type="text" />
+    <button id="sendBtn">Send</button>
+  </div>
+  <div id="chatContainer" style="white-space: pre-wrap;"></div>
+
+  <script>
+    const ws = new WebSocket(`ws://${window.location.host}/ws/chat`);
+    const userMessage = document.getElementById('userMessage');
+    const chatContainer = document.getElementById('chatContainer');
+    const sendBtn = document.getElementById('sendBtn');
+
+    ws.onmessage = (event) => {
+      // We’re receiving raw text from your assistant.py, so just read event.data:
+      const token = event.data;
+      chatContainer.textContent += token;
+    };
+
+    sendBtn.addEventListener('click', () => {
+      const message = userMessage.value;
+      // Send user’s question as plain text
+      ws.send(message);
+      chatContainer.textContent += "\nYou: " + message + "\nAssistant: ";
+      userMessage.value = '';
+    });
+  </script>
+</body>
+</html>

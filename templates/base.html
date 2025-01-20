@@ -1,0 +1,15 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/spacelab/bootstrap.min.css">
+  </head>
+  <body>
+    {# {% include 'navbar.html' %} #}
+    <div class="container mt-4">
+      {% block content %}{% endblock %}
+    </div>
+  </body>
+</html>
