@@ -13,5 +13,6 @@ class EventHandler(AssistantEventHandler):
         asyncio.create_task(self.websocket.send_text("\nassistant > "))
 
     def on_text_delta(self, delta, snapshot):
-        logging.info(f"on_text_delta chunk: {delta.value}")
         asyncio.create_task(self.websocket.send_text(delta.value))
+        # Force an actual pause for I/O to flush
+        asyncio.run_coroutine_threadsafe(asyncio.sleep(0.05), asyncio.get_event_loop())

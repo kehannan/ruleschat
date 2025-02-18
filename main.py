@@ -1,5 +1,6 @@
 # main.py
 import os
+import sys
 import logging
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import HTMLResponse
@@ -9,9 +10,11 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from assistant import EventHandler
 
+# Configure logging with forced flush
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
+    force=True
 )
 
 load_dotenv()
@@ -33,36 +36,51 @@ async def home(request: Request):
 
 # Rules chat route
 @app.get("/ruleschat", response_class=HTMLResponse)
-async def get_ruleschat(request: Request):
+async def ruleschat(request: Request):
     return templates.TemplateResponse("ruleschat.html", {"request": request})
 
-@app.websocket("/ws/chat")
+@app.websocket("/ws/chat/")
 async def websocket_chat(websocket: WebSocket):
-    logging.info("WebSocket connection established.")
+    logging.info("🔹 WebSocket connection established.")
     await websocket.accept()
-    while True:
-        # Read user’s question
-        question = await websocket.receive_text()
-        logging.info(f"Received question: {question}")
 
-        # Create a new thread and message
+    try:
+        # Create a single persistent OpenAI thread for the session
         thread = client.beta.threads.create()
-        client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=question
-        )
-        logging.info("Thread and user message created.")
+        logging.info(f"🆕 Created persistent thread: {thread.id}")
 
-        # Stream the assistant's answer
-        event_handler = EventHandler(websocket)  # Log inside the event handler too
-        logging.info("Starting OpenAI streaming response.")
-        with client.beta.threads.runs.stream(
-            thread_id=thread.id,
-            assistant_id=assistant.id,
-            instructions="Please address the user as Jane Doe. The user has a premium account.",
-            event_handler=event_handler,
-        ) as stream:
-            stream.until_done()
+        while True:  # Keep connection open for multiple interactions
+            question = await websocket.receive_text()
+            logging.info(f"✅ Received question: {question}")
 
-        logging.info("Finished streaming response.")
+            # Add the new message to the existing OpenAI thread
+            client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=question
+            )
+            logging.info(f"📩 Added message to thread {thread.id}")
+
+            # Start streaming the assistant's response
+            logging.info("🟢 Starting OpenAI response stream...")
+            with client.beta.threads.runs.stream(
+                thread_id=thread.id,
+                assistant_id=assistant.id,
+                instructions="..."
+            ) as stream:
+                for chunk in stream:
+                    if chunk.event == "thread.message.delta":
+                        for content_block in chunk.data.delta.content:
+                            if content_block.type == "text":
+                                text = content_block.text.value
+                                await websocket.send_text(text)
+                                logging.info(f"📤 Sent chunk: {text}")
+                                sys.stdout.flush()
+
+            logging.info("✅ Finished streaming response. Waiting for the next message...")
+
+    except Exception as e:
+        logging.error(f"❌ WebSocket error: {e}")
+    finally:
+        logging.info("🔻 Closing WebSocket connection.")
+        await websocket.close()

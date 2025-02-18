@@ -1,15 +1,54 @@
-<!-- templates/base.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="utf-8">
-    <title>{{ title }}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/spacelab/bootstrap.min.css">
+    <title>Rules Chat</title>
+    <!-- Minimal Bootswatch link (Flatly as example, pick any other theme name) -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/flatly/bootstrap.min.css"
+    />
   </head>
   <body>
-    {# {% include 'navbar.html' %} #}
+    <!-- Single Navbar (dark background) -->
+    <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
+      <div class="container-fluid">
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarColor02"
+          aria-controls="navbarColor02"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarColor02">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('ruleschat') }}">Rules Chat</a>
+            </li>
+            <!-- Add more nav links as needed -->
+          </ul>
+        </div>
+      </div>
+    </nav>
+
     <div class="container mt-4">
-      {% block content %}{% endblock %}
+      {% block content %}
+      {% endblock %}
     </div>
+
+    <!-- Bootstrap JS for navbar toggler, etc. -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+    ></script>
+
+    <!-- A block for child templates to inject additional scripts -->
+    {% block extra_js %}{% endblock %}
   </body>
 </html>
