@@ -33,6 +33,7 @@
         chatContainer.appendChild(userMessageElement);
         chatContainer.scrollTop = chatContainer.scrollHeight;
     };
+
     let messageBuffer = "";  // Store incoming chunks
 
     chatSocket.onmessage = function(e) {

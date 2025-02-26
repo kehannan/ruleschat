@@ -16,3 +16,6 @@ class EventHandler(AssistantEventHandler):
         asyncio.create_task(self.websocket.send_text(delta.value))
         # Force an actual pause for I/O to flush
         asyncio.run_coroutine_threadsafe(asyncio.sleep(0.05), asyncio.get_event_loop())
+
+
+        
