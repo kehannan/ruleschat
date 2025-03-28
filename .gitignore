@@ -179,3 +179,18 @@ cython_debug/
 
  cert.pem
  key.pem
+
+# Ignore evals directory
+evals/
+
+# Ignore certificate files
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+env/
+.vscode/
