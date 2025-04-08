@@ -1,19 +1,34 @@
-{% extends "base.html" %}
-{% block content %}
-  <h2 style="font-size: 1.5rem;">Question-Answering for Advanced Squad Leader Rules</h2>
-  <p>
-    I created a chat bot to answer rules-questions about the wargame
-    Advanced Squad Leader for my personal use.<p>
-    </p>Advanced Squad Leader (ASL) is a tactical-level
-    hex-and-counter board game covering WW2, published by Avalon Hill in 1985.
-    See Wikipedia <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader">entry</a>.
-  </p>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-white shadow mb-8">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div class="text-xl font-bold">My Site</div>
+                <div class="space-x-4">
+                    <a href="/ruleschat" class="text-blue-600 hover:text-blue-800">Rules Chat</a>
+                    <a href="/logout" class="text-red-600 hover:text-red-800">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-  <div style="display: flex; justify-content: flex-start; gap: 0;">
-    <img src="{{ url_for('static', path='img/asl.jpg') }}" alt="ASL cover" style="width:25%; height:auto; margin-right: 10px;">
-    <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL board" style="width:25%; height:auto;">
-  </div>
-  <h3 style="font-size: 1.5rem;">Approach</h3>
-  <p>Website access <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader"> OpenAI’s assistant v2</a> api,
-   which does RAG over the manual of 1.49 million tokens using the FAISS vector database. 
-{% endblock %}
+    <div class="container mx-auto px-6">
+        <h1 class="text-3xl font-bold mb-8">Welcome to My Site</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-bold mb-4">Rules Chat</h2>
+            <p class="text-gray-600 mb-4">
+                Chat with an AI assistant about game rules and get instant answers to your questions.
+            </p>
+            <a href="/ruleschat" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Start Chatting
+            </a>
+        </div>
+    </div>
+</body>
+</html>
