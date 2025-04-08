@@ -9,15 +9,93 @@
     <input id="chat-message-input" type="text" class="form-control" placeholder="Type a message">
     <button id="chat-message-submit" class="btn btn-primary" type="button">Send</button>
 </div>
+<div id="connection-status" class="text-muted small">Connected</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
+    // Define variables and functions first
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const chatSocket = new WebSocket(protocol + '//' + window.location.host + '/ws/chat/');
+    const wsUrl = protocol + '//' + window.location.host + '/ws/chat/';
+    let chatSocket = null;
+    let messageBuffer = "";  // Store incoming chunks
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const reconnectInterval = 3000; // 3 seconds between reconnect attempts
+    
+    function setupWebSocket() {
+        chatSocket = new WebSocket(wsUrl);
+        
+        chatSocket.onopen = function() {
+            console.log('WebSocket connection established');
+            document.getElementById('connection-status').textContent = 'Connected';
+            document.getElementById('connection-status').classList.remove('text-danger');
+            document.getElementById('connection-status').classList.add('text-success');
+            reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+        };
 
-    document.querySelector('#chat-message-submit').onclick = function() {
+        chatSocket.onclose = function(e) {
+            console.log('WebSocket connection closed', e);
+            document.getElementById('connection-status').textContent = 'Disconnected - attempting to reconnect...';
+            document.getElementById('connection-status').classList.remove('text-success');
+            document.getElementById('connection-status').classList.add('text-danger');
+            
+            // Try to reconnect
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                setTimeout(setupWebSocket, reconnectInterval);
+            } else {
+                document.getElementById('connection-status').textContent = 
+                    'Connection lost. Please reload the page to reconnect.';
+            }
+        };
+
+        chatSocket.onerror = function(err) {
+            console.error('WebSocket error:', err);
+            document.getElementById('connection-status').textContent = 'Connection error';
+            document.getElementById('connection-status').classList.remove('text-success');
+            document.getElementById('connection-status').classList.add('text-danger');
+        };
+
+        chatSocket.onmessage = function(e) {
+            // Handle ping message
+            if (e.data === "__ping__") {
+                chatSocket.send("__pong__");
+                console.log("Ping received, sent pong");
+                return;
+            }
+            
+            const chatContainer = document.querySelector('#chat-container');
+
+            // Find the last bot message or create a new one
+            let lastMessage = chatContainer.querySelector('.bot-message:last-of-type');
+            if (!lastMessage) {
+                lastMessage = document.createElement('div');
+                lastMessage.classList.add('bot-message');
+                chatContainer.appendChild(lastMessage);
+            }
+
+            // Collect incoming chunks into a buffer
+            messageBuffer += e.data;
+
+            // Use a small delay to check if more chunks are arriving
+            if (this.chunkTimeout) clearTimeout(this.chunkTimeout);
+            this.chunkTimeout = setTimeout(() => {
+                lastMessage.innerHTML = marked.parse(messageBuffer);  // Apply Markdown only once
+                messageBuffer = "";  // Reset buffer
+            }, 100);  // Adjust delay if necessary
+
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        };
+    }
+    
+    function sendMessage() {
+        if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+            alert("Connection lost. Please reload the page to reconnect.");
+            return;
+        }
+        
         const messageInput = document.querySelector('#chat-message-input');
         const message = messageInput.value.trim();
         if (!message) return;
@@ -25,39 +103,58 @@
         chatSocket.send(message);
         messageInput.value = '';
 
-        // Display user’s message with a highlighted background
+        // Display user's message with a highlighted background
         const chatContainer = document.querySelector('#chat-container');
         const userMessageElement = document.createElement('div');
         userMessageElement.textContent = message;
         userMessageElement.classList.add('alert', 'alert-primary', 'p-2', 'mt-2'); // Bootswatch Flatly styling
         chatContainer.appendChild(userMessageElement);
         chatContainer.scrollTop = chatContainer.scrollHeight;
-    };
-
-    let messageBuffer = "";  // Store incoming chunks
-
-    chatSocket.onmessage = function(e) {
-        const chatContainer = document.querySelector('#chat-container');
-
-        // Find the last bot message or create a new one
-        let lastMessage = chatContainer.querySelector('.bot-message:last-of-type');
-        if (!lastMessage) {
-            lastMessage = document.createElement('div');
-            lastMessage.classList.add('bot-message');
-            chatContainer.appendChild(lastMessage);
+    }
+    
+    // Initialize everything when the DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM fully loaded, setting up application');
+        
+        // Set up Enter key handler
+        const inputField = document.querySelector('#chat-message-input');
+        if (inputField) {
+            console.log('Input field found, attaching keydown listener');
+            inputField.addEventListener('keydown', function(e) {
+                console.log('Keydown event detected:', e.key);
+                if (e.key === 'Enter') {
+                    console.log('Enter key pressed, submitting message');
+                    e.preventDefault(); // Prevent default Enter key behavior
+                    sendMessage();
+                    return false; // Additional prevention of default behavior
+                }
+            });
+        } else {
+            console.error('Chat input field not found');
         }
-
-        // Collect incoming chunks into a buffer
-        messageBuffer += e.data;
-
-        // Use a small delay to check if more chunks are arriving
-        if (this.chunkTimeout) clearTimeout(this.chunkTimeout);
-        this.chunkTimeout = setTimeout(() => {
-            lastMessage.innerHTML = marked.parse(messageBuffer);  // Apply Markdown only once
-            messageBuffer = "";  // Reset buffer
-        }, 100);  // Adjust delay if necessary
-
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-    };
+        
+        // Set up submit button handler
+        const submitButton = document.querySelector('#chat-message-submit');
+        if (submitButton) {
+            console.log('Submit button found, attaching click listener');
+            submitButton.onclick = sendMessage;
+        } else {
+            console.error('Submit button not found');
+        }
+        
+        // Auto-reconnect if tab regains focus after being inactive
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && 
+                (!chatSocket || chatSocket.readyState !== WebSocket.OPEN)) {
+                console.log('Tab is visible again, attempting to reconnect');
+                setupWebSocket();
+            }
+        });
+        
+        // Initial WebSocket setup
+        setupWebSocket();
+        
+        console.log('Application setup complete');
+    });
 </script>
 {% endblock %}

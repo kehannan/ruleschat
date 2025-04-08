@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import asyncio
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -33,7 +34,7 @@ app = FastAPI()
 # --- JWT Configuration ---
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Increased from 30 to 60 minutes
 
 templates = Jinja2Templates(directory="templates")
 
@@ -62,13 +63,14 @@ def do_login(username: str = Form(...), password: str = Form(...)):
     user = get_user_by_username(username)
     if not user or not verify_password(password, user.hashed_password):
         return HTMLResponse("<h3>Invalid credentials</h3>", status_code=401)
-    token = create_access_token({"sub": username})
+    token = create_access_token({"sub": username}, expires_delta=ACCESS_TOKEN_EXPIRE_MINUTES)
     response = RedirectResponse(url="/ruleschat", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        samesite="Lax"  # Default behavior; adjust if needed
+        samesite="Lax",  # Default behavior; adjust if needed
+        max_age=3600 * ACCESS_TOKEN_EXPIRE_MINUTES  # Set cookie expiration in seconds
         # secure=False for development; use True in production with HTTPS
     )
     return response
@@ -92,21 +94,42 @@ def ruleschat(request: Request):
 async def websocket_chat(websocket: WebSocket):
     logging.info("🔹 WebSocket connection established.")
     await websocket.accept()
+    
+    # Keep-alive ping task
+    ping_task = None
+    
+    async def keep_alive():
+        try:
+            while True:
+                await asyncio.sleep(30)  # Send ping every 30 seconds
+                await websocket.send_text("__ping__")
+                logging.info("Sent ping to keep WebSocket alive")
+        except Exception as e:
+            logging.error(f"Ping error: {e}")
 
     try:
+        # Start the ping task
+        ping_task = asyncio.create_task(keep_alive())
+        
         # Create a single persistent OpenAI thread for the session
         thread = client.beta.threads.create()
         logging.info(f"🆕 Created persistent thread: {thread.id}")
 
         while True:  # Keep connection open for multiple interactions
-            question = await websocket.receive_text()
-            logging.info(f"✅ Received question: {question}")
+            message = await websocket.receive_text()
+            
+            # Handle ping response
+            if message == "__pong__":
+                logging.info("Received pong")
+                continue
+                
+            logging.info(f"✅ Received question: {message}")
 
             # Add the new message to the existing OpenAI thread
             client.beta.threads.messages.create(
                 thread_id=thread.id,
                 role="user",
-                content=question
+                content=message
             )
             logging.info(f"📩 Added message to thread {thread.id}")
 
@@ -115,7 +138,7 @@ async def websocket_chat(websocket: WebSocket):
             with client.beta.threads.runs.stream(
                 thread_id=thread.id,
                 assistant_id=assistant.id,
-                instructions="..."
+                instructions="You are an expert in Advanced Squad Leader rules. Use your knowledge to answer questions accurately and concisely."
             ) as stream:
                 for chunk in stream:
                     if chunk.event == "thread.message.delta":
@@ -128,9 +151,18 @@ async def websocket_chat(websocket: WebSocket):
 
             logging.info("✅ Finished streaming response. Waiting for the next message...")
 
+    except WebSocketDisconnect:
+        logging.info("🔻 WebSocket disconnected by client.")
     except Exception as e:
         logging.error(f"❌ WebSocket error: {e}")
     finally:
+        # Cancel the ping task if it exists
+        if ping_task:
+            ping_task.cancel()
+            try:
+                await ping_task
+            except asyncio.CancelledError:
+                pass
         logging.info("🔻 Closing WebSocket connection.")
         await websocket.close()
 
