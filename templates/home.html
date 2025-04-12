@@ -21,15 +21,9 @@
 
     <h3 class="mt-4">Approach</h3>
     <p>
-      Website access <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader"> OpenAI's assistant v2</a> api,
+      Website access <a href="https://platform.openai.com/docs/assistants/overview">OpenAI's assistant v2</a> api,
       which does RAG over the manual of 1.49 million tokens using the FAISS vector database.
     </p>
-
-    {% if username is defined and username %}
-      <div class="mt-4">
-        <a href="/ruleschat" class="btn btn-primary">Go to Rules Chat</a>
-      </div>
-    {% endif %}
 
     <hr class="mt-5">
     <div class="text-muted small mt-3">

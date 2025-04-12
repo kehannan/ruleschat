@@ -200,9 +200,10 @@ async def websocket_chat(websocket: WebSocket):
         # Start the ping task
         ping_task = asyncio.create_task(keep_alive())
         
-        # Create a single persistent OpenAI thread for the session
-        thread = client.beta.threads.create()
-        logging.info(f"🆕 Created persistent thread: {thread.id}")
+        # Store conversation history
+        conversation_history = [
+            {"role": "system", "content": "You are an expert in Advanced Squad Leader rules. Use your knowledge to answer questions accurately and concisely."}
+        ]
 
         while True:  # Keep connection open for multiple interactions
             try:
@@ -215,34 +216,33 @@ async def websocket_chat(websocket: WebSocket):
                     
                 logging.info(f"✅ Received question: {message}")
 
-                # Add the new message to the existing OpenAI thread
-                client.beta.threads.messages.create(
-                    thread_id=thread.id,
-                    role="user",
-                    content=message
-                )
-                logging.info(f"📩 Added message to thread {thread.id}")
+                # Add user message to history
+                conversation_history.append({"role": "user", "content": message})
 
                 # Start streaming the assistant's response
                 logging.info("🟢 Starting OpenAI response stream...")
-                with client.beta.threads.runs.stream(
-                    thread_id=thread.id,
-                    assistant_id=assistant.id,
-                    instructions="You are an expert in Advanced Squad Leader rules. Use your knowledge to answer questions accurately and concisely."
-                ) as stream:
-                    for chunk in stream:
-                        if chunk.event == "thread.message.delta":
-                            for content_block in chunk.data.delta.content:
-                                if content_block.type == "text":
-                                    try:
-                                        text = content_block.text.value
-                                        await websocket.send_text(text)
-                                        logging.info(f"📤 Sent chunk: {text}")
-                                        sys.stdout.flush()
-                                    except RuntimeError:
-                                        # Connection likely closed during streaming
-                                        logging.warning("Connection closed during streaming")
-                                        raise WebSocketDisconnect()
+                stream = client.chat.completions.create(
+                    model="gpt-4-turbo-preview",
+                    messages=conversation_history,
+                    stream=True
+                )
+
+                collected_message = ""
+                for chunk in stream:
+                    if chunk.choices[0].delta.content is not None:
+                        text = chunk.choices[0].delta.content
+                        collected_message += text
+                        await websocket.send_text(text)
+                        logging.info(f"📤 Sent chunk: {text}")
+                        await asyncio.sleep(0.01)  # Small delay to ensure chunks are sent separately
+
+                # Add assistant's message to history
+                conversation_history.append({"role": "assistant", "content": collected_message})
+                
+                # Keep conversation history manageable
+                if len(conversation_history) > 10:
+                    # Keep system message and last 4 exchanges
+                    conversation_history = [conversation_history[0]] + conversation_history[-8:]
 
                 logging.info("✅ Finished streaming response. Waiting for the next message...")
             except WebSocketDisconnect:
