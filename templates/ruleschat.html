@@ -19,7 +19,6 @@
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host + '/ws/chat/';
     let chatSocket = null;
-    let messageBuffer = "";  // Store incoming chunks
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
     const reconnectInterval = 3000; // 3 seconds between reconnect attempts
@@ -68,24 +67,21 @@
             
             const chatContainer = document.querySelector('#chat-container');
 
-            // Find the last bot message or create a new one
-            let lastMessage = chatContainer.querySelector('.bot-message:last-of-type');
-            if (!lastMessage) {
-                lastMessage = document.createElement('div');
-                lastMessage.classList.add('bot-message');
-                chatContainer.appendChild(lastMessage);
+            // Find or create the current bot message container
+            let currentBotMessage = chatContainer.querySelector('.bot-message.current');
+            if (!currentBotMessage) {
+                currentBotMessage = document.createElement('div');
+                currentBotMessage.classList.add('bot-message', 'current', 'alert', 'alert-secondary', 'p-2', 'mt-2');
+                chatContainer.appendChild(currentBotMessage);
             }
 
-            // Collect incoming chunks into a buffer
-            messageBuffer += e.data;
+            // Append the new chunk and render with Markdown
+            const currentContent = currentBotMessage.getAttribute('data-content') || '';
+            const newContent = currentContent + e.data;
+            currentBotMessage.setAttribute('data-content', newContent);
+            currentBotMessage.innerHTML = marked.parse(newContent);
 
-            // Use a small delay to check if more chunks are arriving
-            if (this.chunkTimeout) clearTimeout(this.chunkTimeout);
-            this.chunkTimeout = setTimeout(() => {
-                lastMessage.innerHTML = marked.parse(messageBuffer);  // Apply Markdown only once
-                messageBuffer = "";  // Reset buffer
-            }, 100);  // Adjust delay if necessary
-
+            // Scroll to bottom
             chatContainer.scrollTop = chatContainer.scrollHeight;
         };
     }
@@ -100,14 +96,20 @@
         const message = messageInput.value.trim();
         if (!message) return;
 
+        // Remove the 'current' class from any existing bot message
+        const currentBotMessage = document.querySelector('.bot-message.current');
+        if (currentBotMessage) {
+            currentBotMessage.classList.remove('current');
+        }
+
         chatSocket.send(message);
         messageInput.value = '';
 
-        // Display user's message with a highlighted background
+        // Display user's message
         const chatContainer = document.querySelector('#chat-container');
         const userMessageElement = document.createElement('div');
         userMessageElement.textContent = message;
-        userMessageElement.classList.add('alert', 'alert-primary', 'p-2', 'mt-2'); // Bootswatch Flatly styling
+        userMessageElement.classList.add('alert', 'alert-primary', 'p-2', 'mt-2');
         chatContainer.appendChild(userMessageElement);
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
