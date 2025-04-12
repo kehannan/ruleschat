@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASL Evaluation Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        .summary {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .metric-card {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .questions {
+            margin-top: 30px;
+        }
+        .question {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .question h3 {
+            margin-top: 0;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .status-pass {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-fail {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status-review {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .scores {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .expected, .model-response {
+            margin-top: 15px;
+        }
+        .label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ASL Evaluation Report</h1>
+        <p>Generated on 2025-03-07 02:17:56</p>
+        
+        <div class="summary">
+            <h2>Summary</h2>
+            <div class="metrics">
+                <div class="metric-card">
+                    <div>Total Questions</div>
+                    <div class="metric-value">43</div>
+                </div>
+                <div class="metric-card">
+                    <div>Pass Rate</div>
+                    <div class="metric-value">41.9%</div>
+                </div>
+                <div class="metric-card">
+                    <div>Auto Pass</div>
+                    <div class="metric-value">18 (41.9%)</div>
+                </div>
+                <div class="metric-card">
+                    <div>Human Pass</div>
+                    <div class="metric-value">0 (0.0%)</div>
+                </div>
+                <div class="metric-card">
+                    <div>Auto Fail</div>
+                    <div class="metric-value">25 (58.1%)</div>
+                </div>
+                <div class="metric-card">
+                    <div>Human Fail</div>
+                    <div class="metric-value">0 (0.0%)</div>
+                </div>
+                <div class="metric-card">
+                    <div>Needs Review</div>
+                    <div class="metric-value">0 (0.0%)</div>
+                </div>
+                <div class="metric-card">
+                    <div>Avg RougeL</div>
+                    <div class="metric-value">0.069</div>
+                </div>
+                <div class="metric-card">
+                    <div>Avg BERT F1</div>
+                    <div class="metric-value">0.835</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="questions">
+            <h2>Questions</h2>
+
+            <div class="question">
+                <h3>Are units in offboard hexes immune to Sniper attack as well as 'fire'?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.028 | BERT F1: 0.860
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Yes, units in offboard hexes are immune to Sniper attacks as well as fire. Specifically, an offboard Tactical Air Control Party (TACP) hex is mentioned to have no effect from fire or movement into/from/through that hex【4:18†source】. While this directly references TACP, it aligns with the general concept that offboard units are typically not subjected to onboard threats like fire and Sniper attacks in Advanced Squad Leader.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Are units in offboard Open Ground hexes subject to Bog or Immobilization rules for any reason?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.853
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Units in offboard Open Ground hexes are not subject to Bog or Immobilization rules. The offboard setup map is considered Open Ground for all terrain except for specified exceptions like off-map half-hexes that are butted against other terrain types【4:4†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>A HIP leader and a HIP squad are stacked together out of LOS of any enemy unit. The owning player wishes to deploy the HIP squad. Must the squad be placed on board before making the deployment DR?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.230 | BERT F1: 0.853
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Both the squad and the leader must be placed on board.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Yes, according to the rules, if a hidden unit is to move or advance, it must first be placed on the mapboard beneath a "?" counter. This indicates that a HIP squad must be placed on board before performing actions like deployment that involve it being visibly active【4:12†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>During the movement phase, may offboard units perform movement-related actions (such as double time declaration, changing BU/CE status, VCA changes, stopping, starting, delaying, loading/unloading, abandoning and scrounging) as long as they enter mapboard at the end of the phase?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.376 | BERT F1: 0.848
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Double Time declaration: Yes. Changing BU/CE status: Yes. VCA changes: Yes. Stopping/Starting/Delaying: Yes. Loading/Unloading: No. Abandoning/Scrounging: No.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>No, units offboard awaiting entry may not perform any movement-related actions such as double time declaration, changing BU/CE status, VCA changes, stopping, starting, delaying, loading/unloading, abandoning, and scrounging during the movement phase. Offboard units must remain inactive except for specific exceptions like attempting to deploy in the RPh if stacked with a leader【4:1†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Are units in offboard Open Ground hexes subject to increased movement costs (such as E3.65, E3.724, or any other condition that increases the normal movement cost)?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.841
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Units in offboard Open Ground hexes are subject to increased movement costs only when scenario weather conditions increase the cost of such basic movement. All terrain on an offboard setup map is considered Open Ground, and entrance of an offboard setup hex on the way to entering the mapboard always costs the standard Open Ground MF/MP rate per hex, or standard road movement rate if on a road, except where scenario weather conditions increase the cost of such basic movement【4:1†source】. Therefore, if conditions like Mud (E3.65) or Deep Snow (E3.724) apply, they would increase the movement costs in these offboard Open Ground hexes【4:9†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Four infantry units are in a Location that is effected by a 2KIA IFT result. The Random Selection DR is 6, 6, 5, 3. How many are eliminated?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.015 | BERT F1: 0.841
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>2.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>In Advanced Squad Leader (ASL), a 2KIA result indicates that two units are eliminated from the target location. When a location has multiple units subject to this result, a random selection process is used to determine which specific units are eliminated.
+
+Using the Random Selection DRs you provided (6, 6, 5, 3), we determine the results as follows:
+
+1. Each unit in the location receives one DR as given.
+2. The units with the highest DRs are selected for elimination.
+3. Since the DRs are 6, 6, 5, 3, the two highest DRs are 6 and 6, indicating two units are affected.
+4. Both units with a DR of 6 would be selected and eliminated.
+
+Therefore, according to the rules you have, 2 units would be eliminated【4:2†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Must a player set up all units/concealment/fortifications in his scenario given OB? If not, are units not set up considered eliminated for CVP and, if so, is it immediate or at scenario end?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.186 | BERT F1: 0.840
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No. No. Yes, they would be considered eliminated or captured at the option of the other player. Immediately. At the option of the other player.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Players are not required to set up all units, concealments, or fortifications as detailed in their scenario order of battle (OB). If units are not set up, they are indeed considered eliminated, but this is relevant only if any CVP (Casualty Victory Points) penalty is specified within the scenario's special rules【4:1†source】. The rules do not specify whether this elimination is immediate or only considered at the scenario's end, but typically, administrative activities like the calculation of CVP are resolved at the end of the scenario【4:2†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Does an Encircled, Fanatic 10-2 Leader have a 10ML for MC/TC/etc.?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.839
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>An encircled, fanatic 10-2 leader in Advanced Squad Leader would have a 9 Morale Level (ML) for Morale Checks (MC) and Task Checks (TC).
+
+The rules specify that fanaticism increases both normal and broken morale levels by one【4:0†source】. However, when encircled, a unit's ML is typically reduced by one【4:5†source】【4:11†source】. Given that a 10-2 leader normally has an ML of 10, the addition from fanaticism increases it to 11, and the encirclement penalty then reduces it back to 10.
+
+Therefore, the 10-2 leader would effectively have a 10 ML for MC/TC in encircled, fanatic conditions.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Given A20.5 stating that the captor unit becomes the Guard and may only be relieved under specific conditions, does this mean a unit could transfer a prisoner and still perform other RPh/APh activities (like transferring a weapon, rallying, deploying, or repairing) in the same phase?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.839
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>According to the rules outlined in section A20.5 regarding Guards and unarmed units, a captor unit may become the Guard and can only be relieved of that task during any friendly RPh/APh if certain conditions are met. Specifically, prisoners must be transferred to another guarding unit or abandoned. This transfer does not penalize either unit's APh/RPh capabilities. Therefore, a unit can transfer a prisoner and still perform other RPh/APh activities, such as transferring a weapon, rallying, deploying, or repairing, in the same phase【4:0†eASLRB_v2.07-postprocessed.pdf】.
+
+This indicates that the act of transferring a prisoner does not hinder the Guard's ability to engage in other activities during the RPh/APh【4:0†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>The Random Selection DR is 6, 6, 5, 5. How many are eliminated?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.838
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>2.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>In Advanced Squad Leader (ASL), whenever an event requires the Random Selection of units, a die roll (dr) is made for each unit involved. The unit with the highest dr is affected by the event, and if there is a tie for the highest dr, all tied units are affected equally【4:12†source】.
+
+In your case, the rolls are 6, 6, 5, 5. Since the highest dr of 6 is tied between two units, both units with the dr of 6 would be eliminated【4:12†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>A scenario is in play, and one side has a reinforcement group that is specified to enter 'on/after turn X'. The player sets up reinforcements off board to enter at the beginning of his turn X. Are these units required to enter on turn X as specified by A2.5?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.158 | BERT F1: 0.837
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes. See also ASOP step 1.11A: '...Set up, offboard, all forces due to enter in this Player Turn...' Don’t set them up if you do not want them to enter.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Yes, units specified to enter "on/after turn X" are required to enter on turn X unless there are specific conditions preventing their entry such as the entry hex being occupied by an enemy unit or blocked by rubble or Blaze【4:0†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>At what level are off-board hexes treated to be at?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.138 | BERT F1: 0.836
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>For boards, those hexes are generally at level zero; some SSRs modify this.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>All off-board hexes are considered to be at the same elevation as the lowest level depicted along the map edge in the abutting on-board hex in the same lettered hexrow (or with the same hex coordinate)【4:0†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Since Inherent Crews don’t take counter form, do vehicles share the Good Order Status of their manning unit?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.194 | BERT F1: 0.834
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>An AFV with a Good Order inherent crew is itself Good Order. An AFV without one is not.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Yes, vehicles do share the Good Order Status of their manning unit. Good Order refers to a Personnel unit or inherent crew that is not broken, berserk, captured, stunned, shocked, or held in melee. A unit can be pinned, CX, TI, and/or unarmed but still be considered in Good Order【4:4†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>A2.9 defines an enemy stack as 'all units/SW/Guns/entrenchment-counters in a given Location'. Is it legal to temporarily remove informational counters (e.g., WA, TCA, building level counter) from the stack to check the top counter—even if inspection is not allowed?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.128 | BERT F1: 0.829
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>It is legal to see under informational counters since they are not part of the stack even if inspection is not permitted.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>According to the rules provided in Section 2.9 of the Advanced Squad Leader rulebook, no enemy stack (defined as "all units/SW/Guns/entrenchment-counters in a given Location") may be inspected prior to the start of play【4:1†source】. However, the rules do not specifically mention the removal or rearrangement of informational counters like WA, TCA, or building level counters concerning stack inspection. Therefore, it appears there is no explicit rule against temporarily removing informational counters to check the top counter, as long as it does not violate the rule against inspecting the stack for gameplay purposes【4:0†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Must Vehicle units specified to enter a given hex from off board set up in a line (i.e., in hexes of the same row) or may they merge from adjacent hexrows?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.064 | BERT F1: 0.828
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No. They may set up in H & J and then merge.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Vehicle units entering from off board do not have to be set up in a line along the same hex row. These units can be set up off board in a row on a mapboard adjacent to the edge of the mapboard they will enter from. The setup is flexible, allowing units to move on the offboard map normally, as long as they are not required to enter through a specific hex that is not obstructed【4:0†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Must a player enter all units and counters (e.g., motorcycles/horses) scheduled to enter as reinforcements? If not, do the unentered ones count as eliminated for CVP and captured/controlled for VC?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.039 | BERT F1: 0.824
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No. Eliminated, captured, or controlled at other player’s option. Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>In Advanced Squad Leader, all forces scheduled to arrive on a certain turn must enter the mapboard on that turn. Entry may be delayed only if the path is blocked by obstacles such as enemy units, rubble, or blaze, in which case entry must occur in a non-obstructed hex within four hexes of the scheduled entry point one game turn later【4:2†source】.
+
+As for units or equipment not entering as reinforcements and their impact on casualty victory points (CVP) or victory condition (VC) calculations, units that fail to enter or leave the mapboard are considered eliminated for CVP purposes, unless under specific exceptions such as being recalled or escorting prisoners【4:12†source】. Therefore, if a player voluntarily chooses not to enter units scheduled as reinforcements without such exceptions, those units would count as eliminated under these rules.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Do the above units have to enter paying the road movement rate, or may they enter paying open ground rates by merging from an adjacent hexrow?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.043 | BERT F1: 0.819
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No. They may pay non-road COT. {4}</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Units entering a hex with a road have the option to pay either the road entry cost or the cost of the other terrain present in the hex. The road movement costs for Infantry are not cumulative with the cost of other terrain in the same hex, but if paying only the road entry cost, the unit is subject to First Fire Movement in the Open (FFMO) Defensive First Fire if the line of sight can be traced without obstruction【4:6†eASLRB_v2.07-postprocessed.pdf】.
+
+If Infantry enters via a road hexside, they must pay either the road entry cost or the cost of the other terrain in the hex. If Infantry pays for the other terrain in the hex, it is considered to occupy that terrain, avoiding FFMO penalties unless that other terrain is Open Ground【4:6†eASLRB_v2.07-postprocessed.pdf】.
+
+Therefore, units may choose to enter at the open ground rate if they merge into the hex from an adjacent one without passing through a road, effectively occupying the other terrain in the hex.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Should A2.9 have errata applied so that it reads 'A unit/weapon may not set up overstacked or in a LOCATION it could not enter during the normal course of play'?</h3>
+                <div class="status status-pass">✅ Auto-pass</div>
+                <div class="scores">
+                    RougeL: 0.015 | BERT F1: 0.810
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>We will take that under advisement.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>The section A2.9 from the Advanced Squad Leader rulebook states: "A unit/weapon may not set up overstacked or in a hex it could not enter during the normal course of play, but vehicles can set up free of Bog/Immobilization in hexes whose entry might cause Bog." Therefore, the rule as it stands specifies "hex" rather than "LOCATION"【4:1†source】.
+
+Based on the given text, there is no mention of errata or changes that replace "hex" with "LOCATION" in A2.9. Therefore, unless there is a specific errata or update that I am not aware of in your materials, the rule as published uses "hex." If you intended to apply such errata, it would need to be specified elsewhere or in a different update document.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>May a Goliath (German Vehicle Note 93) set up at scenario start in a hex other than its possessor’s, assuming its possessor has LOS to the Goliath’s Location and it is within 16 hexes?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.206 | BERT F1: 0.871
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>The Goliath does not need to set up in its controller’s hex.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>No, a Goliath cannot set up at a scenario start in a hex other than its possessor’s hex, even if its possessor has LOS to the Goliath’s location and it is within 16 hexes. The Goliath must start its MPh in the LOS of its controller【4:5†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>May vehicles set up in bypass?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.864
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>No, vehicles may not set up in bypass in Advanced Squad Leader. The rules specifically indicate that control cannot be gained via bypass【4:0†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>May a leader transfer a SW in the Rally Phase and then attempt to rally one or more units?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.864
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Yes, a leader may transfer a Support Weapon (SW) during the Rally Phase and then attempt to rally one or more units. According to the rules, stacks may be rearranged to change possession of SWs, but only between different Good Order unpinned units in the same Location during the Rally Phase, among other times. Additionally, a leader can attempt to rally broken units during this phase【4:7†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>In pre-game, if one side uses rubble counters to block stairwells in a multi-story building, can they then set up eligible units in an upper level Location of that building?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.853
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>The rules regarding blocking stairwells specifically with rubble counters to prevent movement and then setting up eligible units on upper levels of a multi-story building do not allow for such a setup. According to the rules, units cannot normally be set up in a location they cannot reach. If stairwells are blocked by rubble, units should not be able to legally set up on upper levels of those buildings unless there are other rules or special scenario instructions that specifically permit it【4:15†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>In scenarios where one side enters from off-board, is the player setting up on board required to indicate the (V)CA of concealed vehicles, Guns and 5/8” dummies, or is that information kept in a side record until those units move or fire?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.167 | BERT F1: 0.852
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Concealed units must be placed on board with their correct CA; the information is not kept in a side record.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>In scenarios where one player sets up on board while the other enters from off-board, the player setting up on board can secretly record the CA (Covered Arc) of concealed vehicles, Guns, and 5/8” dummies on a side record rather than placing them visibly on the board【4:12†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>A Breach exists in an Interior Factory Wall in a game or scenario to which the Red Barricades and Red Factories rules apply. What is the US# of the unit currently wishing to cross the breached hexside in the case of a crew attempting to push a Gun which is not a large target through the Breach?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.057 | BERT F1: 0.850
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>4.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>The Unit Size Number (US#) for a crew pushing a Gun through a breach in an interior factory wall (in the context of Red Barricades and Red Factories rules) is 2【4:5†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>May Dummies set up in a Minefield hex?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.845
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Dummies cannot be set up in a minefield hex. Dummy stacks can only be created during initial setup and must be placed in accordance with specific concealment rules that do not include minefields【4:11†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>When dealing with hexes that have multiple cloaking counters and a RS is called for (e.g. Detection, Sniper, etc) do you RS between each cloaking counter and then RS from there, or do you simply RS between any/all units inside of the cloaking counters? What if one or more of the counters is a dummy?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.156 | BERT F1: 0.841
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>A.9 and A14.23 will apply normally. Ignore the cloaking counters unless they are empty (in which case they count as their own (dummy) unit or as part of all Dummies in that Location).</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>When dealing with hexes that have multiple cloaking counters, each cloaking counter is treated as a separate entity for detection and random selection (RS) purposes. The owner should resolve RS between each cloaking counter separately. If one or more of the cloaking counters is a dummy, it can be eliminated by its owner at any time, but if subject to Jitter Fire or another detection event, it would be immediately eliminated if revealed as a dummy【4:2†source】. 
+
+In the case of Sniper attacks, all units that suffer a Sniper attack would be placed onboard unconcealed, which would reveal any cloaked units 【4:0†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Given a scenario with only board 41 in play, are hexes W1 & W10 stream hexes due to A2.6?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.159 | BERT F1: 0.840
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Moving to off the board from stream hex W1 (or W10) to the imaginary mirror image stream hex would be crossing a stream hexside at the same level -1. (A2.76).</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>A2.6 does refer to entry/exit off the map and suggests typical rules operations for stream hexes. However, for determining if specific hexes like W1 and W10 on board 41 are stream hexes, the rules from section 33 and a specific reference to board 41 would be required. From the available content, it does not explicitly state that hexes W1 and W10 on board 41 are stream hexes solely due to rule A2.6.
+
+Without specific mention in the available rules and cited content, I cannot definitively conclude that W1 and W10 are stream hexes based solely on the provided information related to board 41 and A2.6【4:1†source】. 
+
+For specific verification, you would need the board details or a rule specifying that these hexes are designated as stream hexes.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>If the units are required to enter via a single road hex, must they set up on the hypothetical off board road hexes, or may they merge from adjacent hexrows?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.025 | BERT F1: 0.840
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No. They may merge.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Units required to enter via a single road hex must set up on hypothetical off-board road hexes. They must set up on unused boards adjacent to the entry mapboard edge and can only move onto the board via road hexes unless specified otherwise by the scenario. Specifically, if they are to enter through a road hex, they must be placed on off-board road hexes and move from there onto the board【4:0†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Is there any order of applying terrain transformations? Should a dry stream be converted into a gully before connecting via A2.76/G.1 or after?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.115 | BERT F1: 0.839
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Dry stream is a gully, and gullies don’t connect.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>There is no specified sequence in the Advanced Squad Leader rules that mandates the order of applying terrain transformations such as converting a dry stream into a gully before or after connecting it using rule A2.76/G.1. A dry stream is automatically considered a gully for all purposes【4:5†eASLRB_v2.07-postprocessed.pdf】. Therefore, once a stream is classified as dry, it operates under the rules applicable to gullies. The conversion in terms of gameplay is essentially immediate once the stream is determined to be dry within the scenario conditions.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>B23.41 states that a vehicle needs to be CT, fully-tracked and BU to enter a building, yet A2.9 limits setup to accessible Locations. May a CT, fully-tracked vehicle set up in a building if CE?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.837
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Based on the rules:
+
+1. B23.41 specifies that only a fully-tracked, closed-topped (CT), buttoned-up (BU) armored fighting vehicle (AFV) without riders can enter a building obstacle, at the cost of half its printed movement points (MP)【4:0†source】.
+   
+2. A2.9 requires that a unit may set up only in an accessible location. However, it does not explicitly define an accessible location for vehicles, particularly in the context of a building without entry movement【4:6†source】.
+
+Regarding your question about whether a CT, fully-tracked vehicle that is crew exposed (CE) can set up in a building, B23.41 does not address setup, only actual movement into a building. Meanwhile, A2.9 limits setup to accessible locations. There's no explicit rule allowing or denying a CE vehicle to set up inside a building without first moving there in a compliant manner (i.e., as BU).
+
+From these rules, it infers that the CE status alone would not inherently allow setup in a building without meeting the entry requirements, but explicit allowance or prohibition isn't precisely detailed in the sections referenced. Therefore, for a definitive ruling, further specific scenario rules or other sections might need to be consulted or a determination made at a game level.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Many scenarios state that OB units may set up entrenched. Does this mean that only extra foxhole counters may be used, or can Trenches, AT-Ditches, and sangers also be placed?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.055 | BERT F1: 0.836
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes, only foxholes, even when the usual reference to B27.1 is missing.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>When scenarios state that OB units may set up entrenched, it generally refers to the use of entrenchment fortifications like foxholes, and according to the specific rules and allowances of the scenario, other types like trenches, Anti-Tank (A-T) Ditches, and sangers might also be applicable depending on the scenario's setup instructions and limits. The rules indicate that foxholes and trenches are specific types of entrenchments mentioned in the game. Each has its own setup and usage rules, such as A-T Ditches having to be specified by a special scenario rule【4:5†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>If using part of a board with a hill divided by the onboard/offboard line, what level are the offboard hill hexes at?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.096 | BERT F1: 0.835
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Ordinarily, such hexes are at level 0, barring an SSR or special (e.g., HASL) rule.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>All offboard hexes are considered to be at the same elevation as the lowest level depicted along the map edge in the abutting onboard hex in the same lettered hexrow (or with the same hex coordinate). This means that when using part of a board with a hill divided by the onboard/offboard line, the level of the offboard hill hexes would be determined by the lowest level of the hill that is depicted along the map edge on the board【4:0†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>The Random Selection DR is 6, 5, 5, 3. How many are eliminated?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.011 | BERT F1: 0.835
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>3.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>In Advanced Squad Leader, the rules concerning Random Selection state that when a tie occurs in a Random Selection process, all units involved in the tie are affected equally. In your case, with the dice rolls being 6, 5, 5, 3, the second and third rolls are tied as the highest numbers.
+
+Thus, both of those units involved in the tie would be affected equally by the event that required Random Selection. According to the rules, the specific number of units eliminated depends on the context, such as how a particular result of tied dice might apply to a given situation (e.g., if the outcome affects a certain type of unit or condition).
+
+Without knowing the specific context (such as how many units or which types of units are involved), it's generally understood that only the units involved in the tie would be affected or eliminated as per the resolving circumstances of the event. In your example, if the result was about elimination, then two units would be eliminated【4:10†eASLRB_v2.07-postprocessed.pdf】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Are dummy units in a concealed stack with non-dummies considered Eligible Targets when rolling for RS on a sniper attack?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.036 | BERT F1: 0.834
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes; all the Dummies would be considered one (combined) Eligible Target.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>In the context of a sniper attack, if a stack of concealed units includes both dummy units and non-dummy units, the stack is treated as a single target for Random Selection purposes. If a concealed stack is chosen as the sniper’s target, the sniper player’s opponent must declare the number of eligible targets in that stack. If the stack is a dummy stack (i.e., contains no eligible targets), it is automatically eliminated. If the stack contains eligible targets, they are subject to Random Selection to determine which unit is affected by the sniper attack【4:0†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Is a Location ADJACENT to itself? I.e., if a rule permits some activity in an ADJACENT Location, and does not “specifically exclude” the unit’s current Location from that activity, is the current Location included by default?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.827
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes. Yes.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>In Advanced Squad Leader, locations or units within them are considered ADJACENT if certain conditions are met, specifically if any Infantry unit in one Location could advance into the other during the Advance Phase and a Line of Sight (LOS) exists between the two Locations, excluding any hindrances like smoke【4:1†eASLRB_v2.07-postprocessed.pdf】.
+
+This definition suggests that a Location is not considered ADJACENT to itself, as adjacency requires potential movement between distinct Locations. Therefore, if a rule specifically permits an activity in an "ADJACENT Location" and does not explicitly include the unit’s current Location, then the current Location is likely not included by default.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>May a mortar spotter deploy? If so, does the mortar spotter designation deploy with one of the HS similar to a SW?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.013 | BERT F1: 0.821
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes to both.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>According to the Advanced Squad Leader rules, a mortar spotter is treated in a manner similar to using a Support Weapon (SW) for purposes of movement curtailment and inherent Fire Power (FP) loss. The spotter must be predesignated by the owning player during the Prep Fire Phase (PFPh) or Defensive Fire Phase (DFPh) and is marked with an appropriate fire counter for having used a SW during that phase【4:0†source】.
+
+However, nothing in the provided snippets specifically states whether a mortar spotter can "deploy" or if the mortar spotter designation deploys with one of the half-squads similar to a SW. Deployment typically refers to the act of dividing a squad into two half-squads, but there is no indication in the snippets regarding mortar spotters being handled this way. If further clarification is needed on deployment specifics, consulting a detailed ASL rulebook or player guide might be required.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Can a leader Deploy a Spotter? If yes, could the spotting duty be taken over by only one of the resulting HSs, freeing up the other HS for other purposes?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.013 | BERT F1: 0.821
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes. Yes. {1}</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>In Advanced Squad Leader, a leader cannot directly deploy a Spotter because Spotting is not something a leader can assist with. Spotting is the assignment of a Good Order Personnel unit, either in the same or an adjacent hex to the mortar, to act as a Spotter. This Spotter must be predesignated and is considered as using a support weapon for movement and firing penalties.
+
+If the Spotting squad is reduced to half strength, the surviving Good Order half-squad (HS) retains the Spotting ability【4:3†source】. This means the spotting duty could indeed be taken over by one of the resulting HSs after a squad is broken down, allowing the other HS to be used for different purposes. However, keep in mind the Spotter must remain adjacent to the mortar and in Good Order to continue performing its duties【4:0†source】【4:1†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Must a player set up all units, fortifications, and other counters listed in his OB? Do units not set up count as eliminated for CVP, and do unplaced counters count as captured/controlled for VC?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.113 | BERT F1: 0.818
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No. Eliminated, captured, or controlled at other player’s option. Yes. As soon as it might be material to the VC.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>The rules for Advanced Squad Leader specify that a player does not have to set up all units, fortifications, and other counters listed in their Order of Battle (OB). There is no explicit rule stating that unplaced units count as eliminated for Casualty Victory Points (CVP) or that unplaced counters count as captured or controlled for Victory Conditions (VC). 
+
+The setup and placement of counters can have strategic implications, but the non-setup does not automatically equate to elimination or capture in terms of VP. Thus, unplaced units would not automatically count towards the opponent's CVP or VC, unless scenario-specific rules or special scenario instructions (SSR) indicate otherwise【4:0†eASLRB_v2.07-postprocessed.pdf】. 
+
+It's important to review the specific scenario rules, as some scenarios might have special rules that deviate from the standard guidelines.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>Can an offboard AFV attempt to increase its available MP via an Excessive Speed Breakdown DR?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.815
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>No. {2}</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>Yes, a tracked AFV may attempt to increase its available Movement Points (MP) via an Excessive Speed Breakdown (ESB) DR while it is offboard. According to the rules, a tracked vehicle can attempt once per Movement Phase (MPh) to exceed its land MP allotment at the risk of immobilization【4:0†source】.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>May a unit fire at a Depression hex if they have LOS to the crest level but not into the Depression in the following situations: A) The hex is devoid of non-HIP units? B) The hex has a non-HIP unit IN the Depression, but no non-HIP unit at crest level?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.061 | BERT F1: 0.812
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes to both; only units at crest level would be affected (other than for WP).</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>To address whether a unit may fire at a Depression hex if they have LOS to the crest level but not into the Depression in two specific situations:
+
+**Situation A: The hex is devoid of non-HIP units.**
+For a hex devoid of non-HIP units, the rules do not stipulate any impediment to firing at it solely because of the absence of non-HIP units. Therefore, the unit should be allowed to fire at the hex if it meets any other firing requirements.
+
+**Situation B: The hex has a non-HIP unit in the Depression, but no non-HIP unit at crest level.**
+For a hex with a non-HIP unit in the Depression and none at crest level, same-level, non-adjacent Direct Fire that is valid against Crest status Infantry does not affect units IN the Depression【4:0†source】. Therefore, if a unit has LOS only to the crest level and not into the Depression, it may not fire at the non-HIP unit in the Depression, since the fire would not affect units in the Depression under these circumstances.
+
+Thus, in both scenarios, the ability of a unit to fire upon the hex depends largely on the specific context described by the rulebook, with LOS being a crucial factor.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>What is the total DRM for a two-Location FG: the 1st Location contains an 8-1 and a squad and has +2 total Hindrance to the target; the 2nd Location has a CX squad and no Hindrance to the target?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.000 | BERT F1: 0.811
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>+3.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>To calculate the total DRM for a two-Location Fire Group (FG), you need to consider the modifiers for each separate location and then combine them appropriately for the attack.
+
+1. **First Location:**
+   - Contains an 8-1 leader and a squad.
+   - Has +2 Hindrance to the target.
+   - The 8-1 leader provides a leadership modifier of -1.
+
+   So, the total DRM for the first location would be +2 (Hindrance) - 1 (leadership) = +1.
+
+2. **Second Location:**
+   - Contains a CX (tired) squad.
+   - No Hindrance to the target.
+   - Because the squad is CX, it incurs an additional +1 DRM when attacking【4:5†source】.
+
+   Therefore, the total DRM for the second location would be +1 for the CX penalty.
+
+When combining fire from these two locations as a Fire Group, you generally apply the worst DRM from the participating locations, provided it's not a modifier that is intended to be cumulative across all weapons (like Hindrance). In this case:
+- The worst DRM is from the second location, which is +1.
+- Combine this with any applicable cumulative Hindrance DRM. However, since the Hindrance from the first location doesn’t apply to the second, and vice-versa, it remains uncumulative.
+
+Thus, the total DRM for the combined FG attack would be the higher DRM from the two, which is +1 overall.
+
+Therefore, the total DRM for the two-Location FG is +1.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>If situation B is true, then would the following also be true: 1) Would a unit firing Smoke/WP be subject to the +2 Case K DRM to the TH DR? 2) If a hit is obtained with Smoke/WP, would it rise from the Depression level? 3) Would a WP hit cause the non-HIP unit IN the Depression to take a WP NMC?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.017 | BERT F1: 0.797
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>Yes to all three.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>1) Regarding a unit firing Smoke/WP being subject to the +2 Case K DRM to the TH DR, the Case K DRM applies when ordnance is firing at a hidden or concealed target. However, when firing Smoke, Case K applies only if the target hex contains at least one non-hidden enemy ground unit but none of those units are known to the firer/Spotter【4:0†eASLRB_v2.07-postprocessed.pdf】. So, it depends on whether there are non-hidden enemy units that are not Known to the firer in the target hex.
+
+2) As for whether a hit obtained with Smoke/WP would cause it to rise from the Depression level, Smoke always lands on the ground level of a hex, regardless of whether it was fired at a unit higher in elevation within that hex【4:11†eASLRB_v2.07-postprocessed.pdf】.
+
+3) If a WP hit causes the non-HIP unit in the Depression to take a WP NMC (Normal Morale Check), WP hits require all units in the Location hit by WP to take a NMC unless they are non-moving units in First Fire when the WP is placed【4:19†eASLRB_v2.07-postprocessed.pdf】. Thus, a WP hit would cause a unit IN the Depression to take a WP NMC depending on its current status and conditions when the WP is placed.</p>
+                </div>
+            </div>
+
+            <div class="question">
+                <h3>When a Partisan squad (or a squad with underlined Morale) fails to Rally with a Commissar: A) Is it Casualty Reduced? B) Is it split in two HS? When a Partisan half-squad (or a HS with underlined Morale) fails to Rally with a Commissar: C) Is it Disrupted (for a non-partisan)? D) Is it eliminated?</h3>
+                <div class="status status-fail">❌ Auto-fail</div>
+                <div class="scores">
+                    RougeL: 0.050 | BERT F1: 0.792
+                </div>
+                <div class="expected">
+                    <div class="label">Expected Answer:</div>
+                    <p>A and D.</p>
+                </div>
+                <div class="model-response">
+                    <div class="label">Model Response:</div>
+                    <p>A) If a Partisan squad (or a squad with underlined Morale) fails to rally with a Commissar and it is already the lowest quality, it is Casualty Reduced【4:0†source】.
+
+B) A squad with underlined Morale that fails to rally with a Commissar is replaced by its two broken half-squads (HS) if applicable【4:2†source】.
+
+C) A Partisan half-squad (HS), or a HS with underlined Morale, that fails to rally with a Commissar is not Disrupted because Partisans are never Disrupted; they are only broken【4:2†source】【4:19†source】.
+
+D) A broken Half-squad (HS) that cannot be replaced when failing a rally attempt with a Commissar is eliminated【4:0†source】.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>

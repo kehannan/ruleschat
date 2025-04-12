@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
-from crud import SessionLocal, get_user_by_username  # Using our DB-backed CRUD functions
+from models import get_user_by_username  # Updated to import directly from models
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -36,8 +36,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # --- Authentication Endpoint ---
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    db = SessionLocal()  # Create a new DB session
-    user = get_user_by_username(db, form_data.username)
+    # Get user without passing db parameter
+    user = get_user_by_username(form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,8 +63,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
          raise credentials_exception
 
-    db = SessionLocal()  # Create a new DB session
-    user = get_user_by_username(db, username)
+    # Get user without passing db parameter
+    user = get_user_by_username(username)
     if user is None:
          raise credentials_exception
     return user

@@ -1,34 +1,41 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Home</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-</head>
-<body class="bg-gray-100">
-    <nav class="bg-white shadow mb-8">
-        <div class="container mx-auto px-6 py-4">
-            <div class="flex justify-between items-center">
-                <div class="text-xl font-bold">My Site</div>
-                <div class="space-x-4">
-                    <a href="/ruleschat" class="text-blue-600 hover:text-blue-800">Rules Chat</a>
-                    <a href="/logout" class="text-red-600 hover:text-red-800">Logout</a>
-                </div>
-            </div>
-        </div>
-    </nav>
+{% extends "base.html" %}
 
-    <div class="container mx-auto px-6">
-        <h1 class="text-3xl font-bold mb-8">Welcome to My Site</h1>
-        
-        <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-xl font-bold mb-4">Rules Chat</h2>
-            <p class="text-gray-600 mb-4">
-                Chat with an AI assistant about game rules and get instant answers to your questions.
-            </p>
-            <a href="/ruleschat" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                Start Chatting
-            </a>
-        </div>
+{% block content %}
+<div class="row">
+  <div class="col-md-8">
+    <h2 class="mb-4 fs-3">An AI-powered Q&A system for Advanced Squad Leader rules</h2>
+
+    <ul class="list-unstyled">
+      <li>• I created a chat bot to answer rules-questions about the wargame Advanced Squad Leader for my personal use.</li>
+      <li>• Advanced Squad Leader (ASL) is a tactical-level hex-and-counter board game covering WW2, published by Avalon Hill in 1985. See Wikipedia <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader">entry</a>.</li>
+    </ul>
+
+    <div class="row mt-4 mb-4 align-items-center">
+      <div class="col-md-5 text-center">
+        <img src="{{ url_for('static', path='img/asl.jpg') }}" alt="ASL cover" class="img-fluid rounded" style="max-height: 300px; width: auto;">
+      </div>
+      <div class="col-md-5 text-center">
+        <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL board" class="img-fluid rounded" style="max-height: 300px; width: auto;">
+      </div>
     </div>
-</body>
-</html>
+
+    <h3 class="mt-4">Approach</h3>
+    <p>
+      Website access <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader"> OpenAI's assistant v2</a> api,
+      which does RAG over the manual of 1.49 million tokens using the FAISS vector database.
+    </p>
+
+    {% if username is defined and username %}
+      <div class="mt-4">
+        <a href="/ruleschat" class="btn btn-primary">Go to Rules Chat</a>
+      </div>
+    {% endif %}
+
+    <hr class="mt-5">
+    <div class="text-muted small mt-3">
+      <p class="mb-1">kevmo.us is not affiliated with Hasbro, Avalon Hill Games, Inc., or Multi-Man Publishing, Inc.</p>
+      <p class="mb-0">Advanced Squad Leader is a trademark of Avalon Hill Games, Inc.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

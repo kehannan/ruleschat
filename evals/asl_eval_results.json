@@ -1,0 +1,402 @@
+[
+    {
+        "question": "According to section A1.122, what is a half-squad and how is one formed?",
+        "expected_answer": "A half-squad (HS) represents roughly five men (depicted by two figures on its counter) and is created when a full squad is reduced or splits into two smaller units. It has lower manpower (about half a squad's strength) and a slightly lower printed morale when broken compared to a full squad.",
+        "model_response": "A half-squad, according to section A1.122 of the Advanced Squad Leader rules, is formed when a squad is reduced in strength or splits into smaller units. The formation or creation of a half-squad can occur when a squad undergoes Casualty Reduction or is deliberately split during gameplay\u30104:8\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.34545454545454546,
+        "bert_f1": 0.8597487211227417,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A3 outlines the Sequence of Play. How many phases are in a player turn, and what are they?",
+        "expected_answer": "Each player turn in ASL consists of eight phases executed in order. These phases are: Rally Phase, Prep Fire Phase, Movement Phase, Defensive Fire Phase, Advancing Fire Phase, Rout Phase, Advance Phase, and Close Combat Phase.",
+        "model_response": "The Sequence of Play in a player turn for Advanced Squad Leader consists of eight phases. These phases are:\n\n1. Rally Phase (RPh)\n2. Prep Fire Phase (PFPh)\n3. Movement Phase (MPh)\n4. Defensive Fire Phase (DFPh)\n5. Advancing Fire Phase (AFPh)\n6. Rout Phase (RtPh)\n7. Advance Phase (APh)\n8. Close Combat Phase (CCPh)\u30104:0\u2020source\u3011.",
+        "rougeL": 0.6170212765957447,
+        "bert_f1": 0.8782886862754822,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "In section A4.5, what is \"Double Time\" and what effect does it have on infantry movement?",
+        "expected_answer": "Double Time is an option that allows infantry to move faster by becoming CX (tired). It increases a unit's Movement Factor allowance by 2 (or by 1 if declared mid-move) for that Movement Phase, at the cost of marking the unit with a CX counter (indicating it's fatigued).",
+        "model_response": "\"Double Time\" is a movement option for infantry units in the game Advanced Squad Leader, described in section A4.5. It allows infantry units (including bicyclists and skiers) that are not broken, wounded, or already Counter Exhausted (CX) to increase their movement factor (MF) allotment by two. This is done by the player announcing Double Time at the start of the unit's movement phase (MPh) and placing a CX counter on the unit\u30104:0\u2020source\u3011.\n\nThe effect of Double Time on infantry movement is that it increases the MF of the unit, allowing them to move further than usual during their MPh. A Double Timing leader and any units accompanying him have a possible total of eight MF, which is the maximum for infantry, except for conscript personnel who have seven MF, or when moving completely along a road where an additional MF can be added\u30104:0\u2020source\u3011.\n\nIt is important to note that if Double Time is declared after some MF has already been expended, the unit only gains one additional MF instead of two, although the same penalties (i.e., becoming CX) still apply\u30104:0\u2020source\u3011. Double Time does not permit additional movement into locations whose cost is \"all\" the MF, and it cannot be used by units that will mount, ride, or make certain movements like an attempt to move beneath Wire during that player turn\u30104:0\u2020source\u3011.",
+        "rougeL": 0.13937282229965156,
+        "bert_f1": 0.843096911907196,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A4.61 describes Assault Movement. What is Assault Movement and why would an infantry unit use it?",
+        "expected_answer": "Assault Movement is a cautious move in which an infantry unit only moves one hex (or stays in the same hex) in the Movement Phase. By using Assault Movement, the unit avoids the normal -1 DRM for non-assault movement (FFNAM), making it less vulnerable to enemy Defensive Fire while moving.",
+        "model_response": "Assault Movement, as described in section A4.61, allows non-berserk infantry to remain infantry throughout the Movement Phase and move a short distance\u2014specifically, one Location during its Movement Phase\u2014without using all of its Movement Factors (MF). During this movement, they might use some MF bonuses like leader or road bonuses but not Double Time. Assault Movement must be declared before movement begins.\n\n**Why use Assault Movement?:**\n\n1. **Reduced Risk from First Fire:** An infantry unit using Assault Movement does not incur the -1 Defense Fire Non-Assault Movement (FFNAM) Die Roll Modifier (DRM). If moving in the open, however, they still incur the -1 First Fire Movement in the Open (FFMO) DRM.\n   \n2. **Retaining More MF:** Because the unit does not use all of its MF, it allows for more tactical flexibility in subsequent actions or phases.\n\n3. **Avoid Additional DRMs:** By only moving one Location and not using all its MF, a unit using Assault Movement can avoid being subjected to some adverse effect of Defensive First Fire.\n\nIn essence, Assault Movement balances cautious advancement with maintaining a degree of readiness and flexibility during the Movement Phase\u30104:0\u2020source\u3011.",
+        "rougeL": 0.17142857142857146,
+        "bert_f1": 0.8566262722015381,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section A4.7, what can infantry units do during the Advance Phase?",
+        "expected_answer": "In the Advance Phase (APh), each unpinned, unbroken infantry unit may move one hex to an adjacent hex (or move up/down one level within the same hex). This is a free one-hex move after regular movement, allowing units to reposition or engage in Close Combat by advancing into enemy-occupied hexes.",
+        "model_response": "Infantry units during the Advance Phase in Advanced Squad Leader, according to section A4.7, may move one hex either horizontally or vertically (to an adjacent building level of the same hex), as long as they are not broken, pinned, temporarily immobilized, or marked with a Close Combat counter. They cannot change both their location within a hex and the hex they are in during the same Advance Phase. However, they can change both elevation and hex by advancing to an adjacent hex of different elevation, like a hill or depression. The Advance Phase allows a unit to move even from inside an entrenchment to another entrenchment in an accessible hex, even if they are on different levels\u30104:2\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.2247191011235955,
+        "bert_f1": 0.8565858602523804,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A5.1 sets stacking limits. How many infantry squads and leaders can one side stack in a single location without penalty?",
+        "expected_answer": "A side can stack up to three squads (or their equivalent in half-squads) plus up to four single-man counters (SMC, such as leaders) in one location without any penalty. Each level of a multi-story building hex is treated as a separate location with its own stacking limit.",
+        "model_response": "The stacking limits for infantry and leaders in Advanced Squad Leader allow each side to stack up to three infantry squads or their equivalents, plus up to four single man counters (SMC), such as leaders, in a single location without penalty\u30104:0\u2020source\u3011.",
+        "rougeL": 0.4893617021276596,
+        "bert_f1": 0.9043930172920227,
+        "evaluation": "\u2705 Auto-pass"
+    },
+    {
+        "question": "How is Line of Sight (LOS) checked between units, according to section A6.1 of the rulebook?",
+        "expected_answer": "Line of Sight is checked by stretching a thread or straight edge from the center of the firing unit's hex to the center of the target unit's hex. If this thread does not cross any terrain artwork that would block LOS on both sides of the line, the LOS is clear. If players cannot agree whether a terrain feature blocks LOS, a die roll (1\u20133 clear, 4\u20136 blocked) is used to resolve it.",
+        "model_response": "The procedure for checking Line of Sight (LOS) between units in Advanced Squad Leader, as described in section A6.1 of the rulebook, involves the following key steps:\n\n1. **Stretching a Thread**: Determine if a unit has a LOS to a given hex by stretching a sewing thread taut between the center of the firing hex and the center of the target hex.\n\n2. **Obstruction Assessment**: If the thread does not cross a terrain depiction capable of obstructing the LOS between the target and firing hexes (and the obstruction is visible on both sides of the thread), then there is a clear LOS between the two hexes. Inherent Terrain hexes block or hinder LOS if traced exactly along their hexside, even if the terrain depiction is not visible on both sides of the thread.\n\n3. **Disagreements Resolution**: If players cannot agree whether a LOS is blocked or not, a die roll (dr) is conducted: rolling 1-3 indicates the LOS is not blocked, and 4-6 indicates it is blocked. The terrain depiction typically is responsible for blocking or hindering LOS, not the hex that contains it\u30104:0\u2020source\u3011.",
+        "rougeL": 0.38202247191011235,
+        "bert_f1": 0.8765774369239807,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section A6.11, when are players allowed to verify or check a potential LOS during play?",
+        "expected_answer": "During play, players cannot pre-measure LOS freely \u2013 an LOS check is only made after an attack is declared. In other words, you must announce you are firing, and then you formally check LOS. If the LOS turns out to be blocked after declaring the attack, the attack still counts as used (the firing units are considered to have fired even though they had no LOS).",
+        "model_response": "Players are allowed to verify or check a potential line of sight (LOS) during play only after an attack has been declared. This rule prevents players from checking LOS in advance to determine whether an attack would be viable before declaring it. There are exceptions to this rule, such as for Concealment Removal and Road entry cost, where LOS checks can be made without declaring an attack first. If the LOS check after declaring an attack reveals that the LOS is blocked, the units intended to attack are still considered to have fired for all purposes (they believed they saw something), even though they cannot inflict any damage through the blocked LOS\u30104:1\u2020source\u3011.",
+        "rougeL": 0.32044198895027626,
+        "bert_f1": 0.8860381245613098,
+        "evaluation": "\u2705 Auto-pass"
+    },
+    {
+        "question": "Section A7.8 covers pin results. What effects does being pinned have on a unit in ASL?",
+        "expected_answer": "A pinned unit's firepower is halved for the remainder of that player turn, and it may not move or advance any further during that turn (though if it later breaks, it can still rout). Pin effects are not cumulative \u2013 once a unit is pinned, additional pin results don't further reduce its firepower. At the end of the player turn (or if the unit breaks or goes berserk), pin counters are removed.",
+        "model_response": "When a unit is pinned in Advanced Squad Leader (ASL), it experiences several effects:\n\n1. **Firepower (FP) Reduction**: The unit's inherent firepower is halved for the remainder of that Player Turn, in addition to any other halving of FP for other reasons\u30104:1\u2020source\u3011.\n\n2. **Movement Restrictions**: The pinned unit may not move or advance any further during that Player Turn, though it may still rout if it becomes broken\u30104:1\u2020source\u3011.\n\n3. **Combat Limitation**: In Close Combat (CC), the halved FP of a pinned unit applies only to its attack, not to its defense\u30104:1\u2020source\u3011.\n\n4. **Pin Effects are Not Cumulative**: A unit suffering multiple pin results has its FP halved only once, and an already-pinned unit does not take a new Pin Task Check (PTC) due to another pin result on the Infantry Fire Table (IFT)\u30104:1\u2020source\u3011.\n\n5. **Pin Counter Removal**: All pin counters are removed at the end of the current Player Turn, or if the unit subsequently breaks, goes berserk, battles hardens, or becomes heroic\u30104:1\u2020source\u3011.\n\nAdditionally, units that are pinned have restrictions on their ability to conduct certain types of attacks and maneuvers. For vehicles and crews, a pin result forces certain conditions such as buttoning up in closed-top vehicles or modifying fire attack capabilities\u30104:1\u2020source\u3011\u30104:6\u2020source\u3011.",
+        "rougeL": 0.35333333333333333,
+        "bert_f1": 0.862662672996521,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What is \"cowering\" in fire attacks, as defined by section A7.9?",
+        "expected_answer": "Cowering is the reduction of attack effectiveness when an infantry unit (not led by a leader) rolls an original doubles on the IFT attack dice. The attack is resolved on the next lower column of the Infantry Fire Table (shifting one column left) as a penalty. (Inexperienced Green units cower even more, shifting two columns left on doubles.)",
+        "model_response": "The concept of \"cowering\" in Advanced Squad Leader, as defined by section A7.9, refers to the impact on Infantry Fire Table (IFT) attacks when an original die roll results in doubles, unless a leader is directing the attack. When cowering occurs, the attack is resolved on the next lower column of the IFT. If the attack was initially on the lowest column, it results in no effect, although a malfunction result can still occur. Additionally, when a unit cowers, that unit and all of its support weapons are marked with a Prep Fire or Final Fire counter, losing the potential for Multiple Rate of Fire and Subsequent First Fire\u30104:2\u2020source\u3011.",
+        "rougeL": 0.2456140350877193,
+        "bert_f1": 0.8699909448623657,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "In section A8.2, what is Residual Firepower (RFP) and how does it work?",
+        "expected_answer": "Residual Firepower is a game mechanic representing lingering fire in a location after defensive fire. When a unit fires at a moving enemy in the Defensive First Fire, it places a Residual FP counter (usually half of the attack's FP) in that hex. Any other enemy unit that later enters or spends movement in that same hex during that Movement Phase will be attacked using that residual firepower (with its own IFT roll).",
+        "model_response": "Residual Firepower (RFP) in Advanced Squad Leader is a game mechanic that enhances the realism of firefights by representing ongoing threat areas after an initial attack. When a unit is attacked during Defensive First Fire, Subsequent First Fire, or Final Protective Fire (FPF), the targeted location is marked with a Residual FP counter. This counter represents half of the firepower (up to a maximum of 12, after adjustments) from the highest Infantry Firepower Table (IFT) column used for that attack. The RFP can affect any subsequent units that enter the location by attacking them with the remaining firepower, using the IFT to resolve this attack\u30104:0\u2020source\u3011.\n\nThe RFP is triggered by any unit expending movement factors (MF) or movement points (MP) while entering or maneuvering in the marked location, but units leaving the location are not affected. All terrain effects modifiers in the target location, such as non-hexside terrain and smoke or fire hindrance, apply to RFP attacks\u30104:0\u2020source\u3011. \n\nThere are some restrictions on RFP usage:\n- Only one residual FP counter can exist in a location at a time, though a larger residual FP counter from a stronger attack can replace a smaller one.\n- It never forms a fire group; it attacks singularly.\n- RFP counters have different functionalities when units bypass or navigate certain terrains but remain generally consistent in rules\u30104:2\u2020source\u3011\u30104:3\u2020source\u3011.\n\nAdditionally, an RFP is unaffected by cowering, and the decision to place an RFP may affect a unit's ability to conduct further attacks during a phase\u30104:1\u2020source\u3011\u30104:3\u2020source\u3011.",
+        "rougeL": 0.17699115044247787,
+        "bert_f1": 0.8504090905189514,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A9.7 deals with Support Weapon malfunctions. What happens if a machine gun or other support weapon malfunctions during play?",
+        "expected_answer": "If a support weapon (like a MG) malfunctions \u2013 typically by rolling an original 12 on a fire attempt \u2013 it is marked with a malfunction counter and cannot be used until repaired. If a malfunctioned weapon suffers another malfunction result (for example, a failed repair roll or another 12 while already broken), it is permanently eliminated (the weapon is considered destroyed/unusable).",
+        "model_response": "Summary answer: When a machine gun or other support weapon (SW) malfunctions during play, it is either inverted or removed from play depending on the type of malfunction. The attack that caused the breakdown is still resolved, but no subsequent fire from that SW is allowed until it is repaired.\n\nExplanation: According to the Advanced Squad Leader rules, when a support weapon like a machine gun is used, there is a risk that it may become jammed or run out of ammunition. Each SW has an inherent Breakdown Number (B#); if the Original IFT (Infantry Fire Table) resolution dice roll (DR) (or To Hit DR for ordnance weapons) is equal to or greater than this B#, the SW malfunctions. For SWs with an \"X#\" on their counter, this means the weapon is removed from play because it has permanently malfunctioned. For others, it means the weapon is inverted to indicate it is malfunctioned, and it cannot be fired again until it has been successfully repaired during the Repair Phase\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011. Repair attempts can be made by any Good Order unit\u30104:2\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.1496062992125984,
+        "bert_f1": 0.8405984044075012,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What restrictions does section A10.5 place on broken units during the Rout Phase?",
+        "expected_answer": "During the Rout Phase, a broken unit cannot remain in the same Open Ground hex if it is in the normal range and LOS of a known, Good Order enemy unit. Also, a broken unit may not end its rout adjacent to or in the same location as a known enemy unit. This means broken units must rout away from enemies, seeking cover or more distant hexes to avoid being in open view of enemy units.",
+        "model_response": "The restrictions on broken units during the Rout Phase, as outlined in section A10.5, primarily focus on the need for these units to move away from enemy units and towards cover. Broken units are generally required to rout if they are adjacent to a known, unbroken, armed enemy unit unless they are held in melee. They must rout away from such enemy units, often towards woods or buildings where they can rally more effectively. The mechanics of this movement are that units use their movement factors (MF) during the Rout Phase.\n\nSpecifically, broken units may also face restrictions regarding Interdiction if they attempt to rout through open ground. A routing unit entering such a hex without using Low Crawl, and being within the Line of Sight (LOS) of an unbroken enemy unit, will be subject to a Normal Morale Check (NMC). Failing this check results in casualty reduction\u30104:1\u2020source\u3011.\n\nFurthermore, for a unit to continue its rout in a subsequent Rout Phase, it must be under Desperation Morale (DM), reflecting a continuously pressing situation\u30104:0\u2020source\u3011. Also, units may not be Interdicted more than once per open ground hex entered\u30104:1\u2020source\u3011.\n\nThese restrictions serve to simulate the disorganized and vulnerable state of broken units on the battlefield, as well as the tactical challenges of maneuvering under threat.",
+        "rougeL": 0.1806020066889632,
+        "bert_f1": 0.8652750849723816,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A11 covers Close Combat. How are attacks resolved in Close Combat in terms of timing?",
+        "expected_answer": "In Close Combat (CC), attacks are considered simultaneous. Both sides roll for their CC attacks and the results are applied simultaneously at the end of the phase. This means it's possible for units on both sides to eliminate each other in the same CC phase, since neither side's losses are removed until all Close Combat attacks have been resolved.",
+        "model_response": "Close Combat attacks in Advanced Squad Leader are resolved almost simultaneously during the Close Combat Phase (CCPh). Both sides attack the other simultaneously, and the results of these attacks are applied immediately. This means even if one side is eliminated as a result of the attack, the eliminated side still gets to conduct its attack. Close Combat involves comparing the Firepower (FP) of the attacking units against the FP of the defending units to establish a ratio, which is then used on the Close Combat Table (CCT) to determine the outcome\u30104:0\u2020source\u3011.",
+        "rougeL": 0.24516129032258066,
+        "bert_f1": 0.8811630010604858,
+        "evaluation": "\u2705 Auto-pass"
+    },
+    {
+        "question": "According to section A12, when does a unit lose its Concealment (\"?\" counter)?",
+        "expected_answer": "A concealed unit will lose its concealment if it performs certain actions or conditions occur. Key examples: if it fires or attacks, if it moves in enemy LOS in Open Ground, or if an enemy unit comes adjacent to it, it loses concealment. Essentially, being exposed in an enemy's normal LOS/Range or taking an offensive action will strip away the \"?\" concealment marker.",
+        "model_response": "A unit loses its Concealment (\"?\" counter) under several conditions according to section A12:\n\n1. **When it becomes broken or reduced**, regardless of the proximity of enemy units\u30104:0\u2020source\u3011.\n2. **If it is attacked and suffers at least a Pin Task Check (PTC) or worse**, provided it is within the Line of Sight (LOS) of a Good Order enemy ground unit\u30104:0\u2020source\u3011\u30104:1\u2020source\u3011.\n3. **If a concealed unit does any of the following actions within the LOS of a Good Order enemy ground unit within 16 hexes**:\n   - Uses Non-Assault Movement, except behind bocage or between connected trenches.\n   - Moves into an Open Ground hex.\n   - Fires its weapons or is designated as an Opportunity Firer.\n   - Attacks in Close Combat, except for a successful Ambush attack.\n   - Has an enemy Infantry/Cavalry unit attempt to enter its Location during the Movement Phase\u30104:1\u2020source\u3011.\n\nThese are not exhaustive, and other activities, such as rallying a broken unit or using certain equipment, can also cause loss of concealment\u30104:5\u2020source\u3011. Additionally, specific conditions involving fortifications and concealed vehicles have their own rules for concealment loss\u30104:2\u2020source\u3011\u30104:14\u2020source\u3011.",
+        "rougeL": 0.1627906976744186,
+        "bert_f1": 0.8348081707954407,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A14.1 defines the Sniper Activation Number (SAN). What event triggers a sniper attack in ASL?",
+        "expected_answer": "A sniper attack is triggered whenever a player rolls an original dice roll equal to the opponent's SAN during play (on any roll that is eligible, such as rally attempts, MC/TC, or attack rolls). When that happens, after resolving the current action, the opponent's sniper is activated: you roll for a sniper attack which can result in a random enemy unit being pinned, wounded, or eliminated (depending on the sniper attack dr outcome).",
+        "model_response": "The event that triggers a sniper attack in Advanced Squad Leader (ASL) occurs during the Prep Fire Phase (PFPh), Movement Phase (MPh), Defensive Fire Phase (DFPh), or Advance Fire Phase (AFPh) when a player makes a To Hit (TH), Morale Check (MC), Task Check (TC), non-OBA (Off-board Artillery) Infantry Fire Table (IFT), or Entrenching Original Dice Roll (DR) that equals the enemy's Sniper Activation Number (SAN). Should this happen, the sniper attack is resolved after the effects of the dice roll that activated it have been fully resolved, but not before resolving any prior sniper attacks\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.18681318681318682,
+        "bert_f1": 0.8327916860580444,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What is \"Heat of Battle\" as described in section A15.1, and what can it lead to?",
+        "expected_answer": "Heat of Battle represents extraordinary combat reactions when a unit rolls an original 2 on a Morale Check or Rally roll. When this happens, you make a Heat of Battle die roll which can result in the unit creating a hero, becoming Battle Hardened (improving its quality), going Berserk, or other special outcomes instead of the normal result.",
+        "model_response": "The \"Heat of Battle\" in section A15.1 of the Advanced Squad Leader rules refers to a mechanism that can occur following an original Morale Check (MC) or Rally die roll (DR) of 2. This process reflects the potential for units under extreme stress or desperation in battle to become more hardened or act in unexpected ways. Notably, this does not apply to certain units involved in special situations like Human Wave attacks, or units that are berserk, climbing, swimming, wading, and other specified unit states\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011.\n\nThe outcomes of a \"Heat of Battle\" check can lead to several possibilities:\n\n1. **Hero Creation (DR \u2264 6)**: This result generates a hero, a strong single-man counter with specific rules and bonuses\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011.\n2. **Battle Hardening (DR 5-8)**: This outcome improves the unit by upgrading it to a more experienced or elite version\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011.\n3. **Berserk (DR 9-11)**: The unit goes berserk, forcing it to charge enemy units without regard for safety, and it automatically rallies if it was previously broken\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011\u30104:6\u2020eASLRB_v2.07-postprocessed.pdf\u3011.\n4. **Surrender (DR \u2265 12)**: The unit surrenders, unless specific conditions or national variants dictate a different result such as treating it as berserk\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011\u30104:6\u2020eASLRB_v2.07-postprocessed.pdf\u3011.\n\nEach of these outcomes reflects the varied ways soldiers might react under the intense pressure and chaos of battle, capturing the unpredictability and drama of military conflict.",
+        "rougeL": 0.16,
+        "bert_f1": 0.8175269365310669,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section A15.4, what happens when a unit goes Berserk?",
+        "expected_answer": "A berserk unit receives a morale boost and must charge the nearest known enemy unit. It must move toward that enemy as fast as possible (and cannot take cover or voluntarily break) and will immediately enter Close Combat if it reaches an enemy. Essentially, berserk units become fearless close-combat chargers that forfeit safety to engage the enemy.",
+        "model_response": "When a unit goes Berserk according to section A15.4 of Advanced Squad Leader rules, several things happen:\n\n1. **Creation and Marking**: Berserk units are created from infantry following a Final Heat of Battle Dice Roll of 9-11, except for non-elite Italian/Axis Minor Personnel units which surrender instead on a DR of \u2265 10. If a unit becomes berserk, it is marked with a Berserk counter\u30104:1\u2020file\u3011.\n\n2. **Automatic Rally**: A broken unit that goes berserk automatically rallies\u30104:1\u2020file\u3011.\n\n3. **Morale Level**: Berserk units acquire a base Morale Level of 10. If a berserk unit fails a Morale Check (MC), instead of breaking, it suffers Casualty Reduction. Berserk units never take specific checks (PAATC, LLMC, LLTC), never break, cower, or become pinned except in very specific situations such as certain checks, Minimum Move, wounds, or collapsed huts. Their Morale is not lowered by any cause, and they lose any CX, TI, Concealment, or pinned status. They do not receive the leadership benefit of a friendly leader, which can affect other Good Order units\u30104:1\u2020file\u3011.\n\n4. **Charge Requirement**: At the start of the Movement Phase (MPh), every non-Melee berserk unit must charge the nearest Known enemy unit in its Line of Sight (LOS) and attempt to enter its location, barring some exceptions such as pillbox or Fortified Building\u30104:2\u2020file\u3011\u30104:1\u2020file\u3011.\n\nOverall, a berserk unit focuses on attacking the nearest enemy and ignores most forms of negative status effects. The rules are designed to reflect a state of aggressive and fearless advance towards the enemy\u30104:1\u2020file\u3011\u30104:2\u2020file\u3011.",
+        "rougeL": 0.11515151515151516,
+        "bert_f1": 0.8261893391609192,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A18.1 discusses Field Promotions. How can a new leader be created during play via a Field Promotion?",
+        "expected_answer": "A new leader can be generated when a unit rolls an original 2 on a rally or morale check under certain conditions. For example, if a broken unit without a leader successfully self-rallies with an original 2, you then roll on the Leader Creation Table to see if a leader is created (this is a field promotion). Similarly, an original 2 rolled in Close Combat can also trigger a leader creation attempt.",
+        "model_response": "To create a new leader during play via a Field Promotion in Advanced Squad Leader, it can occur in two main ways\u30104:0\u2020source\u3011:\n\n1. **Self-Rally (A18.11):** During the first MMC Rally attempt of a player's own Rally Phase, a Self-Rally attempt can be made regardless of the unit's normal Self-Rally capabilities (as long as there is no Good Order leader in the location and the unit is not Disrupted). If this Self-Rally attempt results in an Original 2 DR (dice roll), the MMC is rallied and, additionally, the player may roll on the Leader Creation Table with a +1 DRM (Die Roll Modifier) because the unit was broken prior to the Self-Rally \u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011.\n\n2. **Close Combat Phase (CCPh) (A18.12):** Anytime a MMC (Multi-Man Counter) rolls an Original 2 DR while attacking in Close Combat, the player can immediately make a dr (die roll) on the Leader Creation Table. If a leader is created, his leadership modifier is applied to the Original 2 CC DR that created him, potentially altering the odds due to his inherent FP (Firepower)\u30104:1\u2020eASLRB_v2.07-postprocessed.pdf\u3011. \n\nCreated leaders add their leadership to the attack effectively, and their impact is calculated as if he had been there from the start of the turn\u30104:1\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.20129870129870128,
+        "bert_f1": 0.8364537358283997,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What is an Experience Level Rating (ELR) failure, and what happens to a unit that fails a morale check by more than its ELR (section A19.1)?",
+        "expected_answer": "If a unit fails a Morale Check by more than its ELR, it undergoes Replacement due to ELR failure. This means the unit is immediately downgraded to a lower quality unit: for instance, an elite squad failing by more than its ELR is replaced with a lower quality broken squad (representing loss of experience/leadership under stress).",
+        "model_response": "An Experience Level Rating (ELR) failure occurs when an unbroken Personnel unit fails a Morale Check (MC) by an amount greater than its ELR. The consequence of such a failure is that the unit is immediately replaced by a broken Personnel unit of lesser quality but of the same size\u30104:1\u2020source\u3011.\n\nWhen a unit fails a morale check by more than its ELR, it is subject to Replacement. For example, if an unbroken German Elite squad with an ELR of 4 fails a MC by five or more, it is replaced with a broken First Line squad\u30104:4\u2020source\u3011. If the unit has an underlined morale factor, it is treated as having an ELR of 5; if such a unit would be replaced due to an ELR failure, it is replaced by two broken half-squads of the same class\u30104:0\u2020source\u3011. Additionally, if a squad's morale factor is underlined and it becomes subject to Replacement, it becomes broken and Disrupted if unable to be replaced, such as due to being a squad of the poorest quality\u30104:4\u2020source\u3011.",
+        "rougeL": 0.24793388429752064,
+        "bert_f1": 0.8640316724777222,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section A20.1, what is the value of prisoners at the end of a scenario?",
+        "expected_answer": "Each captured enemy unit (that remains a prisoner under guard at scenario end) is worth double its normal victory point value. In other words, a prisoner counts as two times its usual victory points for purposes of scenario victory conditions.",
+        "model_response": "The value of prisoners at the end of a scenario in Advanced Squad Leader is double their normal Victory Condition value. This is detailed in section A20.1 of the rules\u30104:0\u2020source\u3011.",
+        "rougeL": 0.24324324324324323,
+        "bert_f1": 0.8701160550117493,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A20.3 covers the \"No Quarter\" rule. What does it mean if a side declares No Quarter?",
+        "expected_answer": "Declaring \"No Quarter\" means that side is refusing to take any prisoners. If No Quarter is in effect, enemy units that would normally surrender are not taken prisoner but are instead eliminated, and likewise the enemy will stop surrendering (their units will fight to the death rather than be captured once they know No Quarter has been declared).",
+        "model_response": "The \"No Quarter\" rule in Advanced Squad Leader (ASL) is a situation where the captor may choose to reject a surrendering unit or stack during the Rout Phase (RtPh) or when a unit is Disrupted, and instead eliminate it. If a side declares No Quarter by rejecting such a surrender (or by committing a Massacre), this results in all other enemy units continuously opting for Low Crawl or risking Interdiction to avoid surrendering\u2014even if they become Disrupted. Importantly, when one side invokes No Quarter, the opposing side\u2019s ability to accept subsequent surrenders is not affected\u30104:3\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.1728395061728395,
+        "bert_f1": 0.8443430662155151,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A21.11 describes penalties for using captured equipment. What are the penalties for a unit using a captured support weapon or gun?",
+        "expected_answer": "Captured weapons are less reliable and accurate. The captured support weapon or ordnance has its breakdown number decreased by 2 (making it more prone to malfunction), and if it's ordnance, it must use the red (lower) To Hit numbers with a +2 DRM to all To Hit rolls. Additionally, any multiple Rate of Fire is reduced by one when using captured equipment.",
+        "model_response": "The penalties for a unit using a captured support weapon or gun in Advanced Squad Leader are primarily related to malfunction risks and performance limitations:\n\n1. **Malfunction**: A captured Gun or Support Weapon (SW) has its Break/Repair number (B#/X#) decreased by two due to unfamiliarity with the equipment and the difficulty of resupply. Note that ammunition shortage penalties do not apply to captured Guns or SWs\u30106:0\u2020source\u3011.\n\n2. **Performance Limitations**: \n   - Captured weapons that would normally have a Multiple Rate of Fire (ROF) capability have it reduced by one. \n   - All attacks by captured ordnance must use the red To Hit Numbers and add a +2 Dice Roll Modifier (DRM) to all To Hit attempts. \n   - Captured non-ordnance weapons are penalized only by the decrease in their breakdown number and ROF\u30106:0\u2020source\u3011.\n\n3. **Non-Qualified Use**: An ordnance weapon requiring a crew can be operated by non-qualified friendly units or qualified enemy units, but the penalties described above apply. Non-qualified enemy units would experience doubled penalties for the use of special weapons\u30106:0\u2020source\u3011. \n\nThese rules emphasize the consequences of using unfamiliar captured equipment during combat scenarios in the game.",
+        "rougeL": 0.25384615384615383,
+        "bert_f1": 0.8559212684631348,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section A22.1, what are the range and firepower characteristics of a Flamethrower (FT)?",
+        "expected_answer": "A flamethrower is a powerful short-range weapon: it has a Normal Range of 1 hex with 24 Firepower at that range. It can attack out to 2 hexes away (Long Range) at half power (12 FP), and its FP is never increased for point-blank; in fact, FT attacks are affected by hindrances and are halved for Area Fire, but are extremely potent at close range.",
+        "model_response": "The flamethrower (FT) in Advanced Squad Leader has specific characteristics regarding its range and firepower as outlined in section A22.1. The normal range of a flamethrower is typically 1 hex unless specified otherwise. If the flamethrower's firepower (FP) is underscored, its normal range extends to 2 hexes\u30104:11\u2020source\u3011.",
+        "rougeL": 0.20168067226890757,
+        "bert_f1": 0.8574534058570862,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section A24 covers SMOKE. What effect does a Smoke counter have on firing and visibility?",
+        "expected_answer": "Smoke provides a hindrance to Line of Sight and attacks. Any attack tracing LOS through a Smoke counter receives a +2 DRM (for standard smoke; +3 if it's dense smoke), making it harder to hit targets. In addition, Smoke in a hex increases the movement cost for units entering that hex, and units inside smoke are harder to see.",
+        "model_response": "The effect of a Smoke counter on firing and visibility is that it acts as a hindrance but does not block line of sight (LOS). Specifically, a smoke counter has a full-strength hindrance effect of +3, which means it adds a +3 Hindrance Die Roll Modifier (DRM) to the Index of any fire traced through or into that hex. White Phosphorus (WP) smoke, on the other hand, has a full-strength hindrance effect of +2\u30104:1\u2020source\u3011.\n\nSmoke is treated as a two-level hindrance to LOS, meaning it can obscure vision up to two levels high but does not hinder firing, observing, or spotting that occurs above that elevation\u30104:4\u2020source\u3011\u30104:3\u2020source\u3011. The primary effect of smoke is to hinder firing by increasing the DR required to hit a target by adding the DRM of the hindrance\u30104:4\u2020source\u3011. \n\nWhen in a location affected by smoke, firing from that location suffers an additional +1 DRM when using the Infantry Fire Table (IFT) or attempting to hit a target\u30104:0\u2020source\u3011. Moreover, units in a smoke-affected location have their visibility of the world hindered more than others' visibility of them\u30104:0\u2020source\u3011.",
+        "rougeL": 0.16858237547892718,
+        "bert_f1": 0.8462921977043152,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What is a Human Wave attack as described in section A25.23 of the rules?",
+        "expected_answer": "A Human Wave is a special mass assault tactic where a group of infantry (usually certain nationalities like Chinese or Japanese) all rush toward the enemy together. All participating units move toward a designated enemy unit as a synchronized wave, gaining extended movement (they can move further than normal) but they must move in a straight line toward the enemy and cannot stop or seek cover, reflecting a frenzied bayonet charge.",
+        "model_response": "A Human Wave attack, as described in section A25.23 of the Advanced Squad Leader rules, is a coordinated, mass movement tactic that represents an assault by very large numbers of infantry over open ground. The rules for a Human Wave prescribe that the units must progress in formation, advancing towards enemy positions. The units involved in the Human Wave attack move as a single \"multi-Location stack\" in impulse movement, allowing them to coordinate their movement more effectively. This type of movement reflects situations where units in different locations move together as a cohesive group\u30104:0\u2020source\u3011.",
+        "rougeL": 0.21176470588235294,
+        "bert_f1": 0.8681972026824951,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section B1 defines Open Ground. How does Open Ground affect units in terms of cover and movement?",
+        "expected_answer": "Open Ground offers no cover or protective modifier \u2013 it has a Terrain Effect Modifier (TEM) of 0, meaning it doesn't help defensively. In fact, infantry moving in Open Ground are more exposed: enemy defensive fire against them gets a -1 DRM for FFMO (First Fire vs Moving in Open Ground), making them easier to hit while moving.",
+        "model_response": "Open Ground in Advanced Squad Leader affects units by providing no protection in terms of cover and influencing movement in specific ways.\n\n- **Cover and Fire:**\n  Open Ground hexes generally provide no Terrain Effects Modifier (TEM) to incoming fire unless modified by other elements such as SMOKE or adjacent terrain. Units moving through Open Ground are subject to the -1 First Fire Non-Assault Movement (FFNAM) and -1 First Fire Moving in Open (FFMO) DRM, making them more vulnerable to attacks\u30104:1\u2020source\u3011.\n\n- **Movement:**\n  For movement purposes, Open Ground presents certain implications. For Infantry and Cavalry units, movement is straightforward without additional costs except for the FFNAM and FFMO penalties during movement. During the Mud and Deep Snow conditions, units may be required to spend additional movement points (MF) when entering Open Ground\u30104:0\u2020source\u3011\u30104:1\u2020source\u3011.\n\nOverall, Open Ground offers no inherent defensive benefits and can make units more susceptible to attacks during movement.",
+        "rougeL": 0.19534883720930232,
+        "bert_f1": 0.8599252104759216,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section B2, what benefit do Shellholes provide to units that occupy them?",
+        "expected_answer": "Shellholes (craters) give units a small defensive benefit by providing partial cover. Units in shellholes receive a +1 TEM (they're slightly harder to hit) as they can take cover in the craters. However, shellholes still count as open-type terrain in many respects \u2013 they just offer a bit of cover from fire.",
+        "model_response": "The benefit that Shellholes provide to units occupying them is a Terrain Effects Modifier (TEM) of +1. Shellholes are not a Hindrance to fire, and if units are moving quickly through a shellhole hex without entering the shellholes, they are treated as being in Open Ground. However, units that occupy shellholes gain the benefit of this TEM\u30104:1\u2020source\u3011.",
+        "rougeL": 0.19469026548672566,
+        "bert_f1": 0.8673537969589233,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section B3.4 discusses road movement. What bonus do infantry units get for moving entirely along a road?",
+        "expected_answer": "Infantry that move exclusively on roads during their Movement Phase get a road movement bonus of 1 extra Movement Factor. In practical terms, if a unit spends its whole move on road hexes, it effectively has one additional MF to use, reflecting the ease of movement along roads.",
+        "model_response": "The bonus for infantry units moving entirely along a road is one extra Movement Factor (MF). Infantry, Cavalry, and Horse-Drawn units that cross only road hexsides throughout their Movement Phase are entitled to this extra MF, provided they do not encounter certain obstacles such as mines, burning wrecks, wire, mud, rubble, roadblocks, debris, SMOKE, or Deep Snow in those road hexes and are not pushing guns\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.1475409836065574,
+        "bert_f1": 0.8536606431007385,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section B9 covers walls and hedges. What defensive benefit do walls or hedges provide to units?",
+        "expected_answer": "A wall or hedge provides a +2 TEM cover to units directly behind it (against fire traced across that hexside). So, if a unit is up against a wall/hedge, shots coming through that hexside are two points less likely to harm them. Additionally, for vehicles, being behind a wall or hedge can confer a Hull Down status, meaning only the turret is exposed to enemy fire.",
+        "model_response": "Walls and hedges in Advanced Squad Leader provide a defensive benefit known as Terrain Effects Modifier (TEM). Specifically, firing across a hedge applies a TEM of +1, while a wall provides a TEM of +2. However, a unit can only use either the hexside TEM or the TEM of its hex, not both\u30104:0\u2020source\u3011. \n\nThis means that walls and hedges offer some level of protection to units by increasing the difficulty for enemies to successfully attack them when a line of sight crosses these features. Additionally, these obstacles provide cover benefits during certain movements or interactions in the game\u30104:2\u2020source\u3011.",
+        "rougeL": 0.15204678362573099,
+        "bert_f1": 0.858733594417572,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What are the effects of Woods terrain on movement and cover, as given in section B13?",
+        "expected_answer": "Woods are a level-1 obstacle that blocks line of sight and provides significant cover. Infantry must expend extra movement points (2 MF) to enter a woods hex, and units in woods receive a +2 TEM (terrain modifier) for protection. In short, woods slow movement but offer good defensive cover and block LOS beyond them.",
+        "model_response": "The Woods terrain in Advanced Squad Leader impacts both movement and cover as follows:\n\n**Movement:**\n- Infantry and Cavalry entering a woods hex must expend two Movement Factors (MF)\u30104:0\u2020source\u3011.\n\n**Cover:**\n- Woods are a one-level obstacle to Line of Sight (LOS), and a woods hex on a level 1 hill is considered a level 2 LOS obstacle\u30104:0\u2020source\u3011.\n- Direct Fire into a woods hex receives a +1 Terrain Effects Modifier (TEM), except when bypass movement is concerned. For Indirect Fire against unarmored, Closed Environments (CE), or Open Topped (OT) targets in a woods hex, a -1 TEM applies due to Air Bursts\u30104:0\u2020source\u3011. \n\nThese rules for Woods terrain enhance the strategic complexity in the game by providing protective cover while influencing how units move through the terrain.",
+        "rougeL": 0.2127659574468085,
+        "bert_f1": 0.8541682362556458,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section B23, what are the typical Terrain Effects Modifiers for wooden buildings and for stone buildings?",
+        "expected_answer": "Wooden building terrain usually provides +2 TEM (two-column defensive bonus) to units inside, while stone buildings provide +3 TEM. Thus, units in stone/brick buildings are better protected (harder to hit) than those in wooden buildings, due to the sturdier construction.",
+        "model_response": "The typical Terrain Effects Modifiers (TEMs) for wooden and stone buildings according to Section B23 are as follows:\n\n- Wooden buildings have a TEM of +2.\n- Stone buildings have a TEM of +3\u30104:2\u2020eASLRB_v2.07-postprocessed.pdf\u3011. \n\nThese modifiers are used to provide protection to units occupying these buildings by adding to the dice roll (DR) during attacks, thus making it more challenging for attackers to hit units within these terrains.",
+        "rougeL": 0.19130434782608693,
+        "bert_f1": 0.8596075177192688,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section B26 describes barbed wire. How does barbed wire (Wire) affect infantry movement?",
+        "expected_answer": "Barbed wire hinders infantry movement significantly. An infantry unit entering a hex with a Wire counter must end its Movement Phase in that hex (they can't move further) and it costs extra MF to enter. Wire does not provide any cover; it's purely an obstacle. (Vehicles cannot enter a hex with Wire at all, unless the wire is removed.)",
+        "model_response": "Barbed wire (Wire) affects infantry movement by creating a movement hindrance. Infantry units in a Wire Location are initially placed on top of the Wire counter and must expend additional movement factors (MF) to move beneath the Wire. Entering a Wire Location itself does not cost additional MF beyond the normal cost of terrain (COT) of that Location; however, once atop the Wire, a unit must make a dice roll for exiting the Wire and then expend that number of MF to move under it. Once beneath the Wire, a unit can continue to move unhindered, and any remaining MF can be used to move elsewhere normally\u30104:0\u2020source\u3011.\n\nThere are some caveats:\n- A unit on a Wire counter cannot use Sewer/Tunnel Movement\u30104:0\u2020source\u3011.\n- Infantry may not Double Time or Dash during a turn in which they attempt to move beneath Wire\u30104:4\u2020source\u3011.\n- A unit hung up on top of the Wire due to insufficient MF (after the roll) cannot leave during that Movement Phase/Routing Phase\u30104:0\u2020source\u3011.\n\nRouting through Wire follows similar rules, where broken units must also achieve enough movement capability to successfully rout away from threats while navigating Wire\u30104:1\u2020source\u3011. If unable to do so, units may be eliminated for failure to rout\u30104:1\u2020source\u3011.",
+        "rougeL": 0.15714285714285714,
+        "bert_f1": 0.8436717987060547,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What advantage does a foxhole provide to infantry, according to section B27?",
+        "expected_answer": "A foxhole (entrenchment) gives infantry a protective position even in open terrain. Troops in a foxhole receive a +2 TEM as if they were in protective terrain, making them much harder to hit than if they were just in Open Ground. Essentially, a foxhole allows units to have cover and even remain concealed in otherwise exposed locations.",
+        "model_response": "In section B27, a foxhole provides infantry with a Terrain Effects Modifier (TEM). Specifically, any unit beneath a foxhole counter gains a +4 TEM against any Overrun (OVR) or Off-Board Artillery (OBA) attack, and a +2 TEM against any other type of attack, including on-board mortar fire\u30104:1\u2020source\u3011. This offers significant protection to infantry by reducing the effects of enemy attacks. However, the foxhole TEM is not cumulative with other positive TEMs in the same hex, but it does combine with the negative TEM effects of an Air Burst\u30104:3\u2020source\u3011.",
+        "rougeL": 0.1699346405228758,
+        "bert_f1": 0.8486768007278442,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section C3 outlines the To Hit process. How does an ordnance attack determine if it hits a target?",
+        "expected_answer": "For an ordnance (gun) attack, the firing player rolls two dice and applies all relevant To Hit modifiers to that roll. If the modified result is less than or equal to the firing weapon's To Hit number (after adjustments for range, target size, motion, etc.), the attack is a hit. If the roll exceeds the modified To Hit number, the shot misses the target.",
+        "model_response": "The ordnance attack in Advanced Squad Leader determines if it hits a target through the To Hit (TH) process, which involves several key steps:\n\n1. **Determine Basic TH#:** First, you find the Basic To Hit Number (TH#) from the To Hit Table (C3) based on the target type and range\u30104:12\u2020source\u3011.\n\n2. **Calculate Modified TH#:** Next, you calculate the Modified TH# by applying any relevant modifiers from the Gun & Ammo Basic To Hit Number Modifications (C4) and Firer-Based Hit Determination DRM (C5)\u30104:12\u2020source\u3011.\n\n3. **Roll the dice:** You then roll dice to determine the TH attempt.\n\n4. **Apply DRM:** Any Dice Roll Modifiers (DRM) from Tables C5 (Firer-Based) and C6 (Target-Based) are applied\u30104:0\u2020source\u3011.\n\n5. **Compare and Determine Hit:** If the final modified dice roll is less than or equal to the Modified TH#, the attack hits the target\u30104:0\u2020source\u3011.\n\n6. **Resolution of Effects:** If a hit is scored, another dice roll is made to resolve the effects of the hit, such as damage inflicted\u30104:0\u2020source\u3011.\n\nThis structured process ensures that factors like range, target type, and Dice Roll Modifiers (DRM) are thoroughly considered to determine the outcome of the ordnance attack.",
+        "rougeL": 0.20740740740740743,
+        "bert_f1": 0.8347073793411255,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What is a Critical Hit in ordnance fire, as defined by section C3.7?",
+        "expected_answer": "A Critical Hit (CH) is an extremely well-placed hit that dramatically increases damage. It occurs on a very low To Hit roll (usually an original DR of 2, if it falls within the needed to-hit range) and causes the attack's effect to double (for example, doubling the firepower on the IFT or doubling the TK number against vehicles). Essentially, a critical hit means the shell hit a vital spot, resulting in much greater effect and even negating some terrain protection for that shot.",
+        "model_response": "A Critical Hit in ordnance fire, as defined by section C3.7, is a hit that is so well placed it increases the chance of causing damage on the resulting Infantry Fire Table (IFT) Effects or To Kill (TK) dice roll. This occurs under specific conditions for different target types:\n\n- **Area/Vehicle Target Type**: An original To Hit (TH) dice roll (DR) of 2 qualifies as a critical hit.\n- **Infantry Target Type**: This requires the final TH DR to be less than half of the modified TH number, or a 2 TH DR followed by a subsequent DR of 1, or a DR less than or equal to half of the modified TH number\u30104:2\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.22222222222222224,
+        "bert_f1": 0.8385840058326721,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section C5.6 covers Intensive Fire. What does Intensive Fire allow a gun to do, and what is the drawback?",
+        "expected_answer": "Intensive Fire allows a gun (that hasn't malfunctioned) to fire one extra time beyond its normal ROF in a phase, by pushing the crew and weapon harder. The drawback is a +2 To Hit penalty on that extra shot and an increased risk of malfunction \u2013 the gun's breakdown number is lowered by 2 for the Intensive Fire shot, making it more likely to jam or break.",
+        "model_response": "Intensive Fire allows a gun to fire one additional shot during a Player Turn after it has exhausted its normal Rate of Fire (ROF). However, this can only be done if the crew is not pinned, shocked, stunned, or marked with a Final/Intensive Fire counter. Intensive Fire cannot be used during the Advancing Fire Phase (AFPh) except by an Opportunity Firer. Furthermore, the gun's To Hit Roll receives a +2 modifier, reflecting a loss of accuracy, and the Break Number (B#) for malfunctions decreases by two, increasing the risk of gun malfunction\u30104:0\u2020source\u3011.",
+        "rougeL": 0.26666666666666666,
+        "bert_f1": 0.8821631669998169,
+        "evaluation": "\u2705 Auto-pass"
+    },
+    {
+        "question": "According to section D2.13, what must a vehicle do before it can start moving if it was previously stopped?",
+        "expected_answer": "If a vehicle begins the phase stopped, it must spend one Movement Point to \"Start\" before it can move. In other words, the first MP expended is to start the vehicle's engine (get it moving), and only after paying that Start cost can the vehicle begin to actually move to another hex.",
+        "model_response": "To start moving after a vehicle has been stopped, it must pay the Starting MP expenditure. According to section D2.13, a vehicle must pay the Starting MP again if it stops and then begins to move again during the same Movement Phase (MPh), provided it has Movement Points (MP) remaining\u30104:1\u2020source\u3011.",
+        "rougeL": 0.24299065420560748,
+        "bert_f1": 0.863597571849823,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section D2.42 talks about Motion status. What does it mean for a vehicle to be in Motion?",
+        "expected_answer": "A vehicle in Motion is one that hasn't stopped \u2013 it continues to move (marked with a Motion counter). Being in Motion makes it harder for enemies to hit the vehicle with fire (a To Hit penalty applies against it), but the moving vehicle also suffers limitations (for example, it can't fire most weapons effectively while moving). Essentially, Motion status indicates the vehicle never halted and is a moving target.",
+        "model_response": "The Motion status for a vehicle in Advanced Squad Leader refers to whether a vehicle is still considered to be moving rather than stopped at the end of its Movement Phase (MPh). A vehicle is considered in Motion if it has used its entire printed Movement Points (MP) allotment during its MPh without expending an MP to Stop or Delay. Such a vehicle is marked with a Motion counter, indicating it is in Motion status. Vehicles can end their MPh in Motion status without spending all their MPs if they do not have enough MPs left to enter the next hex they wish to move into.\n\nVehicles marked with a Motion counter start their next MPh without having to pay the one MP starting cost and are considered moving targets, improving their chances of evading enemy fire during the MPh even before entering a new hex. The Motion counter is removed once the vehicle starts moving in the next MPh or if it becomes Immobile\u30104:0\u2020source\u3011.",
+        "rougeL": 0.21757322175732216,
+        "bert_f1": 0.8504524827003479,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What does it mean when a vehicle is Hull Down, as per section D4.2?",
+        "expected_answer": "Hull Down means the vehicle's lower hull is behind cover or terrain and cannot be hit by Direct Fire. Any direct shot that would strike the hull is negated \u2013 only turret hits count. In game terms, a hull-down vehicle is treated as hit only on a turret location; hits that would have hit the hull are considered misses, making the vehicle much harder to knock out from that direction.",
+        "model_response": "A vehicle is considered \"Hull Down\" (HD) as per section D4.2 when it is positioned behind cover such as a wall or crest of a hill, providing significant protection from enemy fire. In this position, shots aimed at the vehicle must hit its turret to have any effect; otherwise, the shots only hit the cover, such as the wall or hill. This positioning often results in over half of the incoming hits having no effect on the vehicle. Additionally, a Critical Hit (CH) will always hit a vehicle in its upper superstructure when it is Hull Down. This status also prohibits enemy forces from attempting a Deliberate Immobilization shot against a Hull Down vehicle\u30104:0\u2020source\u3011.",
+        "rougeL": 0.1798941798941799,
+        "bert_f1": 0.8621270060539246,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section D7 describes Overrun attacks. What is an Overrun attack by a vehicle?",
+        "expected_answer": "An Overrun is a close assault by a vehicle against infantry (or other non-vehicular targets) in the same hex. In the Movement Phase, a vehicle can enter an enemy-occupied hex (paying extra MP) and immediately conduct an attack with its MGs and small arms against those units. Essentially, the vehicle \"overruns\" the enemy position by driving into it and firing on the units there during its move.",
+        "model_response": "An Overrun attack is a maneuver in Advanced Squad Leader where a vehicle, typically an armored fighting vehicle (AFV), moves into a location occupied by enemy units and performs an attack. The procedure is specific to vehicles and requires them to expend movement points to enter the enemy-occupied location and then declare an overrun, expending additional movement points to resolve the attack. The attack itself simulates the vehicle driving over or mashing through the enemy positions, therefore, it is typically resolved immediately with certain combat factors and considerations.\n\nHere's a summary of Overrun attacks by vehicles from the rules:\n\n- **Declaration and Movement**: An overrun must be declared before the vehicle enters the hex of Known enemy units. The vehicle must have sufficient movement points, and the overrun involves additional MP expenditure beyond just entering the hex.\n- **Restrictions**: Typically, only fully-tracked, buttoned-up vehicles (closed-topped AFVs) can perform overruns. The terrain can also affect the possibility of an overrun; for instance, certain types of terrain may restrict overrun capabilities.\n- **Resolve the Attack**: The attack affects all unarmored units and vulnerable passengers in that hex. The attack strength (firepower) used in the overrun is determined by the armament capabilities of the vehicle.\n- **Impact on Personnel and Equipment**: SWs (support weapons) or guns in the location can be destroyed, and personnel may be forced to check morale or become eliminated depending on the roll results and the specifics of the attack.\n\nDuring the overrun resolution, firepower considerations and modifiers apply, similar to regular combat, but focus on the immediate and disruptive nature of being overrun by a vehicle\u30104:0\u2020source\u3011.",
+        "rougeL": 0.15249266862170088,
+        "bert_f1": 0.8464474678039551,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section D8.2, what happens when a vehicle becomes Bogged?",
+        "expected_answer": "If a vehicle bogs down, it gets stuck in terrain (like mud, snow, soft ground, or trying to cross a wall/hedge) and cannot move from its current hex until it's freed. A bogged vehicle is treated as immobilized (it can't change hex or its Vehicle Covered Arc) while bogged. The crew can attempt to free the vehicle in later turns, but until then the vehicle is essentially immobile (though it can still pivot its turret if it has one).",
+        "model_response": "When a vehicle becomes bogged in Advanced Squad Leader, according to section D8.2, it indicates that the vehicle is stuck in the terrain and typically cannot move until it is unbogged. The status and the potential actions or conditions affecting a bogged vehicle can vary based on specific rules for bog removal attempts, effects on target status, and the ability to perform non-movement actions.\n\nFor example, bog removal in ASL involves attempting to eliminate the bog status at the start of a vehicle's Movement Phase by spending a number of Movement Points (MP) determined by a die roll, and this process can be assisted by another vehicle in some cases\u30104:0\u2020source\u3011. Additionally, a bogged vehicle's combat capabilities are mostly unchanged, except for limitations involving its Vehicle Covered Arc (VCA)\u30104:2\u2020source\u3011. Moving out of the bog hex makes the vehicle a moving target again\u30104:2\u2020source\u3011.\n\nThese rules ensure that each scenario involving bogged vehicles is handled with a nuanced approach, adding to the game's strategic and tactical depth.",
+        "rougeL": 0.17692307692307693,
+        "bert_f1": 0.8520535230636597,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section D9.31 introduces Armored Assault. What is an Armored Assault and how does it benefit infantry?",
+        "expected_answer": "Armored Assault is when infantry moves in tandem with an armored fighting vehicle (in the same hex) to use it as moving cover. If infantry declares Armored Assault by staying with a tank during movement, they receive a +1 TEM benefit against enemy fire (the tank shields them as they move). In short, the infantry are harder to hit while advancing alongside a friendly tank.",
+        "model_response": "An Armored Assault in Advanced Squad Leader allows infantry to utilize the benefits of a Tank or Armored Fighting Vehicle (AFV) during movement. Specifically, infantry can take advantage of a +1 Terrain Effects Modifier (TEM) provided by a friendly AFV when they move together in the same hex, starting their Movement Phase beneath the AFV. This combined movement means the AFV cannot move farther than the infantry could, unless the infantry fail to end the movement phase in the same hex as the AFV. When moving across otherwise Open Ground with the AFV, the infantry are not subject to the First Fire Movement Open (FFMO) penalty, but are subject to the First Fire Non-Assault Movement (FFNAM) penalty plus a +1 DRM for the AFV, resulting in an effective zero DRM if Assault Movement is not declared\u30104:1\u2020source\u3011.\n\nThe benefit to the infantry in this scenario includes a defense against incoming fire due to the +1 TEM, providing additional protection as they advance alongside the AFV. A stopped AFV continues to provide the +1 TEM during the Defensive Fire Phase (DFPh) to units that moved alongside it\u30104:1\u2020source\u3011.",
+        "rougeL": 0.2101167315175097,
+        "bert_f1": 0.8687230348587036,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section E1 covers Night rules. How is visibility (Line of Sight) different in a night scenario?",
+        "expected_answer": "At night, visibility is greatly reduced. There is a Night Visibility Range (NVR) \u2013 often just a few hexes \u2013 beyond which units cannot see without illumination. Essentially, units can only see a short distance in the dark (unless aided by starshells, searchlights, or other scenario-specific illumination), so most distant targets remain hidden at night.",
+        "model_response": "Summary Answer: In night scenarios of Advanced Squad Leader, visibility (Line of Sight, LOS) is significantly impacted compared to daylight. The maximum distance a unit can see, known as the Night Visibility Range (NVR), is limited, making it harder to spot enemy units unless they are illuminated or have moving vehicles\u30104:1\u2020source\u3011. Several factors, such as gunflashes and illumination sources, can also affect visibility, either enhancing or degrading it by casting unusual shadows\u30104:2\u2020source\u3011.\n\nExplanation: During night scenarios, the NVR defines the maximum hex range a unit can see, with obstacles still affecting this visibility. The NVR can change based on the moon phase and cloud cover, and beyond this range, units are typically not visible unless affected by factors like gunflashes\u30104:1\u2020source\u3011. Gunflashes and illumination from sources such as starshells can make normally invisible units visible by lighting up areas, but can also make it harder to see in overly bright contrasts\u30104:2\u2020source\u3011. Moreover, a night scenario can involve stealthy movements where units can take advantage of reduced visibility for surprise attacks\u30104:3\u2020source\u3011.",
+        "rougeL": 0.14285714285714282,
+        "bert_f1": 0.8562377095222473,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section E2.1, when does Interrogation occur and what can it reveal?",
+        "expected_answer": "Interrogation occurs whenever a personnel unit surrenders or is captured \u2013 the captor immediately makes a die roll on the Interrogation Table. Depending on the roll (and modifiers), the interrogation can force the enemy to reveal hidden information, such as the location of the nearest concealed unit, a hidden unit (HIP) or fortification, or in the best case \"Defenses Compromised\" which can reveal multiple hidden elements.",
+        "model_response": "Interrogation occurs whenever a Personnel unit surrenders or is captured. During this process, the captor must make a die roll (DR) on the Interrogation Table for each captured unit. The results of this roll can reveal concealed units, hidden units, or fortifications, depending on the outcome\u30104:0\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.45762711864406785,
+        "bert_f1": 0.8965956568717957,
+        "evaluation": "\u2705 Auto-pass"
+    },
+    {
+        "question": "Section E4.3 deals with Ski Troops. What advantage do ski-equipped infantry have in snowy conditions?",
+        "expected_answer": "Ski troops can move more easily through snow and deep snow. Specifically, an infantry unit in ski mode ignores the extra movement costs for snow or drift \u2013 they pay normal movement costs as if the snow wasn't slowing them. This means ski-equipped units can cover ground in winter conditions much faster than regular infantry on foot.",
+        "model_response": "Ski-equipped infantry have the advantage of not paying any additional Movement Factors (MF) due to snow or drift in scenarios with snowy conditions. They pay the normal infantry MF entrance costs for terrain while on skis. This allows them to move more efficiently compared to non-ski-equipped troops, who would incur extra movement penalties due to the snow\u30104:2\u2020eASLRB_v2.07-postprocessed.pdf\u3011.",
+        "rougeL": 0.224,
+        "bert_f1": 0.8817697763442993,
+        "evaluation": "\u2705 Auto-pass"
+    },
+    {
+        "question": "What is \"Scrub\" terrain, and who benefits from it, as described in section F2.3?",
+        "expected_answer": "Scrub is a type of low brush terrain found in desert scenarios. It is Concealment Terrain for infantry \u2013 meaning it can hide infantry units and dummy stacks (they can remain concealed in scrub) \u2013 but it does not provide any substantial cover or TEM. Vehicles do not gain any concealment or cover from scrub; it mainly helps infantry stay hidden.",
+        "model_response": "**Summary Answer:** \"Scrub\" terrain is considered concealment terrain specifically for Infantry (and their possessed Support Weapons), Dummy stacks, entrenchments, and Emplaced Guns. Those benefiting from scrub terrain include these units by allowing them to remain concealed.\n\n**Explanation:** According to section F2.3, scrub terrain offers concealment benefits. Specifically, it is classified as concealment terrain but only applies to certain units such as Infantry, Dummy stacks, entrenchments (including Sangars), and Emplaced Guns. This means that these units can take advantage of the terrain to remain hidden from enemy observation\u30104:0\u2020source\u3011.",
+        "rougeL": 0.22666666666666666,
+        "bert_f1": 0.850796103477478,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "Section F7 discusses sand. How does deep or soft sand affect vehicle movement?",
+        "expected_answer": "Soft sand (deep desert sand) makes it more difficult for vehicles to move. Vehicles (especially wheeled vehicles) must spend additional MP to move through sand, and often must make a Bog Check when entering soft sand. In practice, wheeled vehicles are very likely to bog down in deep sand, and even tracked vehicles risk getting temporarily stuck or slowed by it.",
+        "model_response": "The movement of vehicles through deep or soft sand in Advanced Squad Leader has a significant impact on gameplay. Deep or soft sand increases movement costs and the probability of vehicles bogging down. Specifically:\n\n1. **Movement Points (MP) and Factors (MF) Costs**: Vehicles expend more MP to enter a sand hex than they do to enter standard open ground. For example, fully-tracked vehicles expend two MP in normal conditions (with additional costs if the environmental conditions are not wet or muddy)\u30104:1\u2020source\u3011.\n\n2. **Bog Checks**: When a vehicle enters or changes its VCA (Vehicular Covered Arc) in a sand hex, it must make a \"Sand Bog DR\" (Die Roll) to determine if it becomes bogged. The vehicle bogs down if the result is equal to or greater than 12, with certain DRMs (Die Roll Modifiers) applying based on various factors, such as vehicle type and current conditions\u30104:3\u2020source\u3011\u30104:8\u2020source\u3011.\n\n3. **Terrain Modifiers**: The type of sand, whether hard or soft, and associated conditions can modify these checks. For instance, a -1 DRM is applied to a Bog Check in Hard Sand\u30104:0\u2020source\u3011.\n\nThis reflects the increased difficulty and potential for immobilization that vehicles face when traveling through deep or soft sand, impacting tactical decisions during play.",
+        "rougeL": 0.15217391304347827,
+        "bert_f1": 0.8321744203567505,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "According to section G1.1, how do Japanese squads differ from other squads in terms of breaking and rallying?",
+        "expected_answer": "Japanese squads do not have a normal \"broken\" side. Instead, they have two full-strength sides (one full-strength and one reduced-strength with a red stripe) and typically do not break in the normal way. When a Japanese squad fails a morale check, it usually undergoes step reduction \u2013 flipping to its reduced-strength side (or splitting into a half-squad if already reduced) \u2013 rather than crumbling and routing like other nationalities. They generally fight on at reduced strength instead of breaking and running.",
+        "model_response": "Japanese squads differ from other squads in Advanced Squad Leader as they do not possess a broken side, indicating that they cannot break in the traditional sense as most units do. Instead of breaking, Japanese squads have unique statuses at reduced strength and utilize concepts such as \"Step Reduction\" and \"Casualty Reduction\" to handle morale checks and breaks\u30104:1\u2020source\u3011. \n\nFor instance, a Japanese squad that would normally suffer a break result instead undergoes Step Reduction: a stronger unit is replaced with a reduced-strength one\u30104:0\u2020source\u3011. Furthermore, when suffering a combat result that would cause a break under regular rules, Japanese units might be subject to specific replacements by a half-squad of the same class rather than following standard breaking rules\u30104:1\u2020source\u3011. \n\nAdditionally, Japanese single-man counters (SMC) cannot voluntarily break, and upon results that would cause breaking, they are instead wounded \u30104:0\u2020source\u3011. This distinctive rule set grants Japanese forces more resilience under fire, reflecting their historical doctrine and character in World War II conflicts.",
+        "rougeL": 0.23255813953488377,
+        "bert_f1": 0.8490116596221924,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    },
+    {
+        "question": "What are Victory Conditions in ASL, as outlined by section A26?",
+        "expected_answer": "Victory Conditions are the specific objectives that determine the winner of a scenario. They vary by scenario but usually involve things like controlling certain hexes or buildings, accumulating more victory points (often by eliminating enemy units or exiting units off the map), or meeting some defined goal by the end of the game. In essence, A26 reminds players that each scenario's special victory conditions must be met (whether territorial control or casualty points, etc.) to win the game.",
+        "model_response": "The Victory Conditions in Advanced Squad Leader (ASL), as outlined by section A26, cover several aspects:\n\n1. **Control Victory Conditions (A26.1)**: These involve controlling locations, hexes, or buildings. A player gains control at the scenario start and/or during the game by occupying with armed Good Order Infantry without enemy presence\u30104:1\u2020source\u3011.\n\n2. **Victory Points (VP) (A26.2)**: Points are awarded for the elimination, capture, or exit of units/equipment. The VP value of units can be affected by various circumstances such as leader creation or malfunction\u30104:6\u2020source\u3011\u30104:2\u2020source\u3011.\n\n3. **Casualty Victory Points (CVP) (A26.22)**: Points are awarded for eliminated/captured enemy units. CVP can be lost if captured units are no longer captured, but are worth double at the end of a scenario\u30104:7\u2020source\u3011.\n\n4. **Exit Victory Conditions (A26.23)**: Conditions based on exiting a specified number of VP from the mapboard through a defined exit area. Captured units exited according to conditions count differently\u30104:9\u2020source\u3011.\n\n5. **Avoidance (A26.3)**: If a scenario lists victory conditions for only one side, the other side wins by avoiding those conditions\u30104:9\u2020source\u3011.\n\n6. **Balance (A26.4)**: Scenarios may propose adjustments advantageous for one side\u30104:9\u2020source\u3011.\n\nThese rules outline how points are awarded and the strategic conditions for winning scenarios in ASL\u30104:0\u2020source\u3011.",
+        "rougeL": 0.15635179153094464,
+        "bert_f1": 0.8250787258148193,
+        "evaluation": "\u26a0\ufe0f Needs Human Review"
+    }
+]
