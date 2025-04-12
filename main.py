@@ -2,7 +2,8 @@ import os
 import sys
 import logging
 import asyncio
-from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, Response, status
+from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, Response, status, Depends, HTTPException
+from starlette.websockets import WebSocketState
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jose import jwt, JWTError
@@ -10,8 +11,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 # Import your user model and auth utilities
-from models import get_user_by_username  # Function to retrieve a user by username
-from auth import verify_password, create_access_token  # Functions for password verification and token creation
+from models import get_user_by_username, update_user_profile, User  # Function to retrieve a user by username
+from auth import verify_password, create_access_token, get_password_hash  # Functions for password verification and token creation
 
 # Configure logging with forced flush
 logging.basicConfig(
@@ -42,20 +43,44 @@ templates = Jinja2Templates(directory="templates")
 from fastapi.staticfiles import StaticFiles
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Home route
+# User dependency
+async def get_current_user(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            return None
+        user = get_user_by_username(username)
+        return user
+    except JWTError:
+        return None
+
+# Home route - accessible without login
 @app.get("/home", name="home", response_class=HTMLResponse)
 def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
+    token = request.cookies.get("access_token")
+    username = None
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+        except JWTError:
+            pass
+            
+    return templates.TemplateResponse("home.html", {"request": request, "username": username})
 
-# Root route redirects to login
+# Root route redirects to home
 @app.get("/", response_class=RedirectResponse)
 def root():
-    return RedirectResponse(url="/login", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 # Login page
 @app.get("/login", name="login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse("login.html", {"request": request, "username": None})
 
 # Login form submission
 @app.post("/login")
@@ -90,6 +115,66 @@ def ruleschat(request: Request):
         return RedirectResponse(url="/login", status_code=303)
     return templates.TemplateResponse("ruleschat.html", {"request": request, "username": username})
 
+# Profile page
+@app.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request, user: User = Depends(get_current_user)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    return templates.TemplateResponse("profile.html", {
+        "request": request, 
+        "user": user,
+        "username": user.username,
+        "message": request.query_params.get("message"),
+        "message_type": request.query_params.get("message_type", "info")
+    })
+
+# Update profile
+@app.post("/update-profile", response_class=RedirectResponse, name="update_profile")
+async def update_profile(request: Request, email: str = Form(None), user: User = Depends(get_current_user)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    update_user_profile(user.id, email=email)
+    return RedirectResponse(
+        url=f"/profile?message=Profile+updated+successfully&message_type=success", 
+        status_code=303
+    )
+
+# Change password
+@app.post("/change-password", response_class=RedirectResponse, name="change_password")
+async def change_password(
+    request: Request, 
+    current_password: str = Form(...), 
+    new_password: str = Form(...), 
+    confirm_password: str = Form(...),
+    user: User = Depends(get_current_user)
+):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    # Verify current password
+    if not verify_password(current_password, user.hashed_password):
+        return RedirectResponse(
+            url=f"/profile?message=Current+password+is+incorrect&message_type=danger", 
+            status_code=303
+        )
+    
+    # Confirm passwords match
+    if new_password != confirm_password:
+        return RedirectResponse(
+            url=f"/profile?message=New+passwords+do+not+match&message_type=danger", 
+            status_code=303
+        )
+    
+    # Update password
+    hashed_password = get_password_hash(new_password)
+    update_user_profile(user.id, hashed_password=hashed_password)
+    
+    return RedirectResponse(
+        url=f"/profile?message=Password+changed+successfully&message_type=success", 
+        status_code=303
+    )
+
 @app.websocket("/ws/chat/")
 async def websocket_chat(websocket: WebSocket):
     logging.info("🔹 WebSocket connection established.")
@@ -102,8 +187,12 @@ async def websocket_chat(websocket: WebSocket):
         try:
             while True:
                 await asyncio.sleep(30)  # Send ping every 30 seconds
-                await websocket.send_text("__ping__")
-                logging.info("Sent ping to keep WebSocket alive")
+                try:
+                    await websocket.send_text("__ping__")
+                    logging.info("Sent ping to keep WebSocket alive")
+                except RuntimeError:
+                    # Connection likely already closed
+                    break
         except Exception as e:
             logging.error(f"Ping error: {e}")
 
@@ -116,55 +205,68 @@ async def websocket_chat(websocket: WebSocket):
         logging.info(f"🆕 Created persistent thread: {thread.id}")
 
         while True:  # Keep connection open for multiple interactions
-            message = await websocket.receive_text()
-            
-            # Handle ping response
-            if message == "__pong__":
-                logging.info("Received pong")
-                continue
+            try:
+                message = await websocket.receive_text()
                 
-            logging.info(f"✅ Received question: {message}")
+                # Handle ping response
+                if message == "__pong__":
+                    logging.info("Received pong")
+                    continue
+                    
+                logging.info(f"✅ Received question: {message}")
 
-            # Add the new message to the existing OpenAI thread
-            client.beta.threads.messages.create(
-                thread_id=thread.id,
-                role="user",
-                content=message
-            )
-            logging.info(f"📩 Added message to thread {thread.id}")
+                # Add the new message to the existing OpenAI thread
+                client.beta.threads.messages.create(
+                    thread_id=thread.id,
+                    role="user",
+                    content=message
+                )
+                logging.info(f"📩 Added message to thread {thread.id}")
 
-            # Start streaming the assistant's response
-            logging.info("🟢 Starting OpenAI response stream...")
-            with client.beta.threads.runs.stream(
-                thread_id=thread.id,
-                assistant_id=assistant.id,
-                instructions="You are an expert in Advanced Squad Leader rules. Use your knowledge to answer questions accurately and concisely."
-            ) as stream:
-                for chunk in stream:
-                    if chunk.event == "thread.message.delta":
-                        for content_block in chunk.data.delta.content:
-                            if content_block.type == "text":
-                                text = content_block.text.value
-                                await websocket.send_text(text)
-                                logging.info(f"📤 Sent chunk: {text}")
-                                sys.stdout.flush()
+                # Start streaming the assistant's response
+                logging.info("🟢 Starting OpenAI response stream...")
+                with client.beta.threads.runs.stream(
+                    thread_id=thread.id,
+                    assistant_id=assistant.id,
+                    instructions="You are an expert in Advanced Squad Leader rules. Use your knowledge to answer questions accurately and concisely."
+                ) as stream:
+                    for chunk in stream:
+                        if chunk.event == "thread.message.delta":
+                            for content_block in chunk.data.delta.content:
+                                if content_block.type == "text":
+                                    try:
+                                        text = content_block.text.value
+                                        await websocket.send_text(text)
+                                        logging.info(f"📤 Sent chunk: {text}")
+                                        sys.stdout.flush()
+                                    except RuntimeError:
+                                        # Connection likely closed during streaming
+                                        logging.warning("Connection closed during streaming")
+                                        raise WebSocketDisconnect()
 
-            logging.info("✅ Finished streaming response. Waiting for the next message...")
+                logging.info("✅ Finished streaming response. Waiting for the next message...")
+            except WebSocketDisconnect:
+                # This could happen during receive_text or send_text
+                logging.info("🔻 WebSocket disconnected while processing message.")
+                raise  # Re-raise to be caught by the outer try/except
 
     except WebSocketDisconnect:
         logging.info("🔻 WebSocket disconnected by client.")
     except Exception as e:
         logging.error(f"❌ WebSocket error: {e}")
+        # No need to close here - let the finally block handle it
     finally:
-        # Cancel the ping task if it exists
-        if ping_task:
+        # Cancel the ping task
+        if ping_task and not ping_task.done():
             ping_task.cancel()
             try:
                 await ping_task
             except asyncio.CancelledError:
                 pass
-        logging.info("🔻 Closing WebSocket connection.")
-        await websocket.close()
+        
+        # Log that we're done but don't try to close the connection
+        # FastAPI will handle the connection closure
+        logging.info("🔻 WebSocket connection resources cleaned up.")
 
 # Logout route: removes access token and redirects to login
 @app.get("/logout", name="logout")
