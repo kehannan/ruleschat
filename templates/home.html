@@ -19,11 +19,19 @@
       </div>
     </div>
 
+    <h3>Demo</h3>
+    <video controls class="w-100 mb-4">
+      <source src="{{ url_for('static', path='videos/ruleschat.mp4') }}" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+
     <h3 class="mt-4">Approach</h3>
-    <p>
-      Website access <a href="https://platform.openai.com/docs/assistants/overview">OpenAI's assistant v2</a> api,
-      which does RAG over the manual of 1.49 million tokens using the FAISS vector database.
-    </p>
+    <ul class="list-unstyled">
+      <li>• Website access <a href="https://platform.openai.com/docs/assistants/overview">OpenAI's assistant v2</a> API</li>
+      <li>• Performs RAG (Retrieval Augmented Generation) over the ASL manual</li>
+      <li>• Contains approximately 1.49 million tokens of rules content</li>
+      <li>• Uses FAISS vector database for efficient semantic search</li>
+    </ul>
 
     <hr class="mt-5">
     <div class="text-muted small mt-3">
