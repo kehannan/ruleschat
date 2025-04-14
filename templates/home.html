@@ -10,12 +10,15 @@
       <li>• Advanced Squad Leader (ASL) is a tactical-level hex-and-counter board game covering WW2, published by Avalon Hill in 1985. See Wikipedia <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader">entry</a>.</li>
     </ul>
 
-    <div class="row mt-4 mb-4 align-items-center">
-      <div class="col-md-5 text-center">
+    <div class="row mt-4 mb-4">
+      <div class="col-md-6 text-center mb-4">
         <img src="{{ url_for('static', path='img/asl.jpg') }}" alt="ASL cover" class="img-fluid rounded" style="max-height: 300px; width: auto;">
       </div>
-      <div class="col-md-5 text-center">
+      <div class="col-md-6 text-center mb-4">
         <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL board" class="img-fluid rounded" style="max-height: 300px; width: auto;">
+      </div>
+      <div class="col-12 text-center">
+        <img src="{{ url_for('static', path='img/rulebook.png') }}" alt="ASL Rulebook" class="img-fluid rounded" style="max-height: 400px; width: auto;">
       </div>
     </div>
 
@@ -29,7 +32,7 @@
     <ul class="list-unstyled">
       <li>• Website access <a href="https://platform.openai.com/docs/assistants/overview">OpenAI's assistant v2</a> API</li>
       <li>• Performs RAG (Retrieval Augmented Generation) over the ASL manual</li>
-      <li>• Contains approximately 1.49 million tokens of rules content</li>
+      <li>• Contains approximately 1.49 million tokens of rules content. By comparison, <strong>Deep Learning</strong> by Goodfellow et al. is approximately 400k–420k tokens.</li>
       <li>• Uses FAISS vector database for efficient semantic search</li>
     </ul>
 
