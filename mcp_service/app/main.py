@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio  # Add this line
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -34,9 +35,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Store conversation history for each user
-conversations: Dict[str, List[Dict[str, str]]] = {}
+# Store thread IDs for each user
+conversations: Dict[str, str] = {}
 
 # Request models
 class QuestionRequest(BaseModel):
@@ -80,6 +80,7 @@ async def get_current_user(authorization: str = Header(None)):
 async def root():
     return {"message": "Welcome to MCP API Service"}
 
+@app.get("/health")
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
@@ -106,44 +107,64 @@ async def get_conversation_history(
     return {"conversations": conversations[user_id]}
 
 async def ask_question(user_id: str, question: str):
-    """
-    Handle user questions and get responses from OpenAI
-    """
-    if not user_id:
-        raise HTTPException(status_code=400, detail="User ID is required")
-    
-    if not question:
-        raise HTTPException(status_code=400, detail="Question is required")
-    
-    # Initialize conversation for new users
-    if user_id not in conversations:
-        conversations[user_id] = [
-            {"role": "system", "content": "You are a helpful assistant providing accurate and helpful information."}
-        ]
-    
-    # Add user message to history
-    conversations[user_id].append({"role": "user", "content": question})
-    
-    try:
-        # Get response from OpenAI
-        logging.info(f"Sending question to OpenAI: {question}")
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",  # Use the model of your choice
-            messages=conversations[user_id]
-        )
-        
-        answer = response.choices[0].message.content
-        
-        # Add assistant's message to history
-        conversations[user_id].append({"role": "assistant", "content": answer})
-        
-        # Keep conversation history manageable
-        if len(conversations[user_id]) > 10:
-            # Keep system message and last 4 exchanges
-            conversations[user_id] = [conversations[user_id][0]] + conversations[user_id][-8:]
-        
-        return {"answer": answer}
-    
-    except Exception as e:
-        logging.error(f"Error calling OpenAI: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}") 
+       """
+       Handle user questions and get responses from OpenAI using the Assistant API
+       """
+       if not user_id:
+           raise HTTPException(status_code=400, detail="User ID is required")
+       
+       if not question:
+           raise HTTPException(status_code=400, detail="Question is required")
+       
+       try:
+           # Create a thread if one doesn't exist for this user
+           if user_id not in conversations:
+               thread = client.beta.threads.create()
+               conversations[user_id] = thread.id
+           
+           thread_id = conversations[user_id]
+           
+           # Add message to thread
+           client.beta.threads.messages.create(
+               thread_id=thread_id,
+               role="user",
+               content=question
+           )
+           
+           # Run the assistant on the thread
+           assistant_id = "asst_M65nFsVKjQRamCQrfHThTeJt"  # The same assistant ID as your main app
+           run = client.beta.threads.runs.create(
+               thread_id=thread_id,
+               assistant_id=assistant_id
+           )
+           
+           # Wait for completion
+           while True:
+               run_status = client.beta.threads.runs.retrieve(
+                   thread_id=thread_id,
+                   run_id=run.id
+               )
+               if run_status.status == "completed":
+                   break
+               elif run_status.status in ["failed", "cancelled", "expired"]:
+                   raise HTTPException(status_code=500, 
+                                      detail=f"Assistant run failed with status: {run_status.status}")
+               
+               await asyncio.sleep(0.5)
+           
+           # Get the assistant's response
+           messages = client.beta.threads.messages.list(
+               thread_id=thread_id
+           )
+           
+           # Get the last assistant message
+           for message in messages.data:
+               if message.role == "assistant":
+                   answer = message.content[0].text.value
+                   break
+           
+           return {"answer": answer}
+       
+       except Exception as e:
+           logging.error(f"Error calling OpenAI: {str(e)}")
+           raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
