@@ -16,6 +16,7 @@ class User(Base):
     # This column has been added to the database
     email = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String)
+    api_key = Column(String, unique=True, index=True, nullable=True)
 
 def get_user_by_username(username: str):
     db = SessionLocal()
@@ -24,7 +25,7 @@ def get_user_by_username(username: str):
     finally:
         db.close()
 
-def update_user_profile(user_id: int, email: str = None, hashed_password: str = None):
+def update_user_profile(user_id: int, email: str = None, hashed_password: str = None, api_key: str = None):
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()
@@ -35,6 +36,8 @@ def update_user_profile(user_id: int, email: str = None, hashed_password: str = 
             user.email = email
         if hashed_password is not None:
             user.hashed_password = hashed_password
+        if api_key is not None:
+            user.api_key = api_key
             
         db.commit()
         return user

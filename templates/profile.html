@@ -31,6 +31,25 @@
                     </form>
                 </div>
 
+                <!-- API Key Section -->
+                <div class="mb-4">
+                    <h4>API Key</h4>
+                    <div class="mb-3">
+                        <label for="api_key" class="form-label">Your API Key</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="api_key" value="{{ user.api_key or 'No API key generated yet' }}" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="copyButton" onclick="copyApiKey()" {% if not user.api_key %}disabled{% endif %}>
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                        <small class="form-text text-muted">Use this API key to authenticate with MCP services</small>
+                    </div>
+                    <form method="post" action="{{ url_for('generate_api_key') }}">
+                        <button type="submit" class="btn btn-success">Generate New API Key</button>
+                        <small class="form-text text-muted d-block mt-2">Warning: This will invalidate any existing API key</small>
+                    </form>
+                </div>
+
                 <!-- Change Password -->
                 <div>
                     <h4>Change Password</h4>
@@ -54,4 +73,21 @@
         </div>
     </div>
 </div>
+
+<script>
+function copyApiKey() {
+    var apiKeyInput = document.getElementById("api_key");
+    apiKeyInput.select();
+    apiKeyInput.setSelectionRange(0, 99999); /* For mobile devices */
+    document.execCommand("copy");
+    
+    // Show feedback to user
+    var copyButton = document.getElementById("copyButton");
+    var originalText = copyButton.innerHTML;
+    copyButton.innerHTML = '<i class="bi bi-check"></i> Copied!';
+    setTimeout(function() {
+        copyButton.innerHTML = originalText;
+    }, 2000);
+}
+</script>
 {% endblock %} 
