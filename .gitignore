@@ -175,7 +175,12 @@ cython_debug/
 
 # Other
 .DS_Store
- .env
+.env
 
- cert.pem
- key.pem
+cert.pem
+key.pem
+
+# Project specific
+test.db
+*.db
+mcp_service/.env
