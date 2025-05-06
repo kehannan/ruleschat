@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 import asyncio
+import secrets
+import string
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, Response, status, Depends, HTTPException
 from starlette.websockets import WebSocketState
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -172,6 +174,24 @@ async def change_password(
     
     return RedirectResponse(
         url=f"/profile?message=Password+changed+successfully&message_type=success", 
+        status_code=303
+    )
+
+# Generate API Key endpoint
+@app.post("/generate-api-key", response_class=RedirectResponse, name="generate_api_key")
+async def generate_api_key(request: Request, user: User = Depends(get_current_user)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    # Generate a secure random API key
+    alphabet = string.ascii_letters + string.digits
+    api_key = ''.join(secrets.choice(alphabet) for _ in range(32))
+    
+    # Update the user's API key in the database
+    update_user_profile(user.id, api_key=api_key)
+    
+    return RedirectResponse(
+        url=f"/profile?message=API+key+generated+successfully&message_type=success", 
         status_code=303
     )
 
