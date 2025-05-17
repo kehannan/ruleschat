@@ -1,10 +1,41 @@
-# MySite2
+# Setup
 
-This project is a small FastAPI web app. A new invitation system allows administrators to send invite links that let new users create accounts.
+## Environment Variables
 
-## Inviting Users
+The application relies on the following environment variables:
 
-1. Log in as the admin user (defined by the `ADMIN_USERNAME` environment variable).
-2. Navigate to `/admin/invite` to create an invite for an email address. The server prints the invite link to the console – send this link to the user via email.
-3. The user visits the link and completes the sign‑up form to create their account.
-4. Admins can revoke invites from the same page.
+- `SECRET_KEY` – secret key used for signing JWT tokens.
+- `OPENAI_API_KEY` – API key for communicating with OpenAI.
+- `ADMIN_USERNAME` – optional username for the site administrator.
+
+Create a `.env` file in the project root and set these values.
+
+## Installation
+
+Install the required Python packages. You can either install them individually:
+
+```bash
+pip install fastapi uvicorn sqlalchemy passlib[bcrypt] python-jose python-dotenv openai
+```
+
+or install everything from the service requirements file:
+
+```bash
+pip install -r mcp_service/requirements.txt
+```
+
+## Create the Admin User
+
+Run the following command and follow the prompts to create the initial admin account:
+
+```bash
+python create_user.py
+```
+
+## Running the Server
+
+Start the FastAPI development server with:
+
+```bash
+uvicorn main:app --reload
+```
