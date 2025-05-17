@@ -36,6 +36,11 @@
               <li class="nav-item">
                 <a class="nav-link" href="{{ url_for('ruleschat') }}">Rules Chat</a>
               </li>
+              {% if username == admin_username %}
+              <li class="nav-item">
+                <a class="nav-link" href="{{ url_for('invite_page') }}">Admin</a>
+              </li>
+              {% endif %}
               <li class="nav-item">
                 <a class="nav-link" href="{{ url_for('profile_page') }}">
                   <i class="bi bi-person-circle" aria-hidden="true"></i> Profile

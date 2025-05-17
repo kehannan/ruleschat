@@ -13,7 +13,17 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 # Import your user model and auth utilities
-from models import get_user_by_username, update_user_profile, User  # Function to retrieve a user by username
+from models import (
+    get_user_by_username,
+    update_user_profile,
+    create_user,
+    get_invite_by_token,
+    create_invite,
+    list_invites,
+    mark_invite_used,
+    revoke_invite,
+    User,
+)
 from auth import verify_password, create_access_token, get_password_hash  # Functions for password verification and token creation
 
 # Configure logging with forced flush
@@ -38,8 +48,10 @@ app = FastAPI()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Increased from 30 to 60 minutes
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 
 templates = Jinja2Templates(directory="templates")
+templates.env.globals["admin_username"] = ADMIN_USERNAME
 
 # Mount static files
 from fastapi.staticfiles import StaticFiles
@@ -191,9 +203,50 @@ async def generate_api_key(request: Request, user: User = Depends(get_current_us
     update_user_profile(user.id, api_key=api_key)
     
     return RedirectResponse(
-        url=f"/profile?message=API+key+generated+successfully&message_type=success", 
+        url=f"/profile?message=API+key+generated+successfully&message_type=success",
         status_code=303
     )
+
+# --- Invitation Management ---
+@app.get("/admin/invite", response_class=HTMLResponse, name="invite_page")
+async def invite_page(request: Request, user: User = Depends(get_current_user)):
+    if not user or user.username != ADMIN_USERNAME:
+        return RedirectResponse(url="/login", status_code=303)
+    invites = list_invites()
+    return templates.TemplateResponse("invite_admin.html", {"request": request, "invites": invites, "username": user.username})
+
+@app.post("/admin/invite", response_class=RedirectResponse, name="create_invite")
+async def create_invite_endpoint(request: Request, email: str = Form(...), user: User = Depends(get_current_user)):
+    if not user or user.username != ADMIN_USERNAME:
+        return RedirectResponse(url="/login", status_code=303)
+    invite = create_invite(email)
+    invite_url = str(request.base_url) + f"signup?token={invite.token}"
+    print(f"Send this invite link to {email}: {invite_url}")
+    return RedirectResponse(url="/admin/invite", status_code=303)
+
+@app.get("/admin/invite/revoke/{invite_id}", response_class=RedirectResponse, name="revoke_invite")
+async def revoke_invite_endpoint(invite_id: int, user: User = Depends(get_current_user)):
+    if not user or user.username != ADMIN_USERNAME:
+        return RedirectResponse(url="/login", status_code=303)
+    revoke_invite(invite_id)
+    return RedirectResponse(url="/admin/invite", status_code=303)
+
+@app.get("/signup", response_class=HTMLResponse, name="signup")
+async def signup_page(request: Request, token: str):
+    invite = get_invite_by_token(token)
+    if not invite or invite.is_used or invite.is_revoked:
+        return HTMLResponse("<h3>Invalid or expired invite</h3>", status_code=400)
+    return templates.TemplateResponse("signup.html", {"request": request, "token": token})
+
+@app.post("/signup", response_class=RedirectResponse, name="do_signup")
+async def do_signup(token: str = Form(...), username: str = Form(...), password: str = Form(...)):
+    invite = get_invite_by_token(token)
+    if not invite or invite.is_used or invite.is_revoked:
+        return HTMLResponse("<h3>Invalid or expired invite</h3>", status_code=400)
+    hashed_password = get_password_hash(password)
+    create_user(username, hashed_password, invite.email)
+    mark_invite_used(invite)
+    return RedirectResponse(url="/login", status_code=303)
 
 @app.websocket("/ws/chat/")
 async def websocket_chat(websocket: WebSocket):

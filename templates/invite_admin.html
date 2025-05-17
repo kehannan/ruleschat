@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Send Invitation</h2>
+<form method="post" action="{{ url_for('create_invite') }}">
+  <div class="mb-3">
+    <label for="email" class="form-label">Email</label>
+    <input type="email" class="form-control" id="email" name="email" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Create Invite</button>
+</form>
+
+<h3 class="mt-4">Existing Invites</h3>
+<table class="table">
+  <thead>
+    <tr><th>Email</th><th>Token</th><th>Status</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+  {% for inv in invites %}
+    <tr>
+      <td>{{ inv.email }}</td>
+      <td>{{ inv.token }}</td>
+      <td>
+        {% if inv.is_revoked %}Revoked{% elif inv.is_used %}Used{% else %}Active{% endif %}
+      </td>
+      <td>
+        {% if not inv.is_revoked and not inv.is_used %}
+          <a href="{{ url_for('revoke_invite', invite_id=inv.id) }}">Revoke</a>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
