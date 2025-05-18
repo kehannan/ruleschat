@@ -4,17 +4,22 @@ import logging
 import asyncio
 import secrets
 import string
-from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, Response, status, Depends, HTTPException
+import random
+from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, Response, status, Depends, HTTPException, Body, BackgroundTasks
 from starlette.websockets import WebSocketState
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jose import jwt, JWTError
 from dotenv import load_dotenv
 from openai import OpenAI
+from datetime import datetime, timedelta
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from pydantic import EmailStr
 
 # Import your user model and auth utilities
-from models import get_user_by_username, update_user_profile, User  # Function to retrieve a user by username
+from models import get_user_by_username, update_user_profile, User, Invitation  # Function to retrieve a user by username
 from auth import verify_password, create_access_token, get_password_hash  # Functions for password verification and token creation
+from models import SessionLocal
 
 # Configure logging with forced flush
 logging.basicConfig(
@@ -26,6 +31,11 @@ logging.basicConfig(
 # Load environment variables
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
+print("MAIL_USERNAME:", os.getenv("MAIL_USERNAME"))
+print("MAIL_PASSWORD:", os.getenv("MAIL_PASSWORD"))
+print("MAIL_SERVER:", os.getenv("MAIL_SERVER"))
+print("MAIL_STARTTLS:", os.getenv("MAIL_STARTTLS"))
+print("MAIL_SSL_TLS:", os.getenv("MAIL_SSL_TLS"))
 
 # Initialize OpenAI client and retrieve your assistant
 client = OpenAI(api_key=openai_api_key)
@@ -52,27 +62,43 @@ async def get_current_user(request: Request):
         return None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        if not username:
+        email = payload.get("sub")
+        if not email:
             return None
-        user = get_user_by_username(username)
+        user = get_user_by_username(email)
         return user
     except JWTError:
         return None
+
+# Admin middleware
+async def get_admin_user(request: Request):
+    user = await get_current_user(request)
+    if not user or user.email != os.getenv("ADMIN_EMAIL"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+def get_base_context(request, user=None):
+    return {
+        "request": request,
+        "user_email": user.email if user else None,
+        "admin_email": os.getenv("ADMIN_EMAIL"),
+    }
 
 # Home route - accessible without login
 @app.get("/home", name="home", response_class=HTMLResponse)
 def home(request: Request):
     token = request.cookies.get("access_token")
-    username = None
+    user = None
     if token:
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             username = payload.get("sub")
+            if username:
+                user = get_user_by_username(username)
         except JWTError:
             pass
-            
-    return templates.TemplateResponse("home.html", {"request": request, "username": username})
+    context = get_base_context(request, user)
+    return templates.TemplateResponse("home.html", context)
 
 # Root route redirects to home
 @app.get("/", response_class=RedirectResponse)
@@ -82,23 +108,24 @@ def root():
 # Login page
 @app.get("/login", name="login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "username": None})
+    context = get_base_context(request)
+    return templates.TemplateResponse("login.html", context)
 
 # Login form submission
 @app.post("/login")
 def do_login(username: str = Form(...), password: str = Form(...)):
+    # Treat username as email
     user = get_user_by_username(username)
     if not user or not verify_password(password, user.hashed_password):
         return HTMLResponse("<h3>Invalid credentials</h3>", status_code=401)
-    token = create_access_token({"sub": username}, expires_delta=ACCESS_TOKEN_EXPIRE_MINUTES)
+    token = create_access_token({"sub": user.email}, expires_delta=ACCESS_TOKEN_EXPIRE_MINUTES)
     response = RedirectResponse(url="/ruleschat", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        samesite="Lax",  # Default behavior; adjust if needed
-        max_age=3600 * ACCESS_TOKEN_EXPIRE_MINUTES  # Set cookie expiration in seconds
-        # secure=False for development; use True in production with HTTPS
+        samesite="Lax",
+        max_age=3600 * ACCESS_TOKEN_EXPIRE_MINUTES
     )
     return response
 
@@ -106,6 +133,7 @@ def do_login(username: str = Form(...), password: str = Form(...)):
 @app.get("/ruleschat", response_class=HTMLResponse)
 def ruleschat(request: Request):
     token = request.cookies.get("access_token")
+    user = None
     if not token:
         return RedirectResponse(url="/login", status_code=303)
     try:
@@ -113,22 +141,24 @@ def ruleschat(request: Request):
         username = payload.get("sub")
         if not username:
             return RedirectResponse(url="/login", status_code=303)
+        user = get_user_by_username(username)
     except JWTError:
         return RedirectResponse(url="/login", status_code=303)
-    return templates.TemplateResponse("ruleschat.html", {"request": request, "username": username})
+    context = get_base_context(request, user)
+    return templates.TemplateResponse("ruleschat.html", context)
 
 # Profile page
 @app.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request, user: User = Depends(get_current_user)):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
-    return templates.TemplateResponse("profile.html", {
-        "request": request, 
+    context = get_base_context(request, user)
+    context.update({
         "user": user,
-        "username": user.username,
         "message": request.query_params.get("message"),
         "message_type": request.query_params.get("message_type", "info")
     })
+    return templates.TemplateResponse("profile.html", context)
 
 # Update profile
 @app.post("/update-profile", response_class=RedirectResponse, name="update_profile")
@@ -294,3 +324,176 @@ def logout():
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie("access_token")
     return response
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Admin dashboard
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request, user: User = Depends(get_admin_user), db=Depends(get_db)):
+    users = db.query(User).all()
+    invitations = db.query(Invitation).filter(
+        Invitation.expires_at > datetime.utcnow()
+    ).order_by(Invitation.created_at.desc()).all()
+    context = get_base_context(request, user)
+    context.update({
+        "users": users,
+        "invitations": invitations,
+        "message": request.query_params.get("message"),
+        "message_type": request.query_params.get("message_type", "info")
+    })
+    return templates.TemplateResponse("admin.html", context)
+
+# Admin API endpoints
+@app.get("/api/admin/view-api-key/{email}")
+async def admin_view_api_key(
+    email: str,
+    user: User = Depends(get_admin_user)
+):
+    target_user = db.query(User).filter(User.email == email).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"email": email, "api_key": target_user.api_key}
+
+@app.get("/api/admin/generate-api-key/{email}")
+async def admin_generate_api_key(
+    email: str,
+    user: User = Depends(get_admin_user)
+):
+    target_user = db.query(User).filter(User.email == email).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Generate a secure random API key
+    alphabet = string.ascii_letters + string.digits
+    api_key = ''.join(secrets.choice(alphabet) for _ in range(32))
+    
+    # Update the user's API key
+    update_user_profile(target_user.id, api_key=api_key)
+    
+    return {"email": email, "api_key": api_key}
+
+@app.post("/api/invite")
+async def send_invitation(
+    data: dict = Body(...),
+    user: User = Depends(get_admin_user),
+    db=Depends(get_db),
+    background_tasks: BackgroundTasks = None
+):
+    email = data.get("email")
+    if not email:
+        return {"detail": "Email is required"}
+    # Generate a unique invitation code
+    code = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+    # Check for existing invitation
+    existing = db.query(Invitation).filter(Invitation.email == email, Invitation.expires_at > datetime.utcnow()).first()
+    if existing:
+        return {"detail": "Active invitation already exists for this email"}
+    invitation = Invitation(
+        code=code,
+        email=email,
+        created_at=datetime.utcnow(),
+        expires_at=datetime.utcnow() + timedelta(days=7)
+    )
+    db.add(invitation)
+    db.commit()
+    db.refresh(invitation)
+
+    # Send the invitation email in the background
+    invite_link = f"http://localhost:8000/register?code={code}"
+    subject = "Invitation to Rule Chat"
+    body = f"Dr {email}<br>You are invited to try the experimental Advanced Squad Leader Rules chat at <a href='{invite_link}'>{invite_link}</a>.<br><br>Regards,<br>Kevin"
+    if background_tasks is not None:
+        background_tasks.add_task(send_email, subject, email, body)
+    else:
+        await send_email(subject, email, body)
+
+    return {"detail": "Invitation sent", "code": code}
+
+@app.post("/api/invite/resend/{invitation_id}")
+async def resend_invitation(
+    invitation_id: int,
+    user: User = Depends(get_admin_user),
+    db=Depends(get_db),
+    background_tasks: BackgroundTasks = None
+):
+    invitation = db.query(Invitation).filter(Invitation.id == invitation_id).first()
+    if not invitation:
+        return {"detail": "Invitation not found"}
+    if invitation.expires_at < datetime.utcnow():
+        return {"detail": "Invitation expired"}
+    invite_link = f"http://localhost:8000/register?code={invitation.code}"
+    subject = "Invitation to Rule Chat"
+    body = f"Dr {invitation.email}<br>You are invited to try the experimental Advanced Squad Leader Rules chat at <a href='{invite_link}'>{invite_link}</a>.<br><br>Regards,<br>Kevin"
+    if background_tasks is not None:
+        background_tasks.add_task(send_email, subject, invitation.email, body)
+    else:
+        await send_email(subject, invitation.email, body)
+    return {"detail": "Invitation resent"}
+
+@app.delete("/api/invite/{invitation_id}")
+async def delete_invitation(
+    invitation_id: int,
+    user: User = Depends(get_admin_user),
+    db=Depends(get_db)
+):
+    invitation = db.query(Invitation).filter(Invitation.id == invitation_id).first()
+    if not invitation:
+        return {"detail": "Invitation not found"}
+    db.delete(invitation)
+    db.commit()
+    return {"detail": "Invitation deleted"}
+
+conf = ConnectionConfig(
+    MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
+    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
+    MAIL_FROM = os.getenv("MAIL_FROM"),
+    MAIL_PORT = int(os.getenv("MAIL_PORT", 587)),
+    MAIL_SERVER = os.getenv("MAIL_SERVER"),
+    MAIL_STARTTLS = os.getenv("MAIL_STARTTLS", "True") == "True",
+    MAIL_SSL_TLS = os.getenv("MAIL_SSL_TLS", "False") == "True",
+    USE_CREDENTIALS = True
+)
+
+async def send_email(subject: str, email_to: EmailStr, body: str):
+    message = MessageSchema(
+        subject=subject,
+        recipients=[email_to],
+        body=body,
+        subtype="html"
+    )
+    fm = FastMail(conf)
+    await fm.send_message(message)
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request, code: str, db=Depends(get_db)):
+    invitation = db.query(Invitation).filter(Invitation.code == code).first()
+    if not invitation or invitation.expires_at < datetime.utcnow():
+        return templates.TemplateResponse("register.html", {"request": request, "error": "Invalid or expired invitation.", "code": "", "email": ""})
+    if invitation.used:
+        return templates.TemplateResponse("register.html", {"request": request, "error": "This invitation has already been used.", "code": code, "email": invitation.email})
+    return templates.TemplateResponse("register.html", {"request": request, "code": code, "email": invitation.email})
+
+@app.post("/register/complete", response_class=HTMLResponse)
+async def register_complete(request: Request, code: str = Form(...), password: str = Form(...), db=Depends(get_db)):
+    invitation = db.query(Invitation).filter(Invitation.code == code).first()
+    if not invitation or invitation.expires_at < datetime.utcnow() or invitation.used:
+        return templates.TemplateResponse("register.html", {"request": request, "error": "Invalid or expired invitation.", "code": code, "email": invitation.email if invitation else ""})
+    # Check if user already exists
+    existing_user = db.query(User).filter(User.email == invitation.email).first()
+    if existing_user:
+        return templates.TemplateResponse("register.html", {"request": request, "error": "User already exists for this email.", "code": code, "email": invitation.email})
+    # Create user with email only
+    hashed_password = get_password_hash(password)
+    user = User(email=invitation.email, hashed_password=hashed_password)
+    db.add(user)
+    # Mark invitation as used
+    invitation.used_at = datetime.utcnow()
+    invitation.used_by_user_id = user.id
+    db.commit()
+    return HTMLResponse("<h3>Registration successful! You can now log in.</h3>")
