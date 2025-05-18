@@ -1,9 +1,10 @@
 # models.py
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, create_engine, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from datetime import datetime, timedelta
 
-DATABASE_URL = "sqlite:///./test.db"  # Adjust if you use another DB
+DATABASE_URL = "sqlite:///./mysite.db"  # Changed from test.db
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -12,16 +13,28 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    # This column has been added to the database
-    email = Column(String, unique=True, index=True, nullable=True)
+    email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String)
     api_key = Column(String, unique=True, index=True, nullable=True)
+
+class Invitation(Base):
+    __tablename__ = "invitations"
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, default=lambda: datetime.utcnow() + timedelta(days=7))
+    used_at = Column(DateTime, nullable=True)
+    used_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    @property
+    def used(self):
+        return self.used_at is not None
 
 def get_user_by_username(username: str):
     db = SessionLocal()
     try:
-        return db.query(User).filter(User.username == username).first()
+        return db.query(User).filter(User.email == username).first()
     finally:
         db.close()
 
