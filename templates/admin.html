@@ -39,6 +39,7 @@
                                         <button class="btn btn-sm btn-success" onclick="generateApiKey('{{ user.email }}')">
                                             <i class="bi bi-key-fill"></i> Generate API Key
                                         </button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteUser({{ user.id }})">Delete User</button>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -91,7 +92,7 @@
                                     </td>
                                     <td>
                                         <button class="btn btn-sm btn-secondary" onclick="resendInvitation({{ invite.id }})">Resend</button>
-                                        <button class="btn btn-sm btn-danger" onclick="deleteInvitation({{ invite.id }})">Delete</button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteInvitation({{ invite.id }})">Delete Invite</button>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -223,6 +224,22 @@ async function deleteInvitation(invitationId) {
         }
     } catch (error) {
         alert('Error deleting invitation');
+    }
+}
+
+async function deleteUser(userId) {
+    if (!confirm('Delete this user? This cannot be undone.')) return;
+    try {
+        const response = await fetch(`/api/admin/user/${userId}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (response.ok) {
+            alert('User deleted');
+            location.reload();
+        } else {
+            alert(data.detail || 'Error deleting user');
+        }
+    } catch (error) {
+        alert('Error deleting user');
     }
 }
 </script>
