@@ -449,6 +449,15 @@ async def delete_invitation(
     db.commit()
     return {"detail": "Invitation deleted"}
 
+@app.delete("/api/admin/user/{user_id}")
+async def delete_user(user_id: int, user: User = Depends(get_admin_user), db=Depends(get_db)):
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        return {"detail": "User not found"}
+    db.delete(target_user)
+    db.commit()
+    return {"detail": "User deleted"}
+
 conf = ConnectionConfig(
     MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
@@ -496,4 +505,4 @@ async def register_complete(request: Request, code: str = Form(...), password: s
     invitation.used_at = datetime.utcnow()
     invitation.used_by_user_id = user.id
     db.commit()
-    return HTMLResponse("<h3>Registration successful! You can now log in.</h3>")
+    return templates.TemplateResponse("register_success.html", {"request": request})

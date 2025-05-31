@@ -4,11 +4,7 @@ import asyncio  # Add this line
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 from openai import OpenAI
-from fastapi import FastAPI, Request, HTTPException, Depends, Header
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
-from app.db import get_user_by_api_key
+from fastapi import HTTPException
 
 # Configure logging
 logging.basicConfig(
