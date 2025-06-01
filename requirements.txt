@@ -6,4 +6,4 @@ gunicorn==21.2.0
 werkzeug==3.0.1
 email-validator==2.1.0.post1
 fastapi-mail 
-pip install pdfminer.six
+pdfminer.six
