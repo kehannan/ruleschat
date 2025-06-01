@@ -405,7 +405,7 @@ async def send_invitation(
     db.refresh(invitation)
 
     # Send the invitation email in the background
-    invite_link = f"http://localhost:8000/register?code={code}"
+    invite_link = f"https://kevmo.us/register?code={code}"
     subject = "Invitation to Rule Chat"
     body = f"Dr {email}<br>You are invited to try the experimental Advanced Squad Leader Rules chat at <a href='{invite_link}'>{invite_link}</a>.<br><br>Regards,<br>Kevin"
     if background_tasks is not None:
@@ -427,7 +427,7 @@ async def resend_invitation(
         return {"detail": "Invitation not found"}
     if invitation.expires_at < datetime.utcnow():
         return {"detail": "Invitation expired"}
-    invite_link = f"http://localhost:8000/register?code={invitation.code}"
+    invite_link = f"https://kevmo.us/register?code={invitation.code}"
     subject = "Invitation to Rule Chat"
     body = f"Dr {invitation.email}<br>You are invited to try the experimental Advanced Squad Leader Rules chat at <a href='{invite_link}'>{invite_link}</a>.<br><br>Regards,<br>Kevin"
     if background_tasks is not None:
