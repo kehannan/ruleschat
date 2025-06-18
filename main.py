@@ -233,6 +233,9 @@ async def websocket_chat(websocket: WebSocket):
     # Keep-alive ping task
     ping_task = None
     
+    # Store thread ID for this connection
+    thread_id = None
+    
     async def keep_alive():
         try:
             while True:
@@ -250,10 +253,10 @@ async def websocket_chat(websocket: WebSocket):
         # Start the ping task
         ping_task = asyncio.create_task(keep_alive())
         
-        # Store conversation history
-        conversation_history = [
-            {"role": "system", "content": "You are an expert in Advanced Squad Leader rules. Use your knowledge to answer questions accurately and concisely."}
-        ]
+        # Create a new thread for this conversation
+        thread = client.beta.threads.create()
+        thread_id = thread.id
+        logging.info(f"Created new thread: {thread_id}")
 
         while True:  # Keep connection open for multiple interactions
             try:
@@ -266,33 +269,50 @@ async def websocket_chat(websocket: WebSocket):
                     
                 logging.info(f"✅ Received question: {message}")
 
-                # Add user message to history
-                conversation_history.append({"role": "user", "content": message})
-
-                # Start streaming the assistant's response
-                logging.info("🟢 Starting OpenAI response stream...")
-                stream = client.chat.completions.create(
-                    model="gpt-4-turbo-preview",
-                    messages=conversation_history,
-                    stream=True
+                # Add user message to thread
+                client.beta.threads.messages.create(
+                    thread_id=thread_id,
+                    role="user",
+                    content=message
                 )
 
-                collected_message = ""
-                for chunk in stream:
-                    if chunk.choices[0].delta.content is not None:
-                        text = chunk.choices[0].delta.content
-                        collected_message += text
-                        await websocket.send_text(text)
-                        logging.info(f"📤 Sent chunk: {text}")
-                        await asyncio.sleep(0.01)  # Small delay to ensure chunks are sent separately
-
-                # Add assistant's message to history
-                conversation_history.append({"role": "assistant", "content": collected_message})
+                # Run the assistant on the thread
+                logging.info("🟢 Starting Assistant API run...")
+                run = client.beta.threads.runs.create(
+                    thread_id=thread_id,
+                    assistant_id=assistant_id
+                )
                 
-                # Keep conversation history manageable
-                if len(conversation_history) > 10:
-                    # Keep system message and last 4 exchanges
-                    conversation_history = [conversation_history[0]] + conversation_history[-8:]
+                # Wait for completion
+                while True:
+                    run_status = client.beta.threads.runs.retrieve(
+                        thread_id=thread_id,
+                        run_id=run.id
+                    )
+                    if run_status.status == "completed":
+                        break
+                    elif run_status.status in ["failed", "cancelled", "expired"]:
+                        error_msg = f"Assistant run failed with status: {run_status.status}"
+                        logging.error(error_msg)
+                        await websocket.send_text(f"Error: {error_msg}")
+                        break
+                    
+                    await asyncio.sleep(0.5)
+                
+                # Get the assistant's response
+                messages = client.beta.threads.messages.list(
+                    thread_id=thread_id
+                )
+                
+                # Get the last assistant message and stream it
+                for message_obj in messages.data:
+                    if message_obj.role == "assistant":
+                        answer = message_obj.content[0].text.value
+                        # Stream the response character by character
+                        for char in answer:
+                            await websocket.send_text(char)
+                            await asyncio.sleep(0.01)  # Small delay for streaming effect
+                        break
 
                 logging.info("✅ Finished streaming response. Waiting for the next message...")
             except WebSocketDisconnect:
@@ -313,6 +333,15 @@ async def websocket_chat(websocket: WebSocket):
                 await ping_task
             except asyncio.CancelledError:
                 pass
+        
+        # Clean up the thread if it was created
+        if thread_id:
+            try:
+                # Optionally delete the thread to clean up
+                # client.beta.threads.delete(thread_id)
+                logging.info(f"Thread {thread_id} cleanup completed")
+            except Exception as e:
+                logging.error(f"Error cleaning up thread: {e}")
         
         # Log that we're done but don't try to close the connection
         # FastAPI will handle the connection closure
