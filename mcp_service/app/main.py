@@ -21,7 +21,11 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize OpenAI client
-client = OpenAI(api_key=openai_api_key)
+client = OpenAI(
+    api_key=openai_api_key,
+    base_url="https://api.openai.com/v1",
+    default_headers={"OpenAI-Beta": "assistants=v2"}
+)
 
 # Create FastAPI app
 app = FastAPI(title="MCP API Service")
