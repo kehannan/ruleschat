@@ -38,7 +38,11 @@ print("MAIL_STARTTLS:", os.getenv("MAIL_STARTTLS"))
 print("MAIL_SSL_TLS:", os.getenv("MAIL_SSL_TLS"))
 
 # Initialize OpenAI client and retrieve your assistant
-client = OpenAI(api_key=openai_api_key)
+client = OpenAI(
+    api_key=openai_api_key,
+    base_url="https://api.openai.com/v1",
+    default_headers={"OpenAI-Beta": "assistants=v2"}
+)
 assistant_id = "asst_M65nFsVKjQRamCQrfHThTeJt"
 assistant = client.beta.assistants.retrieve(assistant_id)
 
