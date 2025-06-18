@@ -10,14 +10,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Check if the evaluation dataset exists
-if not os.path.exists("evals/asl_evals.jsonl"):
-    print("Error: evals/asl_evals.jsonl file not found. Please make sure it exists in the evals directory.")
+if not os.path.exists("evals/asl_evals_v2.jsonl"):
+    print("Error: evals/asl_evals_v2.jsonl file not found. Please make sure it exists in the evals directory.")
     sys.exit(1)
 
 try:
     # Load the evaluation dataset with detailed logging
     eval_data = []
-    with open("evals/asl_evals.jsonl", "r") as f:
+    with open("evals/asl_evals_v2.jsonl", "r") as f:
         for line_number, line in enumerate(f, start=1):
             try:
                 eval_data.append(json.loads(line))
@@ -222,7 +222,7 @@ except Exception as e:
     sys.exit(1)
 
 # Load and validate JSONL file
-with open("evals/asl_evals.jsonl", "r") as file:
+with open("evals/asl_evals_v2.jsonl", "r") as file:
     for line_number, line in enumerate(file, start=1):
         try:
             json.loads(line)
