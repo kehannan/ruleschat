@@ -543,6 +543,30 @@ async def delete_user(user_id: int, user: User = Depends(get_admin_user), db=Dep
     db.commit()
     return {"detail": "User deleted"}
 
+@app.post("/admin/create-test-user", name="admin_create_test_user")
+async def admin_create_test_user(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    user: User = Depends(get_admin_user),
+    db=Depends(get_db)
+):
+    # Check if user already exists
+    if get_user_by_username(email):
+        return RedirectResponse(
+            url="/admin?message=User+already+exists&message_type=danger",
+            status_code=303
+        )
+    # Hash password and create user
+    hashed_password = get_password_hash(password)
+    new_user = User(email=email, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    return RedirectResponse(
+        url="/admin?message=Test+user+created+successfully&message_type=success",
+        status_code=303
+    )
+
 conf = ConnectionConfig(
     MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
