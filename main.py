@@ -15,6 +15,7 @@ from openai import OpenAI
 from datetime import datetime, timedelta
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
+from assistant import EventHandler  # Add this import
 
 # Import your user model and auth utilities
 from models import get_user_by_username, update_user_profile, User, Invitation  # Function to retrieve a user by username
@@ -163,6 +164,69 @@ async def profile_page(request: Request, user: User = Depends(get_current_user))
         "message_type": request.query_params.get("message_type", "info")
     })
     return templates.TemplateResponse("profile.html", context)
+
+# Evals page - accessible to admin users
+@app.get("/evals", response_class=HTMLResponse)
+async def evals_page(request: Request):
+    """Display evaluation results from manual_eval_results.jsonl"""
+    try:
+        import json
+        from collections import Counter
+        
+        # Read evaluation results
+        results = []
+        eval_file_path = "evals/manual_eval_results.jsonl"
+        
+        if os.path.exists(eval_file_path):
+            with open(eval_file_path, "r", encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        results.append(json.loads(line))
+        
+        # Calculate statistics
+        total = len(results)
+        if total > 0:
+            judgment_counts = Counter(result['judgment'] for result in results)
+            correct = judgment_counts.get('correct', 0)
+            incorrect = judgment_counts.get('incorrect', 0)
+            partial = judgment_counts.get('partial', 0)
+            
+            correct_pct = (correct / total) * 100
+            incorrect_pct = (incorrect / total) * 100
+            partial_pct = (partial / total) * 100
+        else:
+            correct = incorrect = partial = 0
+            correct_pct = incorrect_pct = partial_pct = 0
+        
+        context = get_base_context(request)
+        context.update({
+            "results": results,
+            "total": total,
+            "correct": correct,
+            "incorrect": incorrect,
+            "partial": partial,
+            "correct_pct": correct_pct,
+            "incorrect_pct": incorrect_pct,
+            "partial_pct": partial_pct
+        })
+        
+        return templates.TemplateResponse("evals.html", context)
+        
+    except Exception as e:
+        context = get_base_context(request)
+        context.update({
+            "error": f"Error loading evaluation results: {str(e)}",
+            "results": [],
+            "total": 0,
+            "correct": 0,
+            "incorrect": 0,
+            "partial": 0,
+            "correct_pct": 0,
+            "incorrect_pct": 0,
+            "partial_pct": 0
+        })
+        return templates.TemplateResponse("evals.html", context)
 
 # Update profile
 @app.post("/update-profile", response_class=RedirectResponse, name="update_profile")
@@ -337,18 +401,6 @@ async def websocket_chat(websocket: WebSocket):
                 await ping_task
             except asyncio.CancelledError:
                 pass
-        
-        # Clean up the thread if it was created
-        if thread_id:
-            try:
-                # Optionally delete the thread to clean up
-                # client.beta.threads.delete(thread_id)
-                logging.info(f"Thread {thread_id} cleanup completed")
-            except Exception as e:
-                logging.error(f"Error cleaning up thread: {e}")
-        
-        # Log that we're done but don't try to close the connection
-        # FastAPI will handle the connection closure
         logging.info("🔻 WebSocket connection resources cleaned up.")
 
 # Logout route: removes access token and redirects to login
