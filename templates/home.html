@@ -3,7 +3,7 @@
 {% block content %}
 <div class="row">
   <div class="col-md-8">
-    <h2 class="mb-4 fs-3">An AI-powered Q&A system for Advanced Squad Leader rules</h2>
+    <h2 class="mb-4 fs-3">Advanced Squad Leader (ASL) Rules Assistant</h2>
 
     <ul class="list-unstyled">
       <li>• I created a chat bot to answer rules-questions about the wargame Advanced Squad Leader for my personal use.</li>
@@ -30,10 +30,9 @@
 
     <h3 class="mt-4">Approach</h3>
     <ul class="list-unstyled">
-      <li>• Website access <a href="https://platform.openai.com/docs/assistants/overview">OpenAI's assistant v2</a> API</li>
-      <li>• Performs RAG (Retrieval Augmented Generation) over the ASL manual</li>
+      <li>• Website access <a href="https://platform.openai.com/docs/assistants/overview">OpenAI's assistant v2</a> API.</li>
+      <li>• Performs RAG (Retrieval Augmented Generation) over the ASL manual. The service first queries the ASL manual to find the most relevant content, and then submits that content to the LLM for the LLM to interpert and then return the answer.</li>
       <li>• Contains approximately 1.49 million tokens of rules content. By comparison, <strong>Deep Learning</strong> by Goodfellow et al. is approximately 400k–420k tokens.</li>
-      <li>• Uses FAISS vector database for efficient semantic search</li>
     </ul>
 
     <hr class="mt-5">

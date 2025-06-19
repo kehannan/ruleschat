@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>{% block title %}Rules Chat{% endblock %}</title>
+    <title>{% block title %}ASL Rules Assistant{% endblock %}</title>
     <!-- Bootswatch (Flatly) -->
     <link
       rel="stylesheet"
@@ -32,9 +32,14 @@
             <li class="nav-item">
               <a class="nav-link" href="{{ url_for('home') }}">Home</a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('evals_page') }}">
+                <i class="bi bi-graph-up" aria-hidden="true"></i> Evals
+              </a>
+            </li>
             {% if user_email is defined and user_email %}
               <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('ruleschat') }}">Rules Chat</a>
+                <a class="nav-link" href="{{ url_for('ruleschat') }}">ASL Rules Assistant</a>
               </li>
               <li class="nav-item">
                 <a class="nav-link" href="{{ url_for('profile_page') }}">
