@@ -5,6 +5,7 @@ import asyncio
 import secrets
 import string
 import random
+import json
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect, Response, status, Depends, HTTPException, Body, BackgroundTasks
 from starlette.websockets import WebSocketState
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -16,6 +17,10 @@ from datetime import datetime, timedelta
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
 from assistant import EventHandler  # Add this import
+
+# Import Responses API handler
+from responses_api import initialize_vector_store, get_vector_store_manager
+from config import ASL_SYSTEM_INSTRUCTIONS, DEFAULT_MODEL, TEMPERATURE, WEBSOCKET_PING_INTERVAL, STREAMING_DELAY
 
 # Import your user model and auth utilities
 from models import get_user_by_username, update_user_profile, User, Invitation  # Function to retrieve a user by username
@@ -38,14 +43,28 @@ print("MAIL_SERVER:", os.getenv("MAIL_SERVER"))
 print("MAIL_STARTTLS:", os.getenv("MAIL_STARTTLS"))
 print("MAIL_SSL_TLS:", os.getenv("MAIL_SSL_TLS"))
 
-# Initialize OpenAI client and retrieve your assistant
-client = OpenAI(
-    api_key=openai_api_key,
-    base_url="https://api.openai.com/v1",
-    default_headers={"OpenAI-Beta": "assistants=v2"}
-)
-assistant_id = "asst_M65nFsVKjQRamCQrfHThTeJt"
-assistant = client.beta.assistants.retrieve(assistant_id)
+# Initialize OpenAI client for new chat completions API
+client = OpenAI(api_key=openai_api_key)
+
+# Initialize vector store manager
+vector_store_manager = None
+try:
+    vector_store_manager = initialize_vector_store(openai_api_key)
+    print("✅ Vector store manager initialized")
+except Exception as e:
+    print(f"❌ Failed to initialize vector store manager: {e}")
+
+# Load Responses API configuration
+responses_config = None
+try:
+    if os.path.exists("responses_api_config.json"):
+        with open("responses_api_config.json", "r") as f:
+            responses_config = json.load(f)
+        print("✅ Loaded Responses API configuration")
+    else:
+        print("⚠️ No Responses API configuration found. Run setup_responses_api.py first.")
+except Exception as e:
+    print(f"❌ Error loading Responses API configuration: {e}")
 
 app = FastAPI()
 
@@ -301,13 +320,10 @@ async def websocket_chat(websocket: WebSocket):
     # Keep-alive ping task
     ping_task = None
     
-    # Store thread ID for this connection
-    thread_id = None
-    
     async def keep_alive():
         try:
             while True:
-                await asyncio.sleep(30)  # Send ping every 30 seconds
+                await asyncio.sleep(WEBSOCKET_PING_INTERVAL)  # Send ping every 30 seconds
                 try:
                     await websocket.send_text("__ping__")
                     logging.info("Sent ping to keep WebSocket alive")
@@ -321,10 +337,10 @@ async def websocket_chat(websocket: WebSocket):
         # Start the ping task
         ping_task = asyncio.create_task(keep_alive())
         
-        # Create a new thread for this conversation
-        thread = client.beta.threads.create()
-        thread_id = thread.id
-        logging.info(f"Created new thread: {thread_id}")
+        # Check if Responses API is properly configured
+        if not responses_config:
+            await websocket.send_text("Error: Responses API not properly configured. Please run setup_responses_api.py first.")
+            return
 
         while True:  # Keep connection open for multiple interactions
             try:
@@ -337,52 +353,59 @@ async def websocket_chat(websocket: WebSocket):
                     
                 logging.info(f"✅ Received question: {message}")
 
-                # Add user message to thread
-                client.beta.threads.messages.create(
-                    thread_id=thread_id,
-                    role="user",
-                    content=message
-                )
-
-                # Run the assistant on the thread
-                logging.info("🟢 Starting Assistant API run...")
-                run = client.beta.threads.runs.create(
-                    thread_id=thread_id,
-                    assistant_id=assistant_id
-                )
-                
-                # Wait for completion
-                while True:
-                    run_status = client.beta.threads.runs.retrieve(
-                        thread_id=thread_id,
-                        run_id=run.id
-                    )
-                    if run_status.status == "completed":
-                        break
-                    elif run_status.status in ["failed", "cancelled", "expired"]:
-                        error_msg = f"Assistant run failed with status: {run_status.status}"
-                        logging.error(error_msg)
-                        await websocket.send_text(f"Error: {error_msg}")
-                        break
+                # Use the latest Responses API with file search
+                logging.info("🟢 Starting Responses API with file search...")
+                try:
+                    # Verify client has responses attribute
+                    if not hasattr(client, 'responses'):
+                        raise AttributeError("OpenAI client does not have 'responses' attribute")
                     
-                    await asyncio.sleep(0.5)
-                
-                # Get the assistant's response
-                messages = client.beta.threads.messages.list(
-                    thread_id=thread_id
-                )
-                
-                # Get the last assistant message and stream it
-                for message_obj in messages.data:
-                    if message_obj.role == "assistant":
-                        answer = message_obj.content[0].text.value
+                    # Verify responses_config is loaded
+                    if not responses_config or 'vector_store_id' not in responses_config:
+                        raise ValueError("Responses API configuration not properly loaded")
+                    
+                    logging.info(f"📊 Using Vector Store: {responses_config['vector_store_id']}")
+                    
+                    response = client.responses.create(
+                        model=DEFAULT_MODEL,
+                        input=message,
+                        instructions=ASL_SYSTEM_INSTRUCTIONS,
+                        temperature=TEMPERATURE,
+                        tools=[{
+                            "type": "file_search",
+                            "vector_store_ids": [responses_config["vector_store_id"]],
+                        }]
+                    )
+                    
+                    # Get the response text
+                    assistant_response = response.output_text
+                    
+                    if assistant_response:
+                        logging.info(f"📝 Full response: {assistant_response[:100]}...")
+                        
                         # Stream the response character by character
-                        for char in answer:
+                        logging.info("🔄 Streaming response...")
+                        for char in assistant_response:
                             await websocket.send_text(char)
-                            await asyncio.sleep(0.01)  # Small delay for streaming effect
-                        break
+                            await asyncio.sleep(STREAMING_DELAY)  # Small delay for streaming effect
+                        
+                        logging.info("✅ Response streamed successfully")
+                    else:
+                        logging.warning("⚠️ No response content received")
+                        await websocket.send_text("Sorry, I couldn't generate a response. Please try again.")
+                        
+                except AttributeError as attr_error:
+                    logging.error(f"❌ Attribute Error: {attr_error}")
+                    await websocket.send_text(f"Error: OpenAI client configuration issue. Please contact support.")
+                except ValueError as val_error:
+                    logging.error(f"❌ Configuration Error: {val_error}")
+                    await websocket.send_text(f"Error: Responses API not properly configured. Please contact support.")
+                except Exception as api_error:
+                    logging.error(f"❌ API Error: {api_error}")
+                    await websocket.send_text(f"Error: {str(api_error)}")
 
-                logging.info("✅ Finished streaming response. Waiting for the next message...")
+                logging.info("✅ Finished processing response. Waiting for the next message...")
+                
             except WebSocketDisconnect:
                 # This could happen during receive_text or send_text
                 logging.info("🔻 WebSocket disconnected while processing message.")
