@@ -44,7 +44,11 @@ print("MAIL_STARTTLS:", os.getenv("MAIL_STARTTLS"))
 print("MAIL_SSL_TLS:", os.getenv("MAIL_SSL_TLS"))
 
 # Initialize OpenAI client for new chat completions API
-client = OpenAI(api_key=openai_api_key)
+# Use the organization where the vector store is located
+client = OpenAI(
+    api_key=openai_api_key,
+    organization="org-XgfOCezbMRf4TG0OpmpQs8q5"
+)
 
 # Initialize vector store manager
 vector_store_manager = None
