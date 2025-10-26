@@ -183,5 +183,9 @@ key.pem
 # Project specific
 test.db
 *.db
-mcp_service/.envevals/sources/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf
-evals/sources/*.pdf
+mcp_service/.env
+
+# ML/Data directories (moved to mysite2-evals-sft repo)
+evals/
+SFT/
+specification/
