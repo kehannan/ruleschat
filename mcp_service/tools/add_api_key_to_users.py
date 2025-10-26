@@ -11,9 +11,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 # Load environment variables
 load_dotenv()
 
-# Database path - updated to point to mysite2.db in the mysite2 directory
+# Database path - points to the main database in the project root
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DB_PATH = os.path.join(project_root, "mysite2", "mysite2.db")
+DB_PATH = os.path.join(project_root, "mysite.db")
 print(f"Using database at: {DB_PATH}")
 
 def generate_api_key(length: int = 32) -> str:

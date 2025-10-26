@@ -60,7 +60,7 @@ Alternatively, you can use the service's API endpoints (admin key required):
    MCP_SERVICE_VERSION=1.0.0
    
    # Database Configuration
-   DB_PATH=/path/to/your/mysite2/mysite2.db
+   DB_PATH=/path/to/your/mysite/mysite.db
    
    # Admin Configuration
    ADMIN_SECRET_KEY=your_admin_secret_key
