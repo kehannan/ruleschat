@@ -45,6 +45,33 @@ mysite2/
 
 ## Setup
 
+### Option 1: Using Conda (Recommended)
+
+If you have conda installed, use the provided environment file:
+
+```bash
+# Create the conda environment
+conda env create -f environment.yml
+
+# Activate the environment
+conda activate mysite2_env
+```
+
+### Option 2: Using pip with venv
+
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate it
+source venv/bin/activate  # On macOS/Linux
+# or
+venv\Scripts\activate     # On Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
 ## Environment Variables
 
 The application relies on the following environment variables:
