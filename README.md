@@ -15,6 +15,34 @@ A FastAPI web application that helps Advanced Squad Leader (ASL) players underst
 
 - **[mysite2-evals-sft](https://github.com/kehannan/mysite2-evals-sft)**: Evaluation datasets, fine-tuning data, and data processing scripts
 
+## Project Structure
+
+```
+mysite2/
+├── app/                          # Main application package
+│   ├── models/                   # Database models
+│   ├── api/                      # API routes/routers
+│   │   ├── auth.py              # Authentication routes
+│   │   ├── user.py              # User profile routes
+│   │   └── chat.py              # Chat and WebSocket routes
+│   ├── core/                     # Core utilities
+│   │   ├── auth.py              # JWT and password hashing
+│   │   └── responses_api.py     # OpenAI integration
+│   ├── services/                 # Business logic
+│   │   └── user_service.py      # User operations
+│   ├── database.py              # Database configuration
+│   ├── config.py                # Application configuration
+│   └── main.py                  # FastAPI application
+├── scripts/                      # Admin/utility scripts
+│   ├── create_user.py
+│   ├── init_db.py
+│   └── ...
+├── static/                       # Static files (CSS, images)
+├── templates/                    # HTML templates
+├── tests/manual/                 # Manual test scripts
+└── run.py                       # Application runner
+```
+
 ## Setup
 
 ## Environment Variables
@@ -41,19 +69,36 @@ or install everything from the requirements file:
 pip install -r requirements.txt
 ```
 
-## Create the Admin User
+## Database Setup
 
-Run the following command and follow the prompts to create the initial admin account:
+Initialize the database (tables are created automatically on first run, but you can also run):
 
 ```bash
-python create_user.py
+python scripts/init_db.py
+```
+
+## Create the Admin User
+
+Create the initial admin account:
+
+```bash
+python scripts/create_user.py
 ```
 
 ## Running the Server
 
-Start the FastAPI development server with:
+Start the FastAPI development server:
 
 ```bash
-uvicorn main:app --reload
+# Option 1: Using the run script (recommended)
+python run.py
+
+# Option 2: Using uvicorn directly
+uvicorn app.main:app --reload
+
+# Option 3: For production
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+The server will be available at `http://localhost:8000`
 
