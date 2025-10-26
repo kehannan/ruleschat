@@ -1,4 +1,21 @@
-# Setup
+# ASL Rules Assistant
+
+A FastAPI web application that helps Advanced Squad Leader (ASL) players understand and apply the complex rules of the game using AI assistance powered by OpenAI.
+
+## Features
+
+- **AI-Powered Rules Assistant**: Ask questions about ASL rules and get accurate answers
+- **Vector Store Integration**: Searches through the official ASL rulebook
+- **User Authentication**: Secure login and user management
+- **Invitation System**: Admin-managed user invitations
+- **WebSocket Chat**: Real-time streaming responses
+- **Feedback System**: Users can provide feedback on answers
+
+## Related Repositories
+
+- **[mysite2-evals-sft](https://github.com/kehannan/mysite2-evals-sft)**: Evaluation datasets, fine-tuning data, and data processing scripts
+
+## Setup
 
 ## Environment Variables
 
