@@ -53,7 +53,7 @@ def home_page(request: Request):
     return templates.TemplateResponse("home.html", context)
 
 
-@router.get("/ruleschat", response_class=HTMLResponse)
+@router.get("/ruleschat", name="ruleschat", response_class=HTMLResponse)
 def ruleschat(request: Request):
     """Protected rules chat page."""
     token = request.cookies.get("access_token")
@@ -79,6 +79,30 @@ def ruleschat(request: Request):
         return templates.TemplateResponse("ruleschat.html", context)
     except JWTError:
         return RedirectResponse(url="/login", status_code=303)
+
+
+@router.get("/evals", name="evals_page", response_class=HTMLResponse)
+def evals_page(request: Request):
+    """Display evaluation results page."""
+    import json
+    from collections import Counter
+    
+    context = get_base_context(request)
+    
+    # Since evals were moved to separate repo, show message
+    context.update({
+        "error": "Evaluation data has been moved to the mysite2-evals-sft repository",
+        "results": [],
+        "total": 0,
+        "correct": 0,
+        "incorrect": 0,
+        "partial": 0,
+        "correct_pct": 0,
+        "incorrect_pct": 0,
+        "partial_pct": 0
+    })
+    
+    return templates.TemplateResponse("evals.html", context)
 
 
 @router.websocket("/ws/chat/")

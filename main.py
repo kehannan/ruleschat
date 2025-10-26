@@ -444,7 +444,7 @@ def get_db():
         db.close()
 
 # Admin dashboard
-@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin", name="admin_dashboard", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, user: User = Depends(get_admin_user), db=Depends(get_db)):
     users = db.query(User).all()
     invitations = db.query(Invitation).filter(

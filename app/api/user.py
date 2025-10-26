@@ -26,7 +26,7 @@ def generate_api_key(length: int = 32) -> str:
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
-@router.get("/profile", response_class=HTMLResponse)
+@router.get("/profile", name="profile_page", response_class=HTMLResponse)
 async def profile_page(
     request: Request,
     user: User = Depends(get_current_user),
