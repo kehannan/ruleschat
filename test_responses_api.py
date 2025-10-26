@@ -28,7 +28,10 @@ def test_responses_api():
         return False
     
     # Initialize OpenAI client
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(
+        api_key=api_key,
+        organization=os.getenv("OPENAI_ORG_ID")
+    )
     
     try:
         print("🧪 Testing Responses API with file search...")

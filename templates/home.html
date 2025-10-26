@@ -30,9 +30,10 @@
 
     <h3 class="mt-4">Approach</h3>
     <ul class="list-unstyled">
-      <li>• Website access <a href="https://platform.openai.com/docs/assistants/overview">OpenAI's assistant v2</a> API.</li>
-      <li>• Performs RAG (Retrieval Augmented Generation) over the ASL manual. The service first queries the ASL manual to find the most relevant content, and then submits that content to the LLM for the LLM to interpert and then return the answer.</li>
+      <li>• Uses OpenAI's latest <a href="https://platform.openai.com/docs/responses">Responses API</a> with advanced file search capabilities.</li>
+      <li>• Implements Retrieval Augmented Generation (RAG) using a vector store containing the complete ASL rules manual. The system searches through the document to find the most relevant content, then provides accurate, context-aware answers.</li>
       <li>• Contains approximately 1.49 million tokens of rules content. By comparison, <strong>Deep Learning</strong> by Goodfellow et al. is approximately 400k–420k tokens.</li>
+      <li>• Features specialized system instructions optimized for ASL rules interpretation, ensuring responses are precise, well-referenced, and practical for gameplay.</li>
     </ul>
 
     <hr class="mt-5">

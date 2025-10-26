@@ -1,5 +1,5 @@
 # models.py
-from sqlalchemy import Column, Integer, String, create_engine, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, create_engine, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
@@ -30,6 +30,16 @@ class Invitation(Base):
     @property
     def used(self):
         return self.used_at is not None
+
+class AnswerFeedback(Base):
+    __tablename__ = "answer_feedback"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    thumbs_up = Column(Boolean, nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 def get_user_by_username(username: str):
     db = SessionLocal()
