@@ -35,10 +35,10 @@ Install the required Python packages. You can either install them individually:
 pip install fastapi uvicorn sqlalchemy passlib[bcrypt] python-jose python-dotenv openai
 ```
 
-or install everything from the service requirements file:
+or install everything from the requirements file:
 
 ```bash
-pip install -r mcp_service/requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Create the Admin User

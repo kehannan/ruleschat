@@ -183,9 +183,9 @@ key.pem
 # Project specific
 test.db
 *.db
-mcp_service/.env
 
-# ML/Data directories (moved to mysite2-evals-sft repo)
+# Separate repositories
+mcp_service/
 evals/
 SFT/
 specification/
