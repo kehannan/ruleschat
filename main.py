@@ -16,14 +16,14 @@ from openai import OpenAI
 from datetime import datetime, timedelta
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
-from assistant import EventHandler  # Add this import
+# from assistant import EventHandler  # Removed: assistant.py does not exist and EventHandler is unused
 
 # Import Responses API handler
 from responses_api import initialize_vector_store, get_vector_store_manager
 from config import ASL_SYSTEM_INSTRUCTIONS, DEFAULT_MODEL, TEMPERATURE, WEBSOCKET_PING_INTERVAL, STREAMING_DELAY
 
 # Import your user model and auth utilities
-from models import get_user_by_username, update_user_profile, User, Invitation  # Function to retrieve a user by username
+from models import get_user_by_username, update_user_profile, User, Invitation, AnswerFeedback  # Function to retrieve a user by username
 from auth import verify_password, create_access_token, get_password_hash  # Functions for password verification and token creation
 from models import SessionLocal
 
@@ -44,10 +44,9 @@ print("MAIL_STARTTLS:", os.getenv("MAIL_STARTTLS"))
 print("MAIL_SSL_TLS:", os.getenv("MAIL_SSL_TLS"))
 
 # Initialize OpenAI client for new chat completions API
-# Use the organization where the vector store is located
 client = OpenAI(
     api_key=openai_api_key,
-    organization="org-XgfOCezbMRf4TG0OpmpQs8q5"
+    organization=os.getenv("OPENAI_ORG_ID", "org-XgfOCezbMRf4TG0OpmpQs8q5")
 )
 
 # Initialize vector store manager
@@ -642,3 +641,21 @@ async def register_complete(request: Request, code: str = Form(...), password: s
     invitation.used_by_user_id = user.id
     db.commit()
     return templates.TemplateResponse("register_success.html", {"request": request})
+
+@app.post("/api/feedback")
+async def submit_feedback(
+    data: dict = Body(...),
+    user: User = Depends(get_current_user)  # or None for anonymous
+):
+    feedback = AnswerFeedback(
+        user_id=user.id if user else None,
+        question=data["question"],
+        answer=data["answer"],
+        thumbs_up=data["thumbs_up"],
+        comment=data.get("comment")
+    )
+    db = SessionLocal()
+    db.add(feedback)
+    db.commit()
+    db.close()
+    return {"status": "ok"}

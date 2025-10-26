@@ -10,153 +10,225 @@
     <button id="chat-message-submit" class="btn btn-primary" type="button">Send</button>
 </div>
 <div id="connection-status" class="text-muted small">Connected</div>
+
+<!-- Feedback template (hidden, cloned for each answer) -->
+<template id="feedback-template">
+  <div class="feedback-section mt-2 d-flex align-items-center gap-2">
+    <span class="me-2">Was this answer helpful?</span>
+    <button class="btn btn-outline-success btn-sm thumbs-up" title="Thumbs up"><i class="bi bi-hand-thumbs-up"></i></button>
+    <button class="btn btn-outline-danger btn-sm thumbs-down" title="Thumbs down"><i class="bi bi-hand-thumbs-down"></i></button>
+    <button class="btn btn-outline-secondary btn-sm show-better-answer" title="Suggest a better answer"><i class="bi bi-chat-left-text"></i></button>
+    <form class="better-answer-form d-flex align-items-center gap-2" style="display:none; margin-bottom:0;">
+      <textarea class="form-control better-answer" rows="1" placeholder="Suggest a better answer" style="min-width:180px;"></textarea>
+      <button class="btn btn-secondary btn-sm submit-better-answer" type="submit">Submit</button>
+    </form>
+    <span class="feedback-thankyou text-success ms-2" style="display:none;">Thank you for your feedback!</span>
+  </div>
+</template>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .better-answer-form { display: none; }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
-    // Define variables and functions first
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host + '/ws/chat/';
     let chatSocket = null;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
-    const reconnectInterval = 3000; // 3 seconds between reconnect attempts
-    
+    const reconnectInterval = 3000;
+    let lastUserQuestion = '';
+    let lastAssistantAnswer = '';
+    let streamingTimeout = null;
+
     function setupWebSocket() {
         chatSocket = new WebSocket(wsUrl);
-        
         chatSocket.onopen = function() {
-            console.log('WebSocket connection established');
             document.getElementById('connection-status').textContent = 'Connected';
             document.getElementById('connection-status').classList.remove('text-danger');
             document.getElementById('connection-status').classList.add('text-success');
-            reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+            reconnectAttempts = 0;
         };
-
         chatSocket.onclose = function(e) {
-            console.log('WebSocket connection closed', e);
             document.getElementById('connection-status').textContent = 'Disconnected - attempting to reconnect...';
             document.getElementById('connection-status').classList.remove('text-success');
             document.getElementById('connection-status').classList.add('text-danger');
-            
-            // Try to reconnect
             if (reconnectAttempts < maxReconnectAttempts) {
                 reconnectAttempts++;
                 setTimeout(setupWebSocket, reconnectInterval);
             } else {
-                document.getElementById('connection-status').textContent = 
-                    'Connection lost. Please reload the page to reconnect.';
+                document.getElementById('connection-status').textContent = 'Connection lost. Please reload the page to reconnect.';
             }
         };
-
         chatSocket.onerror = function(err) {
-            console.error('WebSocket error:', err);
             document.getElementById('connection-status').textContent = 'Connection error';
             document.getElementById('connection-status').classList.remove('text-success');
             document.getElementById('connection-status').classList.add('text-danger');
         };
-
         chatSocket.onmessage = function(e) {
-            // Handle ping message
             if (e.data === "__ping__") {
                 chatSocket.send("__pong__");
-                console.log("Ping received, sent pong");
                 return;
             }
-            
             const chatContainer = document.querySelector('#chat-container');
-
-            // Find or create the current bot message container
             let currentBotMessage = chatContainer.querySelector('.bot-message.current');
             if (!currentBotMessage) {
                 currentBotMessage = document.createElement('div');
                 currentBotMessage.classList.add('bot-message', 'current', 'alert', 'alert-secondary', 'p-2', 'mt-2');
                 chatContainer.appendChild(currentBotMessage);
             }
-
-            // Append the new chunk and render with Markdown
             const currentContent = currentBotMessage.getAttribute('data-content') || '';
             const newContent = currentContent + e.data;
             currentBotMessage.setAttribute('data-content', newContent);
             currentBotMessage.innerHTML = marked.parse(newContent);
-
-            // Scroll to bottom
             chatContainer.scrollTop = chatContainer.scrollHeight;
+            // Reset streaming timeout
+            if (streamingTimeout) clearTimeout(streamingTimeout);
+            streamingTimeout = setTimeout(() => {
+                lastAssistantAnswer = newContent;
+                if (!currentBotMessage.nextElementSibling || !currentBotMessage.nextElementSibling.classList.contains('feedback-section')) {
+                    addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
+                }
+            }, 600); // 600ms after last chunk, consider answer done
         };
     }
-    
     function sendMessage() {
         if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
             alert("Connection lost. Please reload the page to reconnect.");
             return;
         }
-        
         const messageInput = document.querySelector('#chat-message-input');
         const message = messageInput.value.trim();
         if (!message) return;
-
-        // Remove the 'current' class from any existing bot message
         const currentBotMessage = document.querySelector('.bot-message.current');
         if (currentBotMessage) {
             currentBotMessage.classList.remove('current');
         }
-
         chatSocket.send(message);
         messageInput.value = '';
-
-        // Display user's message
         const chatContainer = document.querySelector('#chat-container');
         const userMessageElement = document.createElement('div');
         userMessageElement.textContent = message;
         userMessageElement.classList.add('alert', 'alert-primary', 'p-2', 'mt-2');
         chatContainer.appendChild(userMessageElement);
         chatContainer.scrollTop = chatContainer.scrollHeight;
+        lastUserQuestion = message;
     }
-    
-    // Initialize everything when the DOM is fully loaded
+    function addFeedbackUI(botMessageElem, question, answer) {
+        if (botMessageElem.nextElementSibling && botMessageElem.nextElementSibling.classList.contains('feedback-section')) {
+            botMessageElem.nextElementSibling.remove();
+        }
+        const template = document.getElementById('feedback-template');
+        const feedbackElem = template.content.cloneNode(true);
+        const section = feedbackElem.querySelector('.feedback-section');
+        const upBtn = section.querySelector('.thumbs-up');
+        const downBtn = section.querySelector('.thumbs-down');
+        const showBetterBtn = section.querySelector('.show-better-answer');
+        const betterForm = section.querySelector('.better-answer-form');
+        const betterTextarea = section.querySelector('.better-answer');
+        const submitBetterBtn = section.querySelector('.submit-better-answer');
+        const thankYou = section.querySelector('.feedback-thankyou');
+
+        upBtn.onclick = function() {
+            upBtn.disabled = true;
+            downBtn.disabled = true;
+            showBetterBtn.disabled = true;
+            fetch('/api/feedback', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    question: question,
+                    answer: answer,
+                    thumbs_up: true,
+                    comment: ''
+                })
+            }).then(r => r.json()).then(data => {
+                thankYou.style.display = '';
+                setTimeout(() => {
+                    section.style.display = 'none';
+                }, 2000);
+            });
+        };
+        downBtn.onclick = function() {
+            upBtn.disabled = true;
+            downBtn.disabled = true;
+            showBetterBtn.disabled = true;
+            fetch('/api/feedback', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    question: question,
+                    answer: answer,
+                    thumbs_up: false,
+                    comment: ''
+                })
+            }).then(r => r.json()).then(data => {
+                thankYou.style.display = '';
+                setTimeout(() => {
+                    section.style.display = 'none';
+                }, 2000);
+            });
+        };
+        showBetterBtn.onclick = function() {
+            betterForm.style.display = '';
+            showBetterBtn.style.display = 'none';
+        };
+        betterForm.onsubmit = function(e) {
+            e.preventDefault();
+            if (!betterTextarea.value.trim()) {
+                betterTextarea.focus();
+                return;
+            }
+            upBtn.disabled = true;
+            downBtn.disabled = true;
+            showBetterBtn.disabled = true;
+            submitBetterBtn.disabled = true;
+            betterTextarea.disabled = true;
+            fetch('/api/feedback', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    question: question,
+                    answer: answer,
+                    thumbs_up: null,
+                    comment: betterTextarea.value.trim()
+                })
+            }).then(r => r.json()).then(data => {
+                thankYou.style.display = '';
+                setTimeout(() => {
+                    section.style.display = 'none';
+                }, 2000);
+            });
+        };
+        botMessageElem.parentNode.insertBefore(section, botMessageElem.nextSibling);
+    }
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM fully loaded, setting up application');
-        
-        // Set up Enter key handler
         const inputField = document.querySelector('#chat-message-input');
         if (inputField) {
-            console.log('Input field found, attaching keydown listener');
             inputField.addEventListener('keydown', function(e) {
-                console.log('Keydown event detected:', e.key);
                 if (e.key === 'Enter') {
-                    console.log('Enter key pressed, submitting message');
-                    e.preventDefault(); // Prevent default Enter key behavior
+                    e.preventDefault();
                     sendMessage();
-                    return false; // Additional prevention of default behavior
+                    return false;
                 }
             });
-        } else {
-            console.error('Chat input field not found');
         }
-        
-        // Set up submit button handler
         const submitButton = document.querySelector('#chat-message-submit');
         if (submitButton) {
-            console.log('Submit button found, attaching click listener');
             submitButton.onclick = sendMessage;
-        } else {
-            console.error('Submit button not found');
         }
-        
-        // Auto-reconnect if tab regains focus after being inactive
         document.addEventListener('visibilitychange', function() {
             if (document.visibilityState === 'visible' && 
                 (!chatSocket || chatSocket.readyState !== WebSocket.OPEN)) {
-                console.log('Tab is visible again, attempting to reconnect');
                 setupWebSocket();
             }
         });
-        
-        // Initial WebSocket setup
         setupWebSocket();
-        
-        console.log('Application setup complete');
     });
 </script>
 {% endblock %}
