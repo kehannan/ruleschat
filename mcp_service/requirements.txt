@@ -1,6 +1,0 @@
-fastapi==0.110.0
-uvicorn==0.27.1
-openai==1.13.3
-python-dotenv==1.0.1
-metalcloud==0.1.0
-pydantic==2.6.1 
