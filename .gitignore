@@ -184,3 +184,4 @@ key.pem
 test.db
 *.db
 mcp_service/.envevals/sources/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf
+evals/sources/*.pdf
