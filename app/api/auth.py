@@ -15,7 +15,12 @@ templates = Jinja2Templates(directory="templates")
 
 def get_base_context(request: Request, user: User = None):
     """Get base template context."""
-    return {"request": request, "user": user}
+    import os
+    context = {"request": request, "user": user}
+    if user:
+        context["user_email"] = user.email
+        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+    return context
 
 
 @router.get("/login", name="login", response_class=HTMLResponse)

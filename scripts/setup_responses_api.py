@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from app.core.responses_api import initialize_vector_store
 from typing import Dict, Any
-import config
 
 # Configure logging
 logging.basicConfig(
@@ -30,6 +29,10 @@ logging.basicConfig(
 def main():
     """Main function to set up vector store"""
     logging.info("🚀 Initializing Vector Store...")
+    
+    # Load environment variables
+    load_dotenv()
+    
     try:
         # Initialize OpenAI client
         api_key = os.getenv("OPENAI_API_KEY")
@@ -38,11 +41,12 @@ def main():
         
         client = OpenAI(
             api_key=api_key,
-            organization=os.getenv("OPENAI_ORG_ID")
+            organization=os.getenv("OPENAI_ORG_ID"),
+            project=os.getenv("OPENAI_PROJECT_ID")
         )
         
-        # PDF file path - adjust this to your actual PDF path
-        pdf_path = "evals/sources/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf"
+        # PDF file path - now in the evals-sft repository
+        pdf_path = "../mysite2-evals-sft/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf"
         
         # Set up the vector store
         config_data = setup_asl_vector_store(client, pdf_path)
@@ -124,8 +128,8 @@ def create_vector_store(client) -> str:
     logging.info("📚 Creating vector store...")
     try:
         response = client.vector_stores.create(
-            name=config.VECTOR_STORE_NAME,
-            expires_after={"anchor": "last_active_at", "days": config.VECTOR_STORE_EXPIRY_DAYS}
+            name="ASL Rules Vector Store",
+            expires_after={"anchor": "last_active_at", "days": 365}
         )
         logging.info(f"✅ Created vector store: {response.id}")
         return response.id
