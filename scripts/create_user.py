@@ -1,7 +1,13 @@
 # create_user.py
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from sqlalchemy.orm import sessionmaker
 from passlib.context import CryptContext
-from models import engine, User
+from app.database import engine, SessionLocal
+from app.models import User
+from app.core.auth import get_password_hash
 
 # Set up the database session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
