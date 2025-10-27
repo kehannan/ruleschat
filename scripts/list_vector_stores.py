@@ -16,7 +16,8 @@ def list_vector_stores():
         # Initialize OpenAI client
         client = OpenAI(
             api_key=os.getenv("OPENAI_API_KEY"),
-            organization=os.getenv("OPENAI_ORG_ID")
+            organization=os.getenv("OPENAI_ORG_ID"),
+            project=os.getenv("OPENAI_PROJECT_ID")
         )
         
         print("🔍 Fetching vector stores from OpenAI...")

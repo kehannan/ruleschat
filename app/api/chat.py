@@ -22,7 +22,8 @@ templates = Jinja2Templates(directory="templates")
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(
     api_key=openai_api_key,
-    organization=os.getenv("OPENAI_ORG_ID", "org-XgfOCezbMRf4TG0OpmpQs8q5")
+    organization=os.getenv("OPENAI_ORG_ID"),
+    project=os.getenv("OPENAI_PROJECT_ID")
 )
 
 # Load Responses API configuration
@@ -37,7 +38,12 @@ except Exception as e:
 
 def get_base_context(request: Request, user=None):
     """Get base template context."""
-    return {"request": request, "user": user}
+    import os
+    context = {"request": request, "user": user}
+    if user:
+        context["user_email"] = user.email
+        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+    return context
 
 
 @router.get("/", response_class=RedirectResponse)
@@ -49,7 +55,23 @@ def root():
 @router.get("/home", name="home", response_class=HTMLResponse)
 def home_page(request: Request):
     """Display home/landing page."""
-    context = get_base_context(request)
+    # Check if user is logged in
+    user = None
+    token = request.cookies.get("access_token")
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            email = payload.get("sub")
+            if email:
+                db = SessionLocal()
+                try:
+                    user = get_user_by_email(db, email)
+                finally:
+                    db.close()
+        except JWTError:
+            pass
+    
+    context = get_base_context(request, user)
     return templates.TemplateResponse("home.html", context)
 
 
@@ -79,31 +101,6 @@ def ruleschat(request: Request):
         return templates.TemplateResponse("ruleschat.html", context)
     except JWTError:
         return RedirectResponse(url="/login", status_code=303)
-
-
-@router.get("/evals", name="evals_page", response_class=HTMLResponse)
-def evals_page(request: Request):
-    """Display evaluation results page."""
-    import json
-    from collections import Counter
-    
-    context = get_base_context(request)
-    
-    # Since evals were moved to separate repo, show message
-    context.update({
-        "error": "Evaluation data has been moved to the mysite2-evals-sft repository",
-        "results": [],
-        "total": 0,
-        "correct": 0,
-        "incorrect": 0,
-        "partial": 0,
-        "correct_pct": 0,
-        "incorrect_pct": 0,
-        "partial_pct": 0
-    })
-    
-    return templates.TemplateResponse("evals.html", context)
-
 
 @router.websocket("/ws/chat/")
 async def websocket_chat(websocket: WebSocket):
@@ -174,23 +171,45 @@ async def websocket_chat(websocket: WebSocket):
                     response_received = False
                     
                     # Stream events as they arrive
+                    event_count = 0
+                    delta_count = 0
+                    import time
+                    first_delta_time = None
+                    
                     for event in stream:
+                        event_count += 1
                         try:
                             # Handle text delta events (this is where the actual response text is)
                             if hasattr(event, 'type') and event.type == 'response.output_text.delta':
                                 if hasattr(event, 'delta') and event.delta:
+                                    delta_count += 1
+                                    if first_delta_time is None:
+                                        first_delta_time = time.time()
+                                    current_time = time.time()
+                                    elapsed = (current_time - first_delta_time) * 1000  # Convert to ms
+                                    
+                                    delta_preview = event.delta[:30].replace('\n', '\\n')
+                                    logging.info(f"📤 Delta #{delta_count} (+{elapsed:.0f}ms): '{delta_preview}' (len={len(event.delta)})")
+                                    
                                     await websocket.send_text(event.delta)
                                     response_received = True
                             elif hasattr(event, 'type') and event.type == 'error':
                                 logging.error(f"Stream error event: {event}")
                                 raise Exception(f"Stream error: {event}")
+                            else:
+                                # Log other event types for debugging
+                                if hasattr(event, 'type'):
+                                    logging.debug(f"Stream event #{event_count}: {event.type}")
                         except Exception as stream_error:
                             logging.error(f"Error processing stream event: {stream_error}")
                             # Continue processing other events
                             continue
                     
+                    total_time = (time.time() - first_delta_time) * 1000 if first_delta_time else 0
+                    logging.info(f"📊 Processed {event_count} stream events total ({delta_count} text deltas in {total_time:.0f}ms)")
+                    
                     if response_received:
-                        logging.info("✅ Response streamed successfully")
+                        logging.info(f"✅ Response streamed successfully - avg {total_time/delta_count:.1f}ms per delta")
                     else:
                         logging.warning("⚠️ No response content received from stream")
                         await websocket.send_text("Sorry, I couldn't generate a response. Please try again.")

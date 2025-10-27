@@ -45,6 +45,44 @@
     let lastUserQuestion = '';
     let lastAssistantAnswer = '';
     let streamingTimeout = null;
+    let chunkBuffer = [];
+    let isDisplaying = false;
+    let displayInterval = null;
+
+    function displayBufferedChunks() {
+        if (isDisplaying || chunkBuffer.length === 0) return;
+        isDisplaying = true;
+        
+        const chatContainer = document.querySelector('#chat-container');
+        let currentBotMessage = chatContainer.querySelector('.bot-message.current');
+        if (!currentBotMessage) {
+            currentBotMessage = document.createElement('div');
+            currentBotMessage.classList.add('bot-message', 'current', 'alert', 'alert-secondary', 'p-2', 'mt-2');
+            chatContainer.appendChild(currentBotMessage);
+        }
+        
+        displayInterval = setInterval(() => {
+            if (chunkBuffer.length === 0) {
+                clearInterval(displayInterval);
+                isDisplaying = false;
+                // Parse markdown after all chunks displayed
+                const finalContent = currentBotMessage.getAttribute('data-content') || '';
+                currentBotMessage.innerHTML = marked.parse(finalContent);
+                lastAssistantAnswer = finalContent;
+                if (!currentBotMessage.nextElementSibling || !currentBotMessage.nextElementSibling.classList.contains('feedback-section')) {
+                    addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
+                }
+                return;
+            }
+            
+            const chunk = chunkBuffer.shift();
+            const currentContent = currentBotMessage.getAttribute('data-content') || '';
+            const newContent = currentContent + chunk;
+            currentBotMessage.setAttribute('data-content', newContent);
+            currentBotMessage.textContent = newContent;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }, 20); // Display chunks every 20ms for smooth streaming effect
+    }
 
     function setupWebSocket() {
         chatSocket = new WebSocket(wsUrl);
@@ -75,26 +113,15 @@
                 chatSocket.send("__pong__");
                 return;
             }
-            const chatContainer = document.querySelector('#chat-container');
-            let currentBotMessage = chatContainer.querySelector('.bot-message.current');
-            if (!currentBotMessage) {
-                currentBotMessage = document.createElement('div');
-                currentBotMessage.classList.add('bot-message', 'current', 'alert', 'alert-secondary', 'p-2', 'mt-2');
-                chatContainer.appendChild(currentBotMessage);
+            console.log('📥 Buffering chunk:', e.data.substring(0, 50) + (e.data.length > 50 ? '...' : ''));
+            
+            // Add chunk to buffer
+            chunkBuffer.push(e.data);
+            
+            // Start displaying if not already running
+            if (!isDisplaying) {
+                displayBufferedChunks();
             }
-            const currentContent = currentBotMessage.getAttribute('data-content') || '';
-            const newContent = currentContent + e.data;
-            currentBotMessage.setAttribute('data-content', newContent);
-            currentBotMessage.innerHTML = marked.parse(newContent);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            // Reset streaming timeout
-            if (streamingTimeout) clearTimeout(streamingTimeout);
-            streamingTimeout = setTimeout(() => {
-                lastAssistantAnswer = newContent;
-                if (!currentBotMessage.nextElementSibling || !currentBotMessage.nextElementSibling.classList.contains('feedback-section')) {
-                    addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
-                }
-            }, 600); // 600ms after last chunk, consider answer done
         };
     }
     function sendMessage() {
@@ -105,6 +132,15 @@
         const messageInput = document.querySelector('#chat-message-input');
         const message = messageInput.value.trim();
         if (!message) return;
+        
+        // Clear buffer and stop any ongoing display
+        chunkBuffer = [];
+        if (displayInterval) {
+            clearInterval(displayInterval);
+            displayInterval = null;
+        }
+        isDisplaying = false;
+        
         const currentBotMessage = document.querySelector('.bot-message.current');
         if (currentBotMessage) {
             currentBotMessage.classList.remove('current');

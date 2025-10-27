@@ -17,7 +17,12 @@ templates = Jinja2Templates(directory="templates")
 
 def get_base_context(request: Request, user: User = None):
     """Get base template context."""
-    return {"request": request, "user": user}
+    import os
+    context = {"request": request, "user": user}
+    if user:
+        context["user_email"] = user.email
+        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+    return context
 
 
 def generate_api_key(length: int = 32) -> str:
@@ -128,6 +133,83 @@ async def generate_new_api_key(
     
     return RedirectResponse(
         url="/profile?message=New API key generated&message_type=success",
+        status_code=303
+    )
+
+
+@router.get("/admin", name="admin_dashboard", response_class=HTMLResponse)
+async def admin_dashboard(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin dashboard - simple placeholder for now."""
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    # Check if user is admin
+    import os
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if user.email != admin_email:
+        return RedirectResponse(url="/", status_code=303)
+    
+    # Get all users and invitations
+    from app.models import User as UserModel, Invitation
+    from datetime import datetime
+    
+    users = db.query(UserModel).all()
+    invitations = db.query(Invitation).filter(
+        Invitation.expires_at > datetime.utcnow()
+    ).order_by(Invitation.created_at.desc()).all()
+    
+    context = get_base_context(request, user)
+    context["users"] = users
+    context["invitations"] = invitations
+    context["message"] = request.query_params.get("message")
+    context["message_type"] = request.query_params.get("message_type", "info")
+    
+    return templates.TemplateResponse("admin.html", context)
+
+
+@router.post("/admin/create-test-user", name="admin_create_test_user")
+async def admin_create_test_user(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a test user (admin only)."""
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    # Check if user is admin
+    import os
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if user.email != admin_email:
+        return RedirectResponse(url="/", status_code=303)
+    
+    # Check if user already exists
+    existing_user = get_user_by_email(db, email)
+    if existing_user:
+        return RedirectResponse(
+            url="/admin?message=User already exists&message_type=danger",
+            status_code=303
+        )
+    
+    # Create new user
+    from app.core.auth import get_password_hash
+    hashed_password = get_password_hash(password)
+    
+    new_user = User(
+        email=email,
+        hashed_password=hashed_password
+    )
+    db.add(new_user)
+    db.commit()
+    
+    return RedirectResponse(
+        url="/admin?message=Test user created successfully&message_type=success",
         status_code=303
     )
 
