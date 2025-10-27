@@ -10,7 +10,7 @@ from starlette.websockets import WebSocketState
 from jose import jwt, JWTError
 from openai import OpenAI
 
-from app.config import ASL_SYSTEM_INSTRUCTIONS, DEFAULT_MODEL, TEMPERATURE, WEBSOCKET_PING_INTERVAL, STREAMING_DELAY
+from app.config import ASL_SYSTEM_INSTRUCTIONS, DEFAULT_MODEL, TEMPERATURE, WEBSOCKET_PING_INTERVAL
 from app.core.auth import SECRET_KEY, ALGORITHM
 from app.services.user_service import get_user_by_email
 from app.database import SessionLocal
@@ -146,8 +146,8 @@ async def websocket_chat(websocket: WebSocket):
                 
                 logging.info(f"✅ Received question: {message}")
                 
-                # Use Responses API with file search
-                logging.info("🟢 Starting Responses API with file search...")
+                # Use Responses API with file search and native streaming
+                logging.info("🟢 Starting Responses API with file search and streaming...")
                 try:
                     if not hasattr(client, 'responses'):
                         raise AttributeError("OpenAI client does not have 'responses' attribute")
@@ -157,31 +157,42 @@ async def websocket_chat(websocket: WebSocket):
                     
                     logging.info(f"📊 Using Vector Store: {responses_config['vector_store_id']}")
                     
-                    response = client.responses.create(
+                    # Create streaming response
+                    stream = client.responses.create(
                         model=DEFAULT_MODEL,
                         input=message,
                         instructions=ASL_SYSTEM_INSTRUCTIONS,
                         temperature=TEMPERATURE,
+                        stream=True,  # Enable native streaming
                         tools=[{
                             "type": "file_search",
                             "vector_store_ids": [responses_config["vector_store_id"]],
                         }]
                     )
                     
-                    assistant_response = response.output_text
+                    logging.info("🔄 Streaming response from OpenAI...")
+                    response_received = False
                     
-                    if assistant_response:
-                        logging.info(f"📝 Full response: {assistant_response[:100]}...")
-                        
-                        # Stream the response character by character
-                        logging.info("🔄 Streaming response...")
-                        for char in assistant_response:
-                            await websocket.send_text(char)
-                            await asyncio.sleep(STREAMING_DELAY)
-                        
+                    # Stream events as they arrive
+                    for event in stream:
+                        try:
+                            # Handle text delta events (this is where the actual response text is)
+                            if hasattr(event, 'type') and event.type == 'response.output_text.delta':
+                                if hasattr(event, 'delta') and event.delta:
+                                    await websocket.send_text(event.delta)
+                                    response_received = True
+                            elif hasattr(event, 'type') and event.type == 'error':
+                                logging.error(f"Stream error event: {event}")
+                                raise Exception(f"Stream error: {event}")
+                        except Exception as stream_error:
+                            logging.error(f"Error processing stream event: {stream_error}")
+                            # Continue processing other events
+                            continue
+                    
+                    if response_received:
                         logging.info("✅ Response streamed successfully")
                     else:
-                        logging.warning("⚠️ No response content received")
+                        logging.warning("⚠️ No response content received from stream")
                         await websocket.send_text("Sorry, I couldn't generate a response. Please try again.")
                 
                 except AttributeError as attr_error:
