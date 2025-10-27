@@ -1,6 +1,11 @@
 # delete_user.py
-from crud import SessionLocal, get_user_by_username
-from models import User
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from app.database import SessionLocal
+from app.models import User
+from app.services.user_service import get_user_by_email
 def delete_user(db, user):
     db.delete(user)
     db.commit()

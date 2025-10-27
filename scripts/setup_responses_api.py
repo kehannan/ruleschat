@@ -8,12 +8,16 @@ This script will:
 """
 
 import os
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import json
 import logging
 import time
 from dotenv import load_dotenv
 from openai import OpenAI
-from responses_api import initialize_vector_store
+from app.core.responses_api import initialize_vector_store
 from typing import Dict, Any
 import config
 

@@ -1,5 +1,10 @@
-from models import Base, engine, User, SessionLocal
-from auth import get_password_hash
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from app.database import Base, engine, SessionLocal
+from app.models import User
+from app.core.auth import get_password_hash
 
 # Create all tables
 Base.metadata.create_all(bind=engine)

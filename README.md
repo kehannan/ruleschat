@@ -33,6 +33,9 @@ mysite2/
 │   ├── database.py              # Database configuration
 │   ├── config.py                # Application configuration
 │   └── main.py                  # FastAPI application
+├── deployment/                   # Production deployment configs
+│   ├── nginx.conf               # Nginx reverse proxy configuration
+│   └── README.md                # Deployment guide
 ├── scripts/                      # Admin/utility scripts
 │   ├── create_user.py
 │   ├── init_db.py

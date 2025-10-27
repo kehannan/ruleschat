@@ -1,5 +1,10 @@
-from models import User, SessionLocal
-from auth import get_password_hash
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from app.models import User
+from app.database import SessionLocal
+from app.core.auth import get_password_hash
 
 # Admin email from your environment
 ADMIN_EMAIL = "kevin.hannan@gmail.com"
