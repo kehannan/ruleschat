@@ -15,6 +15,14 @@ A FastAPI web application that helps Advanced Squad Leader (ASL) players underst
 
 - **[mysite2-evals-sft](https://github.com/kehannan/mysite2-evals-sft)**: Evaluation datasets, fine-tuning data, and data processing scripts
 
+## 📚 Documentation
+
+- **[PRODUCTION.md](PRODUCTION.md)** - Complete production environment guide
+- **[deployment/QUICKSTART.md](deployment/QUICKSTART.md)** - Quick deployment reference
+- **[deployment/README.md](deployment/README.md)** - Detailed deployment instructions
+- **[TESTING.md](TESTING.md)** - Testing guide
+- **[REFACTORING.md](REFACTORING.md)** - Code refactoring notes
+
 ## Project Structure
 
 ```
