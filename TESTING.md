@@ -57,7 +57,6 @@ Visit these URLs in your browser:
    - Go to http://localhost:8000/profile
    - Check if user info displays
    - Test password change
-   - Generate API key
 
 4. **Test logout**:
    - Click logout
@@ -93,9 +92,9 @@ Visit these URLs in your browser:
    python scripts/create_user.py --admin
    ```
 
-2. **List users**:
-   - Access admin panel if implemented
-   - Or check database directly
+2. **Admin panel**:
+   - Visit http://localhost:8000/admin (requires admin)
+   - Verify users and invitations are listed
 
 ## Automated Testing
 
@@ -122,22 +121,17 @@ python -c "from app.core.auth import get_password_hash, verify_password; print('
 python -c "from app.services.user_service import get_user_by_email; print('✓ Services work')"
 ```
 
-### Use Manual Test Scripts
-
-The `tests/manual/` directory contains test scripts:
+### Command-line test helpers
 
 ```bash
-# Test OpenAI API connection
-python tests/manual/test.py
+# Test Responses API configuration
+python test_responses_api.py
 
-# Test responses API
-python tests/manual/test_responses_api.py
+# Test feedback endpoint helpers
+python test_feedback.py
 
-# Test WebSocket
-python tests/manual/ws_test.py
-
-# Test feedback system
-python tests/manual/test_feedback.py
+# Test WebSocket (interactive)
+python ws_test.py
 ```
 
 ## API Testing with curl
@@ -233,6 +227,7 @@ python scripts/init_db.py
 # Verify .env file exists and has:
 OPENAI_API_KEY=sk-...
 OPENAI_ORG_ID=org-...
+OPENAI_PROJECT_ID=proj-...
 SECRET_KEY=your-secret-key
 ```
 

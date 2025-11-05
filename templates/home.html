@@ -2,42 +2,42 @@
 
 {% block content %}
 <div class="row">
-  <div class="col-md-8">
-    <h2 class="mb-4 fs-3">Advanced Squad Leader (ASL) Rules Assistant</h2>
+  <div class="col-lg-10 mx-auto">
+    <h1 class="mb-3">Rules Chat for Advanced Squad Leader</h1>
+    <p class="lead mb-4">An AI-powered assistant to answer rules questions about Advanced Squad Leader using the ASL rulebook.</p>
 
-    <ul class="list-unstyled">
-      <li>• I created a chat bot to answer rules-questions about the wargame Advanced Squad Leader for my personal use.</li>
-      <li>• Advanced Squad Leader (ASL) is a tactical-level hex-and-counter board game covering WW2, published by Avalon Hill in 1985. See Wikipedia <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader">entry</a>.</li>
-    </ul>
+    {% if user_email is defined and user_email %}
+      <div class="mb-4">
+        <a href="{{ url_for('ruleschat') }}" class="btn btn-primary">Start Chatting</a>
+        <a href="{{ url_for('about') }}" class="btn btn-outline-secondary ms-2">Learn More</a>
+      </div>
+    {% else %}
+      <div class="mb-4">
+        <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Start</a>
+        <a href="{{ url_for('about') }}" class="btn btn-outline-secondary ms-2">Learn More</a>
+      </div>
+    {% endif %}
 
-    <div class="row mt-4 mb-4">
-      <div class="col-md-6 text-center mb-4">
-        <img src="{{ url_for('static', path='img/asl.jpg') }}" alt="ASL cover" class="img-fluid rounded" style="max-height: 300px; width: auto;">
+    <div class="row mb-4">
+      <div class="col-md-6 mb-3">
+        <img src="{{ url_for('static', path='img/asl.jpg') }}" alt="ASL cover" class="img-fluid" style="max-height: 250px; width: auto;">
       </div>
-      <div class="col-md-6 text-center mb-4">
-        <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL board" class="img-fluid rounded" style="max-height: 300px; width: auto;">
+      <div class="col-md-6 mb-3">
+        <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL board" class="img-fluid" style="max-height: 250px; width: auto;">
       </div>
-      <div class="col-12 text-center">
-        <img src="{{ url_for('static', path='img/rulebook.png') }}" alt="ASL Rulebook" class="img-fluid rounded" style="max-height: 400px; width: auto;">
+      <div class="col-12 mb-3">
+        <img src="{{ url_for('static', path='img/rulebook.png') }}" alt="ASL Rulebook" class="img-fluid" style="max-height: 350px; width: auto;">
       </div>
     </div>
 
-    <h3>Demo</h3>
+    <h2 class="mb-3">Demo</h2>
     <video controls class="w-100 mb-4">
       <source src="{{ url_for('static', path='videos/ruleschat.mp4') }}" type="video/mp4">
       Your browser does not support the video tag.
     </video>
 
-    <h3 class="mt-4">Approach</h3>
-    <ul class="list-unstyled">
-      <li>• Uses OpenAI's latest <a href="https://platform.openai.com/docs/responses">Responses API</a> with advanced file search capabilities.</li>
-      <li>• Implements Retrieval Augmented Generation (RAG) using a vector store containing the complete ASL rules manual. The system searches through the document to find the most relevant content, then provides accurate, context-aware answers.</li>
-      <li>• Contains approximately 1.49 million tokens of rules content. By comparison, <strong>Deep Learning</strong> by Goodfellow et al. is approximately 400k–420k tokens.</li>
-      <li>• Features specialized system instructions optimized for ASL rules interpretation, ensuring responses are precise, well-referenced, and practical for gameplay.</li>
-    </ul>
-
-    <hr class="mt-5">
-    <div class="text-muted small mt-3">
+    <hr class="my-4">
+    <div class="text-muted small">
       <p class="mb-1">kevmo.us is not affiliated with Hasbro, Avalon Hill Games, Inc., or Multi-Man Publishing, Inc.</p>
       <p class="mb-0">Advanced Squad Leader is a trademark of Avalon Hill Games, Inc.</p>
     </div>

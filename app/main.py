@@ -7,6 +7,7 @@ import string
 import random
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Depends, HTTPException, Body, BackgroundTasks, Request, Form
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
@@ -35,7 +36,7 @@ logging.basicConfig(
 Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
-app = FastAPI(title="ASL Rules Assistant")
+app = FastAPI(title="Rules Chat for Advanced Squad Leader (ASL)")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -157,6 +158,116 @@ async def register_complete(
     
     context = {"request": request}
     return templates.TemplateResponse("register_success.html", context)
+
+
+@app.get("/about", name="about", response_class=HTMLResponse)
+async def about_page(request: Request):
+    """Display about page."""
+    context = {"request": request}
+    return templates.TemplateResponse("about.html", context)
+
+
+def load_eval_results():
+    """Load and process evaluation results from the mysite2-evals-sft project."""
+    from pathlib import Path
+    from collections import defaultdict
+    
+    evals_results_path = Path(__file__).parent.parent.parent / "mysite2-evals-sft" / "evals" / "asl_eval_results.json"
+    
+    results = []
+    section_summary = []
+    error = None
+    
+    try:
+        if evals_results_path.exists():
+            with open(evals_results_path, "r", encoding="utf-8") as f:
+                eval_data = json.load(f)
+            
+            # Group by letter prefix (A, C, etc.) and calculate stats
+            section_stats = defaultdict(lambda: {"total": 0, "correct": 0})
+            
+            # Transform the data to match template expectations
+            for item in eval_data:
+                section = item.get("section", "Unknown")
+                # Extract letter prefix (A, C, etc.)
+                section_letter = section[0] if section and section[0].isalpha() else "Unknown"
+                
+                # Use llm_judgment to determine correct count
+                judgment = item.get("llm_judgment", "unknown").lower()
+                
+                # Update section stats by letter
+                section_stats[section_letter]["total"] += 1
+                if judgment == "correct":
+                    section_stats[section_letter]["correct"] += 1
+                
+                results.append({
+                    "question": item.get("question", ""),
+                    "expected_answer": item.get("expected_answer", ""),
+                    "assistant_response": item.get("model_response", ""),
+                    "section": section,
+                    "judgment": judgment,
+                    "comments": item.get("llm_reasoning", ""),
+                    "confidence": item.get("llm_confidence", 0.0),
+                    "evaluation": item.get("evaluation", ""),
+                    "human_override": item.get("human_override", False),
+                    "human_notes": item.get("human_notes", ""),
+                })
+            
+            # Create section summary list (grouped by letter)
+            for section_letter, stats in sorted(section_stats.items()):
+                correct_pct = (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
+                section_summary.append({
+                    "section": section_letter,
+                    "prompts": stats["total"],
+                    "correct": stats["correct"],
+                    "correct_pct": correct_pct,
+                })
+            
+            # Calculate overall stats (using llm_judgment)
+            total = len(results)
+            correct = sum(1 for r in results if r["judgment"] == "correct")
+            partial = sum(1 for r in results if r["judgment"] == "partial")
+            incorrect = sum(1 for r in results if r["judgment"] == "incorrect")
+            
+            correct_pct = (correct / total * 100) if total > 0 else 0
+            partial_pct = (partial / total * 100) if total > 0 else 0
+            incorrect_pct = (incorrect / total * 100) if total > 0 else 0
+            
+            return {
+                "results": results,
+                "section_summary": section_summary,
+                "correct": correct,
+                "partial": partial,
+                "incorrect": incorrect,
+                "total": total,
+                "correct_pct": correct_pct,
+                "partial_pct": partial_pct,
+                "incorrect_pct": incorrect_pct,
+                "error": None
+            }
+        else:
+            return {"error": f"Evaluation results file not found at: {evals_results_path}"}
+    except Exception as e:
+        logging.error(f"Error loading evals: {e}")
+        return {"error": f"Error loading evaluation results: {str(e)}"}
+
+
+@app.get("/evals", name="evals", response_class=HTMLResponse)
+async def evals_page(request: Request):
+    """Display evaluation results summary page."""
+    context = {"request": request}
+    eval_data = load_eval_results()
+    context.update(eval_data)
+    return templates.TemplateResponse("evals.html", context)
+
+
+@app.get("/evals/detail", name="evals_detail", response_class=HTMLResponse)
+async def evals_detail_page(request: Request):
+    """Display detailed evaluation results page."""
+    context = {"request": request}
+    eval_data = load_eval_results()
+    context.update(eval_data)
+    return templates.TemplateResponse("evals_detail.html", context)
 
 
 if __name__ == "__main__":

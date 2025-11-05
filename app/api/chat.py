@@ -13,6 +13,7 @@ from openai import OpenAI
 from app.config import ASL_SYSTEM_INSTRUCTIONS, DEFAULT_MODEL, TEMPERATURE, WEBSOCKET_PING_INTERVAL
 from app.core.auth import SECRET_KEY, ALGORITHM
 from app.services.user_service import get_user_by_email
+from app.services.asl_service import get_asl_service
 from app.database import SessionLocal
 
 router = APIRouter()
@@ -46,10 +47,27 @@ def get_base_context(request: Request, user=None):
     return context
 
 
-@router.get("/", response_class=RedirectResponse)
-def root():
-    """Redirect root to login."""
-    return RedirectResponse(url="/login")
+@router.get("/", response_class=HTMLResponse)
+def root(request: Request):
+    """Display home/landing page at root."""
+    # Check if user is logged in (optional - home is public)
+    user = None
+    token = request.cookies.get("access_token")
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            email = payload.get("sub")
+            if email:
+                db = SessionLocal()
+                try:
+                    user = get_user_by_email(db, email)
+                finally:
+                    db.close()
+        except JWTError:
+            pass
+    
+    context = get_base_context(request, user)
+    return templates.TemplateResponse("home.html", context)
 
 
 @router.get("/home", name="home", response_class=HTMLResponse)
@@ -143,73 +161,35 @@ async def websocket_chat(websocket: WebSocket):
                 
                 logging.info(f"✅ Received question: {message}")
                 
-                # Use Responses API with file search and native streaming
-                logging.info("🟢 Starting Responses API with file search and streaming...")
+                # Use ASL Service for consistent responses
+                logging.info("🟢 Using ASL Service for response...")
                 try:
-                    if not hasattr(client, 'responses'):
-                        raise AttributeError("OpenAI client does not have 'responses' attribute")
+                    # Get the ASL service (uses same config as web app)
+                    asl_service = get_asl_service()
+                    logging.info(f"📊 Using Vector Store: {asl_service.vector_store_id}")
                     
-                    if not responses_config or 'vector_store_id' not in responses_config:
-                        raise ValueError("Responses API configuration not properly loaded")
-                    
-                    logging.info(f"📊 Using Vector Store: {responses_config['vector_store_id']}")
-                    
-                    # Create streaming response
-                    stream = client.responses.create(
-                        model=DEFAULT_MODEL,
-                        input=message,
-                        instructions=ASL_SYSTEM_INSTRUCTIONS,
-                        temperature=TEMPERATURE,
-                        stream=True,  # Enable native streaming
-                        tools=[{
-                            "type": "file_search",
-                            "vector_store_ids": [responses_config["vector_store_id"]],
-                        }]
-                    )
+                    # Get streaming response from service
+                    stream = asl_service.get_answer(message, stream=True)
                     
                     logging.info("🔄 Streaming response from OpenAI...")
                     response_received = False
                     
-                    # Stream events as they arrive
-                    event_count = 0
-                    delta_count = 0
+                    # Stream deltas from service
                     import time
+                    delta_count = 0
                     first_delta_time = None
                     
-                    for event in stream:
-                        event_count += 1
-                        try:
-                            # Handle text delta events (this is where the actual response text is)
-                            if hasattr(event, 'type') and event.type == 'response.output_text.delta':
-                                if hasattr(event, 'delta') and event.delta:
-                                    delta_count += 1
-                                    if first_delta_time is None:
-                                        first_delta_time = time.time()
-                                    current_time = time.time()
-                                    elapsed = (current_time - first_delta_time) * 1000  # Convert to ms
-                                    
-                                    delta_preview = event.delta[:30].replace('\n', '\\n')
-                                    logging.info(f"📤 Delta #{delta_count} (+{elapsed:.0f}ms): '{delta_preview}' (len={len(event.delta)})")
-                                    
-                                    await websocket.send_text(event.delta)
-                                    response_received = True
-                            elif hasattr(event, 'type') and event.type == 'error':
-                                logging.error(f"Stream error event: {event}")
-                                raise Exception(f"Stream error: {event}")
-                            else:
-                                # Log other event types for debugging
-                                if hasattr(event, 'type'):
-                                    logging.debug(f"Stream event #{event_count}: {event.type}")
-                        except Exception as stream_error:
-                            logging.error(f"Error processing stream event: {stream_error}")
-                            # Continue processing other events
-                            continue
-                    
-                    total_time = (time.time() - first_delta_time) * 1000 if first_delta_time else 0
-                    logging.info(f"📊 Processed {event_count} stream events total ({delta_count} text deltas in {total_time:.0f}ms)")
+                    for delta in stream:
+                        delta_count += 1
+                        if first_delta_time is None:
+                            first_delta_time = time.time()
+                        
+                        await websocket.send_text(delta)
+                        response_received = True
                     
                     if response_received:
-                        logging.info(f"✅ Response streamed successfully - avg {total_time/delta_count:.1f}ms per delta")
+                        total_time = (time.time() - first_delta_time) * 1000 if first_delta_time else 0
+                        logging.info(f"✅ Response streamed successfully - {delta_count} deltas in {total_time:.0f}ms")
                     else:
                         logging.warning("⚠️ No response content received from stream")
                         await websocket.send_text("Sorry, I couldn't generate a response. Please try again.")

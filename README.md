@@ -21,7 +21,7 @@ A FastAPI web application that helps Advanced Squad Leader (ASL) players underst
 - **[deployment/QUICKSTART.md](deployment/QUICKSTART.md)** - Quick deployment reference
 - **[deployment/README.md](deployment/README.md)** - Detailed deployment instructions
 - **[TESTING.md](TESTING.md)** - Testing guide
-- **[REFACTORING.md](REFACTORING.md)** - Code refactoring notes
+  
 
 ## Project Structure
 
@@ -87,11 +87,16 @@ pip install -r requirements.txt
 
 The application relies on the following environment variables:
 
-- `SECRET_KEY` – secret key used for signing JWT tokens.
-- `OPENAI_API_KEY` – API key for communicating with OpenAI.
-- `ADMIN_USERNAME` – optional username for the site administrator.
+- `SECRET_KEY` – secret key used for signing JWT tokens
+- `OPENAI_API_KEY` – API key for communicating with OpenAI
+- `OPENAI_ORG_ID` – OpenAI organization ID
+- `OPENAI_PROJECT_ID` – OpenAI project ID
+- `DEFAULT_MODEL` – model name, e.g. `gpt-4o`
+- `ADMIN_EMAIL` – admin email for the site
+- `TEMPERATURE` – optional, defaults to 0.2
+- `DATABASE_URL` – optional, defaults to `sqlite:///./mysite.db`
 
-Create a `.env` file in the project root and set these values.
+Create a `.env` file in the project root (use `deployment/env.example` as a template) and set these values.
 
 ## Installation
 
