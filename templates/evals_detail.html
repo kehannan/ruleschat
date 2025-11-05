@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Detailed Evaluation Results{% endblock %}
+
+{% block extra_css %}
+<style>
+  .result-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 1rem;
+    background: #f8f9fa;
+    margin-bottom: 1rem;
+  }
+  .result-card.human-override {
+    border-color: #ffc107;
+    background: #fffbf0;
+  }
+  .result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 1rem;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+  .evaluation-badge {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    display: inline-block;
+  }
+  .evaluation-auto-pass {
+    background: #d4edda;
+    color: #155724;
+  }
+  .evaluation-needs-review {
+    background: #fff3cd;
+    color: #856404;
+  }
+  .evaluation-auto-fail {
+    background: #f8d7da;
+    color: #721c24;
+  }
+  .human-override-badge {
+    background: #ffc107;
+    color: #856404;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .result-field {
+    margin-bottom: 1rem;
+  }
+  .result-field label {
+    display: block;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .result-field-content {
+    color: #212529;
+    line-height: 1.6;
+    padding: 0.75rem;
+    background: white;
+    border-radius: 4px;
+    border-left: 3px solid #667eea;
+    white-space: pre-wrap;
+    font-size: 14px;
+  }
+  .result-field-content.read-only {
+    color: #6c757d;
+    background: #f8f9fa;
+    border-left-color: #adb5bd;
+  }
+  .judgment-section {
+    background: #fff;
+    border: 1px solid #667eea;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  .judgment-section h3 {
+    color: #667eea;
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #e7f3ff;
+    border-radius: 4px;
+  }
+  .stat-item {
+    text-align: center;
+  }
+  .stat-item strong {
+    display: block;
+    color: #0056b3;
+    font-size: 1.25rem;
+    margin-bottom: 0.25rem;
+  }
+  .stat-item span {
+    color: #6c757d;
+    font-size: 0.875rem;
+  }
+  .section-badge {
+    background: #667eea;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-right: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-12">
+    <h1 class="mb-3">Detailed Evaluation Results</h1>
+    
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+      {{ error }}
+    </div>
+    {% endif %}
+    
+    {% if results is defined and results %}
+    <!-- Statistics -->
+    <div class="stats-grid">
+      <div class="stat-item">
+        <strong>{{ total }}</strong>
+        <span>Total</span>
+      </div>
+      <div class="stat-item">
+        <strong>{{ correct }}</strong>
+        <span>Correct</span>
+      </div>
+      <div class="stat-item">
+        <strong>{{ partial }}</strong>
+        <span>Partial</span>
+      </div>
+      <div class="stat-item">
+        <strong>{{ incorrect }}</strong>
+        <span>Incorrect</span>
+      </div>
+    </div>
+    
+    <div class="mb-3">
+      <a href="{{ url_for('evals') }}" class="btn btn-outline-secondary">Back to Summary</a>
+    </div>
+    
+    <!-- Results Cards -->
+    {% for result in results %}
+    <div class="result-card {% if result.human_override %}human-override{% endif %}">
+      <div class="result-header">
+        <div>
+          {% if result.section %}
+            <span class="section-badge">{{ result.section }}</span>
+          {% endif %}
+          {% if result.evaluation %}
+            <span class="evaluation-badge 
+              {% if '✅' in result.evaluation %}evaluation-auto-pass
+              {% elif '⚠️' in result.evaluation %}evaluation-needs-review
+              {% elif '❌' in result.evaluation %}evaluation-auto-fail
+              {% endif %}">
+              {{ result.evaluation }}
+            </span>
+          {% endif %}
+          {% if result.human_override %}
+            <span class="human-override-badge">Human Override</span>
+          {% endif %}
+        </div>
+      </div>
+      
+      {% if result.section %}
+      <div class="result-field">
+        <label>Section</label>
+        <div class="result-field-content read-only">{{ result.section }}</div>
+      </div>
+      {% endif %}
+      
+      <div class="result-field">
+        <label>Question</label>
+        <div class="result-field-content read-only">{{ result.question }}</div>
+      </div>
+      
+      <div class="result-field">
+        <label>Expected Answer</label>
+        <div class="result-field-content read-only">{{ result.expected_answer }}</div>
+      </div>
+      
+      <div class="result-field">
+        <label>Model Response</label>
+        <div class="result-field-content read-only">{{ result.assistant_response }}</div>
+      </div>
+      
+      <div class="result-field">
+        <label>LLM Reasoning</label>
+        <div class="result-field-content read-only">{{ result.comments or 'N/A' }}</div>
+      </div>
+      
+      <div class="judgment-section">
+        <h3>Judgment</h3>
+        <div class="result-field">
+          <label>Final Judgment</label>
+          <div class="result-field-content read-only">
+            {% if result.judgment == 'correct' %}
+              <span class="badge bg-success">Correct</span>
+            {% elif result.judgment == 'partial' %}
+              <span class="badge bg-warning">Partial</span>
+            {% elif result.judgment == 'incorrect' %}
+              <span class="badge bg-danger">Incorrect</span>
+            {% else %}
+              {{ result.judgment }}
+            {% endif %}
+          </div>
+        </div>
+        <div class="result-field">
+          <label>Confidence</label>
+          <div class="result-field-content read-only">{{ "%.2f"|format(result.confidence) if result.confidence else 'N/A' }}</div>
+        </div>
+        {% if result.human_notes %}
+        <div class="result-field">
+          <label>Human Notes</label>
+          <div class="result-field-content read-only">{{ result.human_notes }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    
+    {% elif not error %}
+    <div class="alert alert-info" role="alert">
+      No evaluation results found. Run the evaluation script first.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+

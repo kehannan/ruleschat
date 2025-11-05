@@ -66,7 +66,7 @@ Nginx reverse proxy configuration for the production server at `kevmo.us`.
 
 4. **Configure environment:**
    ```bash
-   cp .env.example .env
+   cp deployment/env.example .env
    # Edit .env with production values
    ```
 

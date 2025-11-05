@@ -2,15 +2,13 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-8 mx-auto">
-        <div class="card mt-4">
-            <div class="card-header bg-primary text-white">
-                <h3 class="card-title mb-0">User Profile</h3>
-            </div>
+    <div class="col-lg-6 mx-auto">
+        <h1 class="mb-4">Profile</h1>
+        <div class="card">
             <div class="card-body">
                 <!-- Profile Information -->
                 <div class="mb-4">
-                    <h4>Profile Information</h4>
+                    <h2 class="mb-3">Profile Information</h2>
                     {% if message %}
                         <div class="alert alert-{{ message_type }} alert-dismissible fade show" role="alert">
                             {{ message }}
@@ -26,9 +24,11 @@
                     </form>
                 </div>
 
+                <hr class="my-4">
+
                 <!-- Change Password -->
                 <div>
-                    <h4>Change Password</h4>
+                    <h2 class="mb-3">Change Password</h2>
                     <form method="post" action="{{ url_for('change_password') }}">
                         <div class="mb-3">
                             <label for="current_password" class="form-label">Current Password</label>
@@ -42,7 +42,7 @@
                             <label for="confirm_password" class="form-label">Confirm New Password</label>
                             <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
                         </div>
-                        <button type="submit" class="btn btn-warning">Change Password</button>
+                        <button type="submit" class="btn btn-primary">Change Password</button>
                     </form>
                 </div>
             </div>

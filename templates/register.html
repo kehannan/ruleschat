@@ -1,14 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Register for Rule Chat{% endblock %}
+{% block title %}Register for Rules Chat{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card mt-5">
-            <div class="card-header bg-primary text-white">
-                <h3 class="mb-0">Register for Rule Chat</h3>
-            </div>
+    <div class="col-md-5">
+        <h1 class="mb-4">Register</h1>
+        <div class="card">
             <div class="card-body">
                 {% if error %}
                     <div class="alert alert-danger">{{ error }}</div>
