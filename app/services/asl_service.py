@@ -61,7 +61,7 @@ class ASLService:
         logging.info(f"ASL Service initialized with vector store: {self.vector_store_id}")
     
     def _load_vector_store_id(self, config_file: Optional[str] = None) -> Optional[str]:
-        """Load vector store ID from config file."""
+        """Load vector store ID from config file (supports versioned config)."""
         if config_file:
             config_path = Path(config_file)
         else:
@@ -72,7 +72,21 @@ class ASLService:
             try:
                 with open(config_path, "r") as f:
                     config = json.load(f)
-                    return config.get("vector_store_id")
+                    
+                    # Check if versioned config format
+                    if "versions" in config:
+                        active_version = config.get("active_version")
+                        if active_version and active_version in config["versions"]:
+                            version_data = config["versions"][active_version]
+                            vector_store_id = version_data.get("vector_store_id")
+                            logging.info(f"Loaded vector store ID from versioned config (active: {active_version})")
+                            return vector_store_id
+                        else:
+                            logging.warning(f"Active version '{active_version}' not found in config")
+                            return None
+                    else:
+                        # Legacy format (backward compatibility)
+                        return config.get("vector_store_id")
             except Exception as e:
                 logging.error(f"Error loading config file: {e}")
         else:

@@ -6,7 +6,7 @@ import secrets
 import string
 import random
 from datetime import datetime, timedelta
-from fastapi import FastAPI, Depends, HTTPException, Body, BackgroundTasks, Request, Form
+from fastapi import FastAPI, Depends, HTTPException, Body, BackgroundTasks, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -163,16 +163,139 @@ async def register_complete(
 @app.get("/about", name="about", response_class=HTMLResponse)
 async def about_page(request: Request):
     """Display about page."""
+    # Get current user for navbar context
+    user = None
+    token = request.cookies.get("access_token")
+    if token:
+        from jose import jwt, JWTError
+        from app.core.auth import SECRET_KEY, ALGORITHM
+        from app.services.user_service import get_user_by_email
+        from app.database import SessionLocal
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            email = payload.get("sub")
+            if email:
+                db = SessionLocal()
+                try:
+                    user = get_user_by_email(db, email)
+                finally:
+                    db.close()
+        except JWTError:
+            pass
+    
     context = {"request": request}
+    if user:
+        context["user_email"] = user.email
+        context["admin_email"] = os.getenv("ADMIN_EMAIL")
     return templates.TemplateResponse("about.html", context)
 
 
-def load_eval_results():
-    """Load and process evaluation results from the mysite2-evals-sft project."""
+def load_eval_runs():
+    """Load all evaluation runs and return a list of runs with metadata."""
+    from pathlib import Path
+    from datetime import datetime
+    import re
+    
+    evals_dir = Path(__file__).parent.parent.parent / "mysite2-evals-sft" / "evals"
+    eval_runs = []
+    
+    try:
+        if not evals_dir.exists():
+            return {"error": f"Evaluation directory not found at: {evals_dir}"}
+        
+        # Find all eval result files (main and backups)
+        eval_files = []
+        for file_path in evals_dir.glob("asl_eval_results*.json"):
+            eval_files.append(file_path)
+        
+        if not eval_files:
+            return {"error": "No evaluation result files found"}
+        
+        # Process each file
+        for file_path in sorted(eval_files, key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    eval_data = json.load(f)
+                
+                if not eval_data or not isinstance(eval_data, list):
+                    continue
+                
+                # Extract date from filename or use file modification time
+                date_str = None
+                filename = file_path.name
+                
+                # Try to extract date from backup filename (format: asl_eval_results_backup_YYYYMMDD_HHMMSS.json)
+                if "backup_" in filename:
+                    match = re.search(r'backup_(\d{8})_(\d{6})', filename)
+                    if match:
+                        date_str = f"{match.group(1)}_{match.group(2)}"
+                        try:
+                            dt = datetime.strptime(date_str, "%Y%m%d_%H%M%S")
+                            date_str = dt.strftime("%Y-%m-%d")
+                        except:
+                            pass
+                
+                # If no date from filename, use file modification time
+                if not date_str:
+                    mtime = file_path.stat().st_mtime
+                    date_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+                
+                # Extract model from first item (if available)
+                model = "Unknown"
+                if eval_data and isinstance(eval_data[0], dict):
+                    model = eval_data[0].get("judge_model", eval_data[0].get("model", "Unknown"))
+                
+                # Calculate stats
+                total = len(eval_data)
+                correct = sum(1 for item in eval_data if item.get("llm_judgment", "").lower() == "correct")
+                correct_pct = (correct / total * 100) if total > 0 else 0
+                
+                # Create identifier for the file (use filename without extension)
+                file_id = file_path.stem
+                
+                eval_runs.append({
+                    "date": date_str,
+                    "model": model,
+                    "prompts": total,
+                    "correct": correct,
+                    "correct_pct": correct_pct,
+                    "file_id": file_id,
+                    "filename": filename
+                })
+                
+            except Exception as e:
+                logging.warning(f"Error processing eval file {file_path}: {e}")
+                continue
+        
+        # Return only the most recent eval run
+        if eval_runs:
+            return {
+                "eval_runs": [eval_runs[0]],  # Only the most recent
+                "error": None
+            }
+        else:
+            return {
+                "eval_runs": [],
+                "error": None
+            }
+        
+    except Exception as e:
+        logging.error(f"Error loading eval runs: {e}")
+        return {"error": f"Error loading evaluation runs: {str(e)}"}
+
+
+def load_eval_results(file_id=None):
+    """Load and process evaluation results from a specific file."""
     from pathlib import Path
     from collections import defaultdict
     
-    evals_results_path = Path(__file__).parent.parent.parent / "mysite2-evals-sft" / "evals" / "asl_eval_results.json"
+    evals_dir = Path(__file__).parent.parent.parent / "mysite2-evals-sft" / "evals"
+    
+    # Determine which file to load
+    if file_id:
+        evals_results_path = evals_dir / f"{file_id}.json"
+    else:
+        evals_results_path = evals_dir / "asl_eval_results.json"
     
     results = []
     section_summary = []
@@ -255,17 +378,64 @@ def load_eval_results():
 @app.get("/evals", name="evals", response_class=HTMLResponse)
 async def evals_page(request: Request):
     """Display evaluation results summary page."""
+    # Get current user for navbar context
+    user = None
+    token = request.cookies.get("access_token")
+    if token:
+        from jose import jwt, JWTError
+        from app.core.auth import SECRET_KEY, ALGORITHM
+        from app.services.user_service import get_user_by_email
+        from app.database import SessionLocal
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            email = payload.get("sub")
+            if email:
+                db = SessionLocal()
+                try:
+                    user = get_user_by_email(db, email)
+                finally:
+                    db.close()
+        except JWTError:
+            pass
+    
     context = {"request": request}
-    eval_data = load_eval_results()
+    if user:
+        context["user_email"] = user.email
+        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+    eval_data = load_eval_runs()
     context.update(eval_data)
     return templates.TemplateResponse("evals.html", context)
 
 
-@app.get("/evals/detail", name="evals_detail", response_class=HTMLResponse)
-async def evals_detail_page(request: Request):
+@app.get("/evals/detail", name="evals_detail_default", response_class=HTMLResponse)
+@app.get("/evals/detail/{file_id}", name="evals_detail", response_class=HTMLResponse)
+async def evals_detail_page(request: Request, file_id: str = None):
     """Display detailed evaluation results page."""
+    # Get current user for navbar context
+    user = None
+    token = request.cookies.get("access_token")
+    if token:
+        from jose import jwt, JWTError
+        from app.core.auth import SECRET_KEY, ALGORITHM
+        from app.services.user_service import get_user_by_email
+        from app.database import SessionLocal
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            email = payload.get("sub")
+            if email:
+                db = SessionLocal()
+                try:
+                    user = get_user_by_email(db, email)
+                finally:
+                    db.close()
+        except JWTError:
+            pass
+    
     context = {"request": request}
-    eval_data = load_eval_results()
+    if user:
+        context["user_email"] = user.email
+        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+    eval_data = load_eval_results(file_id)
     context.update(eval_data)
     return templates.TemplateResponse("evals_detail.html", context)
 

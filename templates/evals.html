@@ -7,37 +7,38 @@
   <div class="col-lg-10 mx-auto">
     <h1 class="mb-3">Evaluation Results</h1>
     
-    <p class="mb-4">This evaluation covers questions from Section A of the Advanced Squad Leader rules book. The results show how well the AI assistant performs on core ASL rule questions.</p>
-    
     {% if error %}
     <div class="alert alert-danger" role="alert">
       {{ error }}
     </div>
     {% endif %}
     
-    {% if section_summary is defined and section_summary %}
-    <div class="mb-4">
-      <a href="{{ url_for('evals_detail') }}" class="btn btn-outline-primary">View Detailed Results</a>
-    </div>
-    
-    <h2 class="mb-3">Summary by Section</h2>
+    {% if eval_runs is defined and eval_runs %}
     <div class="card">
       <div class="card-body">
         <div class="table-responsive">
-          <table class="table table-sm">
+          <table class="table table-hover">
             <thead>
               <tr>
-                <th>Rulebook Section</th>
+                <th>Date</th>
+                <th>Model</th>
                 <th>Prompts</th>
-                <th>Correct (n/%)</th>
+                <th>Correct</th>
+                <th>Correct %</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
-              {% for section in section_summary %}
+              {% for run in eval_runs %}
               <tr>
-                <td>{{ section.section }}</td>
-                <td>{{ section.prompts }}</td>
-                <td>{{ section.correct }} ({{ "%.1f"|format(section.correct_pct) }}%)</td>
+                <td>{{ run.date }}</td>
+                <td>{{ run.model }}</td>
+                <td>{{ run.prompts }}</td>
+                <td>{{ run.correct }}</td>
+                <td>{{ "%.1f"|format(run.correct_pct) }}%</td>
+                <td>
+                  <a href="{{ url_for('evals_detail', file_id=run.file_id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                </td>
               </tr>
               {% endfor %}
             </tbody>
