@@ -826,9 +826,7 @@
     let totalPages = 0;
     let scale = 2.0; // Higher default scale for better quality
     const pdfUrl = '/static/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf';
-    const sectionPagesUrl = '/static/rulebook/section_pages.json';
     const devicePixelRatio = window.devicePixelRatio || 1;
-    let sectionPagesMap = null; // Cache for section-to-page mapping
 
     function makeSectionReferencesClickable(element) {
         // Pattern to match section references like A4.1, C8.1, A4.15, etc.
@@ -967,32 +965,10 @@
         }
     }
 
-    async function loadSectionPagesMap() {
-        if (sectionPagesMap) return sectionPagesMap;
-        
-        try {
-            const response = await fetch(sectionPagesUrl);
-            sectionPagesMap = await response.json();
-            return sectionPagesMap;
-        } catch (error) {
-            console.error('Error loading section pages mapping:', error);
-            return null;
-        }
-    }
-
     async function navigateToSection(section) {
         if (!pdfDoc) return;
 
-        // First, try to use the section-to-page mapping
-        const mapping = await loadSectionPagesMap();
-        if (mapping && mapping[section]) {
-            const pageNum = mapping[section];
-            currentPage = pageNum;
-            await renderPage(currentPage);
-            return;
-        }
-
-        // Fallback: Try PDF's internal destinations/links
+        // Try PDF's internal destinations/links
         try {
             const destinations = await pdfDoc.getDestinations();
             
