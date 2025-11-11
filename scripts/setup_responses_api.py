@@ -77,10 +77,13 @@ def load_existing_config(config_path: Path) -> Dict[str, Any]:
         return {"versions": {}, "active_version": None}
 
 
-def extract_text_from_pdf(pdf_path: str) -> str:
-    """Extract text from PDF file using pdfplumber."""
+def extract_text_from_pdf(pdf_path: str) -> List[Tuple[int, str]]:
+    """
+    Extract text from PDF file using pdfplumber with page numbers.
+    Returns list of (page_num, text) tuples.
+    """
     logging.info(f"📄 Extracting text from PDF: {pdf_path}")
-    text_parts = []
+    page_texts = []
     
     try:
         with pdfplumber.open(pdf_path) as pdf:
@@ -92,76 +95,139 @@ def extract_text_from_pdf(pdf_path: str) -> str:
                     logging.info(f"   Processed {i + 1}/{total_pages} pages...")
                 text = page.extract_text()
                 if text:
-                    text_parts.append(text)
+                    page_texts.append((i + 1, text))  # Page numbers are 1-based
         
-        full_text = "\n".join(text_parts)
-        logging.info(f"✅ Extracted {len(full_text):,} characters from PDF")
-        return full_text
+        total_chars = sum(len(text) for _, text in page_texts)
+        logging.info(f"✅ Extracted {total_chars:,} characters from {len(page_texts)} pages")
+        return page_texts
     except Exception as e:
         logging.error(f"❌ Error extracting text from PDF: {e}")
         raise
 
 
-def parse_sections(text: str) -> List[Tuple[str, str]]:
+def parse_sections(page_texts: List[Tuple[int, str]]) -> List[Tuple[str, str, int]]:
     """
-    Parse sections from text.
-    Returns list of (section_id, content) tuples.
+    Parse sections from page texts with page numbers.
+    Returns list of (section_id, content, page_num) tuples.
+    
+    This function processes pages individually to correctly associate
+    sections with their page numbers, then combines sections that span
+    multiple pages.
     """
-    logging.info("🔍 Parsing sections from text...")
+    logging.info("🔍 Parsing sections from text with page numbers...")
     
     # Pattern to match section headers: A4.1, A4.15, C8.1, etc.
-    section_pattern = r'^([A-Z]\d+\.\d+(?:\.\d+)?)'
+    section_pattern = re.compile(r'^([A-Z]\d+\.\d+(?:\.\d+)?)', re.MULTILINE)
     
-    matches = list(re.finditer(section_pattern, text, re.MULTILINE))
+    # First pass: find all sections with their page numbers
+    section_data = {}  # section_id -> (start_page, start_pos_in_page, content_parts)
+    
+    for page_num, text in page_texts:
+        matches = list(section_pattern.finditer(text))
+        
+        for match in matches:
+            section_id = match.group(1)
+            start_pos = match.start()
+            
+            if section_id not in section_data:
+                # First occurrence of this section - start tracking it
+                section_data[section_id] = {
+                    'start_page': page_num,
+                    'start_pos': start_pos,
+                    'content_parts': []
+                }
+            
+            # Extract content from this page
+            # Find where this section ends (next section or end of page)
+            section_end = len(text)
+            for other_match in matches:
+                if other_match.start() > match.start():
+                    section_end = other_match.start()
+                    break
+            
+            page_content = text[match.start():section_end]
+            # Remove the section header from content
+            page_content = page_content[len(section_id):].strip()
+            
+            section_data[section_id]['content_parts'].append((page_num, page_content))
+    
+    # Second pass: combine content parts and determine final page number
     sections = []
+    sections_without_page = 0
+    for section_id, data in sorted(section_data.items()):
+        # The section starts on the first page where it appears
+        start_page = data['start_page']
+        
+        # Validate page number
+        if not start_page or start_page < 1:
+            logging.warning(f"⚠️ Section {section_id} has invalid page number: {start_page}, defaulting to 1")
+            start_page = 1
+            sections_without_page += 1
+        
+        # Combine all content parts
+        content_parts = []
+        for page_num, page_content in data['content_parts']:
+            if page_content:
+                content_parts.append(page_content)
+        
+        full_content = " ".join(content_parts).strip()
+        
+        if full_content:  # Only add if there's actual content
+            sections.append((section_id, full_content, start_page))
     
-    for i, match in enumerate(matches):
-        section_id = match.group(1)
-        start_pos = match.start()
-        # Get end position (next section or end of file)
-        end_pos = matches[i+1].start() if i+1 < len(matches) else len(text)
-        content = text[start_pos:end_pos]
-        # Remove the section header from content
-        content = content[len(section_id):].strip()
-        sections.append((section_id, content))
+    if sections_without_page > 0:
+        logging.warning(f"⚠️ {sections_without_page} sections had invalid page numbers")
+    
+    # Log sample of sections with their page numbers
+    if sections:
+        logging.info(f"📄 Sample sections with page numbers:")
+        for section_id, content, page_num in sections[:5]:
+            logging.info(f"   {section_id} -> page {page_num} (content length: {len(content)})")
     
     logging.info(f"✅ Found {len(sections)} sections")
     return sections
 
 
-def format_chunks(sections: List[Tuple[str, str]]) -> List[str]:
+def format_chunks(sections: List[Tuple[str, str, int]]) -> List[str]:
     """
-    Format sections into chunks with metadata.
-    Returns list of formatted chunk strings.
+    Format sections into chunks with section and page metadata.
+    Returns list of formatted chunk strings with format: {A4.1|48} content
     """
-    logging.info("📝 Formatting chunks with section metadata...")
+    logging.info("📝 Formatting chunks with section and page metadata...")
     
     chunks = []
     small_sections_buffer = []
     current_chunk_size = 0
     
-    for section_id, content in sections:
-        section_overhead = len(section_id) + 3  # "{A4.1} "
+    for section_id, content, page_num in sections:
+        # Validate page number
+        if not page_num or page_num < 1:
+            logging.warning(f"⚠️ Section {section_id} has invalid page number {page_num}, using page 1")
+            page_num = 1
+        
+        # Format: {A4.1|48} - section ID and page number
+        section_overhead = len(section_id) + len(str(page_num)) + 4  # "{A4.1|48} "
         content_size = len(content)
         effective_size = content_size + section_overhead
         
         # Handle small sections: combine up to 3 per chunk
+        # Use the first section's page number for combined chunks
         if content_size < SMALL_SECTION_THRESHOLD:
             if (current_chunk_size + effective_size <= MAX_CHUNK_SIZE and 
                 len(small_sections_buffer) < MAX_SMALL_PER_CHUNK):
-                small_sections_buffer.append((section_id, content))
+                small_sections_buffer.append((section_id, content, page_num))
                 current_chunk_size += effective_size
             else:
                 # Flush buffer and start new chunk
                 if small_sections_buffer:
-                    chunk_parts = [f"{{{sid}}} {cont}" for sid, cont in small_sections_buffer]
+                    chunk_parts = [f"{{{sid}|{pnum}}} {cont}" for sid, cont, pnum in small_sections_buffer]
                     chunks.append(" ".join(chunk_parts))
-                small_sections_buffer = [(section_id, content)]
+                small_sections_buffer = [(section_id, content, page_num)]
                 current_chunk_size = effective_size
         else:
             # Flush any pending small sections
             if small_sections_buffer:
-                chunk_parts = [f"{{{sid}}} {cont}" for sid, cont in small_sections_buffer]
+                chunk_parts = [f"{{{sid}|{pnum}}} {cont}" for sid, cont, pnum in small_sections_buffer]
                 chunks.append(" ".join(chunk_parts))
                 small_sections_buffer = []
                 current_chunk_size = 0
@@ -169,24 +235,25 @@ def format_chunks(sections: List[Tuple[str, str]]) -> List[str]:
             # Handle medium/large sections
             if effective_size <= MAX_CHUNK_SIZE:
                 # Single chunk
-                chunks.append(f"{{{section_id}}} {content}")
+                chunks.append(f"{{{section_id}|{page_num}}} {content}")
             else:
                 # Split large section with overlap
-                section_chunks = split_large_section(section_id, content)
+                # All chunks from a split section use the same page number
+                section_chunks = split_large_section(section_id, content, page_num)
                 chunks.extend(section_chunks)
     
     # Don't forget any remaining small sections
     if small_sections_buffer:
-        chunk_parts = [f"{{{sid}}} {cont}" for sid, cont in small_sections_buffer]
+        chunk_parts = [f"{{{sid}|{pnum}}} {cont}" for sid, cont, pnum in small_sections_buffer]
         chunks.append(" ".join(chunk_parts))
     
     logging.info(f"✅ Created {len(chunks)} chunks from {len(sections)} sections")
     return chunks
 
 
-def split_large_section(section_id: str, content: str) -> List[str]:
+def split_large_section(section_id: str, content: str, page_num: int) -> List[str]:
     """Split a large section into multiple chunks with overlap."""
-    section_overhead = len(section_id) + 3  # "{A4.1} "
+    section_overhead = len(section_id) + len(str(page_num)) + 4  # "{A4.1|48} "
     effective_chunk_size = MAX_CHUNK_SIZE - OVERLAP - section_overhead
     chunks = []
     
@@ -204,7 +271,7 @@ def split_large_section(section_id: str, content: str) -> List[str]:
                     break
         
         chunk_content = content[start:end]
-        chunks.append(f"{{{section_id}}} {chunk_content}")
+        chunks.append(f"{{{section_id}|{page_num}}} {chunk_content}")
         
         # Move start position with overlap
         start = end - OVERLAP
@@ -224,18 +291,102 @@ def create_chunked_text_file(chunks: List[str], output_path: str):
     logging.info(f"✅ Chunked text file created: {output_path}")
 
 
-def setup_asl_vector_store_v2(client, pdf_path: str) -> Dict[str, Any]:
-    """Set up ASL vector store v2 with section metadata chunking."""
-    logging.info("🚀 Setting up ASL Vector Store v2 (Section Metadata Chunking)...")
+def simple_chunk_text(text: str, chunk_size: int = 4000, overlap: int = 200) -> List[str]:
+    """
+    Simple chunking: split text into fixed-size chunks with overlap.
+    No metadata, no section parsing - just plain text chunks.
+    """
+    chunks = []
+    start = 0
+    text_length = len(text)
+    
+    while start < text_length:
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        
+        # Move start position forward by chunk_size - overlap
+        start += chunk_size - overlap
+        
+        # Don't go past the end
+        if start >= text_length:
+            break
+    
+    return chunks
+
+
+def setup_asl_vector_store_v4(client, pdf_path: str) -> Dict[str, Any]:
+    """Set up ASL vector store v4 with simple fixed-size chunking."""
+    logging.info("🚀 Setting up ASL Vector Store v4 (Simple Chunking)...")
     
     try:
-        # Step 1: Extract text from PDF
-        text = extract_text_from_pdf(pdf_path)
+        # Step 1: Extract all text from PDF (no page tracking needed)
+        logging.info("📄 Extracting text from PDF...")
+        all_text = ""
+        with pdfplumber.open(pdf_path) as pdf:
+            total_pages = len(pdf.pages)
+            logging.info(f"   Processing {total_pages} pages...")
+            
+            for i, page in enumerate(pdf.pages):
+                if (i + 1) % 50 == 0:
+                    logging.info(f"   Processed {i + 1}/{total_pages} pages...")
+                text = page.extract_text()
+                if text:
+                    all_text += text + "\n\n"
         
-        # Step 2: Parse sections
-        sections = parse_sections(text)
+        logging.info(f"✅ Extracted {len(all_text)} characters of text")
         
-        # Step 3: Format chunks with section metadata
+        # Step 2: Simple chunking - fixed size with overlap
+        logging.info("📝 Creating simple fixed-size chunks...")
+        chunks = simple_chunk_text(all_text, chunk_size=MAX_CHUNK_SIZE, overlap=OVERLAP)
+        logging.info(f"✅ Created {len(chunks)} chunks")
+        
+        # Step 3: Create temporary text file with chunks
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as tmp_file:
+            tmp_path = tmp_file.name
+            create_chunked_text_file(chunks, tmp_path)
+        
+        try:
+            # Step 4: Create new vector store
+            vector_store_id = create_vector_store(client, "ASL Rules Vector Store v4 (Simple Chunking)")
+            
+            # Step 5: Upload processed text file
+            file_id = upload_file_to_vector_store_and_wait(client, tmp_path, vector_store_id)
+            
+            return {
+                "vector_store_id": vector_store_id,
+                "file_id": file_id,
+                "pdf_path": pdf_path,
+                "chunking_method": "simple_fixed_size",
+                "chunk_size": MAX_CHUNK_SIZE,
+                "overlap": OVERLAP,
+                "total_chunks": len(chunks),
+                "created_at": datetime.now().isoformat()
+            }
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+                
+    except Exception as e:
+        logging.error(f"❌ Error in setup: {e}")
+        raise
+
+
+def setup_asl_vector_store_v3(client, pdf_path: str) -> Dict[str, Any]:
+    """Set up ASL vector store v3 with section and page metadata chunking."""
+    logging.info("🚀 Setting up ASL Vector Store v3 (Section + Page Metadata Chunking)...")
+    
+    try:
+        # Step 1: Extract text from PDF with page numbers
+        page_texts = extract_text_from_pdf(pdf_path)
+        
+        # Step 2: Parse sections with page numbers
+        sections = parse_sections(page_texts)
+        
+        # Step 3: Format chunks with section and page metadata
         chunks = format_chunks(sections)
         
         # Step 4: Create temporary text file with chunks
@@ -245,7 +396,7 @@ def setup_asl_vector_store_v2(client, pdf_path: str) -> Dict[str, Any]:
         
         try:
             # Step 5: Create new vector store
-            vector_store_id = create_vector_store(client, "ASL Rules Vector Store v2 (Section Metadata)")
+            vector_store_id = create_vector_store(client, "ASL Rules Vector Store v3 (Section + Page Metadata)")
             
             # Step 6: Upload processed text file
             file_id = upload_file_to_vector_store_and_wait(client, tmp_path, vector_store_id)
@@ -254,7 +405,7 @@ def setup_asl_vector_store_v2(client, pdf_path: str) -> Dict[str, Any]:
                 "vector_store_id": vector_store_id,
                 "file_id": file_id,
                 "pdf_path": pdf_path,
-                "chunking_method": "section_metadata",
+                "chunking_method": "section_page_metadata",
                 "chunk_size": MAX_CHUNK_SIZE,
                 "overlap": OVERLAP,
                 "total_chunks": len(chunks),
@@ -397,33 +548,37 @@ def main():
         )
         
         # PDF file path - now in the evals-sft repository
-        pdf_path = "../mysite2-evals-sft/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf"
+        # Resolve path relative to script location for robustness
+        script_dir = Path(__file__).parent
+        project_root = script_dir.parent
+        pdf_path = project_root.parent / "mysite2-evals-sft" / "rulebook" / "eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf"
+        pdf_path = str(pdf_path.resolve())
         
         # Load existing config
         config_path = Path("responses_api_config.json")
         config = load_existing_config(config_path)
         
-        # Set up v2 vector store (section metadata chunking)
+        # Set up v4 vector store (simple chunking)
         logging.info("\n" + "="*60)
-        logging.info("Creating v2 vector store with section metadata...")
+        logging.info("Creating v4 vector store with simple chunking...")
         logging.info("="*60)
-        v2_data = setup_asl_vector_store_v2(client, pdf_path)
+        v4_data = setup_asl_vector_store_v4(client, pdf_path)
         
-        # Update config with v2
-        config["versions"]["v2"] = v2_data
-        config["active_version"] = "v2"
+        # Update config with v4
+        config["versions"]["v4"] = v4_data
+        config["active_version"] = "v4"
         
         # Save configuration to file
         with open(config_path, "w") as f:
             json.dump(config, f, indent=4)
         
         logging.info(f"\n💾 Configuration saved to {config_path}")
-        logging.info(f"   Active version: v2")
+        logging.info(f"   Active version: v4")
         logging.info(f"   Total versions: {len(config['versions'])}")
         
         # Test the API
         logging.info("\n🧪 Testing the setup with Responses API...")
-        test_responses_api(client, v2_data["vector_store_id"])
+        test_responses_api(client, v4_data["vector_store_id"])
         
     except Exception as e:
         logging.error(f"Setup error: {e}")
