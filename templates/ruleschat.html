@@ -17,20 +17,23 @@
             <button id="chat-message-submit" class="send-button" type="button" title="Send message">Send</button>
         </div>
         <div id="connection-status" class="connection-status">Connected</div>
+        <div id="latency-display" class="latency-display" style="display: none;"></div>
     </div>
 </div>
 
 <!-- Feedback template (hidden, cloned for each answer) -->
 <template id="feedback-template">
   <div class="feedback-section">
-    <span>Was this answer helpful?</span>
-    <button class="thumbs-up" title="Thumbs up">👍</button>
-    <button class="thumbs-down" title="Thumbs down">👎</button>
-    <button class="show-better-answer" title="Suggest a better answer">💬</button>
-    <form class="better-answer-form">
-      <textarea class="better-answer" rows="1" placeholder="Suggest a better answer"></textarea>
-      <button class="submit-better-answer" type="submit">Submit</button>
-    </form>
+    <button class="thumbs-up" title="Thumbs up">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+      </svg>
+    </button>
+    <button class="thumbs-down" title="Thumbs down">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+      </svg>
+    </button>
     <span class="feedback-thankyou" style="display:none;">Thank you for your feedback!</span>
   </div>
 </template>
@@ -116,6 +119,8 @@
   .bot-message {
     padding: 1.5rem 1rem;
     animation: fadeIn 0.3s ease-in;
+    display: flex;
+    width: 100%;
   }
 
   @keyframes fadeIn {
@@ -130,11 +135,25 @@
   }
 
   .user-message {
-    background: #f7f7f8;
+    background: transparent;
+    justify-content: flex-end;
+  }
+
+  .user-message .message-content {
+    background: #f4f4f4;
+    border-radius: 18px;
+    padding: 0.75rem 1rem;
+    max-width: 85%;
+    color: #353740;
+    font-size: 16px;
+    line-height: 1.75;
+    font-weight: 400;
+    font-family: inherit;
   }
 
   .bot-message {
     background: #ffffff;
+    justify-content: flex-start;
   }
 
 
@@ -144,10 +163,40 @@
     line-height: 1.75;
     color: #353740;
     font-size: 16px;
+    font-weight: 400;
+    font-family: inherit;
+  }
+
+  /* Ensure all markdown-rendered elements have consistent font size */
+  .message-content *:not(code):not(pre) {
+    font-size: inherit;
+    line-height: inherit;
+  }
+  
+  /* Ensure markdown headings, lists, etc. use base font size */
+  .message-content h1,
+  .message-content h2,
+  .message-content h3,
+  .message-content h4,
+  .message-content h5,
+  .message-content h6,
+  .message-content li,
+  .message-content ul,
+  .message-content ol {
+    font-size: 16px;
+    line-height: 1.75;
+    font-weight: 400;
+  }
+
+  .bot-message .message-content {
+    flex: 1;
   }
 
   .message-content p {
     margin: 0 0 0.75rem 0;
+    font-size: 16px;
+    line-height: 1.75;
+    font-weight: 400;
   }
 
   .message-content p:last-child {
@@ -273,6 +322,14 @@
     cursor: pointer;
     transition: all 0.2s;
     font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #353740;
+  }
+
+  .feedback-section button svg {
+    display: block;
   }
 
   .feedback-section button:hover:not(:disabled) {
@@ -283,6 +340,16 @@
   .feedback-section button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* Latency Display Styling */
+  .latency-display {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: #8e8ea0;
+    text-align: center;
+    border-top: 1px solid #e5e5e5;
+    background: #f9f9f9;
   }
 
   .better-answer-form {
@@ -354,6 +421,10 @@
     .user-message,
     .bot-message {
       padding: 1rem 0.75rem;
+    }
+
+    .user-message .message-content {
+      max-width: 90%;
     }
 
   }
@@ -582,7 +653,7 @@
                 const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
                 currentBotMessageContent.innerHTML = marked.parse(finalContent);
                 // Make section references clickable
-                makeSectionReferencesClickable(currentBotMessageContent);
+                // makeSectionReferencesClickable(currentBotMessageContent); // Disabled - will add back later
                 lastAssistantAnswer = finalContent;
                 
                 const currentBotMessage = currentBotMessageContent.closest('.bot-message');
@@ -635,15 +706,61 @@
                 chatSocket.send("__pong__");
                 return;
             }
-            console.log('📥 Buffering chunk:', e.data.substring(0, 50) + (e.data.length > 50 ? '...' : ''));
+            
+            // Check if this is a latency message (JSON)
+            try {
+                const message = JSON.parse(e.data);
+                if (message.type === "latency") {
+                    // Finalize the message (parse markdown, add feedback)
+                    const chatContainer = document.querySelector('#chat-container');
+                    const currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
+                    if (currentBotMessageContent) {
+                        const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
+                        currentBotMessageContent.innerHTML = marked.parse(finalContent);
+                        lastAssistantAnswer = finalContent;
+                        
+                        const currentBotMessage = currentBotMessageContent.closest('.bot-message');
+                        currentBotMessage.classList.remove('current');
+                        
+                        if (!currentBotMessage.nextElementSibling || !currentBotMessage.nextElementSibling.classList.contains('feedback-section')) {
+                            addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
+                        }
+                    }
+                    
+                    // Display latency
+                    displayLatencyTimeline(message.data);
+                    return;
+                }
+            } catch (err) {
+                // Not JSON, treat as regular text chunk
+            }
+            
+            // Commented out buffering - display chunks immediately
+            // console.log('📥 Buffering chunk:', e.data.substring(0, 50) + (e.data.length > 50 ? '...' : ''));
             
             // Add chunk to buffer
-            chunkBuffer.push(e.data);
+            // chunkBuffer.push(e.data);
             
             // Start displaying if not already running
-            if (!isDisplaying) {
-                displayBufferedChunks();
+            // if (!isDisplaying) {
+            //     displayBufferedChunks();
+            // }
+            
+            // Display chunk immediately
+            const chatContainer = document.querySelector('#chat-container');
+            let currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
+            if (!currentBotMessageContent) {
+                currentBotMessageContent = createBotMessage();
             }
+            
+            const currentContent = currentBotMessageContent.getAttribute('data-content') || '';
+            const newContent = currentContent + e.data;
+            currentBotMessageContent.setAttribute('data-content', newContent);
+            currentBotMessageContent.textContent = newContent;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            // Track content for final markdown parsing
+            lastAssistantAnswer = newContent;
         };
     }
     function createUserMessage(text) {
@@ -684,6 +801,13 @@
         }
         isDisplaying = false;
         
+        // Clear latency display
+        const latencyDisplay = document.getElementById('latency-display');
+        if (latencyDisplay) {
+            latencyDisplay.style.display = 'none';
+            latencyDisplay.textContent = '';
+        }
+        
         const currentBotMessage = document.querySelector('.bot-message.current');
         if (currentBotMessage) {
             currentBotMessage.classList.remove('current');
@@ -698,6 +822,38 @@
         chatContainer.scrollTop = chatContainer.scrollHeight;
         lastUserQuestion = message;
     }
+    function displayLatencyTimeline(latencyData) {
+        const latencyDisplay = document.getElementById('latency-display');
+        if (!latencyDisplay) return;
+        
+        // Format timing values
+        const fileSearchMs = latencyData.file_search_complete_ms || 0;
+        const streamEndMs = latencyData.stream_end_ms || latencyData.total_ms || 0;
+        
+        // Format times for display
+        const formatTime = (ms) => {
+            if (ms < 1000) return `${Math.round(ms)}ms`;
+            return `${(ms / 1000).toFixed(1)}s`;
+        };
+        
+        // Build display text
+        let displayText = '';
+        if (fileSearchMs > 0) {
+            displayText += `File search completes: ${formatTime(fileSearchMs)}`;
+        }
+        if (streamEndMs > 0) {
+            if (displayText) displayText += ' • ';
+            displayText += `Streaming completes: ${formatTime(streamEndMs)}`;
+        }
+        
+        if (displayText) {
+            latencyDisplay.textContent = displayText;
+            latencyDisplay.style.display = 'block';
+        } else {
+            latencyDisplay.style.display = 'none';
+        }
+    }
+    
     function addFeedbackUI(botMessageElem, question, answer) {
         if (botMessageElem.nextElementSibling && botMessageElem.nextElementSibling.classList.contains('feedback-section')) {
             botMessageElem.nextElementSibling.remove();
@@ -707,16 +863,11 @@
         const section = feedbackElem.querySelector('.feedback-section');
         const upBtn = section.querySelector('.thumbs-up');
         const downBtn = section.querySelector('.thumbs-down');
-        const showBetterBtn = section.querySelector('.show-better-answer');
-        const betterForm = section.querySelector('.better-answer-form');
-        const betterTextarea = section.querySelector('.better-answer');
-        const submitBetterBtn = section.querySelector('.submit-better-answer');
         const thankYou = section.querySelector('.feedback-thankyou');
 
         upBtn.onclick = function() {
             upBtn.disabled = true;
             downBtn.disabled = true;
-            showBetterBtn.disabled = true;
             fetch('/api/feedback', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -736,7 +887,6 @@
         downBtn.onclick = function() {
             upBtn.disabled = true;
             downBtn.disabled = true;
-            showBetterBtn.disabled = true;
             fetch('/api/feedback', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -745,37 +895,6 @@
                     answer: answer,
                     thumbs_up: false,
                     comment: ''
-                })
-            }).then(r => r.json()).then(data => {
-                thankYou.style.display = '';
-                setTimeout(() => {
-                    section.style.display = 'none';
-                }, 2000);
-            });
-        };
-        showBetterBtn.onclick = function() {
-            betterForm.classList.add('active');
-            showBetterBtn.style.display = 'none';
-        };
-        betterForm.onsubmit = function(e) {
-            e.preventDefault();
-            if (!betterTextarea.value.trim()) {
-                betterTextarea.focus();
-                return;
-            }
-            upBtn.disabled = true;
-            downBtn.disabled = true;
-            showBetterBtn.disabled = true;
-            submitBetterBtn.disabled = true;
-            betterTextarea.disabled = true;
-            fetch('/api/feedback', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    question: question,
-                    answer: answer,
-                    thumbs_up: null,
-                    comment: betterTextarea.value.trim()
                 })
             }).then(r => r.json()).then(data => {
                 thankYou.style.display = '';
