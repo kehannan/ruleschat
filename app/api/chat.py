@@ -3,6 +3,7 @@ import os
 import asyncio
 import json
 import logging
+import time
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -161,35 +162,58 @@ async def websocket_chat(websocket: WebSocket):
                 
                 logging.info(f"✅ Received question: {message}")
                 
+                # Start end-to-end timing
+                question_received_time = time.time()
+                logging.info(f"[RAG Latency] Question received at WebSocket: {question_received_time:.3f}")
+                
                 # Use ASL Service for consistent responses
                 logging.info("🟢 Using ASL Service for response...")
                 try:
                     # Get the ASL service (uses same config as web app)
+                    service_call_start_time = time.time()
                     asl_service = get_asl_service()
                     logging.info(f"📊 Using Vector Store: {asl_service.vector_store_id}")
                     
-                    # Get streaming response from service
-                    stream = asl_service.get_answer(message, stream=True)
+                    # Get streaming response from service with timing data
+                    stream, timing_data = asl_service.get_answer(message, stream=True, return_timing=True)
                     
                     logging.info("🔄 Streaming response from OpenAI...")
                     response_received = False
                     
                     # Stream deltas from service
-                    import time
                     delta_count = 0
                     first_delta_time = None
+                    first_delta_sent_time = None
                     
                     for delta in stream:
                         delta_count += 1
                         if first_delta_time is None:
                             first_delta_time = time.time()
+                            service_to_first_delta_ms = (first_delta_time - service_call_start_time) * 1000
+                            logging.info(f"[RAG Latency] Service call to first delta: {service_to_first_delta_ms:.1f}ms")
                         
                         await websocket.send_text(delta)
+                        
+                        if first_delta_sent_time is None:
+                            first_delta_sent_time = time.time()
+                            end_to_end_ms = (first_delta_sent_time - question_received_time) * 1000
+                            logging.info(f"[RAG Latency] End-to-end (WebSocket): {end_to_end_ms:.1f}ms")
+                        
                         response_received = True
                     
                     if response_received:
-                        total_time = (time.time() - first_delta_time) * 1000 if first_delta_time else 0
-                        logging.info(f"✅ Response streamed successfully - {delta_count} deltas in {total_time:.0f}ms")
+                        stream_end_time = time.time()
+                        total_streaming_time = (stream_end_time - first_delta_time) * 1000 if first_delta_time else 0
+                        total_end_to_end = (stream_end_time - question_received_time) * 1000
+                        logging.info(f"✅ Response streamed successfully - {delta_count} deltas in {total_streaming_time:.0f}ms")
+                        logging.info(f"[RAG Latency] Total end-to-end time: {total_end_to_end:.1f}ms")
+                        
+                        # Send timing data to frontend
+                        latency_message = {
+                            "type": "latency",
+                            "data": timing_data
+                        }
+                        await websocket.send_text(json.dumps(latency_message))
                     else:
                         logging.warning("⚠️ No response content received from stream")
                         await websocket.send_text("Sorry, I couldn't generate a response. Please try again.")

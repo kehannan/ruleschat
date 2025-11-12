@@ -8,6 +8,7 @@ Used by both the web application and evaluation scripts to ensure consistency.
 import os
 import json
 import logging
+import time
 from typing import Optional
 from openai import OpenAI
 from pathlib import Path
@@ -99,8 +100,9 @@ class ASLService:
         question: str,
         stream: bool = False,
         model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> str:
+        temperature: Optional[float] = None,
+        return_timing: bool = False
+    ):
         """
         Get an answer to an ASL question.
         
@@ -109,15 +111,22 @@ class ASLService:
             stream: Whether to stream the response (returns generator if True)
             model: Override default model
             temperature: Override default temperature
+            return_timing: If True and stream=True, returns tuple (generator, timing_data)
             
         Returns:
             The answer as a string (or generator if stream=True)
+            If return_timing=True and stream=True, returns (generator, timing_data)
         """
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
         
         model = model or self.model
         temperature = temperature if temperature is not None else self.temperature
+        
+        # Start timing for RAG latency measurement
+        api_call_start_time = time.time()
+        logging.info(f"[RAG Latency] Question: {question[:100]}{'...' if len(question) > 100 else ''}")
+        logging.info(f"[RAG Latency] API call started at: {api_call_start_time:.3f}")
         
         try:
             # Use Responses API with file_search tool
@@ -139,14 +148,71 @@ class ASLService:
                 events = []
                 output_text = ""
                 
+                # Timing variables
+                first_event_time = None
+                file_search_complete_time = None
+                first_delta_time = None
+                stream_end_time = None
+                
                 for event in response:
+                    # Track first event (could be various types - log what it actually is)
+                    if first_event_time is None:
+                        first_event_time = time.time()
+                        first_event_time_ms = (first_event_time - api_call_start_time) * 1000
+                        event_type = getattr(event, 'type', 'unknown')
+                        logging.info(f"[RAG Latency] First event received: {first_event_time_ms:.1f}ms (type: {event_type})")
+                    
+                    # Track file_search completion
+                    if file_search_complete_time is None and hasattr(event, 'type') and event.type == 'response.file_search_call.completed':
+                        file_search_complete_time = time.time()
+                        file_search_time_ms = (file_search_complete_time - api_call_start_time) * 1000
+                        logging.info(f"[RAG Latency] File search completed: {file_search_time_ms:.1f}ms")
+                    
+                    # Track first token (TTFT - Time To First Token)
+                    if first_delta_time is None and hasattr(event, 'type') and event.type == 'response.output_text.delta':
+                        first_delta_time = time.time()
+                        ttft_ms = (first_delta_time - api_call_start_time) * 1000
+                        logging.info(f"[RAG Latency] First token (TTFT): {ttft_ms:.1f}ms")
+                    
                     events.append(event)
                     if hasattr(event, 'type') and event.type == 'response.output_text.delta':
                         if hasattr(event, 'delta') and event.delta:
                             output_text += event.delta
                 
+                # Track stream end
+                stream_end_time = time.time()
+                total_streaming_time_ms = (stream_end_time - api_call_start_time) * 1000
+                
+                # Calculate timing metrics
+                first_event_ms = (first_event_time - api_call_start_time) * 1000 if first_event_time else None
+                file_search_complete_ms = (file_search_complete_time - api_call_start_time) * 1000 if file_search_complete_time else None
+                first_token_ms = (first_delta_time - api_call_start_time) * 1000 if first_delta_time else None
+                generation_time_ms = (stream_end_time - file_search_complete_time) * 1000 if file_search_complete_time else None
+                rag_time_ms = file_search_complete_ms if file_search_complete_ms else None
+                
+                # Log latency summary
+                logging.info(f"[RAG Latency] Total streaming time: {total_streaming_time_ms:.1f}ms")
+                if file_search_complete_time:
+                    logging.info(f"[RAG Latency] Generation time (after RAG): {generation_time_ms:.1f}ms")
+                if first_delta_time:
+                    rag_to_first_token_ms = (first_delta_time - api_call_start_time) * 1000
+                    logging.info(f"[RAG Latency] RAG + initial generation: {rag_to_first_token_ms:.1f}ms")
+                
+                # Prepare timing data
+                timing_data = {
+                    "api_call_start": api_call_start_time,
+                    "first_event_ms": first_event_ms,
+                    "file_search_complete_ms": file_search_complete_ms,
+                    "first_token_ms": first_token_ms,
+                    "stream_end_ms": total_streaming_time_ms,
+                    "total_ms": total_streaming_time_ms,
+                    "rag_time_ms": rag_time_ms,
+                    "generation_time_ms": generation_time_ms
+                }
+                
                 # Log retrieved chunks from collected events
-                self._log_retrieved_chunks_streaming(events, output_text, question)
+                # Vector store logging disabled
+                # self._log_retrieved_chunks_streaming(events, output_text, question)
                 
                 # Return generator that replays the events
                 def stream_generator():
@@ -154,12 +220,24 @@ class ASLService:
                         if hasattr(event, 'type') and event.type == 'response.output_text.delta':
                             if hasattr(event, 'delta') and event.delta:
                                 yield event.delta
+                
+                if return_timing:
+                    return stream_generator(), timing_data
                 return stream_generator()
             else:
+                # Non-streaming mode - measure total response time
+                response_start_time = time.time()
+                response_text = self._extract_response_text(response)
+                response_end_time = time.time()
+                
+                total_time_ms = (response_end_time - api_call_start_time) * 1000
+                logging.info(f"[RAG Latency] Total response time (non-streaming): {total_time_ms:.1f}ms")
+                
                 # Log retrieved chunks (for debugging)
-                self._log_retrieved_chunks(response, question, stream)
+                # Vector store logging disabled
+                # self._log_retrieved_chunks(response, question, stream)
                 # Return complete response
-                return self._extract_response_text(response)
+                return response_text
                 
         except Exception as e:
             error_msg = f"Error getting response: {str(e)}"
