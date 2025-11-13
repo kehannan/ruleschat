@@ -58,36 +58,31 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('home') }}">Home</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('evals') }}">Evals</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('about') }}">About</a>
-            </li>
-            {% if user_email is defined and user_email %}
-              <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('ruleschat') }}">Chat</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('profile_page') }}">Profile</a>
-              </li>
-              {% if admin_email is defined and user_email == admin_email %}
-              <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Admin</a>
-              </li>
-              {% endif %}
-              <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
-              </li>
-            {% else %}
-              <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('login') }}">Login</a>
-              </li>
-            {% endif %}
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('home') }}">Home</a></li>
+            <li class="nav-item nav-chat" data-require-login="true"><a class="nav-link" href="{{ url_for('ruleschat') }}">Chat</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('evals') }}">Evals</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('about') }}">About</a></li>
+            <li class="nav-item nav-profile" data-require-login="true"><a class="nav-link" href="{{ url_for('profile_page') }}">Profile</a></li>
+            <li class="nav-item nav-admin" data-require-admin="true"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">Admin</a></li>
+            <li class="nav-item nav-logout" data-require-login="true"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+            <li class="nav-item nav-login" data-require-logout="true"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
           </ul>
+          <script>
+            (function() {
+              const isLoggedIn = {% if user_email is defined and user_email %}true{% else %}false{% endif %};
+              const isAdmin = {% if admin_email is defined and user_email == admin_email %}true{% else %}false{% endif %};
+              
+              document.querySelectorAll('[data-require-login="true"]').forEach(el => {
+                if (!isLoggedIn) el.style.display = 'none';
+              });
+              document.querySelectorAll('[data-require-admin="true"]').forEach(el => {
+                if (!isAdmin) el.style.display = 'none';
+              });
+              document.querySelectorAll('[data-require-logout="true"]').forEach(el => {
+                if (isLoggedIn) el.style.display = 'none';
+              });
+            })();
+          </script>
         </div>
       </div>
     </nav>

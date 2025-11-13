@@ -195,13 +195,45 @@ def load_eval_runs():
     from pathlib import Path
     from datetime import datetime
     import re
+    import os
     
-    evals_dir = Path(__file__).parent.parent.parent / "mysite2-evals-sft" / "evals"
+    # Try multiple path resolution strategies
+    evals_dir = None
+    
+    # Strategy 1: Environment variable (for production/Docker)
+    if os.getenv("EVALS_DIR"):
+        evals_dir = Path(os.getenv("EVALS_DIR"))
+    
+    # Strategy 2: Relative to project root (development)
+    if not evals_dir or not evals_dir.exists():
+        evals_dir = (Path(__file__).parent.parent / ".." / "mysite2-evals-sft" / "evals").resolve()
+    
+    # Strategy 3: Try absolute path from common locations (as sibling)
+    if not evals_dir.exists():
+        for base_path in ["/root/fastapi_app", "/app", Path(__file__).parent.parent]:
+            test_path = Path(base_path).parent / "mysite2-evals-sft" / "evals"
+            if test_path.exists():
+                evals_dir = test_path.resolve()
+                break
+    
+    # Strategy 4: Try inside fastapi_app directory (if it's there)
+    if not evals_dir.exists():
+        for base_path in ["/root/fastapi_app", Path(__file__).parent.parent]:
+            test_path = Path(base_path) / "mysite2-evals-sft" / "evals"
+            if test_path.exists():
+                evals_dir = test_path.resolve()
+                break
+    
     eval_runs = []
     
     try:
-        if not evals_dir.exists():
-            return {"error": f"Evaluation directory not found at: {evals_dir}"}
+        if not evals_dir or not evals_dir.exists():
+            # Try to provide helpful error message with attempted paths
+            attempted_paths = [
+                os.getenv("EVALS_DIR", "not set"),
+                str((Path(__file__).parent.parent / ".." / "mysite2-evals-sft" / "evals").resolve()),
+            ]
+            return {"error": f"Evaluation directory not found. Tried: {', '.join([p for p in attempted_paths if p != 'not set'])}"}
         
         # Find all eval result files (main and backups)
         eval_files = []
@@ -288,8 +320,34 @@ def load_eval_results(file_id=None):
     """Load and process evaluation results from a specific file."""
     from pathlib import Path
     from collections import defaultdict
+    import os
     
-    evals_dir = Path(__file__).parent.parent.parent / "mysite2-evals-sft" / "evals"
+    # Try multiple path resolution strategies (same as load_eval_runs)
+    evals_dir = None
+    
+    # Strategy 1: Environment variable (for production/Docker)
+    if os.getenv("EVALS_DIR"):
+        evals_dir = Path(os.getenv("EVALS_DIR"))
+    
+    # Strategy 2: Relative to project root (development)
+    if not evals_dir or not evals_dir.exists():
+        evals_dir = (Path(__file__).parent.parent / ".." / "mysite2-evals-sft" / "evals").resolve()
+    
+    # Strategy 3: Try absolute path from common locations (as sibling)
+    if not evals_dir.exists():
+        for base_path in ["/root/fastapi_app", "/app", Path(__file__).parent.parent]:
+            test_path = Path(base_path).parent / "mysite2-evals-sft" / "evals"
+            if test_path.exists():
+                evals_dir = test_path.resolve()
+                break
+    
+    # Strategy 4: Try inside fastapi_app directory (if it's there)
+    if not evals_dir.exists():
+        for base_path in ["/root/fastapi_app", Path(__file__).parent.parent]:
+            test_path = Path(base_path) / "mysite2-evals-sft" / "evals"
+            if test_path.exists():
+                evals_dir = test_path.resolve()
+                break
     
     # Determine which file to load
     if file_id:
