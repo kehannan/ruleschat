@@ -8,8 +8,10 @@ We index the ASL rulebook into an OpenAI Vector Store and query it with the Resp
 
 1. Create a vector store (one-time)
 2. Upload the rulebook PDF to the vector store (one-time)
-3. Query via Responses API with `file_search` tool pointing at the vector store
+3. Query via Responses API with `file_search` tool pointing at the vector store and `web_search` tool for additional resources
 4. Stream deltas over WebSocket to the browser
+
+Both `file_search` and `web_search` tools are available simultaneously, allowing the AI to search the rulebook and the web in parallel when needed.
 
 ## Benefits
 
@@ -17,6 +19,8 @@ We index the ASL rulebook into an OpenAI Vector Store and query it with the Resp
 - ✅ Fast retrieval via vector search (RAG)
 - ✅ Native streaming responses
 - ✅ Simple runtime: no threads/assistants needed
+- ✅ Web search capability for recent clarifications and community discussions
+- ✅ Parallel search: rulebook and web search run simultaneously
 
 ## Setup Instructions
 
@@ -100,10 +104,15 @@ stream = client.responses.create(
     instructions=ASL_SYSTEM_INSTRUCTIONS,
     temperature=TEMPERATURE,
     stream=True,
-    tools=[{
-        "type": "file_search",
-        "vector_store_ids": [responses_config["vector_store_id"]],
-    }],
+    tools=[
+        {
+            "type": "file_search",
+            "vector_store_ids": [responses_config["vector_store_id"]],
+        },
+        {
+            "type": "web_search",
+        }
+    ],
 )
 
 for event in stream:
@@ -134,3 +143,6 @@ The WebSocket endpoint:
 - The vector store is created once and reused
 - You can replace the PDF and re-run the setup to refresh content
 - The model is configurable via `DEFAULT_MODEL`
+- Web search is automatically available - no additional configuration needed
+- The AI decides when to use web search vs file search based on the question
+- Both tools can be used simultaneously for comprehensive answers

@@ -101,7 +101,8 @@ class ASLService:
         stream: bool = False,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
-        return_timing: bool = False
+        return_timing: bool = False,
+        force_web_search: bool = False
     ):
         """
         Get an answer to an ASL question.
@@ -112,6 +113,7 @@ class ASLService:
             model: Override default model
             temperature: Override default temperature
             return_timing: If True and stream=True, returns tuple (generator, timing_data)
+            force_web_search: If True, emphasizes web search usage in instructions
             
         Returns:
             The answer as a string (or generator if stream=True)
@@ -123,23 +125,33 @@ class ASLService:
         model = model or self.model
         temperature = temperature if temperature is not None else self.temperature
         
+        # Modify instructions if web search is forced
+        instructions = self.system_instructions
+        if force_web_search:
+            instructions = self.system_instructions + "\n\nIMPORTANT: The user has requested web search. You MUST use web_search to find current information, community discussions, and recent clarifications. Also use file_search to reference the rulebook. Use both tools together to provide a comprehensive answer."
+        
         # Start timing for RAG latency measurement
         api_call_start_time = time.time()
         logging.info(f"[RAG Latency] Question: {question[:100]}{'...' if len(question) > 100 else ''}")
         logging.info(f"[RAG Latency] API call started at: {api_call_start_time:.3f}")
         
         try:
-            # Use Responses API with file_search tool
+            # Use Responses API with file_search and web_search tools
             response = self.client.responses.create(
                 model=model,
                 input=question,
-                instructions=self.system_instructions,
+                instructions=instructions,
                 temperature=temperature,
                 stream=stream,
-                tools=[{
-                    "type": "file_search",
-                    "vector_store_ids": [self.vector_store_id],
-                }]
+                tools=[
+                    {
+                        "type": "file_search",
+                        "vector_store_ids": [self.vector_store_id],
+                    },
+                    {
+                        "type": "web_search",
+                    }
+                ]
             )
             
             if stream:

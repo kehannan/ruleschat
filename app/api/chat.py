@@ -162,6 +162,17 @@ async def websocket_chat(websocket: WebSocket):
                 
                 logging.info(f"✅ Received question: {message}")
                 
+                # Check for /web flag to force web search
+                force_web_search = False
+                actual_message = message
+                if message.strip().startswith("/web"):
+                    force_web_search = True
+                    actual_message = message.strip()[4:].strip()  # Remove "/web" prefix
+                    logging.info("🌐 /web flag detected - forcing web search")
+                    if not actual_message:
+                        await websocket.send_text("Please provide a question after /web. Example: /web What are recent ASL rule clarifications?")
+                        continue
+                
                 # Start end-to-end timing
                 question_received_time = time.time()
                 logging.info(f"[RAG Latency] Question received at WebSocket: {question_received_time:.3f}")
@@ -175,7 +186,7 @@ async def websocket_chat(websocket: WebSocket):
                     logging.info(f"📊 Using Vector Store: {asl_service.vector_store_id}")
                     
                     # Get streaming response from service with timing data
-                    stream, timing_data = asl_service.get_answer(message, stream=True, return_timing=True)
+                    stream, timing_data = asl_service.get_answer(actual_message, stream=True, return_timing=True, force_web_search=force_web_search)
                     
                     logging.info("🔄 Streaming response from OpenAI...")
                     response_received = False
