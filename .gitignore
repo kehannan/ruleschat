@@ -189,3 +189,6 @@ mcp_service/
 evals/
 SFT/
 specification/
+
+# Large PDF files
+static/rulebook/*.pdf

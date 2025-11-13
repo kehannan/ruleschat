@@ -352,6 +352,66 @@
     background: #f9f9f9;
   }
 
+  /* Searching bubble */
+  .searching-bubble {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 8px 20px 0 20px;
+    margin: 0;
+  }
+
+  .searching-bubble .message-content {
+    background: none;
+    padding: 0;
+    font-size: 13px;
+    color: #8e8ea0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 85%;
+    text-align: right;
+  }
+
+  .searching-bubble .searching-dots {
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  .searching-bubble .searching-dots span {
+    width: 3px;
+    height: 3px;
+    background-color: #8e8ea0;
+    border-radius: 50%;
+    display: inline-block;
+    animation: searching-pulse 1.4s infinite ease-in-out;
+  }
+
+  .searching-bubble .searching-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+  }
+
+  .searching-bubble .searching-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+  }
+
+  @keyframes searching-pulse {
+    0%, 80%, 100% {
+      opacity: 0.3;
+      transform: scale(0.8);
+    }
+    40% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .searching-bubble .message-content {
+      max-width: 90%;
+    }
+  }
+
   .better-answer-form {
     display: none;
     flex: 1;
@@ -622,6 +682,12 @@
     let displayInterval = null;
 
     function createBotMessage() {
+        // Remove searching bubble if it exists
+        const searchingBubble = document.querySelector('.searching-bubble');
+        if (searchingBubble) {
+            searchingBubble.remove();
+        }
+        
         const chatContainer = document.querySelector('#chat-container');
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('bot-message', 'current');
@@ -633,6 +699,21 @@
         chatContainer.appendChild(messageDiv);
         
         return content;
+    }
+    
+    function createSearchingBubble() {
+        const chatContainer = document.querySelector('#chat-container');
+        if (!chatContainer) {
+            return;
+        }
+        const searchingDiv = document.createElement('div');
+        searchingDiv.className = 'searching-bubble';
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.innerHTML = 'Searching <span class="searching-dots"><span></span><span></span><span></span></span>';
+        searchingDiv.appendChild(contentDiv);
+        chatContainer.appendChild(searchingDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
     function displayBufferedChunks() {
@@ -787,6 +868,8 @@
         const message = messageInput.value.trim();
         if (!message) return;
         
+        console.log('About to send message:', message);
+        
         // Remove welcome message if it exists
         const welcomeMessage = document.querySelector('.welcome-message');
         if (welcomeMessage) {
@@ -819,6 +902,7 @@
         
         const chatContainer = document.querySelector('#chat-container');
         createUserMessage(message);
+        createSearchingBubble();
         chatContainer.scrollTop = chatContainer.scrollHeight;
         lastUserQuestion = message;
     }
