@@ -174,18 +174,18 @@ async def websocket_chat(websocket: WebSocket):
                         total_time = (time.time() - first_delta_time) * 1000 if first_delta_time else 0
                         logging.info(f"✅ Response streamed successfully - {delta_count} deltas in {total_time:.0f}ms")
                         
-                        # Extract citations from timing_data
-                        citations = timing_data.get('citations', [])
-                        logging.info(f"📤 Sending {len(citations)} citations to frontend")
-                        if citations:
-                            logging.info(f"   First citation: {citations[0].get('content', '')[:100]}...")
+                        # Extract RAG sources from timing_data
+                        rag_sources = timing_data.get('rag_sources', [])
+                        logging.info(f"📤 Sending {len(rag_sources)} RAG sources to frontend")
+                        if rag_sources:
+                            logging.info(f"   First RAG source: {rag_sources[0].get('content', '')[:100]}...")
                         
-                        # Send completion signal with timing data and citations
+                        # Send completion signal with timing data and RAG sources
                         import json
                         completion_signal = json.dumps({
                             "type": "stream_complete",
-                            "timing": {k: v for k, v in timing_data.items() if k != 'citations'},
-                            "citations": citations
+                            "timing": {k: v for k, v in timing_data.items() if k != 'rag_sources'},
+                            "rag_sources": rag_sources
                         })
                         await websocket.send_text(completion_signal)
                     else:

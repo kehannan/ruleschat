@@ -131,81 +131,7 @@ Your response:"""
             # Fall back to initial answer if verification fails
             return initial_answer
     
-    def _extract_citations_simple(self, events: list) -> list:
-        """
-        Extract citations from events using only official/available fields.
-        Gated behind DEBUG_RAG=1 for verbose logging.
-        
-        Args:
-            events: List of streaming events
-            
-        Returns:
-            List of citation dicts with metadata
-        """
-        debug_rag = os.getenv("DEBUG_RAG", "0") == "1"
-        citations = []
-        
-        if debug_rag:
-            logging.info(f"🔍 [DEBUG_RAG] Starting citation extraction from {len(events)} events...")
-        
-        for event in events:
-            event_type = getattr(event, 'type', 'unknown')
-            
-            if event_type == 'response.output_text.annotation.added':
-                if debug_rag:
-                    logging.info(f"   🔎 [DEBUG_RAG] Found annotation.added event!")
-                
-                try:
-                    if hasattr(event, 'annotation'):
-                        annotation = event.annotation
-                        
-                        # Extract file citations from annotation
-                        if isinstance(annotation, dict):
-                            if annotation.get('type') == 'file_citation':
-                                file_id = annotation.get('file_id')
-                                filename = annotation.get('filename', '')
-                                citation_index = annotation.get('index')
-                                
-                                if debug_rag:
-                                    logging.info(f"      [DEBUG_RAG] Found file_citation: file_id={file_id}, index={citation_index}, filename={filename}")
-                                
-                                citation_id = f"{file_id}:{citation_index}"
-                                
-                                # Check if we already have this citation
-                                citation_exists = any(c.get('id') == citation_id for c in citations)
-                                if not citation_exists:
-                                    new_citation = {
-                                        'id': citation_id,
-                                        'index': len(citations) + 1,
-                                        'file_id': file_id,
-                                        'filename': filename,
-                                        'chunk_index': citation_index,
-                                        'content': ''  # Content not available in streaming events
-                                    }
-                                    citations.append(new_citation)
-                                    if debug_rag:
-                                        logging.info(f"      [DEBUG_RAG] ✅ Added citation {new_citation['index']}: {citation_id}")
-                        elif hasattr(annotation, 'file_citations'):
-                            # Object access path
-                            file_citations = annotation.file_citations
-                            for file_citation in file_citations:
-                                if hasattr(file_citation, 'quote'):
-                                    citation_text = file_citation.quote
-                                    if citation_text and citation_text.strip():
-                                        citation_exists = any(c.get('content') == citation_text for c in citations)
-                                        if not citation_exists:
-                                            citations.append({
-                                                'index': len(citations) + 1,
-                                                'content': citation_text.strip()
-                                            })
-                except Exception as e:
-                    if debug_rag:
-                        logging.warning(f"      [DEBUG_RAG] Error extracting citations from annotation: {e}", exc_info=True)
-        
-        if debug_rag:
-            logging.info(f"📎 [DEBUG_RAG] Extracted {len(citations)} citations")
-        
-        return citations
+    # Citations removed: we now surface full vector store retrieval results via `rag_sources`.
     
     def get_answer(
         self,
@@ -271,33 +197,40 @@ Your response:"""
         try:
             # Build tools
             tools = [
-                {
-                    "type": "file_search",
+                    {
+                        "type": "file_search",
                     "vector_store_ids": [self.config.vector_store_id],
-                },
-                {
-                    "type": "web_search",
-                }
-            ]
-            
-            # Use Responses API with file_search and web_search tools
-            response = self.client.create_response(
-                model=model,
-                input=question,
-                instructions=instructions,
-                temperature=temperature,
-                stream=stream,
-                tools=tools
-            )
+                    },
+                    {
+                        "type": "web_search",
+                    }
+                ]
             
             if stream:
+                # Best practice: stream events AND then read the final accumulated response object
+                # (which includes `file_search_call.results` thanks to `include=["file_search_call.results"]`)
+                stream_manager = self.client.stream_response(
+                    model=model,
+                    input=question,
+                    instructions=instructions,
+                    temperature=temperature,
+                    tools=tools,
+                )
                 return self._handle_streaming_response(
-                    response,
+                    stream_manager,
                     api_call_start_time,
                     return_timing,
-                    use_structured_output
                 )
             else:
+                # Non-streaming: response already contains `output` including `file_search_call.results`
+                response = self.client.create_response(
+                    model=model,
+                    input=question,
+                    instructions=instructions,
+                    temperature=temperature,
+                    stream=False,
+                    tools=tools,
+                )
                 return self._handle_non_streaming_response(
                     response,
                     api_call_start_time,
@@ -315,84 +248,120 @@ Your response:"""
     
     def _handle_streaming_response(
         self,
-        response,
+        stream_manager,
         api_call_start_time: float,
         return_timing: bool,
-        use_structured_output: bool
     ) -> Tuple[Generator[str, None, None], Optional[Dict[str, Any]]]:
         """
-        Handle streaming response.
+        Handle streaming response (true streaming + final response capture).
         
         Returns:
             Tuple of (stream_generator, timing_data) if return_timing=True
-            Otherwise just stream_generator
+            Otherwise (stream_generator, empty list)
         """
-        events = []
-        output_text = ""
-        
-        # Timing variables
-        first_event_time = None
-        file_search_complete_time = None
-        first_delta_time = None
-        stream_end_time = None
-        
-        for event in response:
-            # Track first event
-            if first_event_time is None:
-                first_event_time = time.time()
-                first_event_time_ms = (first_event_time - api_call_start_time) * 1000
-                event_type = getattr(event, 'type', 'unknown')
-                logging.info(f"[RAG Latency] First event received: {first_event_time_ms:.1f}ms (type: {event_type})")
-            
-            # Track file_search completion
-            if file_search_complete_time is None and hasattr(event, 'type') and event.type == 'response.file_search_call.completed':
-                file_search_complete_time = time.time()
-                file_search_time_ms = (file_search_complete_time - api_call_start_time) * 1000
-                logging.info(f"[RAG Latency] File search completed: {file_search_time_ms:.1f}ms")
-            
-            # Track first token (TTFT - Time To First Token)
-            if first_delta_time is None and hasattr(event, 'type') and event.type == 'response.output_text.delta':
-                first_delta_time = time.time()
-                ttft_ms = (first_delta_time - api_call_start_time) * 1000
-                logging.info(f"[RAG Latency] First token (TTFT): {ttft_ms:.1f}ms")
-            
-            events.append(event)
-            if hasattr(event, 'type') and event.type == 'response.output_text.delta':
-                if hasattr(event, 'delta') and event.delta:
-                    output_text += event.delta
-        
-        # Track stream end
-        stream_end_time = time.time()
-        total_streaming_time_ms = (stream_end_time - api_call_start_time) * 1000
-        
-        # Calculate timing metrics
-        timing_data = compute_timing_metrics(
-            api_call_start_time,
-            first_event_time,
-            file_search_complete_time,
-            first_delta_time,
-            stream_end_time
-        )
-        
-        # Log latency summary
-        logging.info(f"[RAG Latency] Total streaming time: {total_streaming_time_ms:.1f}ms")
-        if file_search_complete_time:
-            generation_time_ms = timing_data.get("generation_time_ms")
-            logging.info(f"[RAG Latency] Generation time (after RAG): {generation_time_ms:.1f}ms")
-        if first_delta_time:
-            rag_to_first_token_ms = (first_delta_time - api_call_start_time) * 1000
-            logging.info(f"[RAG Latency] RAG + initial generation: {rag_to_first_token_ms:.1f}ms")
+        timing_data: Dict[str, Any] = {} if return_timing else {}
+
+        def _extract_rag_sources_from_final(final_response) -> list:
+            """Extract vector store results from final response.output."""
+            output = getattr(final_response, "output", None)
+            if not output:
+                return []
+
+            def _get(obj, key, default=None):
+                if isinstance(obj, dict):
+                    return obj.get(key, default)
+                return getattr(obj, key, default)
+
+            rag_results: list = []
+            for item in output:
+                if _get(item, "type") != "file_search_call":
+                    continue
+                results = _get(item, "results", []) or []
+                for r in results:
+                    # openai-python Result fields (1.90.0):
+                    # - text: retrieved chunk text
+                    # - filename: original uploaded filename (if available)
+                    # - attributes: metadata dict (if any)
+                    attributes = _get(r, "attributes", None)
+                    filename = _get(r, "filename", None)
+                    text = _get(r, "text", None)
+                    # Backwards/alternate field fallbacks
+                    if text is None:
+                        text = _get(r, "content", None)
+
+                    rag_results.append(
+                        {
+                            "index": len(rag_results) + 1,
+                            "file_id": _get(r, "file_id"),
+                            "score": _get(r, "score"),
+                            "content": text or "",
+                            "attributes": attributes if isinstance(attributes, dict) else (attributes.__dict__ if hasattr(attributes, "__dict__") else None),
+                            "filename": filename or "Unknown",
+                        }
+                    )
+            return rag_results
+
+        def stream_generator():
+            first_event_time = None
+            file_search_complete_time = None
+            first_delta_time = None
+
+            with stream_manager as stream:
+                for event in stream:
+                    if first_event_time is None:
+                        first_event_time = time.time()
+                        first_event_ms = (first_event_time - api_call_start_time) * 1000
+                        logging.info(
+                            f"[RAG Latency] First event received: {first_event_ms:.1f}ms (type: {getattr(event, 'type', 'unknown')})"
+                        )
+
+                    if (
+                        getattr(event, "type", None) == "response.file_search_call.completed"
+                        and file_search_complete_time is None
+                    ):
+                        file_search_complete_time = time.time()
+                        file_search_ms = (file_search_complete_time - api_call_start_time) * 1000
+                        logging.info(f"[RAG Latency] File search completed: {file_search_ms:.1f}ms")
+                    
+                    if getattr(event, "type", None) == "response.output_text.delta":
+                        if first_delta_time is None:
+                            first_delta_time = time.time()
+                            ttft_ms = (first_delta_time - api_call_start_time) * 1000
+                            logging.info(f"[RAG Latency] First token (TTFT): {ttft_ms:.1f}ms")
+
+                        delta = getattr(event, "delta", None)
+                        if delta:
+                            yield delta
+
+                # After stream completion, compute timing + pull final RAG chunks
+                stream_end_time = time.time()
                 
-        # Extract citations (simplified, gated behind DEBUG_RAG)
-        citations = self._extract_citations_simple(events) if return_timing else []
-        
-        # Store citations in timing_data if return_timing is True
+                if return_timing:
+                    metrics = compute_timing_metrics(
+                        api_call_start_time,
+                        first_event_time,
+                        file_search_complete_time,
+                        first_delta_time,
+                        stream_end_time,
+                    )
+                    timing_data.update(metrics)
+
+                    try:
+                        final = stream.get_final_response()
+                        rag_sources = _extract_rag_sources_from_final(final)
+                        timing_data["rag_sources"] = rag_sources
+                        logging.info(f"📚 Extracted {len(rag_sources)} RAG sources from final response")
+                    except Exception as e:
+                        logging.warning(
+                            f"⚠️ Failed to extract RAG sources from final response: {e}", exc_info=True
+                        )
+
+        generator = stream_generator()
+
         if return_timing:
-            timing_data['citations'] = citations
-            return self._stream_generator(events), timing_data
-        
-        # If not returning timing, return stream and empty citations
-        return self._stream_generator(events), []
+            return generator, timing_data
+
+        return generator, []
     
     def _handle_non_streaming_response(
         self,
@@ -403,15 +372,15 @@ Your response:"""
         temperature: Optional[float],
         use_verification: bool,
         use_structured_output: bool
-        ) -> str:
+    ) -> str:
         """Handle non-streaming response."""
         response_start_time = time.time()
         response_text = extract_response_text(response)
         response_end_time = time.time()
-        
+
         total_time_ms = (response_end_time - api_call_start_time) * 1000
         logging.info(f"[RAG Latency] Total response time (non-streaming): {total_time_ms:.1f}ms")
-        
+
         # Apply structured output parsing if enabled
         if use_structured_output:
             logging.info("📋 Structured output enabled - parsing JSON response...")
@@ -422,25 +391,16 @@ Your response:"""
             except json.JSONDecodeError as e:
                 logging.error(f"❌ Failed to parse JSON response: {e}")
                 logging.error(f"Raw response: {response_text[:500]}")
-                # Fall back to raw response if JSON parsing fails
                 response_text = f"Error parsing structured output:\n\n{response_text}"
-        
+
         # Apply verification if enabled
         if use_verification:
             logging.info("🔍 Verification enabled - running second pass...")
             response_text = self._verify_answer(question, response_text, model, temperature)
-        
-        # Return complete response
+
         return response_text
-    
-    def _stream_generator(self, events: list) -> Generator[str, None, None]:
-        """Generate text deltas from events."""
-        for event in events:
-            if hasattr(event, 'type') and event.type == 'response.output_text.delta':
-                if hasattr(event, 'delta') and event.delta:
-                    yield event.delta
-
-
+                
+# (no _stream_generator needed; streaming yields deltas directly)
 # Global service instance (lazy initialization)
 _global_service: Optional[ASLService] = None
 
