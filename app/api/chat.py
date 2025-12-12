@@ -3,7 +3,6 @@ import os
 import asyncio
 import json
 import logging
-import time
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -48,27 +47,10 @@ def get_base_context(request: Request, user=None):
     return context
 
 
-@router.get("/", response_class=HTMLResponse)
-def root(request: Request):
-    """Display home/landing page at root."""
-    # Check if user is logged in (optional - home is public)
-    user = None
-    token = request.cookies.get("access_token")
-    if token:
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            email = payload.get("sub")
-            if email:
-                db = SessionLocal()
-                try:
-                    user = get_user_by_email(db, email)
-                finally:
-                    db.close()
-        except JWTError:
-            pass
-    
-    context = get_base_context(request, user)
-    return templates.TemplateResponse("home.html", context)
+@router.get("/", response_class=RedirectResponse)
+def root():
+    """Redirect root to login."""
+    return RedirectResponse(url="/login")
 
 
 @router.get("/home", name="home", response_class=HTMLResponse)
@@ -162,69 +144,50 @@ async def websocket_chat(websocket: WebSocket):
                 
                 logging.info(f"✅ Received question: {message}")
                 
-                # Check for /web flag to force web search
-                force_web_search = False
-                actual_message = message
-                if message.strip().startswith("/web"):
-                    force_web_search = True
-                    actual_message = message.strip()[4:].strip()  # Remove "/web" prefix
-                    logging.info("🌐 /web flag detected - forcing web search")
-                    if not actual_message:
-                        await websocket.send_text("Please provide a question after /web. Example: /web What are recent ASL rule clarifications?")
-                        continue
-                
-                # Start end-to-end timing
-                question_received_time = time.time()
-                logging.info(f"[RAG Latency] Question received at WebSocket: {question_received_time:.3f}")
-                
                 # Use ASL Service for consistent responses
                 logging.info("🟢 Using ASL Service for response...")
                 try:
                     # Get the ASL service (uses same config as web app)
-                    service_call_start_time = time.time()
                     asl_service = get_asl_service()
-                    logging.info(f"📊 Using Vector Store: {asl_service.vector_store_id}")
+                    logging.info(f"📊 Using Vector Store: {asl_service.config.vector_store_id}")
                     
                     # Get streaming response from service with timing data
-                    stream, timing_data = asl_service.get_answer(actual_message, stream=True, return_timing=True, force_web_search=force_web_search)
+                    stream, timing_data = asl_service.get_answer(message, stream=True, return_timing=True)
                     
                     logging.info("🔄 Streaming response from OpenAI...")
                     response_received = False
                     
                     # Stream deltas from service
+                    import time
                     delta_count = 0
                     first_delta_time = None
-                    first_delta_sent_time = None
                     
                     for delta in stream:
                         delta_count += 1
                         if first_delta_time is None:
                             first_delta_time = time.time()
-                            service_to_first_delta_ms = (first_delta_time - service_call_start_time) * 1000
-                            logging.info(f"[RAG Latency] Service call to first delta: {service_to_first_delta_ms:.1f}ms")
                         
                         await websocket.send_text(delta)
-                        
-                        if first_delta_sent_time is None:
-                            first_delta_sent_time = time.time()
-                            end_to_end_ms = (first_delta_sent_time - question_received_time) * 1000
-                            logging.info(f"[RAG Latency] End-to-end (WebSocket): {end_to_end_ms:.1f}ms")
-                        
                         response_received = True
                     
                     if response_received:
-                        stream_end_time = time.time()
-                        total_streaming_time = (stream_end_time - first_delta_time) * 1000 if first_delta_time else 0
-                        total_end_to_end = (stream_end_time - question_received_time) * 1000
-                        logging.info(f"✅ Response streamed successfully - {delta_count} deltas in {total_streaming_time:.0f}ms")
-                        logging.info(f"[RAG Latency] Total end-to-end time: {total_end_to_end:.1f}ms")
+                        total_time = (time.time() - first_delta_time) * 1000 if first_delta_time else 0
+                        logging.info(f"✅ Response streamed successfully - {delta_count} deltas in {total_time:.0f}ms")
                         
-                        # Send timing data to frontend
-                        latency_message = {
-                            "type": "latency",
-                            "data": timing_data
-                        }
-                        await websocket.send_text(json.dumps(latency_message))
+                        # Extract citations from timing_data
+                        citations = timing_data.get('citations', [])
+                        logging.info(f"📤 Sending {len(citations)} citations to frontend")
+                        if citations:
+                            logging.info(f"   First citation: {citations[0].get('content', '')[:100]}...")
+                        
+                        # Send completion signal with timing data and citations
+                        import json
+                        completion_signal = json.dumps({
+                            "type": "stream_complete",
+                            "timing": {k: v for k, v in timing_data.items() if k != 'citations'},
+                            "citations": citations
+                        })
+                        await websocket.send_text(completion_signal)
                     else:
                         logging.warning("⚠️ No response content received from stream")
                         await websocket.send_text("Sorry, I couldn't generate a response. Please try again.")
