@@ -24,13 +24,6 @@ class OpenAIResponsesClient:
         )
         logging.info(f"OpenAI client initialized with vector store: {config.vector_store_id}")
     
-    def _build_include(self, tools: Optional[List[Dict[str, Any]]]) -> List[str]:
-        """Build `include` list for Responses API calls."""
-        tools_list = tools or []
-        if any(t.get("type") == "file_search" for t in tools_list):
-            return ["file_search_call.results"]
-        return []
-
     def create_response(
         self,
         model: str,
@@ -54,7 +47,8 @@ class OpenAIResponsesClient:
         Returns:
             Response object (streaming or non-streaming)
         """
-        include = self._build_include(tools)
+        # Include file_search_call.results to get RAG chunks
+        include = ["file_search_call.results"] if any(t.get("type") == "file_search" for t in (tools or [])) else []
         
         return self.client.responses.create(
             model=model,
@@ -63,32 +57,37 @@ class OpenAIResponsesClient:
             temperature=temperature,
             stream=stream,
             tools=tools or [],
-            include=include
+            include=include if include else None
         )
-
+    
     def stream_response(
         self,
         model: str,
         input: str,
         instructions: str,
         temperature: float,
-        tools: Optional[List[Dict[str, Any]]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None
     ):
         """
         Stream a Responses API response and allow access to the final accumulated response.
-
+        
         Usage:
             with client.stream_response(...) as stream:
                 for event in stream: ...
                 final = stream.get_final_response()
+        
+        Returns:
+            ResponseStreamManager context manager
         """
-        include = self._build_include(tools)
+        # Include file_search_call.results to get RAG chunks
+        include = ["file_search_call.results"] if any(t.get("type") == "file_search" for t in (tools or [])) else []
+        
         return self.client.responses.stream(
             model=model,
             input=input,
             instructions=instructions,
             temperature=temperature,
             tools=tools or [],
-            include=include,
+            include=include if include else None
         )
 
