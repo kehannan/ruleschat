@@ -67,7 +67,6 @@
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_css %}
@@ -146,10 +145,7 @@
                 isDisplaying = false;
                 // Parse markdown after all chunks displayed
                 const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
-                let htmlContent = marked.parse(finalContent);
-                
-                currentBotMessageContent.innerHTML = htmlContent;
-                
+                currentBotMessageContent.innerHTML = marked.parse(finalContent);
                 // Make section references clickable
                 // makeSectionReferencesClickable(currentBotMessageContent); // Disabled - will add back later
                 lastAssistantAnswer = finalContent;
@@ -215,11 +211,7 @@
                     const currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
                     if (currentBotMessageContent) {
                         const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
-                        
-                        // Parse markdown
-                        let htmlContent = marked.parse(finalContent);
-                        currentBotMessageContent.innerHTML = htmlContent;
-                        
+                        currentBotMessageContent.innerHTML = marked.parse(finalContent);
                         lastAssistantAnswer = finalContent;
 
                         const currentBotMessage = currentBotMessageContent.closest('.bot-message');
@@ -241,31 +233,14 @@
                     const currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
                     if (currentBotMessageContent) {
                         const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
-                        
-                        // Store RAG sources
-                        const ragSources = message.rag_sources || [];
-                        console.log(`📚 RAG sources check:`, {
-                            hasRagSources: !!message.rag_sources,
-                            ragSourcesLength: ragSources.length,
-                            messageKeys: Object.keys(message),
-                            ragSources: ragSources
-                        });
-                        if (ragSources.length > 0) {
-                            console.log(`📚 Received ${ragSources.length} RAG sources:`, ragSources);
-                        } else {
-                            console.log('⚠️ No RAG sources in message');
-                        }
-                        
-                        // Parse markdown
-                        let htmlContent = marked.parse(finalContent);
-                        currentBotMessageContent.innerHTML = htmlContent;
-                        
+                        currentBotMessageContent.innerHTML = marked.parse(finalContent);
                         lastAssistantAnswer = finalContent;
 
                         const currentBotMessage = currentBotMessageContent.closest('.bot-message');
                         currentBotMessage.classList.remove('current');
-                        
+
                         // Add RAG Sources section if available (after bot message is finalized)
+                        const ragSources = message.rag_sources || [];
                         if (ragSources.length > 0) {
                             console.log(`📚 Adding RAG sources section with ${ragSources.length} sources`);
                             addRAGSourcesSection(currentBotMessage, ragSources);
@@ -772,13 +747,12 @@
     // Close modal on ESC key
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
-            const pdfModal = document.getElementById('pdf-modal');
-            if (pdfModal && pdfModal.style.display !== 'none') {
+            const modal = document.getElementById('pdf-modal');
+            if (modal && modal.style.display !== 'none') {
                 closePdfModal();
             }
         }
     });
-
 
     // RAG Sources section
     function addRAGSourcesSection(messageElement, ragSources) {
@@ -826,17 +800,6 @@
             sourceItem.style.border = '1px solid #e0e0e0';
             sourceItem.style.borderRadius = '4px';
             
-            // Source header with index and filename
-            const sourceHeader = document.createElement('div');
-            sourceHeader.style.marginBottom = '8px';
-            sourceHeader.style.fontSize = '0.9em';
-            sourceHeader.style.fontWeight = '600';
-            sourceHeader.style.color = '#666';
-            sourceHeader.innerHTML = `
-                <span style="color: #0066cc; font-weight: 700;">[${source.index}]</span>
-                ${source.filename ? `<span style="margin-left: 8px;">${source.filename}</span>` : ''}
-            `;
-            
             // Source content
             const sourceContent = document.createElement('div');
             sourceContent.style.whiteSpace = 'pre-wrap';
@@ -847,7 +810,6 @@
             sourceContent.style.overflowY = 'auto';
             sourceContent.textContent = source.content || '(No content available)';
             
-            sourceItem.appendChild(sourceHeader);
             sourceItem.appendChild(sourceContent);
             content.appendChild(sourceItem);
         });
@@ -867,8 +829,6 @@
         // Insert after the bot message (messageElement is now the .bot-message container)
         if (messageElement && messageElement.parentNode) {
             messageElement.parentNode.insertBefore(sourcesSection, messageElement.nextSibling);
-        } else {
-            console.error('❌ Cannot insert RAG sources section: invalid messageElement');
         }
     }
 </script>
