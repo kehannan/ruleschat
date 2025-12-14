@@ -6,40 +6,60 @@
 <div class="row">
   <div class="col-lg-10 mx-auto">
     <h1 class="mb-3">Evaluation Results</h1>
-    
+
     {% if error %}
     <div class="alert alert-danger" role="alert">
       {{ error }}
     </div>
     {% endif %}
-    
+
     {% if eval_runs is defined and eval_runs %}
     <div class="card">
       <div class="card-body">
         <div class="table-responsive">
-          <table class="table table-hover">
-            <thead>
+          <table class="table table-bordered align-middle">
+            <thead class="table-primary">
               <tr>
-                <th>Date</th>
-                <th>Model</th>
-                <th>Prompts</th>
-                <th>Correct</th>
-                <th>Correct %</th>
-                <th>Details</th>
+                <th scope="col">DATE</th>
+                <th scope="col">MODEL</th>
+                <th scope="col">JUDGEMENT</th>
+                <th scope="col" class="text-center">PASS</th>
+                <th scope="col" class="text-center">FAIL</th>
+                <th scope="col" class="text-center">REQUIRES REVIEW</th>
+                <th scope="col" class="text-center">TOTAL</th>
+                <th scope="col">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {% for run in eval_runs %}
+              <!-- AI Judge Row -->
               <tr>
-                <td>{{ run.date }}</td>
-                <td>{{ run.model }}</td>
-                <td>{{ run.prompts }}</td>
-                <td>{{ run.correct }}</td>
-                <td>{{ "%.1f"|format(run.correct_pct) }}%</td>
-                <td>
-                  <a href="{{ url_for('evals_detail', file_id=run.file_id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                <td class="align-middle fw-bold">{{ run.date }}</td>
+                <td class="align-middle fw-bold">{{ run.model }}</td>
+                <td class="fw-bold">AI Judge Only</td>
+                <td class="text-center text-primary fw-bold">{{ run.ai_stats.pass }} ({{
+                  "%.0f"|format(run.ai_stats.pass_pct) }}%)</td>
+                <td class="text-center text-primary fw-bold">{{ run.ai_stats.fail }} ({{
+                  "%.0f"|format(run.ai_stats.fail_pct) }}%)</td>
+                <td class="text-center text-primary fw-bold">{{ run.ai_stats.partial }} ({{
+                  "%.0f"|format(run.ai_stats.partial_pct) }}%)</td>
+                <td class="text-center text-primary fw-bold">{{ run.ai_stats.total }}</td>
+                <td class="align-middle text-center">
+                  <a href="{{ url_for('evals_detail', file_id=run.file_id) }}"
+                    class="btn btn-sm btn-outline-primary">View Details</a>
                 </td>
               </tr>
+              <!-- Human Review Row (Temporarily Hidden)
+              <tr>
+                <td class="fw-bold text-secondary">With Human Review</td>
+                <td class="text-center text-primary fw-bold">{{ run.human_stats.pass }} ({{
+                  "%.0f"|format(run.human_stats.pass_pct) }}%)</td>
+                <td class="text-center text-primary fw-bold">{{ run.human_stats.fail }} ({{
+                  "%.0f"|format(run.human_stats.fail_pct) }}%)</td>
+                <td class="text-center text-muted">n/a</td>
+                <td class="text-center text-primary fw-bold">{{ run.human_stats.total }}</td>
+              </tr>
+              -->
               {% endfor %}
             </tbody>
           </table>
@@ -53,4 +73,4 @@
     {% endif %}
   </div>
 </div>
-{% endblock %} 
+{% endblock %}

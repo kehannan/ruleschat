@@ -9,7 +9,7 @@ fastapi-mail==1.4.1
 pdfminer.six==20221105
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-openai==1.3.0
+openai==2.11.0
 sqlalchemy==2.0.23
 python-jose[cryptography]==3.3.0
 jinja2==3.1.2

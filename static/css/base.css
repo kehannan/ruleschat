@@ -1,0 +1,27 @@
+/* Minimal, professional styling with smaller fonts */
+body {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+}
+h1 { font-size: 1.75rem; font-weight: 600; margin-bottom: 1rem; }
+h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.875rem; }
+h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.75rem; }
+h4 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.625rem; }
+h5 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+h6 { font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; }
+.lead { font-size: 1rem; font-weight: 400; }
+p { font-size: 14px; margin-bottom: 0.875rem; }
+.navbar { padding: 0.5rem 0; font-size: 14px; }
+.navbar-brand { font-size: 1rem; font-weight: 500; }
+.nav-link { font-size: 14px; padding: 0.375rem 0.75rem; }
+.container { max-width: 960px; }
+.card { border: 1px solid #e0e0e0; box-shadow: none; }
+.card-header { font-size: 0.875rem; font-weight: 600; padding: 0.75rem 1rem; background-color: #f8f9fa; border-bottom: 1px solid #e0e0e0; }
+.card-body { padding: 1rem; }
+.btn { font-size: 14px; padding: 0.375rem 0.75rem; }
+.form-label { font-size: 13px; font-weight: 500; margin-bottom: 0.375rem; }
+.form-control { font-size: 14px; padding: 0.375rem 0.75rem; }
+.text-muted { font-size: 12px; }
+.small { font-size: 12px; }
+
