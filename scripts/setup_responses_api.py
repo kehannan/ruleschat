@@ -93,31 +93,7 @@ def extract_text_from_pdf(pdf_path: str) -> List[Tuple[int, str]]:
             for i, page in enumerate(pdf.pages):
                 if (i + 1) % 50 == 0:
                     logging.info(f"   Processed {i + 1}/{total_pages} pages...")
-                # NOTE: The ASL rulebook is typically two-column.
-                # pdfplumber's default extract_text() can interleave columns,
-                # producing mixed/contaminated chunks (text from unrelated sections).
-                # Extract left column then right column to preserve reading order.
-                try:
-                    width = float(page.width)
-                    height = float(page.height)
-                    mid = width * 0.5
-                    gutter = 18.0  # reduce bleed between columns
-
-                    left_bbox = (0, 0, mid - gutter, height)
-                    right_bbox = (mid + gutter, 0, width, height)
-
-                    left_text = page.crop(left_bbox).extract_text() or ""
-                    right_text = page.crop(right_bbox).extract_text() or ""
-
-                    # If this page isn't actually two-column (or extraction fails),
-                    # fall back to full-page extraction.
-                    combined = (left_text.strip() + "\n" + right_text.strip()).strip()
-                    if len(combined) < 50:
-                        text = page.extract_text()
-                    else:
-                        text = combined
-                except Exception:
-                    text = page.extract_text()
+                text = page.extract_text()
                 if text:
                     page_texts.append((i + 1, text))  # Page numbers are 1-based
         

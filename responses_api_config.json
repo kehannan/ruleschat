@@ -30,14 +30,14 @@
             "created_at": "2025-11-10T11:41:38.503582"
         },
         "v4": {
-            "vector_store_id": "vs_69128a655d9c81919243cf9e2a173445",
-            "file_id": "file-T7xQxPg5Vxpm6but693AL5",
+            "vector_store_id": "vs_693d7bd189008191b28fbbeda9f1ac4b",
+            "file_id": "file-Y2eLDyMy3L9pqWm1jpCbCn",
             "pdf_path": "/Users/kevinhannan/projects/mysite2-evals-sft/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf",
             "chunking_method": "simple_fixed_size",
             "chunk_size": 4000,
             "overlap": 200,
-            "total_chunks": 1186,
-            "created_at": "2025-11-10T16:59:42.911213"
+            "total_chunks": 1187,
+            "created_at": "2025-12-13T06:45:22.152933"
         }
     },
     "active_version": "v4"

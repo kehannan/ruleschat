@@ -204,22 +204,14 @@ def load_eval_runs():
     if os.getenv("EVALS_DIR"):
         evals_dir = Path(os.getenv("EVALS_DIR"))
     
-    # Strategy 2: Relative to project root (development)
+    # Strategy 2: Relative to project root (development) - Look in results subdir
     if not evals_dir or not evals_dir.exists():
-        evals_dir = (Path(__file__).parent.parent / ".." / "mysite2-evals-sft" / "evals").resolve()
+        evals_dir = (Path(__file__).parent.parent / ".." / "mysite2-evals-sft" / "evals" / "results").resolve()
     
     # Strategy 3: Try absolute path from common locations (as sibling)
     if not evals_dir.exists():
         for base_path in ["/root/fastapi_app", "/app", Path(__file__).parent.parent]:
-            test_path = Path(base_path).parent / "mysite2-evals-sft" / "evals"
-            if test_path.exists():
-                evals_dir = test_path.resolve()
-                break
-    
-    # Strategy 4: Try inside fastapi_app directory (if it's there)
-    if not evals_dir.exists():
-        for base_path in ["/root/fastapi_app", Path(__file__).parent.parent]:
-            test_path = Path(base_path) / "mysite2-evals-sft" / "evals"
+            test_path = Path(base_path).parent / "mysite2-evals-sft" / "evals" / "results"
             if test_path.exists():
                 evals_dir = test_path.resolve()
                 break
@@ -231,7 +223,7 @@ def load_eval_runs():
             # Try to provide helpful error message with attempted paths
             attempted_paths = [
                 os.getenv("EVALS_DIR", "not set"),
-                str((Path(__file__).parent.parent / ".." / "mysite2-evals-sft" / "evals").resolve()),
+                str((Path(__file__).parent.parent / ".." / "mysite2-evals-sft" / "evals" / "results").resolve()),
             ]
             return {"error": f"Evaluation directory not found. Tried: {', '.join([p for p in attempted_paths if p != 'not set'])}"}
         
@@ -279,8 +271,36 @@ def load_eval_runs():
                 
                 # Calculate stats
                 total = len(eval_data)
-                correct = sum(1 for item in eval_data if item.get("llm_judgment", "").lower() == "correct")
-                correct_pct = (correct / total * 100) if total > 0 else 0
+                
+                # AI Stats
+                ai_pass = sum(1 for item in eval_data if item.get("llm_judgment", "").lower() == "correct")
+                ai_fail = sum(1 for item in eval_data if item.get("llm_judgment", "").lower() == "incorrect")
+                ai_partial = sum(1 for item in eval_data if item.get("llm_judgment", "").lower() == "partial")
+                ai_total = ai_pass + ai_fail + ai_partial
+                
+                # Human Stats
+                # Pass: (Override=True AND Value=Correct) OR (Override=False AND LLM=Correct)
+                human_pass = 0
+                human_fail = 0
+                
+                for item in eval_data:
+                    judgment = item.get("llm_judgment", "").lower()
+                    override = item.get("human_override", False)
+                    override_val = item.get("human_override_value", "").lower()
+                    
+                    # Determine final status
+                    if override:
+                        if override_val == "correct":
+                            human_pass += 1
+                        elif override_val == "incorrect":
+                            human_fail += 1
+                    else:
+                        if judgment == "correct":
+                            human_pass += 1
+                        elif judgment == "incorrect":
+                            human_fail += 1
+                
+                human_total = human_pass + human_fail
                 
                 # Create identifier for the file (use filename without extension)
                 file_id = file_path.stem
@@ -289,8 +309,22 @@ def load_eval_runs():
                     "date": date_str,
                     "model": model,
                     "prompts": total,
-                    "correct": correct,
-                    "correct_pct": correct_pct,
+                    "ai_stats": {
+                        "pass": ai_pass,
+                        "fail": ai_fail,
+                        "partial": ai_partial,
+                        "total": ai_total,
+                        "pass_pct": (ai_pass / ai_total * 100) if ai_total > 0 else 0,
+                        "fail_pct": (ai_fail / ai_total * 100) if ai_total > 0 else 0,
+                        "partial_pct": (ai_partial / ai_total * 100) if ai_total > 0 else 0
+                    },
+                    "human_stats": {
+                        "pass": human_pass,
+                        "fail": human_fail,
+                        "total": human_total,
+                        "pass_pct": (human_pass / human_total * 100) if human_total > 0 else 0,
+                        "fail_pct": (human_fail / human_total * 100) if human_total > 0 else 0
+                    },
                     "file_id": file_id,
                     "filename": filename
                 })
