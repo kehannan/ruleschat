@@ -1,8 +1,7 @@
 # ASL Rules Chat: Question to Answer Flow
 
-**Date:** December 12, 2024  
-**System:** mysite2 - ASL Rules Assistant  
-**Last Updated:** After refactoring to modular architecture
+**Date:** December 13, 2024  
+**System:** mysite2 - ASL Rules Assistant
 
 ---
 
@@ -10,10 +9,10 @@
 
 The ASL Rules Assistant uses:
 - **FastAPI** backend with WebSocket support
-- **OpenAI Responses API** with vector store (RAG)
+- **OpenAI Responses API** (SDK 2.11.0+) with vector store (RAG)
 - **Singleton ASLService** for consistent configuration
-- **Modular architecture** with separated concerns (config, client, policy, postprocess)
-- **Real-time streaming** for responsive user experience
+- **True real-time streaming** - text deltas yielded immediately as they arrive
+- **RAG Sources** - displays full chunk content from vector store search
 
 ---
 
@@ -44,34 +43,38 @@ The ASL Rules Assistant uses:
 │         GET ASL SERVICE (Singleton Pattern)                       │
 │  • get_asl_service() called                                     │
 │  • If first call: Creates ASLService instance                   │
-│    - app/asl/config.py: Loads config (responses_api_config.json)│
-│    - app/asl/client.py: Creates OpenAIResponsesClient           │
-│    - Gets vector_store_id from config                            │
+│    - Loads config file (responses_api_config.json)              │
+│    - Gets vector_store_id                                       │
+│    - Creates OpenAI client                                      │
 │  • If exists: Returns existing instance                          │
-│  Line: 151 (chat.py)                                            │
+│  Line: 151                                                       │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │         ASLService.get_answer()                                  │
-│  • app/asl/policy.py: Checks if calculation question            │
-│  • app/asl/policy.py: Builds instructions                       │
+│  • Builds instructions (adds web search emphasis if needed)     │
 │  • Starts timing measurement                                    │
-│  Line: 210 (asl_service.py)                                     │
+│  Line: 210                                                       │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │         OPENAI RESPONSES API CALL                               │
-│  app/asl/client.py: OpenAIResponsesClient.create_response()   │
+│  client.responses.stream(                                       │
 │    input=question,                                              │
 │    instructions=...,                                            │
 │    tools=[                                                      │
-│      {type: "file_search", vector_store_ids: [...]},           │
+│      {                                                          │
+│        type: "file_search",                                     │
+│        vector_store_ids: [...],                                 │
+│        max_num_results: 5  ← Limits to 5 chunks               │
+│      },                                                         │
 │      {type: "web_search"}                                      │
 │    ],                                                           │
-│    stream=True                                                  │
-│  Line: 284 (asl_service.py)                                     │
+│    include=["file_search_call.results"]  ← Get RAG chunks      │
+│  )                                                              │
+│  Line: 270-280                                                  │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -80,8 +83,8 @@ The ASL Rules Assistant uses:
 │  ┌──────────────────────────────────────────────┐              │
 │  │ 1. FILE_SEARCH (RAG)                          │              │
 │  │    • Searches vector store using question     │              │
-│  │    • Retrieves relevant chunks from rulebook   │              │
-│  │    • Returns: file_id + chunk indices          │              │
+│  │    • Retrieves top 5 relevant chunks          │              │
+│  │    • Returns: chunks with full text content   │              │
 │  └──────────────────────────────────────────────┘              │
 │  ┌──────────────────────────────────────────────┐              │
 │  │ 2. WEB_SEARCH (optional)                     │              │
@@ -90,41 +93,43 @@ The ASL Rules Assistant uses:
 │  ┌──────────────────────────────────────────────┐              │
 │  │ 3. GENERATE RESPONSE                         │              │
 │  │    • Uses retrieved chunks + web results     │              │
-│  │    • Generates answer with citations         │              │
+│  │    • Generates answer using RAG context       │              │
 │  └──────────────────────────────────────────────┘              │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│         STREAM EVENTS BACK (asl_service.py)                     │
-│  • Collects all events from stream                              │
+│         TRUE STREAMING (asl_service.py)                         │
+│  • Uses stream_manager context manager                          │
+│  • Yields text deltas IMMEDIATELY as they arrive               │
 │  • Tracks timing:                                               │
 │    - First event time                                           │
 │    - File search completion time                               │
 │    - First token time (TTFT)                                    │
-│  • Accumulates text deltas → output_text                        │
-│  • app/asl/postprocess.py: Computes timing metrics              │
-│  Lines: 316-395 (asl_service.py)                                │
+│  • No buffering - text streams to frontend in real-time         │
+│  Lines: 381-409                                                 │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│         EXTRACT CITATIONS (asl_service.py)                      │
-│  • Simplified extraction (gated behind DEBUG_RAG=1)             │
-│  • Processes events for:                                        │
-│    - response.output_text.annotation.added                      │
-│      → Gets file_id, filename, chunk_index                      │
-│  • Creates citation objects with metadata                       │
-│  • Stores in timing_data['citations']                           │
-│  Lines: 134-208 (asl_service.py)                                │
+│         EXTRACT RAG SOURCES (asl_service.py)                    │
+│  • After stream completes:                                      │
+│    final = stream.get_final_response()  ← Get final response   │
+│  • Extracts from final.output:                                 │
+│    - file_search_call.results[]                                │
+│    - Each result contains: text, filename, file_id, score       │
+│  • Creates RAG source objects with full chunk content           │
+│  • Stores in timing_data['rag_sources']                        │
+│  Lines: 338-376, 422-429                                        │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│         CREATE STREAM GENERATOR                                  │
-│  • Replays events, yielding text deltas                         │
-│  • Returns: (generator, timing_data)                             │
-│  Line: 436 (asl_service.py)                                     │
+│         RETURN STREAM GENERATOR                                  │
+│  • Returns: (generator, timing_data)                            │
+│  • Generator yields deltas immediately                           │
+│  • timing_data populated after stream completes                 │
+│  Line: 431-436                                                  │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -144,7 +149,7 @@ The ASL Rules Assistant uses:
 │    await websocket.send_text({                                  │
 │      type: "stream_complete",                                   │
 │      timing: {...},                                             │
-│      citations: [...]                                           │
+│      rag_sources: [...]  ← Full chunk content from RAG          │
 │    })                                                           │
 │  Lines: 185-190                                                 │
 └───────────────────────────┬─────────────────────────────────────┘
@@ -154,19 +159,19 @@ The ASL Rules Assistant uses:
 │         FRONTEND PROCESSES (ruleschat.html)                      │
 │  • Receives stream_complete message                             │
 │  • Parses markdown in response text                             │
-│  • Adds citations as clickable footnotes [1], [2], etc.         │
-│  • Creates "References" section at bottom                        │
-│  • Attaches click handlers for citation modals                   │
-│  Lines: 272-307                                                 │
+│  • Calls addRAGSourcesSection()                                 │
+│  • Creates collapsible "Sources Used (N chunks)" section          │
+│  • Displays full chunk content for each RAG source              │
+│  Lines: 758-835                                                 │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    USER SEES ANSWER                              │
 │  • Formatted text with markdown                                 │
-│  • Clickable citation footnotes                                 │
-│  • References section                                            │
-│  • Clicking [1] shows citation content in modal                 │
+│  • Collapsible "Sources Used" section at bottom                  │
+│  • Clicking header expands to show all RAG chunks               │
+│  • Each chunk displays full text content from vector store       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -180,57 +185,38 @@ The ASL Rules Assistant uses:
 - **Key Functions:**
   - Captures user input
   - Sends questions via WebSocket
-  - Displays streaming text
-  - Adds citation footnotes
-  - Shows citation modals
+  - Displays streaming text in real-time
+  - Adds RAG sources section (collapsible)
+  - Shows full chunk content from vector store
 
 ### 2. WebSocket Handler
 - **File:** `app/api/chat.py`
 - **Function:** `websocket_chat()` (line 107)
 - **Role:** Receives questions, coordinates response, streams to frontend
 
-### 3. ASL Service (Singleton) - Orchestrator
-- **File:** `app/services/asl_service.py` (~480 lines, refactored)
+### 3. ASL Service (Singleton)
+- **File:** `app/services/asl_service.py`
 - **Class:** `ASLService`
 - **Function:** `get_answer()` (line 210)
-- **Role:** Thin orchestrator that coordinates modules
-- **Dependencies:**
-  - `app/asl/config.py` - Configuration loading
-  - `app/asl/client.py` - OpenAI client wrapper
-  - `app/asl/policy.py` - Instruction building
-  - `app/asl/postprocess.py` - Response processing
+- **Role:** Main service layer, handles OpenAI API calls, extracts RAG sources
+- **Key Methods:**
+  - `_handle_streaming_response()` - True streaming with immediate delta yields
+  - `_extract_rag_sources_from_final()` - Extracts full chunks from final response
 
-### 4. ASL Module Components (New Architecture)
-- **`app/asl/config.py`** - Configuration management
-  - `ASLConfig` dataclass
-  - `load_asl_config()` - Loads config from env/files
-  - `load_vector_store_id()` - Handles versioned config
-  
-- **`app/asl/client.py`** - OpenAI client wrapper
-  - `OpenAIResponsesClient` class
-  - Wraps `client.responses.create()` calls
-  
-- **`app/asl/policy.py`** - Instruction building
-  - `is_calculation_question()` - Detects calculation questions
-  - `get_structured_output_schema()` - JSON schema for structured output
-  - `build_instructions()` - Builds complete instruction strings
-  
-- **`app/asl/postprocess.py`** - Response processing
-  - `extract_response_text()` - Extracts text from response objects
-  - `format_structured_answer()` - Formats JSON to human-readable
-  - `parse_structured_json()` - Parses JSON from markdown code blocks
-  - `compute_timing_metrics()` - Calculates timing metrics
-
-### 5. OpenAI Responses API
+### 4. OpenAI Responses API
 - **Service:** OpenAI cloud service
+- **SDK Version:** 2.11.0+ (required for `stream.get_final_response()`)
 - **Tools Used:**
   - `file_search`: Searches vector store (RAG)
+    - `max_num_results: 5` - Limits retrieved chunks to 5
+    - `include=["file_search_call.results"]` - Requests full chunk content
   - `web_search`: Searches web for current information
 
-### 6. Vector Store
+### 5. Vector Store
 - **Setup:** `scripts/setup_responses_api.py`
-- **Content:** ASL rulebook chunks (1186 chunks for v4)
+- **Content:** ASL rulebook chunks (1187 chunks for v4)
 - **Purpose:** Fast semantic search for relevant rules
+- **Retrieval:** Top 5 most relevant chunks per query
 
 ---
 
@@ -239,11 +225,13 @@ The ASL Rules Assistant uses:
 1. **Question** (String) → WebSocket → Backend
 2. **Service Instance** → Singleton (created once, reused)
 3. **API Request** → Question + Instructions + Tools → OpenAI
-4. **RAG Search** → Vector store search → Relevant chunks
-5. **Response Events** → Streamed back → Text + Citations
-6. **Text Streaming** → Deltas sent to frontend in real-time
-7. **Citations** → Extracted from events → Sent on completion
-8. **Display** → Frontend formats + adds footnotes
+   - `file_search` with `max_num_results: 5`
+   - `include=["file_search_call.results"]` to get full chunks
+4. **RAG Search** → Vector store search → Top 5 relevant chunks (with full text)
+5. **True Streaming** → Deltas yielded immediately as they arrive → Frontend
+6. **Final Response** → `stream.get_final_response()` → Extract RAG sources
+7. **RAG Sources** → Full chunk content extracted → Sent on completion
+8. **Display** → Frontend formats text + shows collapsible sources section
 
 ---
 
@@ -256,13 +244,38 @@ The ASL Rules Assistant uses:
 - **RAG Time:** Time spent searching vector store
 - **Generation Time:** Time spent generating response after RAG
 
+## RAG Sources
+
+- **Extraction:** After stream completes, `stream.get_final_response()` provides full response object
+- **Source:** `final.output` → `file_search_call.results[]`
+- **Content:** Each result contains:
+  - `text`: Full chunk content from vector store
+  - `filename`: Original PDF filename (if available)
+  - `file_id`: OpenAI file ID
+  - `score`: Relevance score
+  - `attributes`: Additional metadata
+- **Display:** Frontend shows collapsible "Sources Used (N chunks)" section with full chunk text
+- **Limit:** Maximum 5 chunks per query (via `max_num_results`)
+
 ---
 
-## Current Limitations
+## Implementation Details
 
-- **Citation Content:** Citations are extracted with metadata (file_id, index) but full chunk content is not yet retrieved from the vector store
-- **Citation Extraction:** Simplified extraction gated behind `DEBUG_RAG=1` environment variable for verbose logging
-- **File Search Results:** The `file_search_call.completed` event doesn't contain actual chunk content, only completion signal
+### True Streaming
+- Text deltas are yielded **immediately** as they arrive from OpenAI
+- No buffering or two-pass collection
+- Frontend receives and displays text in real-time
+
+### RAG Sources Extraction
+- Uses `stream.get_final_response()` (OpenAI SDK 2.11.0+)
+- Extracts full chunk content from `final.output`
+- All 5 chunks (or fewer) are included with complete text
+- No reliance on streaming events for content (more reliable)
+
+### Chunk Limiting
+- `max_num_results: 5` limits vector store search to top 5 chunks
+- Reduces token usage and focuses on most relevant content
+- Improves response quality by reducing noise
 
 ---
 
@@ -270,27 +283,11 @@ The ASL Rules Assistant uses:
 
 - Frontend: `templates/ruleschat.html`
 - WebSocket Handler: `app/api/chat.py` (line 107)
-- Service (Orchestrator): `app/services/asl_service.py` (line 210)
-- Config Module: `app/asl/config.py`
-- Client Module: `app/asl/client.py`
-- Policy Module: `app/asl/policy.py`
-- Postprocess Module: `app/asl/postprocess.py`
-- Config File: `responses_api_config.json`
+- Service: `app/services/asl_service.py` (line 340)
+- Config: `responses_api_config.json`
 - Vector Store Setup: `scripts/setup_responses_api.py`
 
 ---
 
-## Architecture Notes
-
-**Refactoring (December 12, 2024):**
-- Split monolithic `asl_service.py` (~1381 lines) into modular architecture
-- `ASLService` is now a thin orchestrator (~480 lines) that coordinates modules
-- Separated concerns: config, client, policy, postprocessing
-- External API unchanged - all existing callers work without modification
-- Citation extraction simplified and gated behind `DEBUG_RAG=1`
-
----
-
-*Document generated: December 11, 2024*  
-*Last updated: December 12, 2024 (after refactoring)*
+*Document last updated: December 13, 2024*
 

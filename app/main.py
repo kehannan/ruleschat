@@ -17,7 +17,6 @@ from app.database import engine, Base, get_db
 from app.models import User, Invitation, AnswerFeedback
 from app.core.auth import get_current_user
 from app.services.user_service import update_user_profile, get_user_by_email
-from app.core.responses_api import initialize_vector_store
 
 # Import routers
 from app.api import auth, user, chat
@@ -43,15 +42,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Initialize templates
 templates = Jinja2Templates(directory="templates")
-
-# Initialize vector store
-openai_api_key = os.getenv("OPENAI_API_KEY")
-vector_store_manager = None
-try:
-    vector_store_manager = initialize_vector_store(openai_api_key)
-    logging.info("✅ Vector store manager initialized")
-except Exception as e:
-    logging.error(f"❌ Failed to initialize vector store manager: {e}")
 
 # Load Responses API configuration
 responses_config = None

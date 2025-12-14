@@ -38,7 +38,17 @@
             "overlap": 200,
             "total_chunks": 1187,
             "created_at": "2025-12-13T06:45:22.152933"
+        },
+        "v5": {
+            "vector_store_id": "vs_693f03dd1e4c819195cd933fdc549de2",
+            "file_id": "file-7X1mYLgYC3sKMmff7utmQG",
+            "pdf_path": "/Users/kevinhannan/projects/mysite2-evals-sft/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf",
+            "chunking_method": "two_column_word_extraction",
+            "chunk_size": 4000,
+            "overlap": 200,
+            "total_chunks": 1188,
+            "created_at": "2025-12-14T10:38:06.762150"
         }
     },
-    "active_version": "v4"
+    "active_version": "v5"
 }
