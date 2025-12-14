@@ -12,11 +12,9 @@ from typing import Optional, Generator, Tuple, Any, Dict, List
 
 from app.asl.config import load_asl_config, ASLConfig
 from app.asl.client import OpenAIResponsesClient
-from app.asl.policy import build_instructions, is_calculation_question
+from app.asl.policy import build_instructions
 from app.asl.postprocess import (
     extract_response_text,
-    format_structured_answer,
-    parse_structured_json,
     compute_timing_metrics
 )
 
@@ -131,82 +129,6 @@ Your response:"""
             # Fall back to initial answer if verification fails
             return initial_answer
     
-    def _extract_citations_simple(self, events: list) -> list:
-        """
-        Extract citations from events using only official/available fields.
-        Gated behind DEBUG_RAG=1 for verbose logging.
-        
-        Args:
-            events: List of streaming events
-            
-        Returns:
-            List of citation dicts with metadata
-        """
-        debug_rag = os.getenv("DEBUG_RAG", "0") == "1"
-        citations = []
-        
-        if debug_rag:
-            logging.info(f"🔍 [DEBUG_RAG] Starting citation extraction from {len(events)} events...")
-        
-        for event in events:
-            event_type = getattr(event, 'type', 'unknown')
-            
-            if event_type == 'response.output_text.annotation.added':
-                if debug_rag:
-                    logging.info(f"   🔎 [DEBUG_RAG] Found annotation.added event!")
-                
-                try:
-                    if hasattr(event, 'annotation'):
-                        annotation = event.annotation
-                        
-                        # Extract file citations from annotation
-                        if isinstance(annotation, dict):
-                            if annotation.get('type') == 'file_citation':
-                                file_id = annotation.get('file_id')
-                                filename = annotation.get('filename', '')
-                                citation_index = annotation.get('index')
-                                
-                                if debug_rag:
-                                    logging.info(f"      [DEBUG_RAG] Found file_citation: file_id={file_id}, index={citation_index}, filename={filename}")
-                                
-                                citation_id = f"{file_id}:{citation_index}"
-                                
-                                # Check if we already have this citation
-                                citation_exists = any(c.get('id') == citation_id for c in citations)
-                                if not citation_exists:
-                                    new_citation = {
-                                        'id': citation_id,
-                                        'index': len(citations) + 1,
-                                        'file_id': file_id,
-                                        'filename': filename,
-                                        'chunk_index': citation_index,
-                                        'content': ''  # Content not available in streaming events
-                                    }
-                                    citations.append(new_citation)
-                                    if debug_rag:
-                                        logging.info(f"      [DEBUG_RAG] ✅ Added citation {new_citation['index']}: {citation_id}")
-                        elif hasattr(annotation, 'file_citations'):
-                            # Object access path
-                            file_citations = annotation.file_citations
-                            for file_citation in file_citations:
-                                if hasattr(file_citation, 'quote'):
-                                    citation_text = file_citation.quote
-                                    if citation_text and citation_text.strip():
-                                        citation_exists = any(c.get('content') == citation_text for c in citations)
-                                        if not citation_exists:
-                                            citations.append({
-                                                'index': len(citations) + 1,
-                                                'content': citation_text.strip()
-                                            })
-                except Exception as e:
-                    if debug_rag:
-                        logging.warning(f"      [DEBUG_RAG] Error extracting citations from annotation: {e}", exc_info=True)
-        
-        if debug_rag:
-            logging.info(f"📎 [DEBUG_RAG] Extracted {len(citations)} citations")
-        
-        return citations
-    
     def get_answer(
         self,
         question: str,
@@ -215,8 +137,7 @@ Your response:"""
         temperature: Optional[float] = None,
         return_timing: bool = False,
         force_web_search: bool = False,
-        use_verification: bool = False,
-        use_structured_output: bool = False
+        use_verification: bool = False
     ):
         """
         Get an answer to an ASL question.
@@ -229,15 +150,13 @@ Your response:"""
             return_timing: If True and stream=True, returns tuple (generator, timing_data)
             force_web_search: If True, emphasizes web search usage in instructions
             use_verification: If True, uses two-pass verification to check answer
-            use_structured_output: If True, forces JSON structured output for calculations
             
         Returns:
             The answer as a string (or generator if stream=True)
             If return_timing=True and stream=True, returns (generator, timing_data)
             
         Note:
-            use_verification and use_structured_output require stream=False
-            use_verification and use_structured_output are mutually exclusive
+            use_verification requires stream=False
         """
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
@@ -246,12 +165,6 @@ Your response:"""
         if use_verification and stream:
             raise ValueError("Verification is only supported in non-streaming mode (stream=False)")
         
-        if use_structured_output and stream:
-            raise ValueError("Structured output is only supported in non-streaming mode (stream=False)")
-        
-        if use_verification and use_structured_output:
-            raise ValueError("Cannot use both verification and structured output simultaneously")
-        
         model = model or self.config.model
         temperature = temperature if temperature is not None else self.config.temperature
         
@@ -259,8 +172,7 @@ Your response:"""
         instructions = build_instructions(
             self.config.system_instructions,
             question,
-            force_web_search=force_web_search,
-            use_structured_output=use_structured_output
+            force_web_search=force_web_search
         )
         
         # Start timing for RAG latency measurement
@@ -271,15 +183,15 @@ Your response:"""
         try:
             # Build tools
             tools = [
-                {
-                    "type": "file_search",
+                    {
+                        "type": "file_search",
                     "vector_store_ids": [self.config.vector_store_id],
                     "max_num_results": 5
-                },
-                {
-                    "type": "web_search",
-                }
-            ]
+                    },
+                    {
+                        "type": "web_search",
+                    }
+                ]
             
             if stream:
                 # Use stream_response for true streaming with final response access
@@ -293,8 +205,7 @@ Your response:"""
                 return self._handle_streaming_response(
                     stream_manager,
                     api_call_start_time,
-                    return_timing,
-                    use_structured_output
+                    return_timing
                 )
             else:
                 # Non-streaming: use create_response
@@ -312,8 +223,7 @@ Your response:"""
                     question,
                     model,
                     temperature,
-                    use_verification,
-                    use_structured_output
+                    use_verification
                 )
                 
         except Exception as e:
@@ -325,8 +235,7 @@ Your response:"""
         self,
         stream_manager,
         api_call_start_time: float,
-        return_timing: bool,
-        use_structured_output: bool
+        return_timing: bool
     ) -> Tuple[Generator[str, None, None], Optional[Dict[str, Any]]]:
         """
         Handle streaming response (true streaming + final response capture).
@@ -382,7 +291,7 @@ Your response:"""
             first_event_time = None
             file_search_complete_time = None
             first_delta_time = None
-
+                
             with stream_manager as stream:
                 for event in stream:
                     if first_event_time is None:
@@ -442,36 +351,21 @@ Your response:"""
         question: str,
         model: Optional[str],
         temperature: Optional[float],
-        use_verification: bool,
-        use_structured_output: bool
-        ) -> str:
+        use_verification: bool
+    ) -> str:
         """Handle non-streaming response."""
         response_start_time = time.time()
         response_text = extract_response_text(response)
         response_end_time = time.time()
-        
+                
         total_time_ms = (response_end_time - api_call_start_time) * 1000
         logging.info(f"[RAG Latency] Total response time (non-streaming): {total_time_ms:.1f}ms")
-        
-        # Apply structured output parsing if enabled
-        if use_structured_output:
-            logging.info("📋 Structured output enabled - parsing JSON response...")
-            try:
-                structured_data = parse_structured_json(response_text)
-                response_text = format_structured_answer(structured_data)
-                logging.info("✅ Successfully parsed and formatted structured output")
-            except json.JSONDecodeError as e:
-                logging.error(f"❌ Failed to parse JSON response: {e}")
-                logging.error(f"Raw response: {response_text[:500]}")
-                # Fall back to raw response if JSON parsing fails
-                response_text = f"Error parsing structured output:\n\n{response_text}"
-        
+                
         # Apply verification if enabled
         if use_verification:
             logging.info("🔍 Verification enabled - running second pass...")
             response_text = self._verify_answer(question, response_text, model, temperature)
         
-        # Return complete response
         return response_text
 
 

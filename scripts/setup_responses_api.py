@@ -77,12 +77,98 @@ def load_existing_config(config_path: Path) -> Dict[str, Any]:
         return {"versions": {}, "active_version": None}
 
 
+def extract_text_two_column(page) -> str:
+    """
+    Extract text from a two-column PDF page using word boxes.
+    
+    This approach:
+    1. Extracts individual word boxes with their positions
+    2. Splits words into left/right columns based on x-position
+    3. Reconstructs lines within each column by grouping words at similar y-positions
+    4. Joins left column text, then right column text
+    
+    This avoids the interleaving and word truncation issues of simple extract_text().
+    """
+    try:
+        words = page.extract_words()
+        if not words:
+            return page.extract_text() or ""
+        
+        page_width = float(page.width)
+        mid_x = page_width / 2
+        
+        # Split words into left and right columns
+        left_words = [w for w in words if float(w['x0']) < mid_x]
+        right_words = [w for w in words if float(w['x0']) >= mid_x]
+        
+        def reconstruct_text(word_list):
+            """Reconstruct text from word boxes, grouping by line (y-position)."""
+            if not word_list:
+                return ""
+            
+            # Sort by y-position (top), then x-position
+            sorted_words = sorted(word_list, key=lambda w: (float(w['top']), float(w['x0'])))
+            
+            # Group words into lines (words within ~5 points of each other vertically)
+            lines = []
+            current_line = []
+            current_y = None
+            line_threshold = 5.0  # pixels tolerance for same line
+            
+            for word in sorted_words:
+                word_y = float(word['top'])
+                
+                if current_y is None:
+                    current_y = word_y
+                    current_line = [word]
+                elif abs(word_y - current_y) <= line_threshold:
+                    # Same line
+                    current_line.append(word)
+                else:
+                    # New line - save current and start new
+                    if current_line:
+                        # Sort words in line by x-position
+                        current_line.sort(key=lambda w: float(w['x0']))
+                        line_text = ' '.join(w['text'] for w in current_line)
+                        lines.append(line_text)
+                    current_line = [word]
+                    current_y = word_y
+            
+            # Don't forget the last line
+            if current_line:
+                current_line.sort(key=lambda w: float(w['x0']))
+                line_text = ' '.join(w['text'] for w in current_line)
+                lines.append(line_text)
+            
+            return '\n'.join(lines)
+        
+        left_text = reconstruct_text(left_words)
+        right_text = reconstruct_text(right_words)
+        
+        # Combine: left column first, then right column
+        combined = left_text.strip()
+        if right_text.strip():
+            combined += "\n\n" + right_text.strip()
+        
+        # If result is too short, fall back to simple extraction
+        if len(combined) < 50:
+            return page.extract_text() or ""
+        
+        return combined
+        
+    except Exception as e:
+        logging.warning(f"⚠️ Word extraction failed, falling back to simple: {e}")
+        return page.extract_text() or ""
+
+
 def extract_text_from_pdf(pdf_path: str) -> List[Tuple[int, str]]:
     """
     Extract text from PDF file using pdfplumber with page numbers.
+    Uses two-column extraction for better handling of ASL rulebook layout.
     Returns list of (page_num, text) tuples.
     """
     logging.info(f"📄 Extracting text from PDF: {pdf_path}")
+    logging.info(f"   Using two-column word-based extraction...")
     page_texts = []
     
     try:
@@ -93,7 +179,8 @@ def extract_text_from_pdf(pdf_path: str) -> List[Tuple[int, str]]:
             for i, page in enumerate(pdf.pages):
                 if (i + 1) % 50 == 0:
                     logging.info(f"   Processed {i + 1}/{total_pages} pages...")
-                text = page.extract_text()
+                # Use two-column extraction for ASL rulebook
+                text = extract_text_two_column(page)
                 if text:
                     page_texts.append((i + 1, text))  # Page numbers are 1-based
         
@@ -315,13 +402,26 @@ def simple_chunk_text(text: str, chunk_size: int = 4000, overlap: int = 200) -> 
     return chunks
 
 
-def setup_asl_vector_store_v4(client, pdf_path: str) -> Dict[str, Any]:
-    """Set up ASL vector store v4 with simple fixed-size chunking."""
-    logging.info("🚀 Setting up ASL Vector Store v4 (Simple Chunking)...")
+def setup_asl_vector_store(client, pdf_path: str, version: str = "v5") -> Dict[str, Any]:
+    """
+    Set up ASL vector store with two-column word-based extraction.
+    
+    Args:
+        client: OpenAI client
+        pdf_path: Path to the PDF file
+        version: Version label for the vector store (e.g., "v5", "v6")
+    
+    Features:
+    - Uses word-box extraction for proper two-column handling
+    - Avoids word truncation at column boundaries
+    - Preserves reading order (left column then right column)
+    """
+    logging.info(f"🚀 Setting up ASL Vector Store {version} (Two-Column Word Extraction)...")
     
     try:
-        # Step 1: Extract all text from PDF (no page tracking needed)
+        # Step 1: Extract all text from PDF using two-column word extraction
         logging.info("📄 Extracting text from PDF...")
+        logging.info("   Using two-column word-based extraction...")
         all_text = ""
         with pdfplumber.open(pdf_path) as pdf:
             total_pages = len(pdf.pages)
@@ -330,14 +430,14 @@ def setup_asl_vector_store_v4(client, pdf_path: str) -> Dict[str, Any]:
             for i, page in enumerate(pdf.pages):
                 if (i + 1) % 50 == 0:
                     logging.info(f"   Processed {i + 1}/{total_pages} pages...")
-                text = page.extract_text()
+                text = extract_text_two_column(page)
                 if text:
                     all_text += text + "\n\n"
         
-        logging.info(f"✅ Extracted {len(all_text)} characters of text")
+        logging.info(f"✅ Extracted {len(all_text):,} characters of text")
         
-        # Step 2: Simple chunking - fixed size with overlap
-        logging.info("📝 Creating simple fixed-size chunks...")
+        # Step 2: Fixed-size chunking with overlap
+        logging.info("📝 Creating fixed-size chunks...")
         chunks = simple_chunk_text(all_text, chunk_size=MAX_CHUNK_SIZE, overlap=OVERLAP)
         logging.info(f"✅ Created {len(chunks)} chunks")
         
@@ -348,7 +448,8 @@ def setup_asl_vector_store_v4(client, pdf_path: str) -> Dict[str, Any]:
         
         try:
             # Step 4: Create new vector store
-            vector_store_id = create_vector_store(client, "ASL Rules Vector Store v4 (Simple Chunking)")
+            store_name = f"ASL Rules Vector Store {version} (Two-Column Word Extraction)"
+            vector_store_id = create_vector_store(client, store_name)
             
             # Step 5: Upload processed text file
             file_id = upload_file_to_vector_store_and_wait(client, tmp_path, vector_store_id)
@@ -357,7 +458,7 @@ def setup_asl_vector_store_v4(client, pdf_path: str) -> Dict[str, Any]:
                 "vector_store_id": vector_store_id,
                 "file_id": file_id,
                 "pdf_path": pdf_path,
-                "chunking_method": "simple_fixed_size",
+                "chunking_method": "two_column_word_extraction",
                 "chunk_size": MAX_CHUNK_SIZE,
                 "overlap": OVERLAP,
                 "total_chunks": len(chunks),
@@ -375,6 +476,7 @@ def setup_asl_vector_store_v4(client, pdf_path: str) -> Dict[str, Any]:
         raise
 
 
+# Legacy v3 function kept for reference
 def setup_asl_vector_store_v3(client, pdf_path: str) -> Dict[str, Any]:
     """Set up ASL vector store v3 with section and page metadata chunking."""
     logging.info("🚀 Setting up ASL Vector Store v3 (Section + Page Metadata Chunking)...")
@@ -528,12 +630,156 @@ def test_responses_api(client, vector_store_id: str):
         logging.error(f"❌ Test failed: {test_error}")
 
 
+def preview_extraction(pdf_path: str, num_pages: int = 3, num_chunks: int = 5):
+    """Preview PDF extraction without uploading to OpenAI."""
+    import pdfplumber
+    
+    logging.info(f"📄 Preview mode: Extracting from {pdf_path}")
+    logging.info(f"   Showing first {num_pages} pages and {num_chunks} chunks...")
+    logging.info("=" * 60)
+    
+    with pdfplumber.open(pdf_path) as pdf:
+        all_text = ""
+        
+        for i in range(min(num_pages, len(pdf.pages))):
+            page = pdf.pages[i]
+            text = extract_text_two_column(page)
+            all_text += text + "\n\n"
+            
+            logging.info(f"\n📄 PAGE {i + 1}:")
+            logging.info("-" * 40)
+            # Show first 500 chars of each page
+            preview = text[:500] + "..." if len(text) > 500 else text
+            print(preview)
+            logging.info("-" * 40)
+    
+    # Show chunking
+    chunks = simple_chunk_text(all_text, chunk_size=MAX_CHUNK_SIZE, overlap=OVERLAP)
+    
+    logging.info(f"\n📝 CHUNKING PREVIEW:")
+    logging.info(f"   Total chunks from {num_pages} pages: {len(chunks)}")
+    logging.info("=" * 60)
+    
+    for i, chunk in enumerate(chunks[:num_chunks]):
+        logging.info(f"\n📦 CHUNK {i + 1} (length: {len(chunk)}):")
+        logging.info("-" * 40)
+        # Show first 300 chars of each chunk
+        preview = chunk[:300] + "..." if len(chunk) > 300 else chunk
+        print(preview)
+        logging.info("-" * 40)
+
+
+def dry_run_extraction(pdf_path: str, output_file: str = None):
+    """
+    Run full PDF extraction and chunking without uploading.
+    Optionally saves chunks to a file for review.
+    """
+    import pdfplumber
+    
+    logging.info(f"📄 DRY RUN: Full extraction from {pdf_path}")
+    logging.info("   (No upload will be performed)")
+    logging.info("=" * 60)
+    
+    # Step 1: Extract all text
+    logging.info("\n📄 Step 1: Extracting text from all pages...")
+    all_text = ""
+    with pdfplumber.open(pdf_path) as pdf:
+        total_pages = len(pdf.pages)
+        logging.info(f"   Processing {total_pages} pages...")
+        
+        for i, page in enumerate(pdf.pages):
+            if (i + 1) % 50 == 0:
+                logging.info(f"   Processed {i + 1}/{total_pages} pages...")
+            text = extract_text_two_column(page)
+            if text:
+                all_text += text + "\n\n"
+    
+    logging.info(f"✅ Extracted {len(all_text):,} characters from {total_pages} pages")
+    
+    # Step 2: Create chunks
+    logging.info("\n📝 Step 2: Creating chunks...")
+    chunks = simple_chunk_text(all_text, chunk_size=MAX_CHUNK_SIZE, overlap=OVERLAP)
+    logging.info(f"✅ Created {len(chunks)} chunks")
+    
+    # Statistics
+    chunk_sizes = [len(c) for c in chunks]
+    avg_size = sum(chunk_sizes) / len(chunk_sizes) if chunks else 0
+    min_size = min(chunk_sizes) if chunks else 0
+    max_size = max(chunk_sizes) if chunks else 0
+    
+    logging.info(f"\n📊 CHUNK STATISTICS:")
+    logging.info(f"   Total chunks: {len(chunks)}")
+    logging.info(f"   Average size: {avg_size:.0f} chars")
+    logging.info(f"   Min size: {min_size} chars")
+    logging.info(f"   Max size: {max_size} chars")
+    
+    # Save to file if requested
+    if output_file:
+        logging.info(f"\n💾 Saving chunks to: {output_file}")
+        with open(output_file, 'w', encoding='utf-8') as f:
+            for i, chunk in enumerate(chunks):
+                f.write(f"{'='*60}\n")
+                f.write(f"CHUNK {i + 1} (length: {len(chunk)})\n")
+                f.write(f"{'='*60}\n")
+                f.write(chunk)
+                f.write("\n\n")
+        logging.info(f"✅ Saved {len(chunks)} chunks to {output_file}")
+        logging.info(f"   Review with: less {output_file}")
+    else:
+        logging.info("\n💡 Tip: Use --output FILE to save chunks for review")
+    
+    # Show sample chunks
+    logging.info(f"\n📦 SAMPLE CHUNKS (first 3):")
+    for i, chunk in enumerate(chunks[:3]):
+        logging.info(f"\n--- CHUNK {i + 1} ---")
+        preview = chunk[:400] + "..." if len(chunk) > 400 else chunk
+        print(preview)
+    
+    logging.info(f"\n✅ DRY RUN COMPLETE")
+    logging.info(f"   To upload to OpenAI, run without --dry-run")
+    
+    return chunks
+
+
 def main():
     """Main function to set up vector store"""
-    logging.info("🚀 Initializing Vector Store Setup...")
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Set up ASL vector store")
+    parser.add_argument("--version", "-v", type=str, default="v5",
+                        help="Version label for vector store (default: v5)")
+    parser.add_argument("--preview", action="store_true", 
+                        help="Quick preview of first few pages/chunks")
+    parser.add_argument("--preview-pages", type=int, default=3,
+                        help="Number of pages to preview (default: 3)")
+    parser.add_argument("--preview-chunks", type=int, default=5,
+                        help="Number of chunks to preview (default: 5)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Full extraction without uploading to OpenAI")
+    parser.add_argument("--output", "-o", type=str, default=None,
+                        help="Output file for chunks (use with --dry-run)")
+    args = parser.parse_args()
     
     # Load environment variables
     load_dotenv()
+    
+    # PDF file path - now in the evals-sft repository
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
+    pdf_path = project_root.parent / "mysite2-evals-sft" / "rulebook" / "eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf"
+    pdf_path = str(pdf_path.resolve())
+    
+    # Preview mode - quick look at first few pages
+    if args.preview:
+        preview_extraction(pdf_path, args.preview_pages, args.preview_chunks)
+        return
+    
+    # Dry run mode - full extraction without upload
+    if args.dry_run:
+        dry_run_extraction(pdf_path, args.output)
+        return
+    
+    logging.info("🚀 Initializing Vector Store Setup...")
     
     try:
         # Initialize OpenAI client
@@ -547,38 +793,32 @@ def main():
             project=os.getenv("OPENAI_PROJECT_ID")
         )
         
-        # PDF file path - now in the evals-sft repository
-        # Resolve path relative to script location for robustness
-        script_dir = Path(__file__).parent
-        project_root = script_dir.parent
-        pdf_path = project_root.parent / "mysite2-evals-sft" / "rulebook" / "eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf"
-        pdf_path = str(pdf_path.resolve())
-        
         # Load existing config
         config_path = Path("responses_api_config.json")
         config = load_existing_config(config_path)
         
-        # Set up v4 vector store (simple chunking)
+        # Set up vector store with specified version
+        version = args.version
         logging.info("\n" + "="*60)
-        logging.info("Creating v4 vector store with simple chunking...")
+        logging.info(f"Creating {version} vector store with two-column word extraction...")
         logging.info("="*60)
-        v4_data = setup_asl_vector_store_v4(client, pdf_path)
+        version_data = setup_asl_vector_store(client, pdf_path, version=version)
         
-        # Update config with v4
-        config["versions"]["v4"] = v4_data
-        config["active_version"] = "v4"
+        # Update config with new version
+        config["versions"][version] = version_data
+        config["active_version"] = version
         
         # Save configuration to file
         with open(config_path, "w") as f:
             json.dump(config, f, indent=4)
         
         logging.info(f"\n💾 Configuration saved to {config_path}")
-        logging.info(f"   Active version: v4")
+        logging.info(f"   Active version: {version}")
         logging.info(f"   Total versions: {len(config['versions'])}")
         
         # Test the API
         logging.info("\n🧪 Testing the setup with Responses API...")
-        test_responses_api(client, v4_data["vector_store_id"])
+        test_responses_api(client, version_data["vector_store_id"])
         
     except Exception as e:
         logging.error(f"Setup error: {e}")
