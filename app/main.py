@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
-from app.models import User, Invitation, AnswerFeedback
+from app.models import User, Invitation, AnswerFeedback, ChatConversation, ChatMessage
 from app.core.auth import get_current_user
 from app.services.user_service import update_user_profile, get_user_by_email
 

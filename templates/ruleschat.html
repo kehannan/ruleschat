@@ -1,24 +1,49 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="chat-wrapper">
-    <div id="chat-container" class="chat-messages">
-        <!-- Chat messages will be displayed here -->
-        <div class="welcome-message">
-            <div class="message-content">
-                <p>How can I help you with Advanced Squad Leader rules today?</p>
-            </div>
+<div class="chat-layout">
+    <!-- Conversation Sidebar -->
+    <div id="conversation-sidebar" class="conversation-sidebar">
+        <div class="sidebar-header">
+            <h3>Conversations</h3>
+            <button id="new-chat-btn" class="new-chat-button" title="New Chat">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New Chat
+            </button>
         </div>
+        <div id="conversation-list" class="conversation-list">
+            <!-- Conversations will be loaded here -->
+        </div>
+        <button id="toggle-sidebar" class="toggle-sidebar" title="Toggle sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        </button>
     </div>
 
-    <div class="chat-input-container">
-        <div class="chat-input-wrapper">
-            <textarea id="chat-message-input" class="chat-input" placeholder="Message Rules Chat..."
-                rows="1"></textarea>
-            <button id="chat-message-submit" class="send-button" type="button" title="Send message">Send</button>
+    <!-- Main Chat Area -->
+    <div class="chat-wrapper">
+        <div id="chat-container" class="chat-messages">
+            <!-- Chat messages will be displayed here -->
+            <div class="welcome-message">
+                <div class="message-content">
+                    <p>How can I help you with Advanced Squad Leader rules today?</p>
+                </div>
+            </div>
         </div>
-        <div id="connection-status" class="connection-status">Connected</div>
-        <div id="latency-display" class="latency-display" style="display: none;"></div>
+
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <textarea id="chat-message-input" class="chat-input" placeholder="Message Rules Chat..."
+                    rows="1"></textarea>
+                <button id="chat-message-submit" class="send-button" type="button" title="Send message">Send</button>
+            </div>
+            <div id="connection-status" class="connection-status">Connected</div>
+            <div id="latency-display" class="latency-display" style="display: none;"></div>
+        </div>
     </div>
 </div>
 
@@ -71,6 +96,162 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', path='/css/chat.css') }}">
+<style>
+    /* Chat Layout with Sidebar */
+    .chat-layout {
+        display: flex;
+        height: calc(100vh - 60px);
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    /* Conversation Sidebar */
+    .conversation-sidebar {
+        width: 280px;
+        min-width: 280px;
+        background: #f8f9fa;
+        border-right: 1px solid #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        transition: margin-left 0.3s ease;
+        position: relative;
+    }
+
+    .conversation-sidebar.collapsed {
+        margin-left: -240px;
+    }
+
+    .sidebar-header {
+        padding: 16px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .sidebar-header h3 {
+        margin: 0 0 12px 0;
+        font-size: 1.1rem;
+        color: #333;
+    }
+
+    .new-chat-button {
+        width: 100%;
+        padding: 10px 16px;
+        background: #4a90d9;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 0.95rem;
+        transition: background 0.2s;
+    }
+
+    .new-chat-button:hover {
+        background: #3a7bc8;
+    }
+
+    .conversation-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+    }
+
+    .conversation-item {
+        padding: 12px;
+        margin-bottom: 4px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.2s;
+        border: 1px solid transparent;
+    }
+
+    .conversation-item:hover {
+        background: #e9ecef;
+    }
+
+    .conversation-item.active {
+        background: #dbeafe;
+        border-color: #4a90d9;
+    }
+
+    .conversation-title {
+        font-size: 0.9rem;
+        color: #333;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .conversation-date {
+        font-size: 0.75rem;
+        color: #666;
+    }
+
+    .toggle-sidebar {
+        position: absolute;
+        right: -15px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 30px;
+        height: 60px;
+        background: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        border-left: none;
+        border-radius: 0 6px 6px 0;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    .toggle-sidebar:hover {
+        background: #e9ecef;
+    }
+
+    .conversation-sidebar.collapsed .toggle-sidebar svg {
+        transform: rotate(180deg);
+    }
+
+    /* Adjust chat wrapper for sidebar layout */
+    .chat-layout .chat-wrapper {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    /* Empty state */
+    .no-conversations {
+        text-align: center;
+        padding: 24px;
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .conversation-sidebar {
+            position: fixed;
+            left: 0;
+            top: 60px;
+            height: calc(100vh - 60px);
+            z-index: 100;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .conversation-sidebar.collapsed {
+            margin-left: -280px;
+        }
+
+        .chat-layout {
+            margin-left: 0;
+        }
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -82,7 +263,7 @@
 </script>
 <script>
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = protocol + '//' + window.location.host + '/ws/chat/';
+    const wsBaseUrl = protocol + '//' + window.location.host + '/ws/chat/';
     let chatSocket = null;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
@@ -93,6 +274,10 @@
     let chunkBuffer = [];
     let isDisplaying = false;
     let displayInterval = null;
+    
+    // Conversation state
+    let currentConversationId = null;
+    let conversations = [];
 
     function createBotMessage() {
         // Remove searching bubble if it exists
@@ -143,11 +328,8 @@
             if (chunkBuffer.length === 0) {
                 clearInterval(displayInterval);
                 isDisplaying = false;
-                // Parse markdown after all chunks displayed
                 const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
                 currentBotMessageContent.innerHTML = marked.parse(finalContent);
-                // Make section references clickable
-                // makeSectionReferencesClickable(currentBotMessageContent); // Disabled - will add back later
                 lastAssistantAnswer = finalContent;
 
                 const currentBotMessage = currentBotMessageContent.closest('.bot-message');
@@ -165,11 +347,22 @@
             currentBotMessageContent.setAttribute('data-content', newContent);
             currentBotMessageContent.textContent = newContent;
             chatContainer.scrollTop = chatContainer.scrollHeight;
-        }, 20); // Display chunks every 20ms for smooth streaming effect
+        }, 20);
+    }
+
+    function getWebSocketUrl() {
+        let url = wsBaseUrl;
+        if (currentConversationId) {
+            url += `?conversation_id=${currentConversationId}`;
+        }
+        return url;
     }
 
     function setupWebSocket() {
+        const wsUrl = getWebSocketUrl();
+        console.log('Connecting to WebSocket:', wsUrl);
         chatSocket = new WebSocket(wsUrl);
+        
         chatSocket.onopen = function () {
             const statusEl = document.getElementById('connection-status');
             statusEl.textContent = 'Connected';
@@ -177,8 +370,21 @@
             statusEl.classList.add('connected');
             reconnectAttempts = 0;
         };
+        
         chatSocket.onclose = function (e) {
             const statusEl = document.getElementById('connection-status');
+            
+            // Check if closed due to unauthorized
+            if (e.code === 4001) {
+                statusEl.textContent = 'Session expired. Please log in again.';
+                statusEl.classList.remove('connected');
+                statusEl.classList.add('disconnected');
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 2000);
+                return;
+            }
+            
             statusEl.textContent = 'Disconnected - attempting to reconnect...';
             statusEl.classList.remove('connected');
             statusEl.classList.add('disconnected');
@@ -189,24 +395,46 @@
                 statusEl.textContent = 'Connection lost. Please reload the page to reconnect.';
             }
         };
+        
         chatSocket.onerror = function (err) {
             const statusEl = document.getElementById('connection-status');
             statusEl.textContent = 'Connection error';
             statusEl.classList.remove('connected');
             statusEl.classList.add('disconnected');
         };
+        
         chatSocket.onmessage = function (e) {
             if (e.data === "__ping__") {
                 chatSocket.send("__pong__");
                 return;
             }
 
-            // Check if this is a JSON message (latency or completion signal)
+            // Check if this is a JSON message
             try {
                 const message = JSON.parse(e.data);
 
+                // Handle conversation created
+                if (message.type === "conversation_created") {
+                    currentConversationId = message.conversation_id;
+                    console.log('Conversation created:', currentConversationId);
+                    loadConversations(); // Refresh sidebar
+                    return;
+                }
+
+                // Handle conversation switched
+                if (message.type === "conversation_switched") {
+                    currentConversationId = message.conversation_id;
+                    console.log('Switched to conversation:', currentConversationId);
+                    return;
+                }
+
+                // Handle errors
+                if (message.type === "error") {
+                    console.error('Server error:', message.message);
+                    return;
+                }
+
                 if (message.type === "latency") {
-                    // Finalize the message (parse markdown, add feedback)
                     const chatContainer = document.querySelector('#chat-container');
                     const currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
                     if (currentBotMessageContent) {
@@ -221,14 +449,11 @@
                             addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
                         }
                     }
-
-                    // Display latency
                     displayLatencyTimeline(message.data);
                     return;
                 }
 
                 if (message.type === "stream_complete") {
-                    // Streaming finished - parse markdown and add feedback
                     const chatContainer = document.querySelector('#chat-container');
                     const currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
                     if (currentBotMessageContent) {
@@ -239,7 +464,6 @@
                         const currentBotMessage = currentBotMessageContent.closest('.bot-message');
                         currentBotMessage.classList.remove('current');
 
-                        // Add RAG Sources section if available (after bot message is finalized)
                         const ragSources = message.rag_sources || [];
                         if (ragSources.length > 0) {
                             console.log(`📚 Adding RAG sources section with ${ragSources.length} sources`);
@@ -251,7 +475,12 @@
                         }
                     }
 
-                    // Display timing data if available
+                    // Update conversation_id if provided
+                    if (message.conversation_id) {
+                        currentConversationId = message.conversation_id;
+                        loadConversations(); // Refresh to show updated conversation
+                    }
+
                     if (message.timing) {
                         displayLatencyTimeline(message.timing);
                     }
@@ -273,11 +502,10 @@
             currentBotMessageContent.setAttribute('data-content', newContent);
             currentBotMessageContent.textContent = newContent;
             chatContainer.scrollTop = chatContainer.scrollHeight;
-
-            // Track content for final markdown parsing
             lastAssistantAnswer = newContent;
         };
     }
+
     function createUserMessage(text) {
         const chatContainer = document.querySelector('#chat-container');
         const messageDiv = document.createElement('div');
@@ -340,28 +568,167 @@
         chatContainer.scrollTop = chatContainer.scrollHeight;
         lastUserQuestion = message;
     }
+
+    // ========================================================================
+    // Conversation Management
+    // ========================================================================
+
+    async function loadConversations() {
+        try {
+            const response = await fetch('/api/conversations');
+            if (!response.ok) {
+                if (response.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+                throw new Error('Failed to load conversations');
+            }
+            conversations = await response.json();
+            renderConversationList();
+        } catch (error) {
+            console.error('Error loading conversations:', error);
+        }
+    }
+
+    function renderConversationList() {
+        const listEl = document.getElementById('conversation-list');
+        if (!listEl) return;
+
+        if (conversations.length === 0) {
+            listEl.innerHTML = '<div class="no-conversations">No conversations yet</div>';
+            return;
+        }
+
+        listEl.innerHTML = conversations.map(conv => {
+            const isActive = conv.id === currentConversationId;
+            const date = new Date(conv.updated_at);
+            const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            return `
+                <div class="conversation-item ${isActive ? 'active' : ''}" 
+                     data-id="${conv.id}" 
+                     onclick="switchConversation(${conv.id})">
+                    <div class="conversation-title">${escapeHtml(conv.title)}</div>
+                    <div class="conversation-date">${dateStr}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function switchConversation(conversationId) {
+        if (conversationId === currentConversationId) return;
+
+        currentConversationId = conversationId;
+        
+        // Update sidebar active state
+        document.querySelectorAll('.conversation-item').forEach(el => {
+            el.classList.toggle('active', parseInt(el.dataset.id) === conversationId);
+        });
+
+        // Clear current chat
+        clearChatMessages();
+
+        // Reconnect WebSocket with new conversation_id
+        if (chatSocket) {
+            chatSocket.close();
+        }
+        setupWebSocket();
+
+        // Load conversation messages
+        try {
+            const response = await fetch(`/api/conversations/${conversationId}/messages`);
+            if (!response.ok) throw new Error('Failed to load messages');
+            
+            const messages = await response.json();
+            
+            // Display messages
+            messages.forEach(msg => {
+                if (msg.role === 'user') {
+                    createUserMessage(msg.content);
+                } else {
+                    const content = createBotMessage();
+                    content.innerHTML = marked.parse(msg.content);
+                    const botMessage = content.closest('.bot-message');
+                    botMessage.classList.remove('current');
+                    
+                    // Add RAG sources if available
+                    if (msg.rag_sources && msg.rag_sources.length > 0) {
+                        addRAGSourcesSection(botMessage, msg.rag_sources);
+                    }
+                }
+            });
+
+            // Scroll to bottom
+            const chatContainer = document.querySelector('#chat-container');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    }
+
+    function clearChatMessages() {
+        const chatContainer = document.querySelector('#chat-container');
+        chatContainer.innerHTML = `
+            <div class="welcome-message">
+                <div class="message-content">
+                    <p>How can I help you with Advanced Squad Leader rules today?</p>
+                </div>
+            </div>
+        `;
+    }
+
+    function startNewChat() {
+        currentConversationId = null;
+        
+        // Update sidebar active state
+        document.querySelectorAll('.conversation-item').forEach(el => {
+            el.classList.remove('active');
+        });
+
+        // Clear chat
+        clearChatMessages();
+
+        // Reconnect WebSocket without conversation_id
+        if (chatSocket) {
+            chatSocket.close();
+        }
+        setupWebSocket();
+    }
+
+    function toggleSidebar() {
+        const sidebar = document.getElementById('conversation-sidebar');
+        sidebar.classList.toggle('collapsed');
+    }
+
+    // ========================================================================
+    // UI Helpers
+    // ========================================================================
+
     function displayLatencyTimeline(latencyData) {
         const latencyDisplay = document.getElementById('latency-display');
         if (!latencyDisplay) return;
 
-        // Format timing values
         const fileSearchMs = latencyData.file_search_complete_ms || 0;
         const streamEndMs = latencyData.stream_end_ms || latencyData.total_ms || 0;
 
-        // Format times for display
         const formatTime = (ms) => {
             if (ms < 1000) return `${Math.round(ms)}ms`;
             return `${(ms / 1000).toFixed(1)}s`;
         };
 
-        // Build display text
         let displayText = '';
         if (fileSearchMs > 0) {
-            displayText += `File search completes: ${formatTime(fileSearchMs)}`;
+            displayText += `File search: ${formatTime(fileSearchMs)}`;
         }
         if (streamEndMs > 0) {
             if (displayText) displayText += ' • ';
-            displayText += `Streaming completes: ${formatTime(streamEndMs)}`;
+            displayText += `Total: ${formatTime(streamEndMs)}`;
         }
 
         if (displayText) {
@@ -423,15 +790,19 @@
         };
         botMessageElem.parentNode.insertBefore(section, botMessageElem.nextSibling);
     }
+
     function autoResizeTextarea(textarea) {
         textarea.style.height = 'auto';
         textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
     }
 
+    // ========================================================================
+    // Initialization
+    // ========================================================================
+
     document.addEventListener('DOMContentLoaded', function () {
         const inputField = document.querySelector('#chat-message-input');
         if (inputField) {
-            // Auto-resize textarea
             inputField.addEventListener('input', function () {
                 autoResizeTextarea(this);
             });
@@ -444,30 +815,46 @@
                 }
             });
         }
+
         const submitButton = document.querySelector('#chat-message-submit');
         if (submitButton) {
             submitButton.onclick = sendMessage;
         }
+
+        const newChatBtn = document.getElementById('new-chat-btn');
+        if (newChatBtn) {
+            newChatBtn.onclick = startNewChat;
+        }
+
+        const toggleBtn = document.getElementById('toggle-sidebar');
+        if (toggleBtn) {
+            toggleBtn.onclick = toggleSidebar;
+        }
+
         document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible' &&
                 (!chatSocket || chatSocket.readyState !== WebSocket.OPEN)) {
                 setupWebSocket();
             }
         });
+
+        // Load conversations and setup WebSocket
+        loadConversations();
         setupWebSocket();
     });
 
+    // ========================================================================
     // PDF Viewer functionality
+    // ========================================================================
+    
     let pdfDoc = null;
     let currentPage = 1;
     let totalPages = 0;
-    let scale = 2.0; // Higher default scale for better quality
+    let scale = 2.0;
     const pdfUrl = '/static/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf';
     const devicePixelRatio = window.devicePixelRatio || 1;
 
     function makeSectionReferencesClickable(element) {
-        // Pattern to match section references like A4.1, C8.1, A4.15, etc.
-        // Also matches the new format with page numbers: {A4.1|48} or just A4.1
         const sectionPattern = /\b([A-Z]\d+\.\d+(?:\.\d+)?)\b/g;
         const sectionWithPagePattern = /\{([A-Z]\d+\.\d+(?:\.\d+)?)\|(\d+)\}/g;
         const walker = document.createTreeWalker(
@@ -485,32 +872,27 @@
 
         textNodes.forEach(textNode => {
             const text = textNode.textContent;
-
-            // First, check for the new format with page numbers: {A4.1|48}
             const matchesWithPage = [...text.matchAll(sectionWithPagePattern)];
             const matches = [...text.matchAll(sectionPattern)];
 
             if (matchesWithPage.length > 0 || matches.length > 0) {
                 const fragment = document.createDocumentFragment();
                 let lastIndex = 0;
-                let processedRanges = []; // Track processed ranges to avoid double-processing
+                let processedRanges = [];
 
-                // Process matches with page numbers first (they take precedence)
                 matchesWithPage.forEach(match => {
                     const start = match.index;
                     const end = start + match[0].length;
                     const section = match[1];
                     const pageNum = parseInt(match[2]);
 
-                    // Add text before match
                     if (start > lastIndex) {
                         fragment.appendChild(document.createTextNode(text.substring(lastIndex, start)));
                     }
 
-                    // Create clickable link for section with page number
                     const link = document.createElement('span');
                     link.className = 'section-link';
-                    link.textContent = section; // Show just the section, not the full {A4.1|48}
+                    link.textContent = section;
                     link.setAttribute('data-page', pageNum);
                     link.onclick = (e) => {
                         e.preventDefault();
@@ -522,26 +904,22 @@
                     processedRanges.push({ start, end });
                 });
 
-                // Process regular section matches (without page numbers), but skip if already processed
                 matches.forEach(match => {
                     const start = match.index;
                     const end = start + match[0].length;
 
-                    // Check if this range overlaps with any processed range
                     const isProcessed = processedRanges.some(range =>
                         (start >= range.start && start < range.end) ||
                         (end > range.start && end <= range.end) ||
                         (start <= range.start && end >= range.end)
                     );
 
-                    if (isProcessed) return; // Skip if already processed
+                    if (isProcessed) return;
 
-                    // Add text before match
                     if (start > lastIndex) {
                         fragment.appendChild(document.createTextNode(text.substring(lastIndex, start)));
                     }
 
-                    // Create clickable link for section (without page number - will use fallback)
                     const link = document.createElement('span');
                     link.className = 'section-link';
                     link.textContent = match[0];
@@ -554,7 +932,6 @@
                     lastIndex = end;
                 });
 
-                // Add remaining text
                 if (lastIndex < text.length) {
                     fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
                 }
@@ -574,7 +951,6 @@
         loading.classList.add('show');
 
         try {
-            // Load PDF if not already loaded
             if (!pdfDoc) {
                 const loadingTask = pdfjsLib.getDocument(pdfUrl);
                 pdfDoc = await loadingTask.promise;
@@ -582,15 +958,12 @@
                 updatePageInfo();
             }
 
-            // If page number is provided directly, use it (new format)
             if (pageNum) {
                 currentPage = pageNum;
                 await renderPage(currentPage);
             } else if (section) {
-                // Fallback: search for section (old format or when page number not available)
                 await navigateToSection(section);
             } else {
-                // Just show first page
                 await renderPage(currentPage);
             }
 
@@ -605,23 +978,19 @@
     async function navigateToSection(section) {
         if (!pdfDoc) return;
 
-        // Try PDF's internal destinations/links
         try {
             const destinations = await pdfDoc.getDestinations();
 
             if (destinations) {
-                // Try to find destination matching the section
                 let destinationName = null;
 
-                // Try exact match first
                 if (destinations[section]) {
                     destinationName = section;
                 } else {
-                    // Try variations (A4.1 -> A.4.1, etc.)
                     const variations = [
                         section,
-                        section.replace(/([A-Z])(\d+)\.(\d+)/, '$1.$2.$3'), // A4.1 -> A.4.1
-                        section.replace(/([A-Z])(\d+)\.(\d+)/, '$1 $2.$3'), // A4.1 -> A 4.1
+                        section.replace(/([A-Z])(\d+)\.(\d+)/, '$1.$2.$3'),
+                        section.replace(/([A-Z])(\d+)\.(\d+)/, '$1 $2.$3'),
                     ];
 
                     for (const variant of variations) {
@@ -633,12 +1002,11 @@
                 }
 
                 if (destinationName) {
-                    // Get the destination and navigate to it
                     const dest = await pdfDoc.getDestination(destinationName);
                     if (dest && dest[0]) {
                         const pageRef = dest[0];
                         const pageIndex = await pdfDoc.getPageIndex(pageRef);
-                        currentPage = pageIndex + 1; // PDF.js uses 0-based, we use 1-based
+                        currentPage = pageIndex + 1;
                         await renderPage(currentPage);
                         return;
                     }
@@ -648,16 +1016,13 @@
             console.log('Could not use PDF destinations:', error);
         }
 
-        // Final fallback: Search for section text in PDF
         let found = false;
-        // Limit search to first 200 pages for performance
         const maxSearchPages = Math.min(200, totalPages);
         for (let pageNum = 1; pageNum <= maxSearchPages; pageNum++) {
             const page = await pdfDoc.getPage(pageNum);
             const textContent = await page.getTextContent();
             const text = textContent.items.map(item => item.str).join(' ');
 
-            // Check if section appears in this page
             const sectionPattern = new RegExp(`\\b${section.replace('.', '\\.')}\\b`);
             if (sectionPattern.test(text)) {
                 currentPage = pageNum;
@@ -668,7 +1033,6 @@
         }
 
         if (!found) {
-            // If not found, just show first page
             currentPage = 1;
             await renderPage(currentPage);
         }
@@ -683,14 +1047,12 @@
         const canvas = document.getElementById('pdf-canvas');
         const context = canvas.getContext('2d');
 
-        // Use device pixel ratio for high-DPI displays (retina)
         const outputScale = devicePixelRatio;
         canvas.height = Math.floor(viewport.height * outputScale);
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.style.height = Math.floor(viewport.height) + 'px';
         canvas.style.width = Math.floor(viewport.width) + 'px';
 
-        // Scale the context to match device pixel ratio
         context.scale(outputScale, outputScale);
 
         const renderContext = {
@@ -744,7 +1106,6 @@
         document.getElementById('pdf-modal').style.display = 'none';
     }
 
-    // Close modal on ESC key
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
             const modal = document.getElementById('pdf-modal');
@@ -754,15 +1115,16 @@
         }
     });
 
+    // ========================================================================
     // RAG Sources section
+    // ========================================================================
+    
     function addRAGSourcesSection(messageElement, ragSources) {
         if (!ragSources || ragSources.length === 0) return;
         
-        // Create the sources section
         const sourcesSection = document.createElement('div');
         sourcesSection.className = 'rag-sources-section';
         
-        // Create collapsible header
         const header = document.createElement('div');
         header.className = 'rag-sources-header';
         header.innerHTML = `
@@ -782,7 +1144,6 @@
         header.style.alignItems = 'center';
         header.style.gap = '8px';
         
-        // Create collapsible content
         const content = document.createElement('div');
         content.className = 'rag-sources-content';
         content.style.display = 'none';
@@ -790,7 +1151,6 @@
         content.style.backgroundColor = '#fafafa';
         content.style.borderTop = '1px solid #e0e0e0';
         
-        // Add each source chunk
         ragSources.forEach((source, index) => {
             const sourceItem = document.createElement('div');
             sourceItem.className = 'rag-source-item';
@@ -800,7 +1160,6 @@
             sourceItem.style.border = '1px solid #e0e0e0';
             sourceItem.style.borderRadius = '4px';
             
-            // Source content
             const sourceContent = document.createElement('div');
             sourceContent.style.whiteSpace = 'pre-wrap';
             sourceContent.style.fontSize = '0.9em';
@@ -814,7 +1173,6 @@
             content.appendChild(sourceItem);
         });
         
-        // Toggle functionality
         let isExpanded = false;
         header.addEventListener('click', () => {
             isExpanded = !isExpanded;
@@ -826,7 +1184,6 @@
         sourcesSection.appendChild(header);
         sourcesSection.appendChild(content);
         
-        // Insert after the bot message (messageElement is now the .bot-message container)
         if (messageElement && messageElement.parentNode) {
             messageElement.parentNode.insertBefore(sourcesSection, messageElement.nextSibling);
         }
