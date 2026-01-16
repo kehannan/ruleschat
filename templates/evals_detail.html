@@ -127,6 +127,9 @@
 <div class="row">
   <div class="col-lg-12">
     <h1 class="mb-3">Detailed Evaluation Results</h1>
+    {% if judge_type %}
+    <p class="text-muted mb-3">Showing: <strong>{{ judge_type }}</strong></p>
+    {% endif %}
     
     {% if error %}
     <div class="alert alert-danger" role="alert">

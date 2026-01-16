@@ -22,49 +22,44 @@
               <tr>
                 <th scope="col">DATE</th>
                 <th scope="col">MODEL</th>
-                <th scope="col">JUDGEMENT</th>
+                <th scope="col">EVAL</th>
+                <th scope="col">JUDGE</th>
                 <th scope="col" class="text-center">PASS</th>
                 <th scope="col" class="text-center">FAIL</th>
-                <th scope="col" class="text-center">REQUIRES REVIEW</th>
+                <th scope="col" class="text-center">NEEDS REVIEW</th>
                 <th scope="col" class="text-center">TOTAL</th>
                 <th scope="col">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {% for run in eval_runs %}
-              <!-- AI Judge Row -->
-              <tr>
-                <td class="align-middle fw-bold">{{ run.date }}</td>
-                <td class="align-middle fw-bold">{{ run.model }}</td>
-                <td class="fw-bold">AI Judge Only</td>
-                <td class="text-center text-primary fw-bold">{{ run.ai_stats.pass }} ({{
-                  "%.0f"|format(run.ai_stats.pass_pct) }}%)</td>
-                <td class="text-center text-primary fw-bold">{{ run.ai_stats.fail }} ({{
-                  "%.0f"|format(run.ai_stats.fail_pct) }}%)</td>
-                <td class="text-center text-primary fw-bold">{{ run.ai_stats.partial }} ({{
-                  "%.0f"|format(run.ai_stats.partial_pct) }}%)</td>
-                <td class="text-center text-primary fw-bold">{{ run.ai_stats.total }}</td>
+              <tr{% if run.judge_type == 'Human Review' %} class="table-light"{% endif %}>
+                <td class="align-middle">{{ run.date }}</td>
+                <td class="align-middle">{{ run.model }}</td>
+                <td class="align-middle"><small>{{ run.eval_name }}</small></td>
+                <td class="align-middle">{{ run.judge_type }}</td>
+                <td class="text-center text-success fw-bold">{{ run.pass_count }} ({{ "%.0f"|format(run.pass_pct) }}%)</td>
+                <td class="text-center text-danger fw-bold">{{ run.fail_count }} ({{ "%.0f"|format(run.fail_pct) }}%)</td>
+                <td class="text-center text-warning fw-bold">{{ run.needs_review }} ({{ "%.0f"|format(run.needs_review_pct) }}%)</td>
+                <td class="text-center fw-bold">{{ run.total }}</td>
                 <td class="align-middle text-center">
-                  <a href="{{ url_for('evals_detail', file_id=run.file_id) }}"
+                  <a href="{{ url_for('evals_detail', file_id=run.file_id) }}?judge={{ 'human' if run.judge_type == 'Human Review' else 'ai' }}"
                     class="btn btn-sm btn-outline-primary">View Details</a>
                 </td>
               </tr>
-              <!-- Human Review Row (Temporarily Hidden)
-              <tr>
-                <td class="fw-bold text-secondary">With Human Review</td>
-                <td class="text-center text-primary fw-bold">{{ run.human_stats.pass }} ({{
-                  "%.0f"|format(run.human_stats.pass_pct) }}%)</td>
-                <td class="text-center text-primary fw-bold">{{ run.human_stats.fail }} ({{
-                  "%.0f"|format(run.human_stats.fail_pct) }}%)</td>
-                <td class="text-center text-muted">n/a</td>
-                <td class="text-center text-primary fw-bold">{{ run.human_stats.total }}</td>
-              </tr>
-              -->
               {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
+    </div>
+    <!-- Notes -->
+    <div class="mt-4 text-muted small">
+      <p class="mb-1"><strong>Column Notes:</strong></p>
+      <ul class="mb-0">
+        <li><strong>Model:</strong> Base model / fine-tuned model name</li>
+        <li><strong>Eval:</strong> Evaluation file corresponding to a section of the rulebook</li>
+      </ul>
     </div>
     {% elif not error %}
     <div class="alert alert-info" role="alert">
