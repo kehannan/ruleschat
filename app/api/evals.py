@@ -108,53 +108,61 @@ def load_eval_runs():
                         date_str = datetime.fromtimestamp(file_path.stat().st_mtime).strftime("%Y-%m-%d")
                     
                     total = metadata.get("total_questions", 0)
-                    
-                    # AI Judge row
-                    ai_pass = ai_summary.get("pass", 0)
-                    ai_fail = ai_summary.get("fail", 0)
-                    ai_needs_review = ai_summary.get("needs_review", 0)
-                    
+
+                    # Extract question_type breakdown if available
+                    by_question_type = metadata.get("summary", {}).get("by_question_type", {})
+
                     model_display = _format_model_name(metadata.get("model_name", "Unknown"))
                     eval_file = metadata.get("eval_file", file_path.name)
                     # Remove extension if present
                     eval_file = Path(eval_file).stem
-                    
-                    eval_runs.append({
-                        "date": date_str,
-                        "model": model_display,
-                        "eval_name": eval_file,
-                        "judge_type": "AI Judge",
-                        "total": total,
-                        "pass_count": ai_pass,
-                        "pass_pct": (ai_pass / total * 100) if total > 0 else 0,
-                        "fail_count": ai_fail,
-                        "fail_pct": (ai_fail / total * 100) if total > 0 else 0,
-                        "needs_review": ai_needs_review,
-                        "needs_review_pct": (ai_needs_review / total * 100) if total > 0 else 0,
-                        "file_id": file_path.stem,
-                        "filename": file_path.name
-                    })
-                    
-                    # Human Review row
-                    human_pass = human_summary.get("pass", 0)
-                    human_fail = human_summary.get("fail", 0)
-                    human_pending = human_summary.get("pending_review", 0)
-                    
-                    eval_runs.append({
-                        "date": date_str,
-                        "model": model_display,
-                        "eval_name": eval_file,
-                        "judge_type": "Human Review",
-                        "total": total,
-                        "pass_count": human_pass,
-                        "pass_pct": (human_pass / total * 100) if total > 0 else 0,
-                        "fail_count": human_fail,
-                        "fail_pct": (human_fail / total * 100) if total > 0 else 0,
-                        "needs_review": human_pending,
-                        "needs_review_pct": (human_pending / total * 100) if total > 0 else 0,
-                        "file_id": file_path.stem,
-                        "filename": file_path.name
-                    })
+
+                    # Create rows for each question type (Human Review only)
+                    if by_question_type:
+                        # Create separate row for each question type
+                        for q_type in sorted(by_question_type.keys()):
+                            stats = by_question_type[q_type]
+                            q_total = stats.get("total", 0)
+                            human_stats = stats.get("with_human_review", {})
+
+                            eval_runs.append({
+                                "date": date_str,
+                                "model": model_display,
+                                "eval_name": eval_file,
+                                "judge_type": "Human Review",
+                                "question_type": q_type.capitalize(),
+                                "total": q_total,
+                                "pass_count": human_stats.get("pass", 0),
+                                "pass_pct": (human_stats.get("pass", 0) / q_total * 100) if q_total > 0 else 0,
+                                "fail_count": human_stats.get("fail", 0),
+                                "fail_pct": (human_stats.get("fail", 0) / q_total * 100) if q_total > 0 else 0,
+                                "needs_review": human_stats.get("pending_review", 0),
+                                "needs_review_pct": (human_stats.get("pending_review", 0) / q_total * 100) if q_total > 0 else 0,
+                                "file_id": file_path.stem,
+                                "filename": file_path.name,
+                            })
+                    else:
+                        # Fallback: single row with overall stats if no question type breakdown
+                        human_pass = human_summary.get("pass", 0)
+                        human_fail = human_summary.get("fail", 0)
+                        human_pending = human_summary.get("pending_review", 0)
+
+                        eval_runs.append({
+                            "date": date_str,
+                            "model": model_display,
+                            "eval_name": eval_file,
+                            "judge_type": "Human Review",
+                            "question_type": "All",
+                            "total": total,
+                            "pass_count": human_pass,
+                            "pass_pct": (human_pass / total * 100) if total > 0 else 0,
+                            "fail_count": human_fail,
+                            "fail_pct": (human_fail / total * 100) if total > 0 else 0,
+                            "needs_review": human_pending,
+                            "needs_review_pct": (human_pending / total * 100) if total > 0 else 0,
+                            "file_id": file_path.stem,
+                            "filename": file_path.name,
+                        })
                 # Handle legacy list format
                 elif isinstance(eval_data, list) and eval_data:
                     summary = _process_eval_data(eval_data)
@@ -192,8 +200,8 @@ def load_eval_runs():
                 logging.warning(f"Skipping {file_path.name}: {e}")
                 continue
         
-        # Sort by eval_name alphabetically (section-a before section-b, etc.)
-        eval_runs.sort(key=lambda x: x.get("eval_name", ""))
+        # Sort by filename descending (newest first based on timestamp in filename)
+        eval_runs.sort(key=lambda x: x.get("filename", ""), reverse=True)
         
         return {"eval_runs": eval_runs, "error": None}
     except Exception as e:
@@ -301,6 +309,7 @@ def _process_eval_data(eval_data: list, use_human_review: bool = False) -> dict:
             "expected_answer": item.get("expected_answer", ""),
             "assistant_response": item.get("model_response", ""),
             "section": section,
+            "question_type": item.get("question_type", "unknown"),
             "judgment": judgment,
             "comments": item.get("llm_reasoning", ""),
             "confidence": item.get("llm_confidence", 0.0),
