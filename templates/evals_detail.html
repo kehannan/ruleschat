@@ -120,6 +120,25 @@
     font-size: 0.875rem;
     margin-right: 0.5rem;
   }
+  .question-type-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-right: 0.5rem;
+  }
+  .question-type-recall {
+    background: #28a745;
+    color: white;
+  }
+  .question-type-calc {
+    background: #fd7e14;
+    color: white;
+  }
+  .question-type-unknown {
+    background: #6c757d;
+    color: white;
+  }
 </style>
 {% endblock %}
 
@@ -170,8 +189,13 @@
           {% if result.section %}
             <span class="section-badge">{{ result.section }}</span>
           {% endif %}
+          {% if result.question_type %}
+            <span class="question-type-badge question-type-{{ result.question_type }}">
+              {{ result.question_type.capitalize() }}
+            </span>
+          {% endif %}
           {% if result.evaluation %}
-            <span class="evaluation-badge 
+            <span class="evaluation-badge
               {% if '✅' in result.evaluation %}evaluation-auto-pass
               {% elif '⚠️' in result.evaluation %}evaluation-needs-review
               {% elif '❌' in result.evaluation %}evaluation-auto-fail

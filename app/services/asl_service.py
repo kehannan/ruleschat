@@ -17,6 +17,7 @@ from app.asl.postprocess import (
     extract_response_text,
     compute_timing_metrics
 )
+from app.asl.tools import TOOL_SCHEMAS, execute_tool
 
 
 class ASLService:
@@ -137,7 +138,8 @@ Your response:"""
         temperature: Optional[float] = None,
         return_timing: bool = False,
         force_web_search: bool = False,
-        use_verification: bool = False
+        use_verification: bool = False,
+        use_agentic: bool = False
     ):
         """
         Get an answer to an ASL question.
@@ -150,13 +152,14 @@ Your response:"""
             return_timing: If True and stream=True, returns tuple (generator, timing_data)
             force_web_search: If True, emphasizes web search usage in instructions
             use_verification: If True, uses two-pass verification to check answer
+            use_agentic: If True, enables function tools for calculations (non-streaming only)
             
         Returns:
             The answer as a string (or generator if stream=True)
             If return_timing=True and stream=True, returns (generator, timing_data)
             
         Note:
-            use_verification requires stream=False
+            use_verification and use_agentic require stream=False
         """
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
@@ -164,6 +167,8 @@ Your response:"""
         # Validation for special modes
         if use_verification and stream:
             raise ValueError("Verification is only supported in non-streaming mode (stream=False)")
+        if use_agentic and stream:
+            raise ValueError("Agentic mode is only supported in non-streaming mode (stream=False)")
         
         model = model or self.config.model
         temperature = temperature if temperature is not None else self.config.temperature
@@ -181,17 +186,22 @@ Your response:"""
         logging.info(f"[RAG Latency] API call started at: {api_call_start_time:.3f}")
         
         try:
-            # Build tools
+            # Build tools - base tools
             tools = [
-                    {
-                        "type": "file_search",
+                {
+                    "type": "file_search",
                     "vector_store_ids": [self.config.vector_store_id],
                     "max_num_results": 5
-                    },
-                    {
-                        "type": "web_search",
-                    }
-                ]
+                },
+                {
+                    "type": "web_search",
+                }
+            ]
+            
+            # Add function tools if agentic mode is enabled
+            if use_agentic:
+                tools.extend(TOOL_SCHEMAS)
+                logging.info(f"🤖 Agentic mode enabled - added {len(TOOL_SCHEMAS)} function tools")
             
             if stream:
                 # Use stream_response for true streaming with final response access
@@ -208,23 +218,36 @@ Your response:"""
                     return_timing
                 )
             else:
-                # Non-streaming: use create_response
-                response = self.client.create_response(
-                    model=model,
-                    input=question,
-                    instructions=instructions,
-                    temperature=temperature,
-                    stream=False,
-                    tools=tools
-                )
-                return self._handle_non_streaming_response(
-                    response,
-                    api_call_start_time,
-                    question,
-                    model,
-                    temperature,
-                    use_verification
-                )
+                # Non-streaming mode
+                if use_agentic:
+                    # Use agentic handler with tool execution loop
+                    return self._handle_agentic_response(
+                        question=question,
+                        instructions=instructions,
+                        model=model,
+                        temperature=temperature,
+                        tools=tools,
+                        api_call_start_time=api_call_start_time,
+                        use_verification=use_verification
+                    )
+                else:
+                    # Standard non-streaming
+                    response = self.client.create_response(
+                        model=model,
+                        input=question,
+                        instructions=instructions,
+                        temperature=temperature,
+                        stream=False,
+                        tools=tools
+                    )
+                    return self._handle_non_streaming_response(
+                        response,
+                        api_call_start_time,
+                        question,
+                        model,
+                        temperature,
+                        use_verification
+                    )
                 
         except Exception as e:
             error_msg = f"Error getting response: {str(e)}"
@@ -367,6 +390,144 @@ Your response:"""
             response_text = self._verify_answer(question, response_text, model, temperature)
         
         return response_text
+    
+    def _handle_agentic_response(
+        self,
+        question: str,
+        instructions: str,
+        model: str,
+        temperature: float,
+        tools: List[Dict[str, Any]],
+        api_call_start_time: float,
+        use_verification: bool,
+        max_iterations: int = 5
+    ) -> str:
+        """
+        Handle agentic response with multi-turn tool execution loop.
+        """
+        import json as json_module
+        
+        logging.info("🤖 Starting agentic response loop...")
+        
+        # Conversation history for multi-turn
+        messages = [{"role": "user", "content": question}]
+        
+        for iteration in range(max_iterations):
+            logging.info(f"🔄 Agentic iteration {iteration + 1}/{max_iterations}")
+            
+            # Make API call
+            response = self.client.create_response(
+                model=model,
+                input=messages,
+                instructions=instructions,
+                temperature=temperature,
+                stream=False,
+                tools=tools
+            )
+            
+            # Extract output blocks
+            output_blocks = getattr(response, "output", [])
+            
+            # 1. Add THIS response to history (crucial for tool call context)
+            # IMPORTANT: Sanitize output_blocks to only include 'function_call' and 'message' (with 'output_text')
+            # The API rejects 'file_search_call' blocks when sent back in 'input'.
+            sanitized_outputs = []
+            for b in output_blocks:
+                b_type = b.get("type") if isinstance(b, dict) else getattr(b, "type", None)
+                
+                if b_type == "function_call":
+                    # Function call blocks are required
+                    sanitized_outputs.append({
+                        "type": "function_call",
+                        "call_id": b.get("call_id") if isinstance(b, dict) else getattr(b, "call_id", None),
+                        "name": b.get("name") if isinstance(b, dict) else getattr(b, "name", None),
+                        "arguments": b.get("arguments") if isinstance(b, dict) else getattr(b, "arguments", "{}")
+                    })
+                elif b_type == "message":
+                    # Content messages are allowed. Convert sub-items (like ResponseOutputText) to dicts.
+                    content_raw = b.get("content") if isinstance(b, dict) else getattr(b, "content", [])
+                    sanitized_content = []
+                    for c in content_raw:
+                        if hasattr(c, "to_dict"):
+                            sanitized_content.append(c.to_dict())
+                        elif isinstance(c, dict):
+                            sanitized_content.append(c)
+                        else:
+                            # Try getattr for common fields if not a dict and no to_dict
+                            sanitized_content.append({
+                                "type": getattr(c, "type", "unknown"),
+                                "text": getattr(c, "text", "") if hasattr(c, "text") else ""
+                            })
+                    
+                    sanitized_outputs.append({
+                        "type": "message",
+                        "content": sanitized_content
+                    })
+            
+            messages.append({
+                "role": "assistant",
+                "content": sanitized_outputs
+            })
+            
+            # Find function calls and text output
+            function_calls = [b for b in sanitized_outputs if b["type"] == "function_call"]
+            final_text = None
+            
+            # Extract text output if present in the message blocks
+            for block in sanitized_outputs:
+                if block["type"] == "message":
+                    content = block.get("content", [])
+                    for sub in content:
+                        sub_type = sub.get("type") if isinstance(sub, dict) else getattr(sub, "type", None)
+                        if sub_type == "output_text":
+                            final_text = sub.get("text") if isinstance(sub, dict) else getattr(sub, "text", None)
+            
+            # If no function calls, we have our final answer
+            if not function_calls:
+                logging.info(f"✅ Agentic loop completed after {iteration + 1} iterations")
+                if final_text is None:
+                    final_text = extract_response_text(response)
+                
+                response_end_time = time.time()
+                total_time_ms = (response_end_time - api_call_start_time) * 1000
+                logging.info(f"[RAG Latency] Total agentic response time: {total_time_ms:.1f}ms")
+                
+                if use_verification:
+                    logging.info("🔍 Verification enabled - running second pass...")
+                    final_text = self._verify_answer(question, final_text, model, temperature)
+                
+                return final_text
+            
+            # 2. Execute function calls and add their results to history
+            logging.info(f"🔧 Executing {len(function_calls)} function call(s)...")
+            
+            for fc in function_calls:
+                call_id = fc.get("call_id")
+                name = fc.get("name")
+                args_raw = fc.get("arguments")
+                
+                try:
+                    args = json_module.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                    logging.info(f"  📞 {name}({args})")
+                    result = execute_tool(name, args)
+                    result_json = json_module.dumps(result)
+                    
+                    messages.append({
+                        "role": "tool",
+                        "call_id": call_id,
+                        "content": result_json
+                    })
+                    logging.info(f"  ✅ Result: {result_json[:100]}...")
+                except Exception as e:
+                    logging.error(f"  ❌ Tool error: {e}")
+                    messages.append({
+                        "role": "tool",
+                        "call_id": call_id,
+                        "content": json_module.dumps({"error": str(e)})
+                    })
+        
+        logging.warning("⚠️ Max iterations reached")
+        return final_text or extract_response_text(response)
 
 
 # Global service instance (lazy initialization)
