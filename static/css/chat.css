@@ -93,13 +93,11 @@ body:has(.chat-wrapper) #main-container {
 .message-content {
   flex: 1;
   min-width: 0;
-  line-height: 1.75;
+  line-height: 1.5;
   color: #353740;
   font-size: 16px;
   font-weight: 400;
   font-family: inherit;
-  white-space: pre-wrap;
-  /* Preserve newlines from fine-tuned model */
 }
 
 /* Ensure all markdown-rendered elements have consistent font size */
@@ -119,7 +117,7 @@ body:has(.chat-wrapper) #main-container {
 .message-content ul,
 .message-content ol {
   font-size: 16px;
-  line-height: 1.75;
+  line-height: 1.5;
   font-weight: 400;
 }
 
@@ -145,9 +143,9 @@ body:has(.chat-wrapper) #main-container {
 }
 
 .message-content p {
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.5rem 0;
   font-size: 16px;
-  line-height: 1.75;
+  line-height: 1.5;
   font-weight: 400;
 }
 

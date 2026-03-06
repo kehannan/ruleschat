@@ -105,8 +105,8 @@ async def get_user_from_websocket(websocket: WebSocket) -> Optional[User]:
 
 @router.get("/", response_class=RedirectResponse)
 def root():
-    """Redirect root to login."""
-    return RedirectResponse(url="/login")
+    """Redirect root to home."""
+    return RedirectResponse(url="/home")
 
 
 @router.get("/home", name="home", response_class=HTMLResponse)

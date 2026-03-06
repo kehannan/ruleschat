@@ -29,65 +29,78 @@ class OpenAIResponsesClient:
         model: str,
         input: str,
         instructions: str,
-        temperature: float,
         stream: bool,
-        tools: Optional[List[Dict[str, Any]]] = None
+        temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        previous_response_id: Optional[str] = None
     ):
         """
         Create a Responses API response.
-        
+
         Args:
             model: Model name
             input: Input question/text
             instructions: System instructions
-            temperature: Temperature setting
             stream: Whether to stream response
+            temperature: Temperature setting (omit for models that don't support it)
             tools: List of tools (file_search, web_search)
-            
+            previous_response_id: Optional ID of previous response for multi-turn
+
         Returns:
             Response object (streaming or non-streaming)
         """
         # Include file_search_call.results to get RAG chunks
         include = ["file_search_call.results"] if any(t.get("type") == "file_search" for t in (tools or [])) else []
-        
-        return self.client.responses.create(
-            model=model,
-            input=input,
-            instructions=instructions,
-            temperature=temperature,
-            stream=stream,
-            tools=tools or [],
-            include=include if include else None
-        )
+
+        # Build kwargs
+        kwargs = {
+            "model": model,
+            "input": input,
+            "instructions": instructions,
+            "stream": stream,
+            "tools": tools or [],
+            "include": include if include else None
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+
+        # Add previous_response_id if provided
+        if previous_response_id:
+            kwargs["previous_response_id"] = previous_response_id
+
+        return self.client.responses.create(**kwargs)
     
     def stream_response(
         self,
         model: str,
         input: str,
         instructions: str,
-        temperature: float,
+        temperature: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None
     ):
         """
         Stream a Responses API response and allow access to the final accumulated response.
-        
+
         Usage:
             with client.stream_response(...) as stream:
                 for event in stream: ...
                 final = stream.get_final_response()
-        
+
         Returns:
             ResponseStreamManager context manager
         """
         # Include file_search_call.results to get RAG chunks
         include = ["file_search_call.results"] if any(t.get("type") == "file_search" for t in (tools or [])) else []
-        
-        return self.client.responses.stream(
-            model=model,
-            input=input,
-            instructions=instructions,
-            temperature=temperature,
-            tools=tools or [],
-            include=include if include else None
-        )
+
+        kwargs = {
+            "model": model,
+            "input": input,
+            "instructions": instructions,
+            "tools": tools or [],
+            "include": include if include else None
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+
+        return self.client.responses.stream(**kwargs)
 

@@ -186,7 +186,6 @@ test.db
 
 # Separate repositories
 mcp_service/
-evals/
 SFT/
 specification/
 

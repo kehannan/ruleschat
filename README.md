@@ -1,15 +1,33 @@
 # ASL Rules Assistant
 
-A FastAPI web application that helps Advanced Squad Leader (ASL) players understand and apply the complex rules of the game using AI assistance powered by OpenAI.
+A FastAPI web application that helps Advanced Squad Leader (ASL) players understand and apply the complex rules of the game using AI assistance powered by OpenAI's **Responses API**.
 
 ## Features
 
 - **AI-Powered Rules Assistant**: Ask questions about ASL rules and get accurate answers
-- **Vector Store Integration**: Searches through the official ASL rulebook
+- **Vector Store Integration**: Searches through the official ASL rulebook via OpenAI file_search
+- **Web Search**: Real-time web search for current information
+- **Agentic Function Calling**: Custom calculation tools for DRM, TEM, and other ASL mechanics
 - **User Authentication**: Secure login and user management
 - **Invitation System**: Admin-managed user invitations
 - **WebSocket Chat**: Real-time streaming responses
 - **Feedback System**: Users can provide feedback on answers
+
+## API Architecture
+
+This application uses OpenAI's **Responses API** (not Chat Completions API) for all AI inference:
+
+- **Native RAG Support**: Built-in `file_search` tool for vector store queries
+- **Web Search**: Built-in `web_search` capability for current information
+- **Custom Function Calling**: Agentic mode with calculation tools (DRM, TEM, portage, etc.)
+- **Multi-Turn Conversations**: Uses `previous_response_id` for stateful context
+- **Streaming**: Real-time response streaming via WebSocket
+
+**Key Implementation Details**:
+- See [app/asl/client.py](app/asl/client.py) for Responses API wrapper
+- See [app/services/asl_service.py](app/services/asl_service.py) for agentic implementation
+- Agentic mode uses `previous_response_id` instead of manual conversation history management
+- Function results sent as `function_call_output` items, avoiding content type restrictions
 
 ## Related Repositories
 
@@ -33,10 +51,16 @@ mysite2/
 │   │   ├── auth.py              # Authentication routes
 │   │   ├── user.py              # User profile routes
 │   │   └── chat.py              # Chat and WebSocket routes
+│   ├── asl/                      # ASL-specific modules (Responses API)
+│   │   ├── client.py            # OpenAI Responses API wrapper
+│   │   ├── config.py            # ASL configuration
+│   │   ├── policy.py            # Response policies and verification
+│   │   ├── postprocess.py       # Response processing utilities
+│   │   └── tools.py             # Custom function tools (DRM, TEM, etc.)
 │   ├── core/                     # Core utilities
-│   │   ├── auth.py              # JWT and password hashing
-│   │   └── responses_api.py     # OpenAI integration
+│   │   └── auth.py              # JWT and password hashing
 │   ├── services/                 # Business logic
+│   │   ├── asl_service.py       # Main ASL assistant service (agentic mode)
 │   │   └── user_service.py      # User operations
 │   ├── database.py              # Database configuration
 │   ├── config.py                # Application configuration
