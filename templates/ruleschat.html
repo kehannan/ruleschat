@@ -343,7 +343,7 @@
                 // Not JSON, treat as regular text chunk
             }
 
-            // Display chunk immediately
+            // Display chunk immediately with progressive markdown rendering
             const chatContainer = document.querySelector('#chat-container');
             let currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
             if (!currentBotMessageContent) {
@@ -353,7 +353,7 @@
             const currentContent = currentBotMessageContent.getAttribute('data-content') || '';
             const newContent = currentContent + e.data;
             currentBotMessageContent.setAttribute('data-content', newContent);
-            currentBotMessageContent.textContent = newContent;
+            currentBotMessageContent.innerHTML = marked.parse(newContent);
             chatContainer.scrollTop = chatContainer.scrollHeight;
             lastAssistantAnswer = newContent;
         };
@@ -445,25 +445,32 @@
         const latencyDisplay = document.getElementById('latency-display');
         if (!latencyDisplay) return;
 
-        const fileSearchMs = latencyData.file_search_complete_ms || 0;
-        const streamEndMs = latencyData.stream_end_ms || latencyData.total_ms || 0;
+        const fileSearchMs = latencyData.file_search_time_ms || 0;
+        const ttftMs = latencyData.ttft_ms || 0;
+        const totalMs = latencyData.total_time_ms || 0;
+        const inputTokens = latencyData.input_tokens || 0;
+        const outputTokens = latencyData.output_tokens || 0;
 
         const formatTime = (ms) => {
             if (ms < 1000) return `${Math.round(ms)}ms`;
             return `${(ms / 1000).toFixed(1)}s`;
         };
 
-        let displayText = '';
-        if (fileSearchMs > 0) {
-            displayText += `File search: ${formatTime(fileSearchMs)}`;
-        }
-        if (streamEndMs > 0) {
-            if (displayText) displayText += ' • ';
-            displayText += `Total: ${formatTime(streamEndMs)}`;
+        const formatTokens = (n) => {
+            if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+            return `${n}`;
+        };
+
+        let parts = [];
+        if (fileSearchMs > 0) parts.push(`RAG: ${formatTime(fileSearchMs)}`);
+        if (ttftMs > 0) parts.push(`TTFT: ${formatTime(ttftMs)}`);
+        if (totalMs > 0) parts.push(`Total: ${formatTime(totalMs)}`);
+        if (inputTokens > 0 || outputTokens > 0) {
+            parts.push(`${formatTokens(inputTokens)} in / ${formatTokens(outputTokens)} out`);
         }
 
-        if (displayText) {
-            latencyDisplay.textContent = displayText;
+        if (parts.length > 0) {
+            latencyDisplay.textContent = parts.join(' • ');
             latencyDisplay.style.display = 'block';
         } else {
             latencyDisplay.style.display = 'none';

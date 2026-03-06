@@ -191,7 +191,7 @@ Your response:"""
                 {
                     "type": "file_search",
                     "vector_store_ids": [self.config.vector_store_id],
-                    "max_num_results": 5
+                    "max_num_results": int(os.getenv("RAG_MAX_CHUNKS", "20"))
                 },
                 {
                     "type": "web_search",
@@ -203,15 +203,21 @@ Your response:"""
                 tools.extend(TOOL_SCHEMAS)
                 logging.info(f"🤖 Agentic mode enabled - added {len(TOOL_SCHEMAS)} function tools")
             
+            # Build common API kwargs — some models (e.g. gpt-5-mini) don't support temperature
+            api_kwargs = {
+                "model": model,
+                "input": question,
+                "instructions": instructions,
+                "tools": tools,
+            }
+            # Only include temperature for models that support it
+            _no_temp_models = {"gpt-5-mini", "gpt-5-mini-2025-08-07"}
+            if model not in _no_temp_models:
+                api_kwargs["temperature"] = temperature
+
             if stream:
                 # Use stream_response for true streaming with final response access
-                stream_manager = self.client.stream_response(
-                    model=model,
-                    input=question,
-                    instructions=instructions,
-                    temperature=temperature,
-                    tools=tools
-                )
+                stream_manager = self.client.stream_response(**api_kwargs)
                 return self._handle_streaming_response(
                     stream_manager,
                     api_call_start_time,
@@ -232,14 +238,8 @@ Your response:"""
                     )
                 else:
                     # Standard non-streaming
-                    response = self.client.create_response(
-                        model=model,
-                        input=question,
-                        instructions=instructions,
-                        temperature=temperature,
-                        stream=False,
-                        tools=tools
-                    )
+                    api_kwargs["stream"] = False
+                    response = self.client.create_response(**api_kwargs)
                     return self._handle_non_streaming_response(
                         response,
                         api_call_start_time,
@@ -356,6 +356,12 @@ Your response:"""
                         rag_sources = _extract_rag_sources_from_final(final)
                         timing_data["rag_sources"] = rag_sources
                         logging.info(f"📚 Extracted {len(rag_sources)} RAG sources from final response")
+
+                        # Extract token usage
+                        if hasattr(final, 'usage') and final.usage:
+                            timing_data["input_tokens"] = getattr(final.usage, 'input_tokens', 0)
+                            timing_data["output_tokens"] = getattr(final.usage, 'output_tokens', 0)
+                            logging.info(f"📊 Tokens: {timing_data['input_tokens']} in / {timing_data['output_tokens']} out")
                     except Exception as e:
                         logging.warning(f"⚠️ Failed to extract RAG sources from final response: {e}", exc_info=True)
                         timing_data["rag_sources"] = []
@@ -408,79 +414,61 @@ Your response:"""
         import json as json_module
         
         logging.info("🤖 Starting agentic response loop...")
-        
-        # Conversation history for multi-turn
-        messages = [{"role": "user", "content": question}]
-        
+
+        # Track previous response ID for context
+        previous_response_id = None
+        input_data = question
+
         for iteration in range(max_iterations):
             logging.info(f"🔄 Agentic iteration {iteration + 1}/{max_iterations}")
+
+            # Make API call (use previous_response_id if available)
+            if previous_response_id:
+                response = self.client.create_response(
+                    model=model,
+                    input=input_data,
+                    previous_response_id=previous_response_id,
+                    instructions=instructions,
+                    temperature=temperature,
+                    stream=False,
+                    tools=tools
+                )
+            else:
+                response = self.client.create_response(
+                    model=model,
+                    input=input_data,
+                    instructions=instructions,
+                    temperature=temperature,
+                    stream=False,
+                    tools=tools
+                )
             
-            # Make API call
-            response = self.client.create_response(
-                model=model,
-                input=messages,
-                instructions=instructions,
-                temperature=temperature,
-                stream=False,
-                tools=tools
-            )
-            
+            # Store response ID for next iteration
+            previous_response_id = getattr(response, "id", None)
+
             # Extract output blocks
             output_blocks = getattr(response, "output", [])
-            
-            # 1. Add THIS response to history (crucial for tool call context)
-            # IMPORTANT: Sanitize output_blocks to only include 'function_call' and 'message' (with 'output_text')
-            # The API rejects 'file_search_call' blocks when sent back in 'input'.
-            sanitized_outputs = []
-            for b in output_blocks:
-                b_type = b.get("type") if isinstance(b, dict) else getattr(b, "type", None)
-                
+
+            # Find function calls and extract final text
+            function_calls = []
+            final_text = None
+
+            for block in output_blocks:
+                b_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+
                 if b_type == "function_call":
-                    # Function call blocks are required
-                    sanitized_outputs.append({
-                        "type": "function_call",
-                        "call_id": b.get("call_id") if isinstance(b, dict) else getattr(b, "call_id", None),
-                        "name": b.get("name") if isinstance(b, dict) else getattr(b, "name", None),
-                        "arguments": b.get("arguments") if isinstance(b, dict) else getattr(b, "arguments", "{}")
+                    function_calls.append({
+                        "call_id": block.get("call_id") if isinstance(block, dict) else getattr(block, "call_id", None),
+                        "name": block.get("name") if isinstance(block, dict) else getattr(block, "name", None),
+                        "arguments": block.get("arguments") if isinstance(block, dict) else getattr(block, "arguments", "{}")
                     })
                 elif b_type == "message":
-                    # Content messages are allowed. Convert sub-items (like ResponseOutputText) to dicts.
-                    content_raw = b.get("content") if isinstance(b, dict) else getattr(b, "content", [])
-                    sanitized_content = []
-                    for c in content_raw:
-                        if hasattr(c, "to_dict"):
-                            sanitized_content.append(c.to_dict())
-                        elif isinstance(c, dict):
-                            sanitized_content.append(c)
-                        else:
-                            # Try getattr for common fields if not a dict and no to_dict
-                            sanitized_content.append({
-                                "type": getattr(c, "type", "unknown"),
-                                "text": getattr(c, "text", "") if hasattr(c, "text") else ""
-                            })
-                    
-                    sanitized_outputs.append({
-                        "type": "message",
-                        "content": sanitized_content
-                    })
-            
-            messages.append({
-                "role": "assistant",
-                "content": sanitized_outputs
-            })
-            
-            # Find function calls and text output
-            function_calls = [b for b in sanitized_outputs if b["type"] == "function_call"]
-            final_text = None
-            
-            # Extract text output if present in the message blocks
-            for block in sanitized_outputs:
-                if block["type"] == "message":
-                    content = block.get("content", [])
-                    for sub in content:
-                        sub_type = sub.get("type") if isinstance(sub, dict) else getattr(sub, "type", None)
-                        if sub_type == "output_text":
-                            final_text = sub.get("text") if isinstance(sub, dict) else getattr(sub, "text", None)
+                    # Extract text output
+                    content = block.get("content") if isinstance(block, dict) else getattr(block, "content", [])
+                    for item in content:
+                        item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
+                        if item_type == "output_text":
+                            final_text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
             
             # If no function calls, we have our final answer
             if not function_calls:
@@ -498,33 +486,38 @@ Your response:"""
                 
                 return final_text
             
-            # 2. Execute function calls and add their results to history
+            # 2. Execute function calls and build input for next iteration
             logging.info(f"🔧 Executing {len(function_calls)} function call(s)...")
-            
+
+            # Build array of function results
+            function_results = []
             for fc in function_calls:
                 call_id = fc.get("call_id")
                 name = fc.get("name")
                 args_raw = fc.get("arguments")
-                
+
                 try:
                     args = json_module.loads(args_raw) if isinstance(args_raw, str) else args_raw
                     logging.info(f"  📞 {name}({args})")
                     result = execute_tool(name, args)
                     result_json = json_module.dumps(result)
-                    
-                    messages.append({
-                        "role": "tool",
+
+                    function_results.append({
+                        "type": "function_call_output",
                         "call_id": call_id,
-                        "content": result_json
+                        "output": result_json
                     })
                     logging.info(f"  ✅ Result: {result_json[:100]}...")
                 except Exception as e:
                     logging.error(f"  ❌ Tool error: {e}")
-                    messages.append({
-                        "role": "tool",
+                    function_results.append({
+                        "type": "function_call_output",
                         "call_id": call_id,
-                        "content": json_module.dumps({"error": str(e)})
+                        "output": json_module.dumps({"error": str(e)})
                     })
+
+            # Set input_data to function results for next iteration
+            input_data = function_results
         
         logging.warning("⚠️ Max iterations reached")
         return final_text or extract_response_text(response)
