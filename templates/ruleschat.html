@@ -441,6 +441,10 @@
     // UI Helpers
     // ========================================================================
 
+    // Token pricing from env (per 1M tokens, USD)
+    const COST_PER_1M_INPUT = {{ cost_per_1m_input }};
+    const COST_PER_1M_OUTPUT = {{ cost_per_1m_output }};
+
     function displayLatencyTimeline(latencyData) {
         const latencyDisplay = document.getElementById('latency-display');
         if (!latencyDisplay) return;
@@ -461,12 +465,21 @@
             return `${n}`;
         };
 
+        const formatCost = (dollars) => {
+            if (dollars < 0.001) return `$${(dollars * 1000).toFixed(2)}m`;
+            if (dollars < 0.01) return `$${dollars.toFixed(4)}`;
+            return `$${dollars.toFixed(3)}`;
+        };
+
         let parts = [];
         if (fileSearchMs > 0) parts.push(`RAG: ${formatTime(fileSearchMs)}`);
         if (ttftMs > 0) parts.push(`TTFT: ${formatTime(ttftMs)}`);
         if (totalMs > 0) parts.push(`Total: ${formatTime(totalMs)}`);
         if (inputTokens > 0 || outputTokens > 0) {
-            parts.push(`${formatTokens(inputTokens)} in / ${formatTokens(outputTokens)} out`);
+            const inputCost = (inputTokens / 1_000_000) * COST_PER_1M_INPUT;
+            const outputCost = (outputTokens / 1_000_000) * COST_PER_1M_OUTPUT;
+            const totalCost = inputCost + outputCost;
+            parts.push(`${formatTokens(inputTokens)} in / ${formatTokens(outputTokens)} out • Cost: ${formatCost(totalCost)}`);
         }
 
         if (parts.length > 0) {

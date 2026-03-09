@@ -140,6 +140,8 @@ def ruleschat(request: Request):
             return RedirectResponse(url="/login", status_code=303)
         
         context = get_base_context(request, user)
+        context["cost_per_1m_input"] = float(os.getenv("COST_PER_1M_INPUT", "0.25"))
+        context["cost_per_1m_output"] = float(os.getenv("COST_PER_1M_OUTPUT", "1.00"))
         return templates.TemplateResponse("ruleschat.html", context)
     except JWTError:
         return RedirectResponse(url="/login", status_code=303)
