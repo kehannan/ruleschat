@@ -192,9 +192,6 @@ Your response:"""
                     "type": "file_search",
                     "vector_store_ids": [self.config.vector_store_id],
                     "max_num_results": int(os.getenv("RAG_MAX_CHUNKS", "20"))
-                },
-                {
-                    "type": "web_search",
                 }
             ]
             
