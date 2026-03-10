@@ -4,42 +4,40 @@ A FastAPI web application that helps Advanced Squad Leader (ASL) players underst
 
 ## Features
 
-- **AI-Powered Rules Assistant**: Ask questions about ASL rules and get accurate answers
-- **Vector Store Integration**: Searches through the official ASL rulebook via OpenAI file_search
-- **Web Search**: Real-time web search for current information
-- **Agentic Function Calling**: Custom calculation tools for DRM, TEM, and other ASL mechanics
-- **User Authentication**: Secure login and user management
-- **Invitation System**: Admin-managed user invitations
-- **WebSocket Chat**: Real-time streaming responses
+- **AI-Powered Rules Assistant**: Ask questions about ASL rules and get accurate, concise answers with rule section references
+- **Vector Store Integration**: Searches through the official ASL rulebook via OpenAI file_search (RAG with 20 chunks)
+- **Model Selection**: Users can switch between gpt-5-mini (more accurate) and gpt-4.1-mini (faster) via in-chat dropdown
+- **User Authentication**: Secure login with JWT and admin-managed invitations
+- **WebSocket Chat**: Real-time streaming responses with conversation history
+- **Conversation History**: Persistent chat history with conversation management
 - **Feedback System**: Users can provide feedback on answers
+- **Per-Query Cost Display**: Shows estimated cost for each response
 
 ## API Architecture
 
 This application uses OpenAI's **Responses API** (not Chat Completions API) for all AI inference:
 
-- **Native RAG Support**: Built-in `file_search` tool for vector store queries
-- **Web Search**: Built-in `web_search` capability for current information
-- **Custom Function Calling**: Agentic mode with calculation tools (DRM, TEM, portage, etc.)
-- **Multi-Turn Conversations**: Uses `previous_response_id` for stateful context
+- **Native RAG**: Built-in `file_search` tool queries the vector store (20 chunks per query)
 - **Streaming**: Real-time response streaming via WebSocket
+- **Model Whitelist**: Backend validates model selection against allowed models
 
-**Key Implementation Details**:
-- See [app/asl/client.py](app/asl/client.py) for Responses API wrapper
-- See [app/services/asl_service.py](app/services/asl_service.py) for agentic implementation
-- Agentic mode uses `previous_response_id` instead of manual conversation history management
-- Function results sent as `function_call_output` items, avoiding content type restrictions
+**Key Implementation Files**:
+- [app/asl/client.py](app/asl/client.py) — Responses API wrapper
+- [app/services/asl_service.py](app/services/asl_service.py) — Main ASL service
+- [app/api/chat.py](app/api/chat.py) — WebSocket handler with model selection and conversation history
+- [app/config.py](app/config.py) — System instructions (concise Answer + References format)
 
 ## Related Repositories
 
-- **[mysite2-evals-sft](https://github.com/kehannan/mysite2-evals-sft)**: Evaluation datasets, fine-tuning data, and data processing scripts
+- **[mysite2-evals-sft](https://github.com/kehannan/mysite2-evals-sft)**: Evaluation datasets, fine-tuning data, and eval tooling
 
-## 📚 Documentation
+## Documentation
 
-- **[PRODUCTION.md](PRODUCTION.md)** - Complete production environment guide
-- **[deployment/QUICKSTART.md](deployment/QUICKSTART.md)** - Quick deployment reference
-- **[deployment/README.md](deployment/README.md)** - Detailed deployment instructions
-- **[TESTING.md](TESTING.md)** - Testing guide
-  
+- **[PRODUCTION.md](PRODUCTION.md)** — Production environment guide
+- **[deployment/QUICKSTART.md](deployment/QUICKSTART.md)** — Quick deployment reference
+- **[ASL_CHAT_FLOW.md](ASL_CHAT_FLOW.md)** — Question-to-answer data flow
+- **[RESPONSES_API_README.md](RESPONSES_API_README.md)** — Responses API and vector store setup
+- **[TESTING.md](TESTING.md)** — Testing guide
 
 ## Project Structure
 
@@ -50,122 +48,79 @@ mysite2/
 │   ├── api/                      # API routes/routers
 │   │   ├── auth.py              # Authentication routes
 │   │   ├── user.py              # User profile routes
-│   │   └── chat.py              # Chat and WebSocket routes
+│   │   └── chat.py              # Chat, WebSocket, conversation history
 │   ├── asl/                      # ASL-specific modules (Responses API)
 │   │   ├── client.py            # OpenAI Responses API wrapper
 │   │   ├── config.py            # ASL configuration
-│   │   ├── policy.py            # Response policies and verification
+│   │   ├── policy.py            # Instruction building
 │   │   ├── postprocess.py       # Response processing utilities
-│   │   └── tools.py             # Custom function tools (DRM, TEM, etc.)
+│   │   └── tools.py             # Custom function tools (unused in production)
 │   ├── core/                     # Core utilities
 │   │   └── auth.py              # JWT and password hashing
 │   ├── services/                 # Business logic
-│   │   ├── asl_service.py       # Main ASL assistant service (agentic mode)
-│   │   └── user_service.py      # User operations
+│   │   ├── asl_service.py       # Main ASL assistant service
+│   │   ├── user_service.py      # User operations
+│   │   └── chat_history_service.py  # Conversation persistence
 │   ├── database.py              # Database configuration
-│   ├── config.py                # Application configuration
+│   ├── config.py                # App config and system instructions
 │   └── main.py                  # FastAPI application
 ├── deployment/                   # Production deployment configs
-│   ├── nginx.conf               # Nginx reverse proxy configuration
-│   └── README.md                # Deployment guide
+│   └── nginx.conf               # Nginx reverse proxy configuration
 ├── scripts/                      # Admin/utility scripts
 │   ├── create_user.py
 │   ├── init_db.py
-│   └── ...
+│   └── setup_responses_api.py   # Vector store setup
 ├── static/                       # Static files (CSS, images)
 ├── templates/                    # HTML templates
 ├── tests/manual/                 # Manual test scripts
+├── responses_api_config.json    # Vector store config (versioned)
 └── run.py                       # Application runner
 ```
 
 ## Setup
 
-### Option 1: Using Conda (Recommended)
-
-If you have conda installed, use the provided environment file:
+### Using Conda (Recommended)
 
 ```bash
-# Create the conda environment
 conda env create -f environment.yml
-
-# Activate the environment
 conda activate mysite2_env
 ```
 
-### Option 2: Using pip with venv
+### Using pip
 
 ```bash
-# Create virtual environment
 python -m venv venv
-
-# Activate it
-source venv/bin/activate  # On macOS/Linux
-# or
-venv\Scripts\activate     # On Windows
-
-# Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
 ## Environment Variables
 
-The application relies on the following environment variables:
+Create a `.env` file in the project root:
 
-- `SECRET_KEY` – secret key used for signing JWT tokens
-- `OPENAI_API_KEY` – API key for communicating with OpenAI
-- `OPENAI_ORG_ID` – OpenAI organization ID
-- `OPENAI_PROJECT_ID` – OpenAI project ID
-- `DEFAULT_MODEL` – model name, e.g. `gpt-4o`
-- `ADMIN_EMAIL` – admin email for the site
-- `TEMPERATURE` – optional, defaults to 0.2
-- `DATABASE_URL` – optional, defaults to `sqlite:///./mysite.db`
+- `SECRET_KEY` — JWT signing key
+- `OPENAI_API_KEY` — OpenAI API key
+- `OPENAI_ORG_ID` — OpenAI organization ID
+- `OPENAI_PROJECT_ID` — OpenAI project ID
+- `DEFAULT_MODEL` — default model (e.g. `gpt-5-mini`)
+- `ADMIN_EMAIL` — admin email
+- `TEMPERATURE` — optional, defaults to 0.2
+- `DATABASE_URL` — optional, defaults to `sqlite:///./mysite.db`
+- `RAG_MAX_CHUNKS` — optional, defaults to 20
+- `COST_PER_1M_INPUT` — optional, for cost display
+- `COST_PER_1M_OUTPUT` — optional, for cost display
 
-Create a `.env` file in the project root (use `deployment/env.example` as a template) and set these values.
-
-## Installation
-
-Install the required Python packages. You can either install them individually:
-
-```bash
-pip install fastapi uvicorn sqlalchemy passlib[bcrypt] python-jose python-dotenv openai
-```
-
-or install everything from the requirements file:
+## Running
 
 ```bash
-pip install -r requirements.txt
-```
-
-## Database Setup
-
-Initialize the database (tables are created automatically on first run, but you can also run):
-
-```bash
-python scripts/init_db.py
-```
-
-## Create the Admin User
-
-Create the initial admin account:
-
-```bash
-python scripts/create_user.py
-```
-
-## Running the Server
-
-Start the FastAPI development server:
-
-```bash
-# Option 1: Using the run script (recommended)
+# Development
 python run.py
 
-# Option 2: Using uvicorn directly
+# Or directly
 uvicorn app.main:app --reload
 
-# Option 3: For production
+# Production
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 The server will be available at `http://localhost:8000`
-
