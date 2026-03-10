@@ -3,7 +3,11 @@
 {% block content %}
 <div class="chat-layout">
     <!-- Main Chat Area -->
-    <div class="chat-wrapper">
+    <div class="chat-wrapper" style="position: relative;">
+        <select id="model-selector" class="model-selector" title="Select model">
+            <option value="gpt-5-mini">gpt5-mini (slower)</option>
+            <option value="gpt-4.1-mini">gpt4.1-mini (faster)</option>
+        </select>
         <div id="chat-container" class="chat-messages">
             <!-- Chat messages will be displayed here -->
             <div class="welcome-message">
@@ -106,6 +110,30 @@
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
+    }
+
+    /* Model selector - top right of chat */
+    .model-selector {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 10;
+        font-size: 0.875rem;
+        padding: 6px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: rgba(248, 248, 248, 0.95);
+        color: #555;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .model-selector:hover {
+        border-color: #999;
+    }
+
+    .model-selector:focus {
+        border-color: #6c5ce7;
     }
 </style>
 {% endblock %}
@@ -411,7 +439,12 @@
             currentBotMessage.classList.remove('current');
         }
 
-        chatSocket.send(message);
+        const selectedModel = document.getElementById('model-selector').value;
+        chatSocket.send(JSON.stringify({
+            type: 'chat',
+            text: message,
+            model: selectedModel
+        }));
         messageInput.value = '';
         messageInput.style.height = 'auto';
 
@@ -441,9 +474,16 @@
     // UI Helpers
     // ========================================================================
 
-    // Token pricing from env (per 1M tokens, USD)
-    const COST_PER_1M_INPUT = {{ cost_per_1m_input }};
-    const COST_PER_1M_OUTPUT = {{ cost_per_1m_output }};
+    // Token pricing per model (per 1M tokens, USD)
+    const MODEL_PRICING = {
+        'gpt-5-mini':   { input: 0.25, output: 1.00 },
+        'gpt-4.1-mini': { input: 0.40, output: 1.60 },
+    };
+
+    function getModelPricing() {
+        const model = document.getElementById('model-selector').value;
+        return MODEL_PRICING[model] || MODEL_PRICING['gpt-5-mini'];
+    }
 
     function displayLatencyTimeline(latencyData) {
         const latencyDisplay = document.getElementById('latency-display');
@@ -476,8 +516,9 @@
         if (ttftMs > 0) parts.push(`TTFT: ${formatTime(ttftMs)}`);
         if (totalMs > 0) parts.push(`Total: ${formatTime(totalMs)}`);
         if (inputTokens > 0 || outputTokens > 0) {
-            const inputCost = (inputTokens / 1_000_000) * COST_PER_1M_INPUT;
-            const outputCost = (outputTokens / 1_000_000) * COST_PER_1M_OUTPUT;
+            const pricing = getModelPricing();
+            const inputCost = (inputTokens / 1_000_000) * pricing.input;
+            const outputCost = (outputTokens / 1_000_000) * pricing.output;
             const totalCost = inputCost + outputCost;
             parts.push(`${formatTokens(inputTokens)} in / ${formatTokens(outputTokens)} out • Cost: ${formatCost(totalCost)}`);
         }

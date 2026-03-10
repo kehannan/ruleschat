@@ -328,12 +328,14 @@ async def websocket_chat(websocket: WebSocket):
                     # If it's a chat message with text field
                     if cmd.get("type") == "chat" and cmd.get("text"):
                         message = cmd.get("text")
+                        selected_model = cmd.get("model")  # Optional model override
                     else:
                         continue  # Unknown command
                         
                 except json.JSONDecodeError:
                     # Not JSON, treat as plain text chat message
                     message = raw_message
+                    selected_model = None
                 
                 logging.info(f"✅ Received question: {message[:100]}...")
                 
@@ -362,11 +364,16 @@ async def websocket_chat(websocket: WebSocket):
                     else:
                         full_input = message
                     
+                    # Validate selected model (whitelist)
+                    allowed_models = {"gpt-5-mini", "gpt-4.1-mini"}
+                    model_override = selected_model if selected_model in allowed_models else None
+
                     # Get streaming response from service
                     stream, timing_data = asl_service.get_answer(
-                        full_input, 
-                        stream=True, 
-                        return_timing=True
+                        full_input,
+                        stream=True,
+                        return_timing=True,
+                        model=model_override
                     )
                     
                     logging.info("🔄 Streaming response from OpenAI...")
