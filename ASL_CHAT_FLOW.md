@@ -1,293 +1,106 @@
 # ASL Rules Chat: Question to Answer Flow
 
-**Date:** December 13, 2024  
-**System:** mysite2 - ASL Rules Assistant
+## System Overview
 
----
-
-## System Architecture Overview
-
-The ASL Rules Assistant uses:
 - **FastAPI** backend with WebSocket support
-- **OpenAI Responses API** (SDK 2.11.0+) with vector store (RAG)
+- **OpenAI Responses API** with file_search (RAG, 20 chunks)
+- **Models**: gpt-5-mini (default) or gpt-4.1-mini (user-selectable)
 - **Singleton ASLService** for consistent configuration
-- **True real-time streaming** - text deltas yielded immediately as they arrive
-- **RAG Sources** - displays full chunk content from vector store search
+- **True real-time streaming** — text deltas sent immediately
+- **Conversation history** — persistent per-user chat history
+- **RAG sources** — displays chunk content from vector store search
 
----
-
-## Complete Flow: User Question → Answer
+## Complete Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    USER ASKS QUESTION                            │
-│              (types in browser chat interface)                   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              FRONTEND (ruleschat.html)                           │
-│  • JavaScript captures question                                 │
-│  • Sends via WebSocket.send()                                   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         WEBSOCKET HANDLER (app/api/chat.py)                      │
-│         websocket_chat() receives message                        │
-│         Line: 107                                                │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         GET ASL SERVICE (Singleton Pattern)                       │
-│  • get_asl_service() called                                     │
-│  • If first call: Creates ASLService instance                   │
-│    - Loads config file (responses_api_config.json)              │
-│    - Gets vector_store_id                                       │
-│    - Creates OpenAI client                                      │
-│  • If exists: Returns existing instance                          │
-│  Line: 151                                                       │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         ASLService.get_answer()                                  │
-│  • Builds instructions (adds web search emphasis if needed)     │
-│  • Starts timing measurement                                    │
-│  Line: 210                                                       │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         OPENAI RESPONSES API CALL                               │
-│  client.responses.stream(                                       │
-│    input=question,                                              │
-│    instructions=...,                                            │
-│    tools=[                                                      │
-│      {                                                          │
-│        type: "file_search",                                     │
-│        vector_store_ids: [...],                                 │
-│        max_num_results: 5  ← Limits to 5 chunks               │
-│      },                                                         │
-│      {type: "web_search"}                                      │
-│    ],                                                           │
-│    include=["file_search_call.results"]  ← Get RAG chunks      │
-│  )                                                              │
-│  Line: 270-280                                                  │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         OPENAI PROCESSES REQUEST                                 │
-│  ┌──────────────────────────────────────────────┐              │
-│  │ 1. FILE_SEARCH (RAG)                          │              │
-│  │    • Searches vector store using question     │              │
-│  │    • Retrieves top 5 relevant chunks          │              │
-│  │    • Returns: chunks with full text content   │              │
-│  └──────────────────────────────────────────────┘              │
-│  ┌──────────────────────────────────────────────┐              │
-│  │ 2. WEB_SEARCH (optional)                     │              │
-│  │    • Searches web for recent info            │              │
-│  └──────────────────────────────────────────────┘              │
-│  ┌──────────────────────────────────────────────┐              │
-│  │ 3. GENERATE RESPONSE                         │              │
-│  │    • Uses retrieved chunks + web results     │              │
-│  │    • Generates answer using RAG context       │              │
-│  └──────────────────────────────────────────────┘              │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         TRUE STREAMING (asl_service.py)                         │
-│  • Uses stream_manager context manager                          │
-│  • Yields text deltas IMMEDIATELY as they arrive               │
-│  • Tracks timing:                                               │
-│    - First event time                                           │
-│    - File search completion time                               │
-│    - First token time (TTFT)                                    │
-│  • No buffering - text streams to frontend in real-time         │
-│  Lines: 381-409                                                 │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         EXTRACT RAG SOURCES (asl_service.py)                    │
-│  • After stream completes:                                      │
-│    final = stream.get_final_response()  ← Get final response   │
-│  • Extracts from final.output:                                 │
-│    - file_search_call.results[]                                │
-│    - Each result contains: text, filename, file_id, score       │
-│  • Creates RAG source objects with full chunk content           │
-│  • Stores in timing_data['rag_sources']                        │
-│  Lines: 338-376, 422-429                                        │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         RETURN STREAM GENERATOR                                  │
-│  • Returns: (generator, timing_data)                            │
-│  • Generator yields deltas immediately                           │
-│  • timing_data populated after stream completes                 │
-│  Line: 431-436                                                  │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         STREAM TO FRONTEND (chat.py)                            │
-│  for delta in stream:                                            │
-│    await websocket.send_text(delta)                             │
-│  • Sends each text chunk as it arrives                          │
-│  • Frontend displays text in real-time                          │
-│  Lines: 165-171                                                 │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         SEND COMPLETION SIGNAL (chat.py)                         │
-│  • After streaming completes:                                    │
-│    await websocket.send_text({                                  │
-│      type: "stream_complete",                                   │
-│      timing: {...},                                             │
-│      rag_sources: [...]  ← Full chunk content from RAG          │
-│    })                                                           │
-│  Lines: 185-190                                                 │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│         FRONTEND PROCESSES (ruleschat.html)                      │
-│  • Receives stream_complete message                             │
-│  • Parses markdown in response text                             │
-│  • Calls addRAGSourcesSection()                                 │
-│  • Creates collapsible "Sources Used (N chunks)" section          │
-│  • Displays full chunk content for each RAG source              │
-│  Lines: 758-835                                                 │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    USER SEES ANSWER                              │
-│  • Formatted text with markdown                                 │
-│  • Collapsible "Sources Used" section at bottom                  │
-│  • Clicking header expands to show all RAG chunks               │
-│  • Each chunk displays full text content from vector store       │
-└─────────────────────────────────────────────────────────────────┘
+User types question in browser
+    ↓
+Frontend (templates/ruleschat.html)
+  • JavaScript captures question + selected model
+  • Sends JSON via WebSocket: {type: "chat", text: "...", model: "gpt-5-mini"}
+    ↓
+WebSocket Handler (app/api/chat.py — websocket_chat())
+  • Authenticates user from cookie/token
+  • Parses JSON command (chat/new_conversation/switch_conversation)
+  • Validates model against whitelist: {"gpt-5-mini", "gpt-4.1-mini"}
+  • Creates/loads conversation for history
+  • Prepends conversation history to input
+    ↓
+ASL Service (app/services/asl_service.py — get_answer())
+  • Builds instructions via app/asl/policy.py
+  • Starts timing measurement
+    ↓
+OpenAI Responses API (app/asl/client.py)
+  • client.responses.stream(
+      model="gpt-5-mini",
+      input=question,
+      instructions=system_instructions,
+      tools=[{type: "file_search", vector_store_ids: [...], max_num_results: 20}],
+      include=["file_search_call.results"]
+    )
+    ↓
+OpenAI processes request:
+  1. FILE_SEARCH (RAG) — searches vector store, retrieves top 20 chunks
+  2. GENERATE — uses chunks as context, generates answer
+    ↓
+Streaming (asl_service.py)
+  • Yields text deltas immediately as they arrive
+  • Tracks timing: first event, file search completion, TTFT
+  • After stream: extracts RAG sources from final response
+    ↓
+WebSocket streams to frontend (chat.py)
+  • Each delta sent via websocket.send_text(delta)
+  • After completion: saves user + assistant messages to DB
+  • Sends stream_complete signal with timing + RAG sources
+    ↓
+Frontend displays answer
+  • Renders markdown in real-time
+  • Shows collapsible "Sources Used (N chunks)" section
+  • Displays per-query cost estimate
 ```
-
----
 
 ## Key Components
 
-### 1. Frontend (Browser)
-- **File:** `templates/ruleschat.html`
-- **Role:** User interface, WebSocket client, real-time display
-- **Key Functions:**
-  - Captures user input
-  - Sends questions via WebSocket
-  - Displays streaming text in real-time
-  - Adds RAG sources section (collapsible)
-  - Shows full chunk content from vector store
+| Component | File | Purpose |
+|-----------|------|---------|
+| Frontend | `templates/ruleschat.html` | UI, WebSocket client, model selector, cost display |
+| WebSocket | `app/api/chat.py` | Message routing, auth, history, model validation |
+| Service | `app/services/asl_service.py` | OpenAI API calls, streaming, RAG extraction |
+| Client | `app/asl/client.py` | Responses API wrapper |
+| Config | `app/config.py` | System instructions (Answer + References format) |
+| Policy | `app/asl/policy.py` | Instruction building |
+| History | `app/services/chat_history_service.py` | Conversation persistence |
+| Vector Store | `responses_api_config.json` | Store ID, versioned config |
 
-### 2. WebSocket Handler
-- **File:** `app/api/chat.py`
-- **Function:** `websocket_chat()` (line 107)
-- **Role:** Receives questions, coordinates response, streams to frontend
+## System Instructions Format
 
-### 3. ASL Service (Singleton)
-- **File:** `app/services/asl_service.py`
-- **Class:** `ASLService`
-- **Function:** `get_answer()` (line 210)
-- **Role:** Main service layer, handles OpenAI API calls, extracts RAG sources
-- **Key Methods:**
-  - `_handle_streaming_response()` - True streaming with immediate delta yields
-  - `_extract_rag_sources_from_final()` - Extracts full chunks from final response
+The system prompt requests concise output:
 
-### 4. OpenAI Responses API
-- **Service:** OpenAI cloud service
-- **SDK Version:** 2.11.0+ (required for `stream.get_final_response()`)
-- **Tools Used:**
-  - `file_search`: Searches vector store (RAG)
-    - `max_num_results: 5` - Limits retrieved chunks to 5
-    - `include=["file_search_call.results"]` - Requests full chunk content
-  - `web_search`: Searches web for current information
+```
+Answer: [1-2 sentences with direct answer]
 
-### 5. Vector Store
-- **Setup:** `scripts/setup_responses_api.py`
-- **Content:** ASL rulebook chunks (1187 chunks for v4)
-- **Purpose:** Fast semantic search for relevant rules
-- **Retrieval:** Top 5 most relevant chunks per query
+References:
+- (A4.34) Section Title — brief relevance
+```
 
----
+Two few-shot examples anchor the format. See `app/config.py` for full prompt.
 
-## Data Flow Summary
+## Timing Metrics
 
-1. **Question** (String) → WebSocket → Backend
-2. **Service Instance** → Singleton (created once, reused)
-3. **API Request** → Question + Instructions + Tools → OpenAI
-   - `file_search` with `max_num_results: 5`
-   - `include=["file_search_call.results"]` to get full chunks
-4. **RAG Search** → Vector store search → Top 5 relevant chunks (with full text)
-5. **True Streaming** → Deltas yielded immediately as they arrive → Frontend
-6. **Final Response** → `stream.get_final_response()` → Extract RAG sources
-7. **RAG Sources** → Full chunk content extracted → Sent on completion
-8. **Display** → Frontend formats text + shows collapsible sources section
-
----
-
-## Timing Metrics Tracked
-
-- **First Event Time:** When OpenAI first responds
-- **File Search Complete:** When RAG search finishes
-- **First Token (TTFT):** Time to first generated token
-- **Total Time:** End-to-end response time
-- **RAG Time:** Time spent searching vector store
-- **Generation Time:** Time spent generating response after RAG
+- **First Event**: when OpenAI first responds
+- **File Search Complete**: when RAG finishes
+- **TTFT**: time to first generated token
+- **Total Time**: end-to-end response time
 
 ## RAG Sources
 
-- **Extraction:** After stream completes, `stream.get_final_response()` provides full response object
-- **Source:** `final.output` → `file_search_call.results[]`
-- **Content:** Each result contains:
-  - `text`: Full chunk content from vector store
-  - `filename`: Original PDF filename (if available)
-  - `file_id`: OpenAI file ID
-  - `score`: Relevance score
-  - `attributes`: Additional metadata
-- **Display:** Frontend shows collapsible "Sources Used (N chunks)" section with full chunk text
-- **Limit:** Maximum 5 chunks per query (via `max_num_results`)
+- **Chunks**: up to 20 per query (configurable via `RAG_MAX_CHUNKS` env var)
+- **Extraction**: from `stream.get_final_response().output` after streaming
+- **Content**: text, filename, file_id, relevance score
+- **Display**: collapsible section in frontend
 
----
+## Configuration
 
-## Implementation Details
-
-### True Streaming
-- Text deltas are yielded **immediately** as they arrive from OpenAI
-- No buffering or two-pass collection
-- Frontend receives and displays text in real-time
-
-### RAG Sources Extraction
-- Uses `stream.get_final_response()` (OpenAI SDK 2.11.0+)
-- Extracts full chunk content from `final.output`
-- All 5 chunks (or fewer) are included with complete text
-- No reliance on streaming events for content (more reliable)
-
-### Chunk Limiting
-- `max_num_results: 5` limits vector store search to top 5 chunks
-- Reduces token usage and focuses on most relevant content
-- Improves response quality by reducing noise
-
----
-
-## File Locations
-
-- Frontend: `templates/ruleschat.html`
-- WebSocket Handler: `app/api/chat.py` (line 107)
-- Service: `app/services/asl_service.py` (line 340)
-- Config: `responses_api_config.json`
-- Vector Store Setup: `scripts/setup_responses_api.py`
-
----
-
-*Document last updated: December 13, 2024*
-
+- **Vector store**: set up via `scripts/setup_responses_api.py`, config in `responses_api_config.json`
+- **Model whitelist**: `{"gpt-5-mini", "gpt-4.1-mini"}` in `app/api/chat.py`
+- **GPT-5 family**: does not support `temperature` parameter — omitted automatically

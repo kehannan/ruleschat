@@ -1,121 +1,125 @@
 # Production Deployment Quick Start
 
-This is a quick reference for deploying to production. For detailed documentation, see [PRODUCTION.md](../PRODUCTION.md).
+Quick reference for deploying to production. For detailed docs, see [PRODUCTION.md](../PRODUCTION.md).
 
-## 📋 Pre-Deployment Checklist
+## Pre-Deployment Checklist
 
 - [ ] Server: Ubuntu 22.04 LTS
 - [ ] Domain: DNS pointing to server IP
-- [ ] SSH: Key-based authentication configured
+- [ ] SSH: Key-based auth configured (`ssh mydigitalocean`)
 - [ ] Firewall: Ports 22, 80, 443 open
 - [ ] Dependencies: Python 3.10+, pip, nginx, certbot
 
-## 🚀 Quick Deploy (Fresh Server)
+## Quick Deploy (Fresh Server)
 
 ```bash
-# 1. Connect to server
 ssh mydigitalocean
 
-# 2. Install system dependencies
+# Install dependencies
 sudo apt update && sudo apt upgrade -y
 sudo apt install python3 python3-pip nginx certbot python3-certbot-nginx git -y
 
-# 3. Clone repository
-cd /var/www
-sudo git clone https://github.com/kehannan/mysite2.git
+# Clone and setup
+cd /root/fastapi_app
+git clone https://github.com/kehannan/mysite2.git
 cd mysite2
+pip3 install -r requirements.txt
 
-# 4. Install Python dependencies
-sudo pip3 install -r requirements.txt
+# Configure
+cp deployment/env.example .env
+nano .env  # Fill in real values
 
-# 5. Configure environment
-sudo cp deployment/env.example .env
-sudo nano .env  # Fill in real values
+# Initialize
+python3 scripts/init_db.py
 
-# 6. Initialize database
-sudo python3 scripts/init_db.py
-
-# 7. Setup nginx
+# Nginx
 sudo cp deployment/nginx.conf /etc/nginx/sites-available/aslrules
 sudo ln -s /etc/nginx/sites-available/aslrules /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+sudo nginx -t && sudo systemctl reload nginx
 
-# 8. Get SSL certificate
+# SSL
 sudo certbot --nginx -d kevmo.us -d www.kevmo.us
 
-# 9. Setup systemd service
-sudo cp deployment/aslrules.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable aslrules
-sudo systemctl start aslrules
+# Service (uvicorn)
+# Ensure uvicorn systemd service is configured
+sudo systemctl enable uvicorn
+sudo systemctl start uvicorn
 
-# 10. Verify
-sudo systemctl status aslrules
+# Verify
+systemctl status uvicorn
 curl -I https://kevmo.us
 ```
 
-## 🔄 Update Production
+## Update Production
 
 ```bash
-ssh mydigitalocean "cd /var/www/mysite2 && git pull && sudo systemctl restart aslrules"
+# Push from local
+git push origin main
+
+# Pull on server
+ssh mydigitalocean
+cd /root/fastapi_app/mysite2
+git pull origin main
+systemctl restart uvicorn
 ```
 
-## 📊 Common Commands
+Or one-liner:
+```bash
+ssh mydigitalocean "cd /root/fastapi_app/mysite2 && git pull origin main && systemctl restart uvicorn"
+```
+
+## Common Commands
 
 ```bash
-# View logs
-sudo journalctl -u aslrules -f
+# Logs
+sudo journalctl -u uvicorn -f
 
-# Restart app
-sudo systemctl restart aslrules
+# Restart
+systemctl restart uvicorn
 
-# Check status
-sudo systemctl status aslrules
+# Status
+systemctl status uvicorn
 
-# Reload nginx
-sudo systemctl reload nginx
+# Nginx
+sudo nginx -t && sudo systemctl reload nginx
 
-# Test nginx config
-sudo nginx -t
-
-# Renew SSL
+# SSL renewal
 sudo certbot renew --dry-run
 ```
 
-## 🐛 Quick Fixes
+## Quick Fixes
 
 ### App not starting
 ```bash
-sudo systemctl status aslrules
-sudo journalctl -u aslrules -n 50
+systemctl status uvicorn
+sudo journalctl -u uvicorn -n 50
 ```
 
 ### 502 Bad Gateway
 ```bash
-sudo systemctl restart aslrules
-sudo systemctl status nginx
+systemctl restart uvicorn
+systemctl status nginx
 ```
 
-### Port already in use
+### Port in use
 ```bash
 sudo lsof -i :8000
-sudo systemctl restart aslrules
+systemctl restart uvicorn
 ```
 
-## 📁 Important Files
+## Important Files
 
 | File | Location | Purpose |
 |------|----------|---------|
-| Environment | `/var/www/mysite2/.env` | API keys, secrets |
-| Database | `/var/www/mysite2/mysite.db` | User data |
+| Environment | `/root/fastapi_app/mysite2/.env` | API keys, secrets |
+| Database | `/root/fastapi_app/mysite2/mysite.db` | User data |
+| Vector Store | `/root/fastapi_app/mysite2/responses_api_config.json` | RAG config |
+| Eval Results | `/root/fastapi_app/mysite2/data/evals/` | Eval JSON files |
 | Nginx Config | `/etc/nginx/sites-available/aslrules` | Reverse proxy |
-| Service | `/etc/systemd/system/aslrules.service` | Systemd |
+| Service | systemd `uvicorn` | App process management |
 | SSL Certs | `/etc/letsencrypt/live/kevmo.us/` | TLS certificates |
 
-## 🔗 Full Documentation
+## Full Documentation
 
-- [PRODUCTION.md](../PRODUCTION.md) - Complete production guide
-- [README.md](../README.md) - Development setup
-- [deployment/README.md](README.md) - Deployment details
-
+- [PRODUCTION.md](../PRODUCTION.md) — Complete production guide
+- [README.md](../README.md) — Project overview
