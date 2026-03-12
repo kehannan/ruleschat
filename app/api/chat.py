@@ -18,6 +18,7 @@ from app.core.auth import SECRET_KEY, ALGORITHM
 from app.services.user_service import get_user_by_email
 from app.services.asl_service import get_asl_service
 from app.services.chat_history_service import get_chat_history_service
+from app.services.chat_log_service import append_chat_log
 from app.database import SessionLocal, get_db
 from app.models.user import User
 
@@ -403,14 +404,24 @@ async def websocket_chat(websocket: WebSocket):
                         
                         rag_sources = timing_data.get('rag_sources', [])
                         timing_without_sources = {k: v for k, v in timing_data.items() if k != 'rag_sources'}
-                        
+                        timing_without_sources["model"] = model_override or DEFAULT_MODEL
+
                         chat_history_service.add_message(
                             db, conversation_id, "assistant", full_response,
                             rag_sources=rag_sources,
                             timing_data=timing_without_sources
                         )
-                        
+
                         logging.info(f"💾 Saved messages to conversation {conversation_id}")
+
+                        # Append to JSONL log file
+                        append_chat_log(
+                            user_email=user.email,
+                            question=message,
+                            answer=full_response,
+                            model=model_override or DEFAULT_MODEL,
+                            timing_data=timing_without_sources,
+                        )
                         logging.info(f"📤 Sending {len(rag_sources)} RAG sources to frontend")
                         
                         # Send completion signal

@@ -191,3 +191,6 @@ specification/
 
 # Large PDF files
 static/rulebook/*.pdf
+
+# Chat logs
+data/logs/
