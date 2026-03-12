@@ -1,14 +1,17 @@
 """User profile and account management routes."""
+import os
 import secrets
 import string
-from fastapi import APIRouter, Request, Form, Depends, status
+from fastapi import APIRouter, Request, Form, Depends, Query, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user, get_password_hash, verify_password
 from app.database import get_db
 from app.models import User
+from app.models.chat import ChatMessage, ChatConversation
 from app.services.user_service import update_user_profile, get_user_by_email
 
 router = APIRouter()
@@ -212,4 +215,78 @@ async def admin_create_test_user(
         url="/admin?message=Test user created successfully&message_type=success",
         status_code=303
     )
+
+
+@router.get("/admin/logs", name="admin_logs", response_class=HTMLResponse)
+async def admin_logs(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Admin page showing recent chat Q&A interactions with timing and token data."""
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if user.email != admin_email:
+        return RedirectResponse(url="/", status_code=303)
+
+    per_page = 50
+    offset = (page - 1) * per_page
+
+    # Query assistant messages (each has timing_data) joined with conversation for user info
+    logs = (
+        db.query(ChatMessage, ChatConversation, User)
+        .join(ChatConversation, ChatMessage.conversation_id == ChatConversation.id)
+        .join(User, ChatConversation.user_id == User.id)
+        .filter(ChatMessage.role == "assistant")
+        .filter(ChatMessage.timing_data.isnot(None))
+        .order_by(desc(ChatMessage.created_at))
+        .offset(offset)
+        .limit(per_page + 1)
+        .all()
+    )
+
+    has_next = len(logs) > per_page
+    logs = logs[:per_page]
+
+    entries = []
+    for msg, conv, msg_user in logs:
+        # Get the preceding user message for the question
+        user_msg = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.conversation_id == msg.conversation_id,
+                ChatMessage.role == "user",
+                ChatMessage.created_at <= msg.created_at,
+            )
+            .order_by(desc(ChatMessage.created_at))
+            .first()
+        )
+
+        timing = msg.timing_data or {}
+        question = user_msg.content if user_msg else "N/A"
+        answer = msg.content
+
+        entries.append({
+            "timestamp": msg.created_at,
+            "user_email": msg_user.email,
+            "question": question,
+            "question_short": (question[:120] + "...") if len(question) > 120 else question,
+            "answer_short": (answer[:120] + "...") if len(answer) > 120 else answer,
+            "model": timing.get("model", "—"),
+            "input_tokens": timing.get("input_tokens", "—"),
+            "output_tokens": timing.get("output_tokens", "—"),
+            "ttft_ms": timing.get("ttft_ms"),
+            "total_time_ms": timing.get("total_time_ms"),
+        })
+
+    context = get_base_context(request, user)
+    context["entries"] = entries
+    context["page"] = page
+    context["has_next"] = has_next
+    context["has_prev"] = page > 1
+
+    return templates.TemplateResponse("admin_logs.html", context)
 
