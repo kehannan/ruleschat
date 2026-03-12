@@ -5,8 +5,8 @@
     <!-- Main Chat Area -->
     <div class="chat-wrapper" style="position: relative;">
         <select id="model-selector" class="model-selector" title="Select model">
-            <option value="gpt-5-mini">gpt5-mini (slower)</option>
             <option value="gpt-4.1-mini">gpt4.1-mini (faster)</option>
+            <option value="gpt-5-mini">gpt5-mini (slower)</option>
         </select>
         <div id="chat-container" class="chat-messages">
             <!-- Chat messages will be displayed here -->
@@ -55,7 +55,7 @@
     <div class="pdf-modal-backdrop" onclick="closePdfModal()"></div>
     <div class="pdf-modal-content">
         <div class="pdf-modal-header">
-            <h3>ASL Rulebook</h3>
+            <h3>ASL Rulebook (eASLRB v3.14)</h3>
             <button class="pdf-modal-close" onclick="closePdfModal()" title="Close">×</button>
         </div>
         <div class="pdf-modal-body">
@@ -64,7 +64,7 @@
                 <span id="pdf-page-info">Page 1 of 1</span>
                 <button id="pdf-next" onclick="pdfNextPage()" disabled>Next</button>
                 <button id="pdf-zoom-out" onclick="pdfZoomOut()">-</button>
-                <span id="pdf-zoom-level">100%</span>
+                <span id="pdf-zoom-level">150%</span>
                 <button id="pdf-zoom-in" onclick="pdfZoomIn()">+</button>
             </div>
             <div id="pdf-container" class="pdf-container">
@@ -213,6 +213,7 @@
                 isDisplaying = false;
                 const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
                 currentBotMessageContent.innerHTML = marked.parse(finalContent);
+                makeSectionReferencesClickable(currentBotMessageContent);
                 lastAssistantAnswer = finalContent;
 
                 const currentBotMessage = currentBotMessageContent.closest('.bot-message');
@@ -322,6 +323,7 @@
                     if (currentBotMessageContent) {
                         const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
                         currentBotMessageContent.innerHTML = marked.parse(finalContent);
+                        makeSectionReferencesClickable(currentBotMessageContent);
                         lastAssistantAnswer = finalContent;
 
                         const currentBotMessage = currentBotMessageContent.closest('.bot-message');
@@ -341,16 +343,17 @@
                     if (currentBotMessageContent) {
                         const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
                         currentBotMessageContent.innerHTML = marked.parse(finalContent);
+                        makeSectionReferencesClickable(currentBotMessageContent);
                         lastAssistantAnswer = finalContent;
 
                         const currentBotMessage = currentBotMessageContent.closest('.bot-message');
                         currentBotMessage.classList.remove('current');
 
-                        const ragSources = message.rag_sources || [];
-                        if (ragSources.length > 0) {
-                            console.log(`📚 Adding RAG sources section with ${ragSources.length} sources`);
-                            addRAGSourcesSection(currentBotMessage, ragSources);
-                        }
+                        // const ragSources = message.rag_sources || [];
+                        // if (ragSources.length > 0) {
+                        //     console.log(`📚 Adding RAG sources section with ${ragSources.length} sources`);
+                        //     addRAGSourcesSection(currentBotMessage, ragSources);
+                        // }
 
                         if (!currentBotMessage.nextElementSibling || !currentBotMessage.nextElementSibling.classList.contains('feedback-section')) {
                             addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
@@ -370,6 +373,9 @@
             } catch (err) {
                 // Not JSON, treat as regular text chunk
             }
+
+            // Preload PDF on first response chunk so it's ready when user clicks a link
+            preloadPdf();
 
             // Display chunk immediately with progressive markdown rendering
             const chatContainer = document.querySelector('#chat-container');
@@ -631,9 +637,34 @@
     let pdfDoc = null;
     let currentPage = 1;
     let totalPages = 0;
-    let scale = 2.0;
-    const pdfUrl = '/static/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf';
+    let scale = 1.5;
+    const pdfUrl = '/static/rulebook/eASLRB_v3_14_INHERIT_ZOOM.pdf';
     const devicePixelRatio = window.devicePixelRatio || 1;
+    let pdfPreloadStarted = false;
+    let pdfPreloadPromise = null;
+
+    function preloadPdf() {
+        if (pdfPreloadStarted) return;
+        pdfPreloadStarted = true;
+        console.log('PDF: Preloading started');
+        pdfPreloadPromise = pdfjsLib.getDocument(pdfUrl).promise.then(doc => {
+            pdfDoc = doc;
+            totalPages = doc.numPages;
+            console.log(`PDF: Preloaded (${totalPages} pages)`);
+            return doc;
+        }).catch(err => {
+            console.warn('PDF: Preload failed:', err);
+            pdfPreloadStarted = false;
+            pdfPreloadPromise = null;
+        });
+    }
+
+    // Section-to-page mapping (loaded from JSON)
+    let sectionPageMap = null;
+    fetch('/static/rulebook/section_pages.json')
+        .then(r => r.json())
+        .then(data => { sectionPageMap = data; console.log(`Loaded ${Object.keys(data).length} section→page mappings`); })
+        .catch(e => console.warn('Could not load section page map:', e));
 
     function makeSectionReferencesClickable(element) {
         const sectionPattern = /\b([A-Z]\d+\.\d+(?:\.\d+)?)\b/g;
@@ -733,9 +764,13 @@
 
         try {
             if (!pdfDoc) {
-                const loadingTask = pdfjsLib.getDocument(pdfUrl);
-                pdfDoc = await loadingTask.promise;
-                totalPages = pdfDoc.numPages;
+                if (pdfPreloadPromise) {
+                    await pdfPreloadPromise;
+                } else {
+                    const loadingTask = pdfjsLib.getDocument(pdfUrl);
+                    pdfDoc = await loadingTask.promise;
+                    totalPages = pdfDoc.numPages;
+                }
                 updatePageInfo();
             }
 
@@ -756,64 +791,74 @@
         }
     }
 
+    async function scrollToSectionOnPage(section) {
+        // Find the Y position of the section text on the current page and scroll to it
+        const page = await pdfDoc.getPage(currentPage);
+        const textContent = await page.getTextContent();
+        const viewport = page.getViewport({ scale: scale });
+
+        // Strip chapter letter for matching (PDF text uses "4.34" not "A4.34")
+        const bareSection = section.replace(/^[A-Z]/, '');
+        const sectionPattern = new RegExp(`\\b${bareSection.replace(/\./g, '\\.')}\\b`);
+
+        for (const item of textContent.items) {
+            if (sectionPattern.test(item.str)) {
+                // PDF Y is bottom-up in unscaled units. Convert to fraction of page height.
+                const pageHeight = page.getViewport({ scale: 1 }).height;
+                const fractionFromTop = 1 - (item.transform[5] / pageHeight);
+
+                // Apply fraction to the actual rendered canvas height on screen
+                const canvas = document.getElementById('pdf-canvas');
+                const renderedHeight = canvas.getBoundingClientRect().height;
+                const scrollY = fractionFromTop * renderedHeight;
+
+                const container = document.getElementById('pdf-container');
+                const offset = Math.max(0, scrollY - 20);
+                container.scrollTop = offset;
+                console.log(`PDF: Scrolled to "${section}" fraction=${fractionFromTop.toFixed(3)} scrollY=${Math.round(scrollY)} canvasH=${Math.round(renderedHeight)}`);
+                return;
+            }
+        }
+        // If not found, scroll to top
+        document.getElementById('pdf-container').scrollTop = 0;
+    }
+
     async function navigateToSection(section) {
         if (!pdfDoc) return;
 
-        try {
-            const destinations = await pdfDoc.getDestinations();
-
-            if (destinations) {
-                let destinationName = null;
-
-                if (destinations[section]) {
-                    destinationName = section;
-                } else {
-                    const variations = [
-                        section,
-                        section.replace(/([A-Z])(\d+)\.(\d+)/, '$1.$2.$3'),
-                        section.replace(/([A-Z])(\d+)\.(\d+)/, '$1 $2.$3'),
-                    ];
-
-                    for (const variant of variations) {
-                        if (destinations[variant]) {
-                            destinationName = variant;
-                            break;
-                        }
-                    }
-                }
-
-                if (destinationName) {
-                    const dest = await pdfDoc.getDestination(destinationName);
-                    if (dest && dest[0]) {
-                        const pageRef = dest[0];
-                        const pageIndex = await pdfDoc.getPageIndex(pageRef);
-                        currentPage = pageIndex + 1;
-                        await renderPage(currentPage);
-                        return;
-                    }
-                }
-            }
-        } catch (error) {
-            console.log('Could not use PDF destinations:', error);
+        // Try section→page mapping first (extracted from PDF bookmarks, most reliable)
+        if (sectionPageMap && sectionPageMap[section]) {
+            currentPage = sectionPageMap[section];
+            console.log(`PDF: Section map "${section}" → page ${currentPage}`);
+            await renderPage(currentPage);
+            await scrollToSectionOnPage(section);
+            return;
         }
 
-        let found = false;
-        const maxSearchPages = Math.min(200, totalPages);
-        for (let pageNum = 1; pageNum <= maxSearchPages; pageNum++) {
+        // Fallback: text search skipping index/TOC (first 42 pages)
+        const contentStartPage = 43;
+        const sectionPattern = new RegExp(`\\b${section.replace(/\./g, '\\.')}\\b`);
+        let foundPage = null;
+
+        const maxSearchPages = Math.min(totalPages, 700);
+        for (let pageNum = contentStartPage; pageNum <= maxSearchPages; pageNum++) {
             const page = await pdfDoc.getPage(pageNum);
             const textContent = await page.getTextContent();
             const text = textContent.items.map(item => item.str).join(' ');
 
-            const sectionPattern = new RegExp(`\\b${section.replace('.', '\\.')}\\b`);
             if (sectionPattern.test(text)) {
-                currentPage = pageNum;
-                await renderPage(currentPage);
-                found = true;
+                foundPage = pageNum;
                 break;
             }
         }
 
-        if (!found) {
+        if (foundPage) {
+            console.log(`PDF: Text search found "${section}" on page ${foundPage}`);
+            currentPage = foundPage;
+            await renderPage(currentPage);
+            await scrollToSectionOnPage(section);
+        } else {
+            console.log(`PDF: "${section}" not found, showing page 1`);
             currentPage = 1;
             await renderPage(currentPage);
         }

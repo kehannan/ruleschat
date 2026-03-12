@@ -33,7 +33,7 @@ logging.basicConfig(
 # Chunking parameters
 MAX_CHUNK_SIZE = 4000
 MIN_CHUNK_SIZE = 100
-OVERLAP = 200
+OVERLAP = 800  # Increased from 200 for better context preservation
 SMALL_SECTION_THRESHOLD = 200
 MAX_SMALL_PER_CHUNK = 3
 
@@ -766,7 +766,7 @@ def main():
     # PDF file path - now in the evals-sft repository
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    pdf_path = project_root.parent / "mysite2-evals-sft" / "rulebook" / "eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf"
+    pdf_path = project_root.parent / "mysite2-evals-sft" / "rulebook" / "eASLRB_v3_14_INHERIT_ZOOM.pdf"
     pdf_path = str(pdf_path.resolve())
     
     # Preview mode - quick look at first few pages

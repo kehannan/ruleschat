@@ -578,7 +578,7 @@ body:has(.chat-wrapper) #main-container {
   flex: 1;
   overflow: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background: #525252;
   padding: 1rem;
