@@ -73,11 +73,12 @@
     <div class="mb-4 p-3" style="background:#f8f9fa; border-left: 3px solid #2c3e50; border-radius: 0 4px 4px 0;">
       <p class="mb-1" style="font-size:13px;">
         <strong>gpt-5-mini is the clear winner on straightforward questions.</strong>
-        For single-rule lookups, recall accuracy hits 99% — the model reliably retrieves and applies rule text.
+        For questions that are well-scoped and not especially difficult, recall accuracy hits 99% —
+        the model reliably retrieves and applies rule text even when the answer spans multiple rules.
         Calc accuracy jumped to 86%, more than doubling gpt-4.1-mini's 50%.
-        These numbers reflect well-scoped questions; complex scenarios requiring multi-rule reasoning,
-        edge-case interactions, or chained calculations across sections are not yet in this eval set
-        and would likely show lower accuracy.
+        These numbers reflect questions that are clear and answerable; harder scenarios involving
+        edge-case interactions, ambiguous rule conflicts, or deep chained reasoning across sections
+        are not yet in this eval set and would likely show lower accuracy.
         The trade-off is speed: injecting up to 20 retrieved chunks (~20k tokens) into every query
         adds significant latency.
       </p>
