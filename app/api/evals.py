@@ -87,7 +87,7 @@ async def usage_daily(db: Session = Depends(get_db)):
     )
 
     # Aggregate by date + model
-    daily = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "count": 0})
+    daily = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "total_time_ms": 0, "count": 0})
     for msg in messages:
         timing = msg.timing_data or {}
         model = timing.get("model", "unknown")
@@ -97,6 +97,7 @@ async def usage_daily(db: Session = Depends(get_db)):
         key = (date_str, model)
         daily[key]["input_tokens"] += timing.get("input_tokens", 0) or 0
         daily[key]["output_tokens"] += timing.get("output_tokens", 0) or 0
+        daily[key]["total_time_ms"] += timing.get("total_time_ms", 0) or 0
         daily[key]["count"] += 1
 
     models = sorted(set(k[1] for k in daily.keys()))
@@ -109,13 +110,15 @@ async def usage_daily(db: Session = Depends(get_db)):
             "input_tokens": [],
             "output_tokens": [],
             "cost": [],
+            "total_time_s": [],
         }
         for date in dates:
             key = (date, model)
-            data = daily.get(key, {"input_tokens": 0, "output_tokens": 0, "count": 0})
+            data = daily.get(key, {"input_tokens": 0, "output_tokens": 0, "total_time_ms": 0, "count": 0})
             count = data["count"] or 1
             inp = data["input_tokens"] / count
             out = data["output_tokens"] / count
+            total_time_s = (data["total_time_ms"] / count) / 1000
             # Cost per question (per 1M tokens pricing)
             if "5-mini" in model:
                 cost = (inp * 0.40 + out * 1.60) / 1_000_000
@@ -125,6 +128,7 @@ async def usage_daily(db: Session = Depends(get_db)):
             series[model]["input_tokens"].append(round(inp))
             series[model]["output_tokens"].append(round(out))
             series[model]["cost"].append(round(cost, 6))
+            series[model]["total_time_s"].append(round(total_time_s, 1))
 
     return JSONResponse({"dates": dates, "models": models, "series": series})
 
