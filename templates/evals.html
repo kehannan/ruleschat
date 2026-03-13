@@ -78,6 +78,12 @@
         The trade-off is speed: injecting up to 20 retrieved chunks (~20k tokens) into every query
         adds significant latency compared to a shorter-context approach.
       </p>
+      <p class="mb-1" style="font-size:13px; color:#666;">
+        <strong>Caveat:</strong> these are straightforward, single-rule lookup questions.
+        Complex scenarios requiring multi-rule reasoning, edge-case interactions, or chained
+        calculations across sections would likely show lower accuracy and are not yet represented
+        in this eval set.
+      </p>
       <p class="mb-0" style="font-size:13px; color:#666;">
         All results confirmed by human review. The AI Judge flags borderline answers for manual verification
         before they are counted.
