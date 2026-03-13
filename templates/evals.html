@@ -3,6 +3,9 @@
 {% block title %}Evaluation Results{% endblock %}
 
 {% block extra_css %}
+<style>
+  .table > tbody > tr.row-highlight > td { background-color: #f0f0f0 !important; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -37,7 +40,7 @@
             </thead>
             <tbody>
               {% for run in eval_runs %}
-              <tr{% if loop.index <= 2 %} style="background-color:#f5f5f5;"{% endif %}>
+              <tr{% if loop.index <= 2 %} class="row-highlight"{% endif %}>
                 <td class="align-middle">{{ run.date }}</td>
                 <td class="align-middle">{{ run.model }}</td>
                 <td class="align-middle">{{ run.eval_name }}</td>
