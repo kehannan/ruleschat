@@ -24,7 +24,7 @@
             <thead class="table-primary align-bottom">
               <tr>
                 <th scope="col">DATE</th>
-                <th scope="col">MODEL <small class="fw-normal text-muted">(Base / Fine-tuned)</small></th>
+                <th scope="col">MODEL</th>
                 <th scope="col">EVAL</th>
                 <th scope="col">JUDGE</th>
                 <th scope="col">QUESTION TYPE</th>
@@ -83,15 +83,22 @@
         <h5 class="card-title mb-0">Production Usage</h5>
       </div>
       <div class="card-body">
-        <div class="row">
+        <div class="row mb-4">
           <div class="col-md-6">
-            <h6 class="text-center">Tokens per Question by Model</h6>
+            <h6 class="text-center">Tokens per Question</h6>
             <canvas id="tokensChart" height="250"></canvas>
           </div>
           <div class="col-md-6">
-            <h6 class="text-center">Cost per Question by Model</h6>
+            <h6 class="text-center">Cost per Question</h6>
             <canvas id="costChart" height="250"></canvas>
           </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="text-center">Response Time per Question</h6>
+            <canvas id="timeChart" height="250"></canvas>
+          </div>
+          <div class="col-md-6"></div>
         </div>
         <p class="text-muted small mt-2 mb-0 text-center">Data from production chat interactions</p>
       </div>
@@ -104,13 +111,13 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
 const MODEL_COLORS = {
-  'gpt-4.1-mini': { in: 'rgb(54, 162, 235)', out: 'rgb(54, 162, 235)', cost: 'rgb(54, 162, 235)' },
-  'gpt-5-mini':   { in: 'rgb(255, 99, 132)', out: 'rgb(255, 99, 132)', cost: 'rgb(255, 99, 132)' },
+  'gpt-4.1-mini': { in: 'rgba(54, 162, 235, 0.45)', out: 'rgb(54, 162, 235)', cost: 'rgb(54, 162, 235)' },
+  'gpt-5-mini':   { in: 'rgba(255, 99, 132, 0.45)', out: 'rgb(255, 99, 132)', cost: 'rgb(255, 99, 132)' },
 };
-const FALLBACK_COLORS = ['rgb(75, 192, 192)', 'rgb(255, 159, 64)', 'rgb(153, 102, 255)'];
 
 function getColor(model, idx) {
-  return MODEL_COLORS[model] || { in: FALLBACK_COLORS[idx % FALLBACK_COLORS.length], out: FALLBACK_COLORS[idx % FALLBACK_COLORS.length], cost: FALLBACK_COLORS[idx % FALLBACK_COLORS.length] };
+  const fallback = ['rgb(75, 192, 192)', 'rgb(255, 159, 64)', 'rgb(153, 102, 255)'][idx % 3];
+  return MODEL_COLORS[model] || { in: fallback, out: fallback, cost: fallback };
 }
 
 fetch('/api/usage/daily')
@@ -128,7 +135,6 @@ fetch('/api/usage/daily')
         data: s.dates.map((d, j) => ({ x: d, y: s.input_tokens[j] })),
         borderColor: colors.in,
         backgroundColor: colors.in,
-        borderDash: [5, 5],
         tension: 0.3,
         pointRadius: 3,
       });
@@ -178,6 +184,34 @@ fetch('/api/usage/daily')
         scales: {
           x: { type: 'category', title: { display: true, text: 'Date' } },
           y: { title: { display: true, text: 'Cost ($) / Question' }, beginAtZero: true },
+        },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+      },
+    });
+
+    // Time chart: 1 line per model
+    const timeDatasets = [];
+    data.models.forEach((model, i) => {
+      const s = data.series[model];
+      const colors = getColor(model, i);
+      timeDatasets.push({
+        label: model,
+        data: s.dates.map((d, j) => ({ x: d, y: s.total_time_s[j] })),
+        borderColor: colors.cost,
+        backgroundColor: colors.cost,
+        tension: 0.3,
+        pointRadius: 3,
+      });
+    });
+
+    new Chart(document.getElementById('timeChart'), {
+      type: 'line',
+      data: { datasets: timeDatasets },
+      options: {
+        responsive: true,
+        scales: {
+          x: { type: 'category', title: { display: true, text: 'Date' } },
+          y: { title: { display: true, text: 'Time (s) / Question' }, beginAtZero: true },
         },
         plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
       },
