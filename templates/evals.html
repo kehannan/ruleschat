@@ -76,6 +76,113 @@
       No evaluation results found. Run the evaluation script first.
     </div>
     {% endif %}
+
+    <!-- Usage Charts -->
+    <div class="card mt-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="card-title mb-0">Production Usage</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="text-center">Tokens by Model</h6>
+            <canvas id="tokensChart" height="250"></canvas>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-center">Cost by Model</h6>
+            <canvas id="costChart" height="250"></canvas>
+          </div>
+        </div>
+        <p class="text-muted small mt-2 mb-0 text-center">Data from production chat interactions</p>
+      </div>
+    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const MODEL_COLORS = {
+  'gpt-4.1-mini': { in: 'rgb(54, 162, 235)', out: 'rgb(54, 162, 235)', cost: 'rgb(54, 162, 235)' },
+  'gpt-5-mini':   { in: 'rgb(255, 99, 132)', out: 'rgb(255, 99, 132)', cost: 'rgb(255, 99, 132)' },
+};
+const FALLBACK_COLORS = ['rgb(75, 192, 192)', 'rgb(255, 159, 64)', 'rgb(153, 102, 255)'];
+
+function getColor(model, idx) {
+  return MODEL_COLORS[model] || { in: FALLBACK_COLORS[idx % FALLBACK_COLORS.length], out: FALLBACK_COLORS[idx % FALLBACK_COLORS.length], cost: FALLBACK_COLORS[idx % FALLBACK_COLORS.length] };
+}
+
+fetch('/api/usage/daily')
+  .then(r => r.json())
+  .then(data => {
+    if (!data.models || data.models.length === 0) return;
+
+    // Token chart: 4 lines (in + out per model)
+    const tokenDatasets = [];
+    data.models.forEach((model, i) => {
+      const s = data.series[model];
+      const colors = getColor(model, i);
+      tokenDatasets.push({
+        label: `${model} (in)`,
+        data: s.dates.map((d, j) => ({ x: d, y: s.input_tokens[j] })),
+        borderColor: colors.in,
+        backgroundColor: colors.in,
+        borderDash: [5, 5],
+        tension: 0.3,
+        pointRadius: 3,
+      });
+      tokenDatasets.push({
+        label: `${model} (out)`,
+        data: s.dates.map((d, j) => ({ x: d, y: s.output_tokens[j] })),
+        borderColor: colors.out,
+        backgroundColor: colors.out,
+        tension: 0.3,
+        pointRadius: 3,
+      });
+    });
+
+    new Chart(document.getElementById('tokensChart'), {
+      type: 'line',
+      data: { datasets: tokenDatasets },
+      options: {
+        responsive: true,
+        scales: {
+          x: { type: 'category', title: { display: true, text: 'Date' } },
+          y: { title: { display: true, text: 'Tokens' }, beginAtZero: true },
+        },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+      },
+    });
+
+    // Cost chart: 1 line per model
+    const costDatasets = [];
+    data.models.forEach((model, i) => {
+      const s = data.series[model];
+      const colors = getColor(model, i);
+      costDatasets.push({
+        label: model,
+        data: s.dates.map((d, j) => ({ x: d, y: s.cost[j] })),
+        borderColor: colors.cost,
+        backgroundColor: colors.cost,
+        tension: 0.3,
+        pointRadius: 3,
+      });
+    });
+
+    new Chart(document.getElementById('costChart'), {
+      type: 'line',
+      data: { datasets: costDatasets },
+      options: {
+        responsive: true,
+        scales: {
+          x: { type: 'category', title: { display: true, text: 'Date' } },
+          y: { title: { display: true, text: 'Cost ($)' }, beginAtZero: true },
+        },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+      },
+    });
+  })
+  .catch(e => console.warn('Could not load usage data:', e));
+</script>
 {% endblock %}

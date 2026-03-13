@@ -6,8 +6,13 @@ from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func, cast, String
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.chat import ChatMessage
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -66,6 +71,61 @@ async def evals_detail_page(request: Request, file_id: str = None, judge: str = 
     context.update(eval_data)
     context["judge_type"] = "Human Review" if use_human_review else "AI Judge"
     return templates.TemplateResponse("evals_detail.html", context)
+
+
+@router.get("/api/usage/daily", name="usage_daily")
+async def usage_daily(db: Session = Depends(get_db)):
+    """Return daily token usage and cost aggregated by model."""
+    # Query all assistant messages with timing_data
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.role == "assistant")
+        .filter(ChatMessage.timing_data.isnot(None))
+        .order_by(ChatMessage.created_at)
+        .all()
+    )
+
+    # Aggregate by date + model
+    daily = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "count": 0})
+    for msg in messages:
+        timing = msg.timing_data or {}
+        model = timing.get("model", "unknown")
+        date_str = msg.created_at.strftime("%Y-%m-%d") if msg.created_at else "unknown"
+        key = (date_str, model)
+        daily[key]["input_tokens"] += timing.get("input_tokens", 0) or 0
+        daily[key]["output_tokens"] += timing.get("output_tokens", 0) or 0
+        daily[key]["count"] += 1
+
+    # Build response grouped by model
+    models = sorted(set(k[1] for k in daily.keys()))
+    dates = sorted(set(k[0] for k in daily.keys()))
+
+    series = {}
+    for model in models:
+        series[model] = {
+            "dates": [],
+            "input_tokens": [],
+            "output_tokens": [],
+            "cost": [],
+        }
+        for date in dates:
+            key = (date, model)
+            data = daily.get(key, {"input_tokens": 0, "output_tokens": 0})
+            inp = data["input_tokens"]
+            out = data["output_tokens"]
+            # Cost per 1M tokens (approximate OpenAI pricing)
+            if "5-mini" in model:
+                cost = (inp * 0.40 + out * 1.60) / 1_000_000
+            elif "4.1-mini" in model:
+                cost = (inp * 0.40 + out * 1.60) / 1_000_000
+            else:
+                cost = (inp * 0.50 + out * 1.50) / 1_000_000
+            series[model]["dates"].append(date)
+            series[model]["input_tokens"].append(inp)
+            series[model]["output_tokens"].append(out)
+            series[model]["cost"].append(round(cost, 4))
+
+    return JSONResponse({"dates": dates, "models": models, "series": series})
 
 
 # --- Public Logic ---
