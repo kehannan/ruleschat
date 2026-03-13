@@ -5,18 +5,87 @@
 {% block extra_css %}
 <style>
   .table > tbody > tr.row-highlight > td { background-color: #f0f0f0 !important; }
+
+  .finding-card {
+    padding: 1.25rem 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    text-align: center;
+  }
+  .finding-card .finding-value {
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #2c3e50;
+    margin-bottom: 0.2rem;
+  }
+  .finding-card .finding-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888;
+    margin-bottom: 0.2rem;
+  }
+  .finding-card .finding-sub {
+    font-size: 12px;
+    color: #aaa;
+  }
+  .finding-card.finding-caution .finding-value { color: #c0392b; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="row">
   <div class="col-lg-10 mx-auto">
-    <h1 class="mb-3">Evaluation Results</h1>
+
+    <h1 class="mb-1">Evaluation Results</h1>
+    <p class="text-muted mb-4" style="font-size:13px;">
+      Accuracy measured across 213 questions — human-verified against expected answers.
+    </p>
+
+    <!-- Key Findings -->
+    <div class="row g-3 mb-3">
+      <div class="col-sm-4">
+        <div class="finding-card">
+          <div class="finding-value">99%</div>
+          <div class="finding-label">Recall accuracy</div>
+          <div class="finding-sub">gpt-5-mini · 183 / 185 questions</div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="finding-card">
+          <div class="finding-value">86%</div>
+          <div class="finding-label">Calc accuracy</div>
+          <div class="finding-sub">gpt-5-mini · 24 / 28 questions</div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="finding-card finding-caution">
+          <div class="finding-value">Slow</div>
+          <div class="finding-label">Response latency</div>
+          <div class="finding-sub">~20k token RAG context per query</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Narrative -->
+    <div class="mb-4 p-3" style="background:#f8f9fa; border-left: 3px solid #2c3e50; border-radius: 0 4px 4px 0;">
+      <p class="mb-1" style="font-size:13px;">
+        <strong>gpt-5-mini is the clear winner.</strong>
+        Recall accuracy is essentially solved at 99% — the model reliably retrieves and applies rule text.
+        Calc accuracy jumped to 86%, more than doubling gpt-4.1-mini's 50%.
+        The trade-off is speed: injecting up to 20 retrieved chunks (~20k tokens) into every query
+        adds significant latency compared to a shorter-context approach.
+      </p>
+      <p class="mb-0" style="font-size:13px; color:#666;">
+        All results confirmed by human review. The AI Judge flags borderline answers for manual verification
+        before they are counted.
+      </p>
+    </div>
 
     {% if error %}
-    <div class="alert alert-danger" role="alert">
-      {{ error }}
-    </div>
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
     {% endif %}
 
     {% if eval_runs is defined and eval_runs %}
@@ -61,19 +130,15 @@
         </div>
       </div>
     </div>
+
     <!-- Notes -->
-    <div class="mt-4 text-muted small">
-      <p class="mb-1"><strong>Column Notes:</strong></p>
-      <ul class="mb-0">
-        <li><strong>Model:</strong> Base model / fine-tuned model name</li>
-        <li><strong>Eval:</strong> Evaluation file corresponding to a section of the rulebook</li>
-        <li><strong>Question Type:</strong>
-          <span class="fw-bold">Calc</span> = Calculation questions (recall + computation),
-          <span class="fw-bold">Recall</span> = Pure rule recall questions
-        </li>
-        <li><strong>Note:</strong> Only Human Review results are shown (AI Judge results are hidden)</li>
-      </ul>
+    <div class="mt-3 text-muted small">
+      <strong>Notes:</strong>
+      <strong>Calc</strong> = calculation questions (recall + computation) ·
+      <strong>Recall</strong> = pure rule lookup ·
+      Only Human Review results are shown
     </div>
+
     {% elif not error %}
     <div class="alert alert-info" role="alert">
       No evaluation results found. Run the evaluation script first.
@@ -106,6 +171,7 @@
         <p class="text-muted small mt-2 mb-0 text-center">Data from production chat interactions</p>
       </div>
     </div>
+
   </div>
 </div>
 {% endblock %}
@@ -128,7 +194,6 @@ fetch('/api/usage/daily')
   .then(data => {
     if (!data.models || data.models.length === 0) return;
 
-    // Token chart: 4 lines (in + out per model)
     const tokenDatasets = [];
     data.models.forEach((model, i) => {
       const s = data.series[model];
@@ -136,24 +201,17 @@ fetch('/api/usage/daily')
       tokenDatasets.push({
         label: `${model} (in)`,
         data: s.dates.map((d, j) => ({ x: d, y: s.input_tokens[j] })),
-        borderColor: colors.in,
-        backgroundColor: colors.in,
-        tension: 0.3,
-        pointRadius: 3,
+        borderColor: colors.in, backgroundColor: colors.in, tension: 0.3, pointRadius: 3,
       });
       tokenDatasets.push({
         label: `${model} (out)`,
         data: s.dates.map((d, j) => ({ x: d, y: s.output_tokens[j] })),
-        borderColor: colors.out,
-        backgroundColor: colors.out,
-        tension: 0.3,
-        pointRadius: 3,
+        borderColor: colors.out, backgroundColor: colors.out, tension: 0.3, pointRadius: 3,
       });
     });
 
     new Chart(document.getElementById('tokensChart'), {
-      type: 'line',
-      data: { datasets: tokenDatasets },
+      type: 'line', data: { datasets: tokenDatasets },
       options: {
         responsive: true,
         scales: {
@@ -164,7 +222,6 @@ fetch('/api/usage/daily')
       },
     });
 
-    // Cost chart: 1 line per model
     const costDatasets = [];
     data.models.forEach((model, i) => {
       const s = data.series[model];
@@ -172,16 +229,12 @@ fetch('/api/usage/daily')
       costDatasets.push({
         label: model,
         data: s.dates.map((d, j) => ({ x: d, y: s.cost[j] })),
-        borderColor: colors.cost,
-        backgroundColor: colors.cost,
-        tension: 0.3,
-        pointRadius: 3,
+        borderColor: colors.cost, backgroundColor: colors.cost, tension: 0.3, pointRadius: 3,
       });
     });
 
     new Chart(document.getElementById('costChart'), {
-      type: 'line',
-      data: { datasets: costDatasets },
+      type: 'line', data: { datasets: costDatasets },
       options: {
         responsive: true,
         scales: {
@@ -192,7 +245,6 @@ fetch('/api/usage/daily')
       },
     });
 
-    // Time chart: 1 line per model
     const timeDatasets = [];
     data.models.forEach((model, i) => {
       const s = data.series[model];
@@ -200,16 +252,12 @@ fetch('/api/usage/daily')
       timeDatasets.push({
         label: model,
         data: s.dates.map((d, j) => ({ x: d, y: s.total_time_s[j] })),
-        borderColor: colors.cost,
-        backgroundColor: colors.cost,
-        tension: 0.3,
-        pointRadius: 3,
+        borderColor: colors.cost, backgroundColor: colors.cost, tension: 0.3, pointRadius: 3,
       });
     });
 
     new Chart(document.getElementById('timeChart'), {
-      type: 'line',
-      data: { datasets: timeDatasets },
+      type: 'line', data: { datasets: timeDatasets },
       options: {
         responsive: true,
         scales: {
