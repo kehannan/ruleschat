@@ -75,8 +75,9 @@ async def evals_detail_page(request: Request, file_id: str = None, judge: str = 
 
 @router.get("/api/usage/daily", name="usage_daily")
 async def usage_daily(db: Session = Depends(get_db)):
-    """Return daily token usage and cost aggregated by model."""
-    # Query all assistant messages with timing_data
+    """Return daily per-question average tokens and cost by model."""
+    ALLOWED_MODELS = {"gpt-5-mini", "gpt-4.1-mini"}
+
     messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.role == "assistant")
@@ -90,13 +91,14 @@ async def usage_daily(db: Session = Depends(get_db)):
     for msg in messages:
         timing = msg.timing_data or {}
         model = timing.get("model", "unknown")
+        if model not in ALLOWED_MODELS:
+            continue
         date_str = msg.created_at.strftime("%Y-%m-%d") if msg.created_at else "unknown"
         key = (date_str, model)
         daily[key]["input_tokens"] += timing.get("input_tokens", 0) or 0
         daily[key]["output_tokens"] += timing.get("output_tokens", 0) or 0
         daily[key]["count"] += 1
 
-    # Build response grouped by model
     models = sorted(set(k[1] for k in daily.keys()))
     dates = sorted(set(k[0] for k in daily.keys()))
 
@@ -110,20 +112,19 @@ async def usage_daily(db: Session = Depends(get_db)):
         }
         for date in dates:
             key = (date, model)
-            data = daily.get(key, {"input_tokens": 0, "output_tokens": 0})
-            inp = data["input_tokens"]
-            out = data["output_tokens"]
-            # Cost per 1M tokens (approximate OpenAI pricing)
+            data = daily.get(key, {"input_tokens": 0, "output_tokens": 0, "count": 0})
+            count = data["count"] or 1
+            inp = data["input_tokens"] / count
+            out = data["output_tokens"] / count
+            # Cost per question (per 1M tokens pricing)
             if "5-mini" in model:
                 cost = (inp * 0.40 + out * 1.60) / 1_000_000
-            elif "4.1-mini" in model:
-                cost = (inp * 0.40 + out * 1.60) / 1_000_000
             else:
-                cost = (inp * 0.50 + out * 1.50) / 1_000_000
+                cost = (inp * 0.40 + out * 1.60) / 1_000_000
             series[model]["dates"].append(date)
-            series[model]["input_tokens"].append(inp)
-            series[model]["output_tokens"].append(out)
-            series[model]["cost"].append(round(cost, 4))
+            series[model]["input_tokens"].append(round(inp))
+            series[model]["output_tokens"].append(round(out))
+            series[model]["cost"].append(round(cost, 6))
 
     return JSONResponse({"dates": dates, "models": models, "series": series})
 

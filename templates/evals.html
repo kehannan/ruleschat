@@ -85,11 +85,11 @@
       <div class="card-body">
         <div class="row">
           <div class="col-md-6">
-            <h6 class="text-center">Tokens by Model</h6>
+            <h6 class="text-center">Tokens per Question by Model</h6>
             <canvas id="tokensChart" height="250"></canvas>
           </div>
           <div class="col-md-6">
-            <h6 class="text-center">Cost by Model</h6>
+            <h6 class="text-center">Cost per Question by Model</h6>
             <canvas id="costChart" height="250"></canvas>
           </div>
         </div>
@@ -149,7 +149,7 @@ fetch('/api/usage/daily')
         responsive: true,
         scales: {
           x: { type: 'category', title: { display: true, text: 'Date' } },
-          y: { title: { display: true, text: 'Tokens' }, beginAtZero: true },
+          y: { title: { display: true, text: 'Tokens / Question' }, beginAtZero: true },
         },
         plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
       },
@@ -177,7 +177,7 @@ fetch('/api/usage/daily')
         responsive: true,
         scales: {
           x: { type: 'category', title: { display: true, text: 'Date' } },
-          y: { title: { display: true, text: 'Cost ($)' }, beginAtZero: true },
+          y: { title: { display: true, text: 'Cost ($) / Question' }, beginAtZero: true },
         },
         plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
       },
