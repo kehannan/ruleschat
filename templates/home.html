@@ -1,46 +1,323 @@
 {% extends "base.html" %}
 
+{% block title %}ASL Rules Assistant — AI Rules Chat for Advanced Squad Leader{% endblock %}
+
+{% block extra_css %}
+<style>
+  .hero {
+    padding: 2.5rem 0 2rem;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 2.5rem;
+  }
+  .hero h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+  }
+  .hero .lead {
+    font-size: 1.05rem;
+    color: #555;
+    max-width: 680px;
+    margin-bottom: 1.5rem;
+  }
+  .section-heading {
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888;
+    margin-bottom: 1.25rem;
+  }
+  .pipeline-step {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    height: 100%;
+  }
+  .pipeline-step .step-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #2c3e50;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pipeline-step h6 {
+    font-size: 0.875rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+  .pipeline-step p {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 0;
+  }
+  .capability-card {
+    padding: 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    height: 100%;
+  }
+  .capability-card .cap-icon {
+    font-size: 1.25rem;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+  }
+  .capability-card h6 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+  .capability-card p {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 0;
+  }
+  .stat-card {
+    text-align: center;
+    padding: 1.25rem 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+  }
+  .stat-card .stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #2c3e50;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+  .stat-card .stat-label {
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .section-divider {
+    margin: 2.5rem 0;
+    border-color: #e0e0e0;
+  }
+  .game-img {
+    border-radius: 4px;
+    object-fit: cover;
+    width: 100%;
+    max-height: 200px;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
   <div class="col-lg-10 mx-auto">
-    <h1 class="mb-3">Rules Chat for Advanced Squad Leader</h1>
-    <p class="lead mb-4">An assistant to answer rules questions about the wargame Advanced Squad Leader.</p>
 
-    {% if user_email is defined and user_email %}
-      <div class="mb-4">
-        <a href="{{ url_for('ruleschat') }}" class="btn btn-primary">Start Chatting</a>
-        <a href="{{ url_for('about') }}" class="btn btn-outline-secondary ms-2">Learn More</a>
-      </div>
-    {% else %}
-      <div class="mb-4">
-        <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Start</a>
-        <a href="{{ url_for('about') }}" class="btn btn-outline-secondary ms-2">Learn More</a>
-      </div>
-    {% endif %}
-
-    <div class="row mb-4">
-      <div class="col-md-6 mb-3">
-        <img src="{{ url_for('static', path='img/asl.jpg') }}" alt="ASL cover" class="img-fluid" style="max-height: 250px; width: auto;">
-      </div>
-      <div class="col-md-6 mb-3">
-        <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL board" class="img-fluid" style="max-height: 250px; width: auto;">
-      </div>
-      <div class="col-12 mb-3">
-        <img src="{{ url_for('static', path='img/rulebook.png') }}" alt="ASL Rulebook" class="img-fluid" style="max-height: 350px; width: auto;">
+    <!-- Hero -->
+    <div class="hero">
+      <h1>ASL Rules Assistant</h1>
+      <p class="lead">
+        A production AI system that answers rules questions about Advanced Squad Leader
+        using RAG, agentic function calling, and real-time streaming — built on OpenAI's Responses API.
+      </p>
+      <div class="d-flex flex-wrap gap-2">
+        {% if user_email is defined and user_email %}
+          <a href="{{ url_for('ruleschat') }}" class="btn btn-primary">Start Chatting</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Try It</a>
+        {% endif %}
+        <a href="{{ url_for('evals') }}" class="btn btn-outline-secondary">View Eval Results</a>
+        <a href="{{ url_for('about') }}" class="btn btn-outline-secondary">How It's Built</a>
       </div>
     </div>
 
-    <h2 class="mb-3">Demo</h2>
-    <video controls class="w-100 mb-4">
+    <!-- How It Works -->
+    <p class="section-heading">How It Works</p>
+    <div class="row g-3 mb-2">
+      <div class="col-md-4">
+        <div class="pipeline-step">
+          <div class="step-num">1</div>
+          <div>
+            <h6>Retrieve</h6>
+            <p>
+              The question is sent to OpenAI's Responses API with a <code>file_search</code> tool
+              pointed at a vector store of the ASL rulebook. Up to 20 relevant chunks are retrieved.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="pipeline-step">
+          <div class="step-num">2</div>
+          <div>
+            <h6>Reason</h6>
+            <p>
+              In agentic mode, the model can invoke function tools: die roll modifier (DRM)
+              calculations, Infantry Fire Table lookups, and blind hex geometry — executing
+              up to 5 iterations.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="pipeline-step">
+          <div class="step-num">3</div>
+          <div>
+            <h6>Respond</h6>
+            <p>
+              The answer streams in real time over WebSocket with cited rule section numbers
+              (e.g. A4.34). Citations are clickable links that open the rulebook PDF at the
+              exact page.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="text-muted small mb-0">
+      An optional verification pass re-evaluates the answer for completeness and calculation
+      accuracy before delivery.
+    </p>
+
+    <hr class="section-divider">
+
+    <!-- Technical Capabilities -->
+    <p class="section-heading">Technical Capabilities</p>
+    <div class="row g-3 mb-0">
+      <div class="col-sm-6 col-lg-3">
+        <div class="capability-card">
+          <div class="cap-icon"><i class="bi bi-database"></i></div>
+          <h6>RAG Pipeline</h6>
+          <p>OpenAI Responses API with <code>file_search</code>. Vector store of the 1M+ token rulebook; multimodal document converted to text chunks.</p>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="capability-card">
+          <div class="cap-icon"><i class="bi bi-lightning-charge"></i></div>
+          <h6>Streaming WebSocket</h6>
+          <p>Responses stream token-by-token to the browser. Markdown rendered progressively. TTFT, RAG latency, and cost surfaced per query.</p>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="capability-card">
+          <div class="cap-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+          <h6>In-Browser PDF Viewer</h6>
+          <p>Rule citations like "A4.34" open the rulebook PDF in a modal at the correct page, powered by a section-to-page index.</p>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="capability-card">
+          <div class="cap-icon"><i class="bi bi-graph-up"></i></div>
+          <h6>Automated Evals</h6>
+          <p>A zero-shot AI Judge evaluates answers against expected outputs. Results tracked by model, eval set, and question type with pass/fail rates.</p>
+        </div>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- Live Stats -->
+    <p class="section-heading">Production Stats <span class="fw-normal text-muted" style="text-transform:none;letter-spacing:0;font-size:11px;">(live averages from production chat)</span></p>
+    <div class="row g-3 mb-0" id="stats-row">
+      <div class="col-sm-4">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-time">—</div>
+          <div class="stat-label">Avg Response Time (s)</div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-cost">—</div>
+          <div class="stat-label">Avg Cost / Question</div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-tokens">—</div>
+          <div class="stat-label">Avg Tokens / Question</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- Demo -->
+    <p class="section-heading">Demo</p>
+    <video controls class="w-100 mb-1" style="border-radius:6px;border:1px solid #e0e0e0;">
       <source src="{{ url_for('static', path='videos/ruleschat.mp4') }}" type="video/mp4">
       Your browser does not support the video tag.
     </video>
+    <p class="text-muted small">Live demo showing a rules question, RAG retrieval, and cited response with PDF navigation.</p>
 
-    <hr class="my-4">
+    <hr class="section-divider">
+
+    <!-- Domain Context -->
+    <p class="section-heading">The Domain Challenge</p>
+    <div class="row g-3 mb-0">
+      <div class="col-md-6">
+        <p>
+          Advanced Squad Leader (ASL) is a tactical WW2 board game published by Avalon Hill in 1985.
+          Its rulebook exceeds 1 million tokens — roughly 2.5× the length of
+          <em>Deep Learning</em> by Goodfellow et al. — and contains dense cross-references,
+          exception tables, and numerical calculations that challenge standard RAG approaches.
+        </p>
+        <p class="mb-0">
+          Rules questions often require chaining multiple lookups (terrain modifiers, unit
+          statistics, fire table columns) that plain retrieval cannot resolve without
+          tool-augmented reasoning.
+        </p>
+      </div>
+      <div class="col-md-6">
+        <div class="row g-2">
+          <div class="col-6">
+            <img src="{{ url_for('static', path='img/asl.jpg') }}" alt="ASL game box" class="game-img">
+          </div>
+          <div class="col-6">
+            <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL game board" class="game-img">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="section-divider">
     <div class="text-muted small">
       <p class="mb-1">kevmo.us is not affiliated with Hasbro, Avalon Hill Games, Inc., or Multi-Man Publishing, Inc.</p>
       <p class="mb-0">Advanced Squad Leader is a trademark of Avalon Hill Games, Inc.</p>
     </div>
+
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+fetch('/api/usage/daily')
+  .then(r => r.json())
+  .then(data => {
+    let totalTime = 0, timeCount = 0;
+    let totalCost = 0, costCount = 0;
+    let totalTokens = 0, tokenCount = 0;
+
+    data.models.forEach(model => {
+      const s = data.series[model];
+      s.total_time_s.forEach(v => { if (v > 0) { totalTime += v; timeCount++; } });
+      s.cost.forEach(v => { if (v > 0) { totalCost += v; costCount++; } });
+      s.input_tokens.forEach((v, i) => {
+        const out = s.output_tokens[i] || 0;
+        if (v > 0 || out > 0) { totalTokens += v + out; tokenCount++; }
+      });
+    });
+
+    if (timeCount > 0)
+      document.getElementById('stat-time').textContent = (totalTime / timeCount).toFixed(1) + 's';
+    if (costCount > 0)
+      document.getElementById('stat-cost').textContent = '$' + (totalCost / costCount).toFixed(4);
+    if (tokenCount > 0)
+      document.getElementById('stat-tokens').textContent = Math.round(totalTokens / tokenCount).toLocaleString();
+  })
+  .catch(() => {}); // silently fail — stats are informational
+</script>
 {% endblock %}
