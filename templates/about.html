@@ -1,56 +1,175 @@
 {% extends "base.html" %}
 
-{% block title %}About - Rules Chat for Advanced Squad Leader (ASL){% endblock %}
+{% block title %}About — ASL Rules Assistant{% endblock %}
+
+{% block extra_css %}
+<style>
+  .about-section { margin-bottom: 2.5rem; }
+  .about-section h2 { margin-bottom: 0.5rem; }
+  .about-section .section-sub {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 1rem;
+  }
+  .tech-list { padding-left: 1.25rem; margin-bottom: 0; }
+  .tech-list li { margin-bottom: 0.4rem; font-size: 14px; }
+  .tool-row { margin-bottom: 0.75rem; }
+  .tool-name { font-weight: 600; font-size: 13px; }
+  .tool-desc { font-size: 13px; color: #555; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="row">
   <div class="col-lg-8">
-    <h1 class="mb-3">Rules Chat for Advanced Squad Leader (ASL)</h1>
-    
-    <p class="mb-4">
-      This is an experimental site to explore AI's ability to cost-effectively answer rules questions about the wargame Advanced Squad Leader.
-    </p>
+    <h1 class="mb-1">About This Project</h1>
+    <p class="text-muted mb-4" style="font-size:13px;">How it was built and why.</p>
 
-    <h2 class="mb-3">Advanced Squad Leader (ASL)</h2>
-    <p>
-      Advanced Squad Leader (ASL) is a tactical-level hex-and-counter board game covering WW2, 
-      published by Avalon Hill in 1985. See Wikipedia 
-      <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">entry</a>.
-    </p>
-    <p>
-      ASL provides a system that allows simulation of any squad-level battle from WW2 and the Korean War. 
-      The core rule book contains over 1 million tokens (in comparison, <em>Deep Learning</em> by Goodfellow et al. 
-      is approximately 400k–420k tokens).
-    </p>
-    <p>
-      ASL follows an "I go you go" model, where each Game Turn consists of two Player Turns, each made up of 
-      eight Phases. The player capable of movement in his Player Turn is termed the ATTACKER; his opponent is 
-      the DEFENDER. At the end of the eight Phases, the roles are reversed and the process repeats.
-    </p>
-    <p class="mb-4">
-      During the turn Phases, the players are moving, attacking and defending with their units - infantry, 
-      armored fighting vehicles, guns -- that are represented by counters on a board made-up of hexagons.
-    </p>
+    <!-- Motivation -->
+    <div class="about-section">
+      <h2>Motivation</h2>
+      <p>
+        Advanced Squad Leader has one of the most complex rulebooks of any board game — over 1 million tokens,
+        densely cross-referenced, with numerous tables, exceptions, and numerical calculations.
+        Looking up rules mid-game is slow and error-prone even for experienced players.
+      </p>
+      <p class="mb-0">
+        This project explores whether a RAG-based AI assistant can reliably answer rules questions
+        in a domain where precision matters: wrong answers cause incorrect gameplay, and the
+        source document is large enough that naive retrieval frequently misses relevant context.
+      </p>
+    </div>
 
-    <h2 class="mb-3">Rule Chat Approach</h2>
-    <p class="mb-4">
-      Rule Chat uses Retrieval-Augmented Generation (RAG) to answer questions about the ASL rulebook using 
-      the OpenAI Responses API and a vector store of the rulebook, which is a multimodal document that is 
-      converted into text (losing the multimodal context).
-    </p>
+    <hr class="my-4">
 
-    <h3 class="mb-3">Evaluation</h3>
-    <p class="mb-4">
-      We use evals and an zero-shot AI Judge to evaluate the performance of the Rules Chat. The evals consist 
-      of a prompt and expected answer. The AI Judge then evaluates the answer against the expected answer.
-    </p>
+    <!-- System Architecture -->
+    <div class="about-section">
+      <h2>System Architecture</h2>
+      <p class="section-sub">FastAPI · OpenAI Responses API · WebSocket streaming · PostgreSQL</p>
+      <p>
+        The backend is a FastAPI application running on Digital Ocean behind nginx.
+        Chat is delivered over a persistent WebSocket connection, streaming tokens to the browser
+        as they are generated.
+      </p>
+      <p>Each question goes through the following pipeline:</p>
+      <ul class="tech-list mb-3">
+        <li>
+          <strong>Retrieval</strong> — The question is sent to the
+          <a href="https://platform.openai.com/docs/api-reference/responses" target="_blank" rel="noopener noreferrer">OpenAI Responses API</a>
+          with a <code>file_search</code> tool configured against a vector store of the rulebook.
+          Up to 20 chunks are retrieved per query.
+        </li>
+        <li>
+          <strong>Generation</strong> — Retrieved chunks are injected into a structured system prompt
+          that instructs the model to cite specific rule section numbers (e.g. A4.34) in every answer.
+          Conversation history is included for multi-turn context.
+        </li>
+        <li>
+          <strong>Streaming</strong> — The response streams token-by-token over WebSocket.
+          The frontend renders markdown progressively and tracks time-to-first-token (TTFT),
+          RAG latency, total response time, token counts, and estimated cost per query.
+        </li>
+      </ul>
+      <p class="mb-0">
+        Rule citations in responses are rendered as clickable links that open an in-browser PDF
+        viewer at the exact rulebook page, using a pre-built section-to-page index.
+      </p>
+    </div>
+
+    <hr class="my-4">
+
+    <!-- Why It's Hard -->
+    <div class="about-section">
+      <h2>Why This Domain Is Challenging</h2>
+      <p>Several properties of the ASL rulebook make it harder than typical RAG use cases:</p>
+      <ul class="tech-list mb-0">
+        <li>
+          <strong>Scale</strong> — At 1M+ tokens, the rulebook is ~2.5× the length of
+          <em>Deep Learning</em> by Goodfellow et al. Standard context windows cannot hold it.
+        </li>
+        <li>
+          <strong>Cross-references</strong> — Rules routinely reference other rules by section number.
+          A complete answer often requires retrieving from multiple non-adjacent sections.
+        </li>
+        <li>
+          <strong>Multimodal content</strong> — The original document contains hex maps, counter
+          diagrams, and fire tables. Converting to text loses visual context that some rules depend on.
+        </li>
+        <li>
+          <strong>Precision</strong> — Answers that are mostly right but miss an exception or
+          modifier produce incorrect gameplay. Vague answers have no value here.
+        </li>
+        <li>
+          <strong>Calculations</strong> — Many questions require chaining lookups across multiple
+          tables (terrain effects, unit stats, fire columns) that pure retrieval cannot resolve alone.
+        </li>
+      </ul>
+    </div>
+
+    <hr class="my-4">
+
+    <!-- Agentic Tools -->
+    <div class="about-section">
+      <h2>Agentic Function Tools</h2>
+      <p>
+        The system includes a set of function-calling tools designed to handle calculation-heavy
+        questions that retrieval alone cannot answer reliably. These are implemented and available,
+        though not yet enabled in the default chat flow:
+      </p>
+      <div class="tool-row">
+        <div class="tool-name">calculate_drm</div>
+        <div class="tool-desc">Computes die roll modifiers (DRM) given terrain type, hindrance, leadership, and movement flags. Returns a step-by-step breakdown with rule references.</div>
+      </div>
+      <div class="tool-row">
+        <div class="tool-name">calculate_firepower</div>
+        <div class="tool-desc">Looks up the Infantry Fire Table (IFT) column for a given firepower value, applying halving, doubling, and residual fire logic.</div>
+      </div>
+      <div class="tool-row mb-0">
+        <div class="tool-name">calculate_blind_hexes</div>
+        <div class="tool-desc">Determines which hexes are hidden behind an obstacle given attacker and obstacle positions, per rule A6.4.</div>
+      </div>
+    </div>
+
+    <hr class="my-4">
+
+    <!-- Evaluation -->
+    <div class="about-section">
+      <h2>Evaluation</h2>
+      <p>
+        Model performance is tracked using a structured eval pipeline. Each eval consists of a
+        question and a reference answer. After running a model against the eval set, a zero-shot
+        AI Judge scores each response as <strong>Pass</strong>, <strong>Fail</strong>, or
+        <strong>Needs Review</strong>. Results flagged for review are assessed manually.
+      </p>
+      <p>
+        Evals are split by question type — <strong>Recall</strong> (pure rule lookup) and
+        <strong>Calc</strong> (recall + computation) — since these require different capabilities
+        and tend to show different failure modes.
+      </p>
+      <p class="mb-0">
+        <a href="{{ url_for('evals') }}">View current evaluation results →</a>
+      </p>
+    </div>
+
+    <hr class="my-4">
+
+    <!-- ASL Context -->
+    <div class="about-section mb-0">
+      <h2>About Advanced Squad Leader</h2>
+      <p class="mb-0">
+        Advanced Squad Leader is a tactical-level hex-and-counter wargame covering WW2 and the
+        Korean War, published by Avalon Hill in 1985. It is widely regarded as the most
+        comprehensive and detailed squad-level wargame ever published.
+        See the <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">Wikipedia entry</a>.
+      </p>
+    </div>
 
     <hr class="my-4">
     <div class="text-muted small">
       <p class="mb-1">kevmo.us is not affiliated with Hasbro, Avalon Hill Games, Inc., or Multi-Man Publishing, Inc.</p>
       <p class="mb-0">Advanced Squad Leader is a trademark of Avalon Hill Games, Inc.</p>
     </div>
+
   </div>
 </div>
 {% endblock %}
-
