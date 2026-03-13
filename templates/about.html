@@ -45,7 +45,7 @@
     <!-- System Architecture -->
     <div class="about-section">
       <h2>System Architecture</h2>
-      <p class="section-sub">FastAPI · OpenAI Responses API · WebSocket streaming · PostgreSQL</p>
+      <p class="section-sub">FastAPI · OpenAI Responses API · WebSocket streaming · PostgreSQL · AI Judge evaluation</p>
       <p>
         The backend is a FastAPI application running on Digital Ocean behind nginx.
         Chat is delivered over a persistent WebSocket connection, streaming tokens to the browser
@@ -70,9 +70,15 @@
           RAG latency, total response time, token counts, and estimated cost per query.
         </li>
       </ul>
-      <p class="mb-0">
+      <p>
         Rule citations in responses are rendered as clickable links that open an in-browser PDF
         viewer at the exact rulebook page, using a pre-built section-to-page index.
+      </p>
+      <p class="mb-0">
+        <strong>Evaluation</strong> — every chat interaction is logged. Structured eval sets are run
+        against the model and scored by a zero-shot AI Judge (Pass / Fail / Needs Review).
+        Flagged responses are then reviewed manually to confirm or correct the judge's verdict,
+        giving a human-verified accuracy signal across model versions.
       </p>
     </div>
 
