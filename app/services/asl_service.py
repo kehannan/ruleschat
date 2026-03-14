@@ -139,7 +139,8 @@ Your response:"""
         return_timing: bool = False,
         force_web_search: bool = False,
         use_verification: bool = False,
-        use_agentic: bool = False
+        use_agentic: bool = False,
+        max_chunks: Optional[int] = None
     ):
         """
         Get an answer to an ASL question.
@@ -187,11 +188,12 @@ Your response:"""
         
         try:
             # Build tools - base tools
+            num_chunks = max_chunks if max_chunks is not None else int(os.getenv("RAG_MAX_CHUNKS", "20"))
             tools = [
                 {
                     "type": "file_search",
                     "vector_store_ids": [self.config.vector_store_id],
-                    "max_num_results": int(os.getenv("RAG_MAX_CHUNKS", "20"))
+                    "max_num_results": num_chunks
                 }
             ]
             
