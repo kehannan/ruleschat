@@ -93,7 +93,6 @@
   <div>
     <span class="demo-counter">Demo mode &mdash; <span id="remaining-count">...</span> of 5 questions remaining today</span>
   </div>
-  <a href="{{ url_for('login') }}" class="demo-login-cta">Login for unlimited access &rarr;</a>
 </div>
 {% endblock %}
 
@@ -223,7 +222,7 @@
     const container = document.querySelector('#chat-container');
     const div = document.createElement('div');
     div.className = 'rate-limit-message';
-    div.innerHTML = msg + ' <a href="{{ url_for("login") }}">Create an account →</a>';
+    div.innerHTML = msg;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
     // Disable input

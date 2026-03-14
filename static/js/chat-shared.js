@@ -67,8 +67,8 @@ fetch('/static/rulebook/section_pages.json')
     .catch(e => console.warn('Could not load section page map:', e));
 
 function makeSectionReferencesClickable(element) {
-    const sectionPattern     = /\b([A-Z]\d+\.\d+(?:\.\d+)?)\b/g;
-    const sectionWithPage    = /\{([A-Z]\d+\.\d+(?:\.\d+)?)\|(\d+)\}/g;
+    const sectionPattern     = /\b([A-Z]?\d+\.\d+(?:\.\d+)?)\b/g;
+    const sectionWithPage    = /\{([A-Z]?\d+\.\d+(?:\.\d+)?)\|(\d+)\}/g;
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
 
     const textNodes = [];

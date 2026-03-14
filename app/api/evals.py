@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.chat import ChatMessage
+from app.models.demo import DemoMessage
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -86,9 +87,17 @@ async def usage_daily(db: Session = Depends(get_db)):
         .all()
     )
 
+    demo_messages = (
+        db.query(DemoMessage)
+        .filter(DemoMessage.role == "assistant")
+        .filter(DemoMessage.timing_data.isnot(None))
+        .order_by(DemoMessage.created_at)
+        .all()
+    )
+
     # Aggregate by date + model
     daily = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "total_time_ms": 0, "count": 0})
-    for msg in messages:
+    for msg in list(messages) + list(demo_messages):
         timing = msg.timing_data or {}
         model = timing.get("model", "unknown")
         if model not in ALLOWED_MODELS:
@@ -114,21 +123,27 @@ async def usage_daily(db: Session = Depends(get_db)):
         }
         for date in dates:
             key = (date, model)
-            data = daily.get(key, {"input_tokens": 0, "output_tokens": 0, "total_time_ms": 0, "count": 0})
-            count = data["count"] or 1
-            inp = data["input_tokens"] / count
-            out = data["output_tokens"] / count
-            total_time_s = (data["total_time_ms"] / count) / 1000
-            # Cost per question (per 1M tokens pricing)
-            if "5-mini" in model:
-                cost = (inp * 0.40 + out * 1.60) / 1_000_000
-            else:
-                cost = (inp * 0.40 + out * 1.60) / 1_000_000
+            data = daily.get(key)
             series[model]["dates"].append(date)
-            series[model]["input_tokens"].append(round(inp))
-            series[model]["output_tokens"].append(round(out))
-            series[model]["cost"].append(round(cost, 6))
-            series[model]["total_time_s"].append(round(total_time_s, 1))
+            if not data or data["count"] == 0:
+                series[model]["input_tokens"].append(None)
+                series[model]["output_tokens"].append(None)
+                series[model]["cost"].append(None)
+                series[model]["total_time_s"].append(None)
+            else:
+                count = data["count"]
+                inp = data["input_tokens"] / count
+                out = data["output_tokens"] / count
+                total_time_s = (data["total_time_ms"] / count) / 1000
+                if "5-mini" in model:
+                    cost = (inp * 0.25 + out * 1.00) / 1_000_000
+                else:
+                    cost = (inp * 0.40 + out * 1.60) / 1_000_000
+                has_tokens = (inp > 0 or out > 0)
+                series[model]["input_tokens"].append(round(inp) if has_tokens else None)
+                series[model]["output_tokens"].append(round(out) if has_tokens else None)
+                series[model]["cost"].append(round(cost, 6) if has_tokens else None)
+                series[model]["total_time_s"].append(round(total_time_s, 1) if total_time_s > 0 else None)
 
     return JSONResponse({"dates": dates, "models": models, "series": series})
 
