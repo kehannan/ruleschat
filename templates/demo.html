@@ -55,6 +55,22 @@
   .chat-messages {
     justify-content: flex-start !important;
   }
+  .model-selector {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 12px;
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+    outline: none;
+    z-index: 10;
+  }
+  .model-selector:hover { border-color: #999; }
+  .model-selector:focus { border-color: #6c5ce7; }
   .rate-limit-message {
     background: #fef9e7;
     border: 1px solid #f39c12;
@@ -76,7 +92,6 @@
 <div class="demo-banner" id="demo-banner">
   <div>
     <span class="demo-counter">Demo mode &mdash; <span id="remaining-count">...</span> of 5 questions remaining today</span>
-    <span class="demo-note ms-3">Using gpt-5-mini</span>
   </div>
   <a href="{{ url_for('login') }}" class="demo-login-cta">Login for unlimited access &rarr;</a>
 </div>
