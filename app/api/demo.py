@@ -20,7 +20,7 @@ templates = Jinja2Templates(directory="templates")
 
 DEMO_PER_IP_LIMIT = 5
 DEMO_GLOBAL_LIMIT = 250
-DEMO_MAX_CHUNKS = 5
+DEMO_MAX_CHUNKS = 20
 DEMO_MODEL = "gpt-5-mini"
 WEBSOCKET_PING_INTERVAL = 30
 
