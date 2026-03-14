@@ -155,6 +155,7 @@
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 </script>
+<script src="{{ url_for('static', path='/js/chat-shared.js') }}"></script>
 <script>
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = protocol + '//' + window.location.host + '/ws/demo/';
@@ -353,116 +354,5 @@
 
     submitBtn.addEventListener('click', sendMessage);
   });
-</script>
-<!-- Reuse section reference + PDF + latency scripts from chat page -->
-<script src="{{ url_for('static', path='/js/chat-utils.js') }}" onerror="void(0)"></script>
-<script>
-  // Inline fallbacks for section references, PDF viewer, and latency display
-  // (copied from ruleschat logic — shared via inline for now)
-
-  function makeSectionReferencesClickable(container) {
-    if (!container) return;
-    const sectionPattern = /\b([A-Z]\d+(?:\.\d+)*(?:[a-z])?)\b/g;
-    function processNode(node) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent;
-        if (!sectionPattern.test(text)) return;
-        sectionPattern.lastIndex = 0;
-        const frag = document.createDocumentFragment();
-        let last = 0, m;
-        while ((m = sectionPattern.exec(text)) !== null) {
-          if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-          const a = document.createElement('a');
-          a.href = '#';
-          a.className = 'rule-ref';
-          a.textContent = m[0];
-          a.dataset.section = m[0];
-          a.onclick = function(e) { e.preventDefault(); openPdfToSection(this.dataset.section); };
-          frag.appendChild(a);
-          last = m.index + m[0].length;
-        }
-        if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-        node.parentNode.replaceChild(frag, node);
-      } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== 'A' && node.tagName !== 'CODE') {
-        Array.from(node.childNodes).forEach(processNode);
-      }
-    }
-    processNode(container);
-  }
-
-  // PDF viewer
-  let pdfDoc = null, pdfPage = 1, pdfScale = 1.5, pdfLoaded = false;
-  const PDF_URL = "{{ url_for('static', path='rulebook/eASLRB_v3.14.pdf') }}";
-  const SECTION_PAGES_URL = "{{ url_for('static', path='rulebook/section_pages.json') }}";
-  let sectionPages = {};
-
-  fetch(SECTION_PAGES_URL).then(r => r.json()).then(d => { sectionPages = d; }).catch(() => {});
-
-  function preloadPdf() {
-    if (pdfLoaded || pdfDoc) return;
-    pdfLoaded = true;
-    pdfjsLib.getDocument(PDF_URL).promise.then(doc => {
-      pdfDoc = doc;
-      document.getElementById('pdf-page-info').textContent = `Page 1 of ${doc.numPages}`;
-    }).catch(() => {});
-  }
-
-  function openPdfToSection(section) {
-    const page = sectionPages[section] || 1;
-    openPdfModal(page);
-  }
-
-  function openPdfModal(page) {
-    document.getElementById('pdf-modal').style.display = 'flex';
-    if (pdfDoc) {
-      renderPdfPage(page);
-    } else {
-      document.getElementById('pdf-loading').style.display = 'block';
-      pdfjsLib.getDocument(PDF_URL).promise.then(doc => {
-        pdfDoc = doc;
-        renderPdfPage(page);
-      });
-    }
-  }
-
-  function closePdfModal() {
-    document.getElementById('pdf-modal').style.display = 'none';
-  }
-
-  function renderPdfPage(pageNum) {
-    if (!pdfDoc) return;
-    pageNum = Math.max(1, Math.min(pageNum, pdfDoc.numPages));
-    pdfPage = pageNum;
-    document.getElementById('pdf-loading').style.display = 'block';
-    pdfDoc.getPage(pageNum).then(page => {
-      const viewport = page.getViewport({ scale: pdfScale });
-      const canvas = document.getElementById('pdf-canvas');
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-      page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise.then(() => {
-        document.getElementById('pdf-loading').style.display = 'none';
-        document.getElementById('pdf-page-info').textContent = `Page ${pdfPage} of ${pdfDoc.numPages}`;
-        document.getElementById('pdf-prev').disabled = pdfPage <= 1;
-        document.getElementById('pdf-next').disabled = pdfPage >= pdfDoc.numPages;
-      });
-    });
-  }
-
-  function pdfPrevPage() { renderPdfPage(pdfPage - 1); }
-  function pdfNextPage() { renderPdfPage(pdfPage + 1); }
-  function pdfZoomIn() { pdfScale = Math.min(pdfScale + 0.25, 3); renderPdfPage(pdfPage); document.getElementById('pdf-zoom-level').textContent = Math.round(pdfScale * 100) + '%'; }
-  function pdfZoomOut() { pdfScale = Math.max(pdfScale - 0.25, 0.5); renderPdfPage(pdfPage); document.getElementById('pdf-zoom-level').textContent = Math.round(pdfScale * 100) + '%'; }
-
-  // Latency display
-  function displayLatencyTimeline(timing) {
-    const el = document.getElementById('latency-display');
-    if (!el || !timing) return;
-    const parts = [];
-    if (timing.ttft_ms) parts.push(`TTFT: ${timing.ttft_ms}ms`);
-    if (timing.total_time_ms) parts.push(`Total: ${(timing.total_time_ms / 1000).toFixed(1)}s`);
-    if (timing.input_tokens) parts.push(`Tokens: ${timing.input_tokens + (timing.output_tokens || 0)}`);
-    el.textContent = parts.join(' · ');
-    el.style.display = parts.length ? 'block' : 'none';
-  }
 </script>
 {% endblock %}
