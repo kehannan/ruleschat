@@ -132,10 +132,12 @@ async def websocket_demo(websocket: WebSocket):
                     cmd = json.loads(raw_message)
                     if cmd.get("type") == "chat" and cmd.get("text"):
                         message = cmd["text"].strip()
+                        selected_model = cmd.get("model")
                     else:
                         continue
                 except json.JSONDecodeError:
                     message = raw_message.strip()
+                    selected_model = None
 
                 if not message:
                     continue
@@ -166,12 +168,15 @@ async def websocket_demo(websocket: WebSocket):
                     _increment(db, ip, today)
                     remaining_after = remaining - 1
 
+                    allowed_models = {"gpt-5-mini", "gpt-4.1-mini"}
+                    model = selected_model if selected_model in allowed_models else DEMO_MODEL
+
                     asl_service = get_asl_service()
                     stream, timing_data = asl_service.get_answer(
                         message,
                         stream=True,
                         return_timing=True,
-                        model=DEMO_MODEL,
+                        model=model,
                         max_chunks=DEMO_MAX_CHUNKS,
                     )
 
@@ -186,7 +191,7 @@ async def websocket_demo(websocket: WebSocket):
                     if response_received:
                         rag_sources = timing_data.get("rag_sources", [])
                         timing_clean = {k: v for k, v in timing_data.items() if k != "rag_sources"}
-                        timing_clean["model"] = DEMO_MODEL
+                        timing_clean["model"] = model
 
                         await websocket.send_text(json.dumps({
                             "type": "stream_complete",

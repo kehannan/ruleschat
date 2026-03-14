@@ -85,6 +85,10 @@
 {% block content %}
 <div class="chat-layout">
   <div class="chat-wrapper" style="position: relative;">
+    <select id="model-selector" class="model-selector" title="Select model">
+      <option value="gpt-4.1-mini">gpt4.1-mini (faster)</option>
+      <option value="gpt-5-mini">gpt5-mini (slower)</option>
+    </select>
     <div id="chat-container" class="chat-messages">
       <div class="welcome-message">
         <div class="message-content">
@@ -309,7 +313,8 @@
     input.value = '';
     input.style.height = 'auto';
 
-    chatSocket.send(JSON.stringify({ type: 'chat', text: message }));
+    const model = document.getElementById('model-selector').value;
+    chatSocket.send(JSON.stringify({ type: 'chat', text: message, model: model }));
   }
 
   // Auto-resize textarea
