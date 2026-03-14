@@ -14,12 +14,12 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
-from app.models import User, Invitation, AnswerFeedback, ChatConversation, ChatMessage
+from app.models import User, Invitation, AnswerFeedback, ChatConversation, ChatMessage, DemoUsage
 from app.core.auth import get_current_user
 from app.services.user_service import update_user_profile, get_user_by_email
 
 # Import routers
-from app.api import auth, user, chat, evals
+from app.api import auth, user, chat, evals, demo
 
 # Load environment variables
 load_dotenv()
@@ -66,6 +66,7 @@ app.include_router(auth.router, tags=["authentication"])
 app.include_router(user.router, tags=["user"])
 app.include_router(chat.router, tags=["chat"])
 app.include_router(evals.router, tags=["evals"])
+app.include_router(demo.router, tags=["demo"])
 
 
 # Admin dependency

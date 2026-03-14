@@ -128,7 +128,8 @@
         {% if user_email is defined and user_email %}
           <a href="{{ url_for('ruleschat') }}" class="btn btn-primary">Start Chatting</a>
         {% else %}
-          <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Try It</a>
+          <a href="{{ url_for('demo') }}" class="btn btn-primary">Try the Demo</a>
+          <a href="{{ url_for('login') }}" class="btn btn-outline-secondary">Login</a>
         {% endif %}
         <a href="{{ url_for('evals') }}" class="btn btn-outline-secondary">View Eval Results</a>
         <a href="{{ url_for('about') }}" class="btn btn-outline-secondary">How It's Built</a>
