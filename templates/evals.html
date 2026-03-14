@@ -13,7 +13,7 @@
     text-align: center;
   }
   .finding-card .finding-value {
-    font-size: 2.25rem;
+    font-size: 1.75rem;
     font-weight: 700;
     line-height: 1;
     color: #2c3e50;
@@ -41,7 +41,7 @@
 
     <h1 class="mb-1">Evaluation Results</h1>
     <p class="text-muted mb-4" style="font-size:13px;">
-      Accuracy measured across 213 <strong>straightforward rule lookup questions</strong> — human-verified against expected answers.
+      Accuracy measured across 213 <strong>basic rule lookup questions</strong> — human-verified against expected answers.
     </p>
 
     <!-- Key Findings -->
@@ -57,36 +57,35 @@
         <div class="finding-card">
           <div class="finding-value">86%</div>
           <div class="finding-label">Calc accuracy</div>
-          <div class="finding-sub">gpt-5-mini · 24 / 28 questions</div>
+          <div class="finding-sub">gpt-5-mini · 50% for gpt-4.1-mini</div>
         </div>
       </div>
       <div class="col-sm-4">
         <div class="finding-card finding-caution">
-          <div class="finding-value">Slow</div>
-          <div class="finding-label">Response latency</div>
+          <div class="finding-value">Too Slow</div>
+          <div class="finding-label">gpt-5-mini latency</div>
           <div class="finding-sub">~20k token RAG context per query</div>
         </div>
       </div>
     </div>
 
     <!-- Narrative -->
-    <div class="mb-4 p-3" style="background:#f8f9fa; border-left: 3px solid #2c3e50; border-radius: 0 4px 4px 0;">
-      <p class="mb-1" style="font-size:13px;">
-        <strong>gpt-5-mini is the clear winner on straightforward questions.</strong>
-        Both models tested are mini-class models, chosen deliberately for cost efficiency —
-        full-sized models would be expected to perform better but at significantly higher cost per query.
-        For questions that are well-scoped and not especially difficult, recall accuracy hits 99% —
-        the model reliably retrieves and applies rule text even when the answer spans multiple rules.
-        Calc accuracy jumped to 86%, more than doubling gpt-4.1-mini's 50%.
-        These numbers reflect questions that are clear and answerable; harder scenarios involving
-        edge-case interactions, ambiguous rule conflicts, or deep chained reasoning across sections
-        are not yet in this eval set and would likely show lower accuracy.
-        The trade-off is speed: injecting up to 20 retrieved chunks (~20k tokens) into every query
-        adds significant latency.
+    <div class="mb-4 p-3" style="background:#f8f9fa; border-left: 3px solid #2c3e50; border-radius: 0 4px 4px 0; font-size:13px;">
+      <p class="mb-2">
+        <strong>gpt-5-mini handles basic questions well — but it's too slow.</strong>
+        99% recall and 86% calc accuracy on basic, single-rule questions is strong,
+        but the ~20k token RAG context injected per query pushes response times to an unacceptable range for a chat interface.
       </p>
-      <p class="mb-0" style="font-size:13px; color:#666;">
-        All results confirmed by human review. The AI Judge flags borderline answers for manual verification
-        before they are counted.
+      <p class="mb-2">
+        <strong>gpt-4.1-mini is faster and solid on recall, but falls apart on calc.</strong>
+        Recall accuracy is competitive, and latency is much more acceptable.
+        The problem is calculation: at roughly 50% calc accuracy, it frequently gets the arithmetic wrong
+        even when it retrieves the right rules — making it unreliable for questions that require any computation.
+      </p>
+      <p class="mb-0" style="color:#666;">
+        Both models are mini-class, chosen for cost. These results cover basic questions only —
+        harder scenarios with edge-case interactions or chained reasoning are not yet in this eval set.
+        All results confirmed by human review.
       </p>
     </div>
 
@@ -98,7 +97,7 @@
     <div class="card">
       <div class="card-body">
         <div class="table-responsive">
-          <table class="table table-bordered align-middle">
+          <table class="table table-bordered align-middle table-sm" style="font-size: 13px;">
             <thead class="table-primary align-bottom">
               <tr>
                 <th scope="col">DATE</th>

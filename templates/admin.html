@@ -17,10 +17,19 @@
                     </div>
                 {% endif %}
 
-                <div class="mb-4">
+                <div class="mb-4 d-flex align-items-center gap-4">
                     <a href="{{ url_for('admin_logs') }}" class="btn btn-outline-primary">
                         <i class="bi bi-journal-text"></i> View Chat Logs
                     </a>
+                    <form method="post" action="{{ url_for('admin_demo_mode') }}" class="d-flex align-items-center gap-2 mb-0">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="demoModeSwitch"
+                                onchange="this.form.querySelector('input[name=enabled]').value = this.checked ? 'true' : 'false'; this.form.submit();"
+                                {% if demo_enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="demoModeSwitch">Demo mode</label>
+                        </div>
+                        <input type="hidden" name="enabled" value="{{ 'true' if demo_enabled else 'false' }}">
+                    </form>
                 </div>
 
                 <!-- User Management Section -->
