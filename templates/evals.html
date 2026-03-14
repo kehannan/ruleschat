@@ -207,12 +207,12 @@ fetch('/api/usage/daily')
       tokenDatasets.push({
         label: `${model} (in)`,
         data: s.dates.map((d, j) => ({ x: d, y: s.input_tokens[j] })),
-        borderColor: colors.in, backgroundColor: colors.in, tension: 0.3, pointRadius: 3,
+        borderColor: colors.in, backgroundColor: colors.in, tension: 0.3, pointRadius: 3, spanGaps: false,
       });
       tokenDatasets.push({
         label: `${model} (out)`,
         data: s.dates.map((d, j) => ({ x: d, y: s.output_tokens[j] })),
-        borderColor: colors.out, backgroundColor: colors.out, tension: 0.3, pointRadius: 3,
+        borderColor: colors.out, backgroundColor: colors.out, tension: 0.3, pointRadius: 3, spanGaps: false,
       });
     });
 
@@ -235,7 +235,7 @@ fetch('/api/usage/daily')
       costDatasets.push({
         label: model,
         data: s.dates.map((d, j) => ({ x: d, y: s.cost[j] })),
-        borderColor: colors.cost, backgroundColor: colors.cost, tension: 0.3, pointRadius: 3,
+        borderColor: colors.cost, backgroundColor: colors.cost, tension: 0.3, pointRadius: 3, spanGaps: false,
       });
     });
 
@@ -258,7 +258,7 @@ fetch('/api/usage/daily')
       timeDatasets.push({
         label: model,
         data: s.dates.map((d, j) => ({ x: d, y: s.total_time_s[j] })),
-        borderColor: colors.cost, backgroundColor: colors.cost, tension: 0.3, pointRadius: 3,
+        borderColor: colors.cost, backgroundColor: colors.cost, tension: 0.3, pointRadius: 3, spanGaps: false,
       });
     });
 

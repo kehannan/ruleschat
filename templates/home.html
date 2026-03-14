@@ -129,7 +129,6 @@
           <a href="{{ url_for('ruleschat') }}" class="btn btn-primary">Start Chatting</a>
         {% else %}
           <a href="{{ url_for('demo') }}" class="btn btn-primary">Try the Demo</a>
-          <a href="{{ url_for('login') }}" class="btn btn-outline-secondary">Login</a>
         {% endif %}
         <a href="{{ url_for('evals') }}" class="btn btn-outline-secondary">View Eval Results</a>
         <a href="{{ url_for('about') }}" class="btn btn-outline-secondary">How It's Built</a>
@@ -218,25 +217,26 @@
 
     <!-- Live Stats -->
     <p class="section-heading">Production Stats <span class="fw-normal text-muted" style="text-transform:none;letter-spacing:0;font-size:11px;">(live averages from production chat)</span></p>
-    <div class="row g-3 mb-0" id="stats-row">
-      <div class="col-sm-4">
-        <div class="stat-card">
-          <div class="stat-value" id="stat-time">—</div>
-          <div class="stat-label">Avg Response Time (s)</div>
-        </div>
-      </div>
-      <div class="col-sm-4">
-        <div class="stat-card">
-          <div class="stat-value" id="stat-cost">—</div>
-          <div class="stat-label">Avg Cost / Question</div>
-        </div>
-      </div>
-      <div class="col-sm-4">
-        <div class="stat-card">
-          <div class="stat-value" id="stat-tokens">—</div>
-          <div class="stat-label">Avg Tokens / Question</div>
-        </div>
-      </div>
+
+    <div class="row g-2 mb-1 text-muted small" style="padding: 0 4px;">
+      <div class="col-3"></div>
+      <div class="col-3 text-center fw-semibold">Avg Response Time</div>
+      <div class="col-3 text-center fw-semibold">Avg Cost / Q</div>
+      <div class="col-3 text-center fw-semibold">Avg Tokens / Q</div>
+    </div>
+
+    <div class="row g-2 mb-2 align-items-center" id="stats-row-gpt5">
+      <div class="col-3 text-muted small fw-semibold" style="padding-left:4px;">gpt-5-mini</div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-time-gpt5mini">—</div></div></div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-cost-gpt5mini">—</div></div></div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-tokens-gpt5mini">—</div></div></div>
+    </div>
+
+    <div class="row g-2 mb-0 align-items-center" id="stats-row-gpt41">
+      <div class="col-3 text-muted small fw-semibold" style="padding-left:4px;">gpt-4.1-mini</div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-time-gpt41mini">—</div></div></div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-cost-gpt41mini">—</div></div></div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-tokens-gpt41mini">—</div></div></div>
     </div>
 
     <hr class="section-divider">
@@ -294,26 +294,31 @@
 fetch('/api/usage/daily')
   .then(r => r.json())
   .then(data => {
-    let totalTime = 0, timeCount = 0;
-    let totalCost = 0, costCount = 0;
-    let totalTokens = 0, tokenCount = 0;
+    const modelIds = { 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini' };
 
     data.models.forEach(model => {
+      const suffix = modelIds[model];
+      if (!suffix) return;
       const s = data.series[model];
+
+      let totalTime = 0, timeCount = 0;
+      let totalCost = 0, costCount = 0;
+      let totalTokens = 0, tokenCount = 0;
+
       s.total_time_s.forEach(v => { if (v > 0) { totalTime += v; timeCount++; } });
       s.cost.forEach(v => { if (v > 0) { totalCost += v; costCount++; } });
       s.input_tokens.forEach((v, i) => {
         const out = s.output_tokens[i] || 0;
         if (v > 0 || out > 0) { totalTokens += v + out; tokenCount++; }
       });
-    });
 
-    if (timeCount > 0)
-      document.getElementById('stat-time').textContent = (totalTime / timeCount).toFixed(1) + 's';
-    if (costCount > 0)
-      document.getElementById('stat-cost').textContent = '$' + (totalCost / costCount).toFixed(4);
-    if (tokenCount > 0)
-      document.getElementById('stat-tokens').textContent = Math.round(totalTokens / tokenCount).toLocaleString();
+      if (timeCount > 0)
+        document.getElementById('stat-time-' + suffix).textContent = (totalTime / timeCount).toFixed(1) + 's';
+      if (costCount > 0)
+        document.getElementById('stat-cost-' + suffix).textContent = '$' + (totalCost / costCount).toFixed(4);
+      if (tokenCount > 0)
+        document.getElementById('stat-tokens-' + suffix).textContent = Math.round(totalTokens / tokenCount).toLocaleString();
+    });
   })
   .catch(() => {}); // silently fail — stats are informational
 </script>

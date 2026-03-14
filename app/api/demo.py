@@ -12,7 +12,7 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 from sqlalchemy import func
 
 from app.database import SessionLocal
-from app.models.demo import DemoUsage
+from app.models.demo import DemoUsage, DemoMessage
 from app.services.asl_service import get_asl_service
 
 router = APIRouter()
@@ -192,6 +192,17 @@ async def websocket_demo(websocket: WebSocket):
                         rag_sources = timing_data.get("rag_sources", [])
                         timing_clean = {k: v for k, v in timing_data.items() if k != "rag_sources"}
                         timing_clean["model"] = model
+
+                        # Log user + assistant messages for stats
+                        log_db = SessionLocal()
+                        try:
+                            log_db.add(DemoMessage(ip_address=ip, role="user", content=message))
+                            log_db.add(DemoMessage(ip_address=ip, role="assistant", content=full_response, timing_data=timing_clean))
+                            log_db.commit()
+                        except Exception as log_err:
+                            logging.warning(f"Demo message log failed: {log_err}")
+                        finally:
+                            log_db.close()
 
                         await websocket.send_text(json.dumps({
                             "type": "stream_complete",
