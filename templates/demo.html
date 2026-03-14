@@ -116,6 +116,12 @@
           rows="1"></textarea>
         <button id="chat-message-submit" class="send-button" type="button" title="Send message">Send</button>
       </div>
+      <div style="margin-top: 6px;">
+        <button id="surprise-btn" type="button" class="btn btn-sm btn-outline-secondary" title="Try a random question from the eval set">
+          🎲 Surprise Me
+        </button>
+        <span class="text-muted" style="font-size: 11px; margin-left: 6px;">— random question from the eval set</span>
+      </div>
       <div id="connection-status" class="connection-status">Connecting...</div>
       <div id="latency-display" class="latency-display" style="display: none;"></div>
     </div>
@@ -163,6 +169,7 @@
   const maxReconnectAttempts = 3;
   let lastAssistantAnswer = '';
   let lastUserQuestion = '';
+  let isEvalQuestion = false;
 
   function updateCounter(remaining) {
     const el = document.getElementById('remaining-count');
@@ -214,6 +221,13 @@
     lastAssistantAnswer = raw;
     const msgEl = contentEl.closest('.bot-message');
     msgEl.classList.remove('current');
+    if (isEvalQuestion) {
+      const note = document.createElement('div');
+      note.style.cssText = 'font-size:11px; color:#aaa; margin-top:6px;';
+      note.textContent = '⚙ This question is from the evaluation set.';
+      msgEl.appendChild(note);
+      isEvalQuestion = false;
+    }
   }
 
   function showRateLimit(msg) {
@@ -228,6 +242,7 @@
     // Disable input
     document.getElementById('chat-message-input').disabled = true;
     document.getElementById('chat-message-submit').disabled = true;
+    document.getElementById('surprise-btn').disabled = true;
   }
 
   function setupWebSocket() {
@@ -352,6 +367,27 @@
     });
 
     submitBtn.addEventListener('click', sendMessage);
+
+    document.getElementById('surprise-btn').addEventListener('click', async function() {
+      if (input.disabled) return;
+      this.disabled = true;
+      this.textContent = '🎲 Loading...';
+      try {
+        const res = await fetch('/api/demo/random-question');
+        const data = await res.json();
+        if (data.question) {
+          input.value = data.question;
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+          isEvalQuestion = true;
+          sendMessage();
+        }
+      } catch(e) {
+        console.warn('Surprise Me failed:', e);
+      }
+      this.disabled = false;
+      this.textContent = '🎲 Surprise Me';
+    });
   });
 </script>
 {% endblock %}

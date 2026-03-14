@@ -3,7 +3,9 @@ import os
 import json
 import logging
 import asyncio
+import random
 from datetime import date
+from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
@@ -123,6 +125,28 @@ async def demo_page(request: Request):
         except JWTError:
             pass
     return templates.TemplateResponse("demo.html", context)
+
+
+@router.get("/api/demo/random-question")
+async def random_question():
+    """Return a random question from the eval set."""
+    evals_dir = Path(os.getenv("EVALS_DIR", "data/evals"))
+    questions = []
+    try:
+        for file_path in evals_dir.glob("*.json"):
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            results = data.get("results", []) if isinstance(data, dict) else data
+            for r in results:
+                q = r.get("question", "").strip()
+                if q:
+                    questions.append(q)
+    except Exception as e:
+        logging.warning(f"random-question: {e}")
+
+    if not questions:
+        return {"question": None}
+    return {"question": random.choice(questions)}
 
 
 @router.websocket("/ws/demo/")
