@@ -46,7 +46,8 @@ except Exception as e:
 def get_base_context(request: Request, user=None):
     """Get base template context."""
     import os
-    context = {"request": request, "user": user}
+    from app.api.demo import is_demo_enabled
+    context = {"request": request, "user": user, "demo_enabled": is_demo_enabled()}
     if user:
         context["user_email"] = user.email
         context["admin_email"] = os.getenv("ADMIN_EMAIL")

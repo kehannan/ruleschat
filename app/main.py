@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
-from app.models import User, Invitation, AnswerFeedback, ChatConversation, ChatMessage, DemoUsage, DemoMessage
+from app.models import User, Invitation, AnswerFeedback, ChatConversation, ChatMessage, DemoUsage, DemoMessage, SiteConfig
 from app.core.auth import get_current_user
 from app.services.user_service import update_user_profile, get_user_by_email
 
@@ -33,6 +33,10 @@ logging.basicConfig(
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
+# Load runtime config from DB
+from app.api.demo import load_demo_enabled_from_db, is_demo_enabled
+load_demo_enabled_from_db()
 
 # Initialize FastAPI app
 app = FastAPI(title="Rules Chat for Advanced Squad Leader (ASL)")
@@ -175,7 +179,7 @@ async def about_page(request: Request):
         except JWTError:
             pass
     
-    context = {"request": request}
+    context = {"request": request, "demo_enabled": is_demo_enabled()}
     if user:
         context["user_email"] = user.email
         context["admin_email"] = os.getenv("ADMIN_EMAIL")

@@ -13,7 +13,41 @@ from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.models.demo import DemoUsage, DemoMessage
+from app.models.config import SiteConfig
 from app.services.asl_service import get_asl_service
+
+# In-memory flag — loaded from DB on startup, updated by admin toggle.
+# Default True so demo works before any DB row exists.
+_demo_enabled: bool = True
+
+
+def is_demo_enabled(db=None) -> bool:
+    """Return current demo enabled state from in-memory cache."""
+    return _demo_enabled
+
+
+def load_demo_enabled_from_db():
+    """Called at startup to sync in-memory flag with DB."""
+    global _demo_enabled
+    db = SessionLocal()
+    try:
+        row = db.query(SiteConfig).filter_by(key="demo_enabled").first()
+        _demo_enabled = (row.value == "true") if row else True
+    finally:
+        db.close()
+
+
+def set_demo_enabled(value: bool, db):
+    """Persist to DB and update in-memory flag."""
+    global _demo_enabled
+    _demo_enabled = value
+    row = db.query(SiteConfig).filter_by(key="demo_enabled").first()
+    str_val = "true" if value else "false"
+    if row:
+        row.value = str_val
+    else:
+        db.add(SiteConfig(key="demo_enabled", value=str_val))
+    db.commit()
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -59,6 +93,14 @@ def _increment(db, ip: str, today: str):
 
 @router.get("/demo", name="demo", response_class=HTMLResponse)
 async def demo_page(request: Request):
+    db = SessionLocal()
+    try:
+        if not is_demo_enabled(db):
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url="/", status_code=302)
+    finally:
+        db.close()
+
     context = {"request": request}
     # Pass auth state for navbar
     token = request.cookies.get("access_token")
@@ -87,6 +129,17 @@ async def demo_page(request: Request):
 async def websocket_demo(websocket: WebSocket):
     """Rate-limited public demo WebSocket — no auth required."""
     await websocket.accept()
+
+    db = SessionLocal()
+    try:
+        enabled = is_demo_enabled(db)
+    finally:
+        db.close()
+
+    if not enabled:
+        await websocket.send_text(json.dumps({"type": "error", "message": "Demo is currently disabled."}))
+        await websocket.close()
+        return
 
     ip = _get_client_ip(websocket)
     logging.info(f"🔹 Demo WebSocket connected from {ip}")

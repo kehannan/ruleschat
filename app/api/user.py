@@ -12,16 +12,18 @@ from app.core.auth import get_current_user, get_password_hash, verify_password
 from app.database import get_db
 from app.models import User
 from app.models.chat import ChatMessage, ChatConversation
+from app.models.config import SiteConfig
+from app.api.demo import is_demo_enabled, set_demo_enabled
 from app.services.user_service import update_user_profile, get_user_by_email
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
-def get_base_context(request: Request, user: User = None):
+def get_base_context(request: Request, user: User = None, db=None):
     """Get base template context."""
     import os
-    context = {"request": request, "user": user}
+    context = {"request": request, "user": user, "demo_enabled": is_demo_enabled()}
     if user:
         context["user_email"] = user.email
         context["admin_email"] = os.getenv("ADMIN_EMAIL")
@@ -170,8 +172,27 @@ async def admin_dashboard(
     context["invitations"] = invitations
     context["message"] = request.query_params.get("message")
     context["message_type"] = request.query_params.get("message_type", "info")
-    
+
     return templates.TemplateResponse("admin.html", context)
+
+
+@router.post("/admin/demo-mode", name="admin_demo_mode")
+async def admin_toggle_demo_mode(
+    request: Request,
+    enabled: str = Form(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle demo mode on/off (admin only)."""
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if user.email != admin_email:
+        return RedirectResponse(url="/", status_code=303)
+
+    set_demo_enabled(enabled == "true", db)
+
+    return RedirectResponse(url="/admin?message=Demo+mode+updated&message_type=success", status_code=303)
 
 
 @router.post("/admin/create-test-user", name="admin_create_test_user")

@@ -48,11 +48,12 @@ async def get_current_user(request: Request):
 @router.get("/evals", name="evals", response_class=HTMLResponse)
 async def evals_page(request: Request, user = Depends(get_current_user)):
     """Display evaluation results summary page."""
-    context = {"request": request}
+    from app.api.demo import is_demo_enabled
+    context = {"request": request, "demo_enabled": is_demo_enabled()}
     if user:
         context["user_email"] = user.email
         context["admin_email"] = os.getenv("ADMIN_EMAIL")
-    
+
     eval_data = load_eval_runs()
     context.update(eval_data)
         
@@ -280,8 +281,12 @@ def load_eval_runs():
                 logging.warning(f"Skipping {file_path.name}: {e}")
                 continue
         
-        # Sort by filename descending (newest first based on timestamp in filename)
-        eval_runs.sort(key=lambda x: x.get("filename", ""), reverse=True)
+        # Sort by date descending, then Recall before Calc
+        TYPE_ORDER = {"Recall": 0, "Calc": 1}
+        eval_runs.sort(key=lambda x: (
+            x.get("date", ""),
+            -TYPE_ORDER.get(x.get("question_type", ""), 99),
+        ), reverse=True)
         
         return {"eval_runs": eval_runs, "error": None}
     except Exception as e:
