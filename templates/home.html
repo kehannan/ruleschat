@@ -247,11 +247,18 @@
       <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-tokens-gpt5mini">—</div></div></div>
     </div>
 
-    <div class="row g-2 mb-0 align-items-center" id="stats-row-gpt41">
+    <div class="row g-2 mb-2 align-items-center" id="stats-row-gpt41">
       <div class="col-3 text-muted small fw-semibold" style="padding-left:4px;">gpt-4.1-mini</div>
       <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-time-gpt41mini">—</div></div></div>
       <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-cost-gpt41mini">—</div></div></div>
       <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-tokens-gpt41mini">—</div></div></div>
+    </div>
+
+    <div class="row g-2 mb-0 align-items-center" id="stats-row-gpt54">
+      <div class="col-3 text-muted small fw-semibold" style="padding-left:4px;">gpt-5.4-mini</div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-time-gpt54mini">—</div></div></div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-cost-gpt54mini">—</div></div></div>
+      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-tokens-gpt54mini">—</div></div></div>
     </div>
 
     <hr class="section-divider">
@@ -311,7 +318,7 @@
 fetch('/api/usage/daily')
   .then(r => r.json())
   .then(data => {
-    const modelIds = { 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini' };
+    const modelIds = { 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'gpt-5.4-mini': 'gpt54mini' };
 
     data.models.forEach(model => {
       const suffix = modelIds[model];

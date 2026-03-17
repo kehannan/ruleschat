@@ -7,6 +7,7 @@
 const MODEL_PRICING = {
     'gpt-5-mini':   { input: 0.25, output: 1.00 },
     'gpt-4.1-mini': { input: 0.40, output: 1.60 },
+    'gpt-5.4-mini': { input: 0.25, output: 2.00 },
 };
 
 function getModelPricing() {
