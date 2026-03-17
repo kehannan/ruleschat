@@ -210,7 +210,7 @@ Your response:"""
                 "tools": tools,
             }
             # Only include temperature for models that support it
-            _no_temp_models = {"gpt-5-mini", "gpt-5-mini-2025-08-07"}
+            _no_temp_models = {"gpt-5-mini", "gpt-5-mini-2025-08-07", "gpt-5.4-mini"}
             if model not in _no_temp_models:
                 api_kwargs["temperature"] = temperature
 
