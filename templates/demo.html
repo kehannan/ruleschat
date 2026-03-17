@@ -229,10 +229,6 @@
     const msgEl = contentEl.closest('.bot-message');
     msgEl.classList.remove('current');
     if (isEvalQuestion) {
-      const note = document.createElement('div');
-      note.style.cssText = 'font-size:11px; color:#aaa; margin-top:6px;';
-      note.textContent = '⚙ This question is from the evaluation set.';
-      msgEl.appendChild(note);
       isEvalQuestion = false;
     }
   }
