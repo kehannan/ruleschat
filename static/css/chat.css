@@ -445,6 +445,35 @@ body:has(.chat-wrapper) #main-container {
     max-width: 90%;
   }
 
+  .pdf-controls {
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .pdf-controls button {
+    padding: 0.375rem 0.625rem;
+    font-size: 13px;
+  }
+
+  .pdf-controls #pdf-page-info,
+  .pdf-controls #pdf-zoom-level {
+    min-width: auto;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-message .message-content {
+    max-width: 95%;
+  }
+
+  .chat-input-wrapper {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .send-button {
+    padding: 0.5rem 0.75rem;
+  }
 }
 
 /* PDF Modal Styling */

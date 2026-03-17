@@ -20,7 +20,7 @@
     margin-bottom: 0.2rem;
   }
   .finding-card .finding-label {
-    font-size: 12px;
+    font-size: 0.8rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -28,7 +28,7 @@
     margin-bottom: 0.2rem;
   }
   .finding-card .finding-sub {
-    font-size: 12px;
+    font-size: 0.8rem;
     color: #aaa;
   }
   .finding-card.finding-caution .finding-value { color: #c0392b; }
@@ -40,7 +40,7 @@
   <div class="col-lg-10 mx-auto">
 
     <h1 class="mb-1">Evaluation Results</h1>
-    <p class="text-muted mb-4" style="font-size:13px;">
+    <p class="text-muted mb-4" style="font-size:0.875rem;">
       Accuracy measured across 213 <strong>basic rules questions</strong> — human-verified against expected answers.
     </p>
 
@@ -107,8 +107,8 @@
                 <th scope="col">QUESTION TYPE</th>
                 <th scope="col" class="text-center">PASS</th>
                 <th scope="col" class="text-center">FAIL</th>
-                <th scope="col" class="text-center">NEEDS REVIEW</th>
-                <th scope="col" class="text-center">TOTAL</th>
+                <th scope="col" class="text-center d-none d-md-table-cell">NEEDS REVIEW</th>
+                <th scope="col" class="text-center d-none d-md-table-cell">TOTAL</th>
                 <th scope="col">ACTIONS</th>
               </tr>
             </thead>
@@ -122,8 +122,8 @@
                 <td class="align-middle">{{ run.question_type }}</td>
                 <td class="text-center">{{ run.pass_count }} ({{ "%.0f"|format(run.pass_pct) }}%)</td>
                 <td class="text-center">{{ run.fail_count }} ({{ "%.0f"|format(run.fail_pct) }}%)</td>
-                <td class="text-center">{{ run.needs_review }} ({{ "%.0f"|format(run.needs_review_pct) }}%)</td>
-                <td class="text-center">{{ run.total }}</td>
+                <td class="text-center d-none d-md-table-cell">{{ run.needs_review }} ({{ "%.0f"|format(run.needs_review_pct) }}%)</td>
+                <td class="text-center d-none d-md-table-cell">{{ run.total }}</td>
                 <td class="align-middle text-center">
                   <a href="{{ url_for('evals_detail', file_id=run.file_id) }}?judge=human"
                     class="btn btn-sm btn-outline-primary">View Details</a>
