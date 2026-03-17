@@ -1,116 +1,108 @@
 # ASL Rules Assistant
 
-A FastAPI web application that helps Advanced Squad Leader (ASL) players understand and apply the complex rules of the game using AI assistance powered by OpenAI's **Responses API**.
+A personal experiment: can a RAG-based AI reliably answer rules questions for a tabletop wargame with a 1M+ token rulebook?
+
+This is a FastAPI web application that lets players ask Advanced Squad Leader (ASL) rules questions and get answers with cited rule section numbers. Built on OpenAI's **Responses API** with native RAG via `file_search`. Accuracy varies — results are mixed and improving.
+
+> **Personal use only.** The ASL rulebook is copyrighted material (Avalon Hill / Multi-Man Publishing). This project does not distribute the rulebook and is not affiliated with or endorsed by the publishers.
 
 ## Features
 
-- **AI-Powered Rules Assistant**: Ask questions about ASL rules and get accurate, concise answers with rule section references
-- **Vector Store Integration**: Searches through the official ASL rulebook via OpenAI file_search (RAG with 20 chunks)
-- **Model Selection**: Users can switch between gpt-5-mini (more accurate) and gpt-4.1-mini (faster) via in-chat dropdown
-- **User Authentication**: Secure login with JWT and admin-managed invitations
-- **WebSocket Chat**: Real-time streaming responses with conversation history
-- **Conversation History**: Persistent chat history with conversation management
-- **Feedback System**: Users can provide feedback on answers
-- **Per-Query Cost Display**: Shows estimated cost for each response
+- **RAG pipeline** — OpenAI Responses API with `file_search` against a vector store of the rulebook (up to 20 chunks per query)
+- **Streaming WebSocket** — responses stream token-by-token; TTFT, cost, and token counts surfaced per query
+- **In-browser PDF viewer** — rule citations (e.g. A4.34) open the rulebook PDF at the exact page
+- **Model selector** — switch between models in-chat (tested with gpt-4.1-mini and gpt-5-mini)
+- **Automated evals** — zero-shot AI Judge scores responses Pass/Fail/Needs Review; results manually reviewed
+- **Demo mode** — unauthenticated users get 5 questions/day
+- **Mobile-optimized** — responsive layout tested at 375px, 768px, 1280px viewports
 
-## API Architecture
+## Architecture
 
-This application uses OpenAI's **Responses API** (not Chat Completions API) for all AI inference:
+```
+Browser ──WebSocket──▶ FastAPI ──▶ OpenAI Responses API
+                                        │
+                                   file_search
+                                        │
+                                   Vector Store
+                                   (rulebook chunks)
+```
 
-- **Native RAG**: Built-in `file_search` tool queries the vector store (20 chunks per query)
-- **Streaming**: Real-time response streaming via WebSocket
-- **Model Whitelist**: Backend validates model selection against allowed models
-
-**Key Implementation Files**:
+**Key files:**
 - [app/asl/client.py](app/asl/client.py) — Responses API wrapper
-- [app/services/asl_service.py](app/services/asl_service.py) — Main ASL service
-- [app/api/chat.py](app/api/chat.py) — WebSocket handler with model selection and conversation history
-- [app/config.py](app/config.py) — System instructions (concise Answer + References format)
-
-## Related Repositories
-
-- **[mysite2-evals-sft](https://github.com/kehannan/mysite2-evals-sft)**: Evaluation datasets, fine-tuning data, and eval tooling
-
-## Documentation
-
-- **[PRODUCTION.md](PRODUCTION.md)** — Production environment guide
-- **[deployment/QUICKSTART.md](deployment/QUICKSTART.md)** — Quick deployment reference
-- **[ASL_CHAT_FLOW.md](ASL_CHAT_FLOW.md)** — Question-to-answer data flow
-- **[RESPONSES_API_README.md](RESPONSES_API_README.md)** — Responses API and vector store setup
-- **[TESTING.md](TESTING.md)** — Testing guide
+- [app/services/asl_service.py](app/services/asl_service.py) — main assistant service
+- [app/api/chat.py](app/api/chat.py) — WebSocket handler
+- [app/config.py](app/config.py) — system instructions
 
 ## Project Structure
 
 ```
-mysite2/
-├── app/                          # Main application package
-│   ├── models/                   # Database models
-│   ├── api/                      # API routes/routers
-│   │   ├── auth.py              # Authentication routes
-│   │   ├── user.py              # User profile routes
-│   │   └── chat.py              # Chat, WebSocket, conversation history
-│   ├── asl/                      # ASL-specific modules (Responses API)
-│   │   ├── client.py            # OpenAI Responses API wrapper
-│   │   ├── config.py            # ASL configuration
-│   │   ├── policy.py            # Instruction building
-│   │   ├── postprocess.py       # Response processing utilities
-│   │   └── tools.py             # Custom function tools (unused in production)
-│   ├── core/                     # Core utilities
-│   │   └── auth.py              # JWT and password hashing
-│   ├── services/                 # Business logic
-│   │   ├── asl_service.py       # Main ASL assistant service
-│   │   ├── user_service.py      # User operations
-│   │   └── chat_history_service.py  # Conversation persistence
-│   ├── database.py              # Database configuration
-│   ├── config.py                # App config and system instructions
-│   └── main.py                  # FastAPI application
-├── deployment/                   # Production deployment configs
-│   └── nginx.conf               # Nginx reverse proxy configuration
-├── scripts/                      # Admin/utility scripts
-│   ├── create_user.py
-│   ├── init_db.py
-│   └── setup_responses_api.py   # Vector store setup
-├── static/                       # Static files (CSS, images)
-├── templates/                    # HTML templates
-├── tests/manual/                 # Manual test scripts
-├── responses_api_config.json    # Vector store config (versioned)
-└── run.py                       # Application runner
+├── app/
+│   ├── api/           # FastAPI routes (auth, chat, demo, evals)
+│   ├── asl/           # Responses API wrapper, config, tools
+│   ├── core/          # JWT auth, password hashing
+│   ├── models/        # SQLAlchemy models
+│   ├── services/      # Business logic (ASL assistant, chat history)
+│   ├── config.py      # App config and system instructions
+│   └── main.py        # FastAPI app
+├── deployment/        # nginx config, systemd service, env.example
+├── scripts/           # DB init, user management
+├── static/            # CSS, JS, images
+├── templates/         # Jinja2 HTML templates
+├── tests/             # Playwright mobile tests, manual API tests
+└── run.py             # Dev server runner
 ```
 
 ## Setup
 
-### Using Conda (Recommended)
+### 1. Install dependencies
 
 ```bash
+# Conda (recommended)
 conda env create -f environment.yml
 conda activate mysite2_env
-```
 
-### Using pip
-
-```bash
+# Or pip
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Environment Variables
+### 2. Configure environment
 
-Create a `.env` file in the project root:
+```bash
+cp deployment/env.example .env
+# Edit .env with your values
+```
 
-- `SECRET_KEY` — JWT signing key
-- `OPENAI_API_KEY` — OpenAI API key
-- `OPENAI_ORG_ID` — OpenAI organization ID
-- `OPENAI_PROJECT_ID` — OpenAI project ID
-- `DEFAULT_MODEL` — default model (e.g. `gpt-5-mini`)
-- `ADMIN_EMAIL` — admin email
-- `TEMPERATURE` — optional, defaults to 0.2
-- `DATABASE_URL` — optional, defaults to `sqlite:///./mysite.db`
-- `RAG_MAX_CHUNKS` — optional, defaults to 20
-- `COST_PER_1M_INPUT` — optional, for cost display
-- `COST_PER_1M_OUTPUT` — optional, for cost display
+Required variables:
 
-## Running
+| Variable | Description |
+|---|---|
+| `SECRET_KEY` | JWT signing key (generate with `python scripts/generate_key.py`) |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_ORG_ID` | OpenAI organization ID |
+| `OPENAI_PROJECT_ID` | OpenAI project ID |
+| `ADMIN_EMAIL` | Admin account email |
+| `DEFAULT_MODEL` | Default model (e.g. `gpt-4.1-mini`) |
+
+### 3. Set up the vector store
+
+You need to upload the ASL rulebook PDF to OpenAI and create a vector store. See [RESPONSES_API_README.md](RESPONSES_API_README.md) for details.
+
+```bash
+# After uploading, copy the example config and fill in your IDs
+cp responses_api_config.example.json responses_api_config.json
+# Edit responses_api_config.json with your vector_store_id and file_id
+```
+
+### 4. Initialize the database
+
+```bash
+python scripts/init_db.py
+# Prompts for admin email and password (or set ADMIN_EMAIL / ADMIN_PASSWORD env vars)
+```
+
+### 5. Run
 
 ```bash
 # Development
@@ -118,9 +110,32 @@ python run.py
 
 # Or directly
 uvicorn app.main:app --reload
-
-# Production
-uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-The server will be available at `http://localhost:8000`
+The app will be at `http://localhost:8000`. The demo page is public; full chat requires login.
+
+## Deployment
+
+See [deployment/QUICKSTART.md](deployment/QUICKSTART.md) for production setup (nginx, systemd, SSL).
+
+## Tests
+
+```bash
+# Mobile/responsive UI tests (requires Playwright + a running server)
+pip install playwright && python -m playwright install chromium
+python test_mobile.py
+```
+
+## Evaluation
+
+Eval results are stored in `data/evals/` as JSON. The evals page (`/evals`) reads from this directory. See [RESPONSES_API_README.md](RESPONSES_API_README.md) for how evals are run.
+
+## Related
+
+- [mysite2-evals-sft](https://github.com/kehannan/mysite2-evals-sft) — evaluation datasets and fine-tuning data
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+Advanced Squad Leader is a trademark of Avalon Hill Games, Inc. This project is not affiliated with or endorsed by Hasbro, Avalon Hill Games, Inc., or Multi-Man Publishing, Inc.

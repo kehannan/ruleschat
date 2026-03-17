@@ -16,8 +16,11 @@ def test_chat_completion():
     # Initialize OpenAI client
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     
-    # ASL PDF file ID
-    ASL_PDF_FILE_ID = "file-6DXa5yaeBWH1jgEFXro3YJ"
+    # ASL PDF file ID — set via environment variable or replace with your own
+    ASL_PDF_FILE_ID = os.environ.get("ASL_PDF_FILE_ID", "")
+    if not ASL_PDF_FILE_ID:
+        print("❌ Set ASL_PDF_FILE_ID environment variable to your uploaded PDF file ID.")
+        return
     
     try:
         print("Testing chat completion with ASL PDF...")

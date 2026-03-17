@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -9,9 +10,9 @@ from app.core.auth import get_password_hash
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
-# Create admin user if not exists
-ADMIN_EMAIL = "kevin.hannan@gmail.com"
-ADMIN_PASSWORD = "admin123"  # Change this after first login!
+# Create admin user — configure via environment variables or pass as arguments
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL") or input("Admin email: ")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or input("Admin password: ")
 
 db = SessionLocal()
 existing = db.query(User).filter(User.email == ADMIN_EMAIL).first()
@@ -22,7 +23,7 @@ if not existing:
     )
     db.add(user)
     db.commit()
-    print(f"Admin user '{ADMIN_EMAIL}' created with password '{ADMIN_PASSWORD}'!")
+    print(f"Admin user '{ADMIN_EMAIL}' created.")
 else:
     print(f"Admin user '{ADMIN_EMAIL}' already exists.")
-db.close() 
+db.close()
