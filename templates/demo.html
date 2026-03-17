@@ -71,6 +71,13 @@
   }
   .model-selector:hover { border-color: #999; }
   .model-selector:focus { border-color: #6c5ce7; }
+  @media (max-width: 768px) {
+    .model-selector {
+      position: static;
+      align-self: flex-end;
+      margin: 0.5rem 0.75rem 0;
+    }
+  }
   .rate-limit-message {
     background: #fef9e7;
     border: 1px solid #f39c12;
