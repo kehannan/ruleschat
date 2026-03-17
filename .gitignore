@@ -194,3 +194,19 @@ static/rulebook/*.pdf
 
 # Chat logs
 data/logs/
+
+# Eval backups
+data/evals/backup/
+data/evals/bak/
+
+# Local Claude context (contains deployment info)
+CLAUDE.md
+
+# Real config with live vector store IDs (use responses_api_config.example.json as template)
+responses_api_config.json
+
+# Test screenshots (generated output)
+test_screenshots/
+
+# Scratch / dev scripts
+latency_test.py
