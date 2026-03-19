@@ -126,9 +126,9 @@
     <div class="hero">
       <h1>ASL Rules Assistant</h1>
       <p class="lead">
-        A personal experiment: can a RAG-based AI reliably answer rules questions
-        for a tabletop wargame with a 1M+ token rulebook? Built on OpenAI's Responses API.
-        Accuracy varies — this is a work in progress.
+        A personal experiment: can a mini-class AI model answer rules questions accurately
+        enough to be useful — at under a cent per query — for a tabletop wargame with a 1M+ token rulebook?
+        Built on OpenAI's Responses API. Accuracy varies — this is a work in progress.
       </p>
       <div class="d-flex flex-wrap gap-2">
         {% if user_email is defined and user_email %}
@@ -214,7 +214,7 @@
         <div class="capability-card">
           <div class="cap-icon"><i class="bi bi-graph-up"></i></div>
           <h6>Automated Evals</h6>
-          <p>A zero-shot AI Judge evaluates answers against expected outputs. Results tracked by model, eval set, and question type with pass/fail rates.</p>
+          <p>A zero-shot AI Judge evaluates answers against expected outputs. Results tracked by model, eval set, and question type — focused on whether cheap mini models can match expensive ones.</p>
         </div>
       </div>
     </div>

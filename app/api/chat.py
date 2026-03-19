@@ -367,7 +367,7 @@ async def websocket_chat(websocket: WebSocket):
                         full_input = message
                     
                     # Validate selected model (whitelist)
-                    allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-4.1-mini"}
+                    allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-5.4", "gpt-4.1-mini"}
                     model_override = selected_model if selected_model in allowed_models else None
 
                     # Get streaming response from service
