@@ -26,7 +26,7 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #888;
-    margin-bottom: 1.25rem;
+    margin-bottom: 0.75rem;
   }
   .pipeline-step {
     display: flex;
@@ -106,7 +106,7 @@
     .stat-card .stat-label { font-size: 0.65rem; letter-spacing: 0; }
   }
   .section-divider {
-    margin: 2.5rem 0;
+    margin: 1.5rem 0;
     border-color: #e0e0e0;
   }
   .game-img {
@@ -124,11 +124,10 @@
 
     <!-- Hero -->
     <div class="hero">
-      <h1>ASL Rules Assistant</h1>
+      <h1>Advanced Squad Leader (ASL) Rules Assistant</h1>
       <p class="lead">
-        A personal experiment: can a mini-class AI model answer rules questions accurately
-        enough to be useful — at under a cent per query — for a tabletop wargame with a 1M+ token rulebook?
-        Built on OpenAI's Responses API. Accuracy varies — this is a work in progress.
+        An experiment: Can an AI model accurately and cost-effectively answer rules questions for a tabletop wargame
+         with a 1M+ token rulebook? Built on OpenAI's Responses API. 
       </p>
       <div class="d-flex flex-wrap gap-2">
         {% if user_email is defined and user_email %}
@@ -140,6 +139,25 @@
         <a href="{{ url_for('about') }}" class="btn btn-outline-secondary">How It's Built</a>
       </div>
     </div>
+
+    <!-- Domain Context -->
+    <p class="section-heading">The Domain Challenge</p>
+    <p>
+      <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">Advanced Squad Leader (ASL)</a> is a tactical WWII board game played on paper maps with cardboard counters and dice.
+    </p>
+    <p>
+      The game can also be played digitally via <a href="https://vassalengine.org/" target="_blank" rel="noopener noreferrer">VASSAL</a>, but the platform only handles moving counters and rolling dice — all rules interpretation and calculation is still done entirely by the players.
+    </p>
+    <p>
+      A rules assistant is useful because the game and its rules are complex. During a game, players frequently refer to the 716-page rule book and tables for two purposes:
+    </p>
+    <ol>
+      <li><strong>Rule lookup:</strong> retrieve the exact rule text for a specific situation (e.g., "What is the movement cost to enter a woods hex?")</li>
+      <li><strong>Outcome calculation:</strong> given the game state, determine the dice roll needed to achieve an effect (e.g., "What DR do I need to break that squad given this terrain and fire modifier?")</li>
+    </ol>
+    <p class="mt-3">This assistant is designed to cost-effectively support both use cases.</p>
+
+    <hr class="section-divider">
 
     <!-- How It Works -->
     <p class="section-heading">How It Works</p>
@@ -272,35 +290,6 @@
       </video>
     </div>
     <p class="text-muted small">Live demo showing a rules question, RAG retrieval, and cited response with PDF navigation.</p>
-
-    <hr class="section-divider">
-
-    <!-- Domain Context -->
-    <p class="section-heading">The Domain Challenge</p>
-    <div class="row g-3 mb-0">
-      <div class="col-md-6">
-        <p>
-          Advanced Squad Leader (ASL) is a tactical WW2 board game published by Avalon Hill in 1985.
-          Its rulebook exceeds 1 million tokens and contains dense cross-references,
-          exception tables, and numerical calculations that challenge standard RAG approaches.
-        </p>
-        <p class="mb-0">
-          Rules questions often require chaining multiple lookups (terrain modifiers, unit
-          statistics, fire table columns) that plain retrieval cannot resolve without
-          tool-augmented reasoning.
-        </p>
-      </div>
-      <div class="col-md-6">
-        <div class="row g-2">
-          <div class="col-6">
-            <img src="{{ url_for('static', path='img/asl.jpg') }}" alt="ASL game box" class="game-img">
-          </div>
-          <div class="col-6">
-            <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL game board" class="game-img">
-          </div>
-        </div>
-      </div>
-    </div>
 
     <hr class="section-divider">
     <div class="text-muted small">
