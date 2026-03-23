@@ -78,7 +78,7 @@ async def evals_detail_page(request: Request, file_id: str = None, judge: str = 
 @router.get("/api/usage/daily", name="usage_daily")
 async def usage_daily(db: Session = Depends(get_db)):
     """Return daily per-question average tokens and cost by model."""
-    ALLOWED_MODELS = {"gpt-5-mini", "gpt-4.1-mini"}
+    ALLOWED_MODELS = {"gpt-5-mini", "gpt-4.1-mini", "gpt-5.4", "gpt-5.4-mini"}
 
     messages = (
         db.query(ChatMessage)
@@ -136,10 +136,14 @@ async def usage_daily(db: Session = Depends(get_db)):
                 inp = data["input_tokens"] / count
                 out = data["output_tokens"] / count
                 total_time_s = (data["total_time_ms"] / count) / 1000
-                if "5-mini" in model:
-                    cost = (inp * 0.25 + out * 1.00) / 1_000_000
-                else:
-                    cost = (inp * 0.40 + out * 1.60) / 1_000_000
+                MODEL_PRICING = {
+                    "gpt-5-mini":   (0.25, 1.00),
+                    "gpt-5.4":      (3.00, 15.00),
+                    "gpt-5.4-mini": (0.25, 2.00),
+                    "gpt-4.1-mini": (0.40, 1.60),
+                }
+                inp_price, out_price = MODEL_PRICING.get(model, (0.40, 1.60))
+                cost = (inp * inp_price + out * out_price) / 1_000_000
                 has_tokens = (inp > 0 or out > 0)
                 series[model]["input_tokens"].append(round(inp) if has_tokens else None)
                 series[model]["output_tokens"].append(round(out) if has_tokens else None)
@@ -198,6 +202,8 @@ def load_eval_runs():
                     # Remove extension if present
                     eval_file = Path(eval_file).stem
 
+                    is_estimated = metadata.get("estimated", False)
+
                     # Create rows for each question type (Human Review only)
                     if by_question_type:
                         # Create separate row for each question type
@@ -221,6 +227,7 @@ def load_eval_runs():
                                 "needs_review_pct": (human_stats.get("pending_review", 0) / q_total * 100) if q_total > 0 else 0,
                                 "file_id": file_path.stem,
                                 "filename": file_path.name,
+                                "estimated": is_estimated,
                             })
                     else:
                         # Fallback: single row with overall stats if no question type breakdown
@@ -287,8 +294,27 @@ def load_eval_runs():
             x.get("date", ""),
             -TYPE_ORDER.get(x.get("question_type", ""), 99),
         ), reverse=True)
-        
-        return {"eval_runs": eval_runs, "error": None}
+
+        # Build model_accuracy: latest run per model per question type
+        MODEL_ORDER = ["gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "gpt-4.1-mini"]
+        model_accuracy = {}
+        model_latest_file = {}
+        model_estimated = set()
+        for run in eval_runs:
+            m = run["model"]
+            qt = run["question_type"].lower()
+            if m not in model_accuracy:
+                model_accuracy[m] = {}
+            if qt not in model_accuracy[m]:
+                model_accuracy[m][qt] = round(run["pass_pct"])
+            if m not in model_latest_file:
+                model_latest_file[m] = run["file_id"]
+            if run.get("estimated"):
+                model_estimated.add(m)
+
+        return {"eval_runs": eval_runs, "model_accuracy": model_accuracy,
+                "model_order": MODEL_ORDER, "model_latest_file": model_latest_file,
+                "model_estimated": model_estimated, "error": None}
     except Exception as e:
         return {"error": str(e)}
 
