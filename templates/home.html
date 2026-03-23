@@ -81,30 +81,6 @@
     color: #666;
     margin-bottom: 0;
   }
-  .stat-card {
-    text-align: center;
-    padding: 1.25rem 1rem;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-  }
-  .stat-card .stat-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: #2c3e50;
-    line-height: 1;
-    margin-bottom: 0.25rem;
-  }
-  .stat-card .stat-label {
-    font-size: 0.75rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  @media (max-width: 575px) {
-    .stat-card { padding: 0.6rem 0.25rem; }
-    .stat-card .stat-value { font-size: 1.25rem; }
-    .stat-card .stat-label { font-size: 0.65rem; letter-spacing: 0; }
-  }
   .section-divider {
     margin: 1.5rem 0;
     border-color: #e0e0e0;
@@ -239,48 +215,6 @@
 
     <hr class="section-divider">
 
-    <!-- Live Stats -->
-    <p class="section-heading">Production Stats <span class="fw-normal text-muted" style="text-transform:none;letter-spacing:0;font-size:0.75rem;">(live averages from production chat)</span></p>
-
-    <div class="row g-2 mb-1 text-muted small" style="padding: 0 4px;">
-      <div class="col-3"></div>
-      <div class="col-3 text-center fw-semibold">
-        <span class="d-none d-sm-inline">Avg Response Time</span>
-        <span class="d-sm-none">Time</span>
-      </div>
-      <div class="col-3 text-center fw-semibold">
-        <span class="d-none d-sm-inline">Avg Cost / Q</span>
-        <span class="d-sm-none">Cost</span>
-      </div>
-      <div class="col-3 text-center fw-semibold">
-        <span class="d-none d-sm-inline">Avg Tokens / Q</span>
-        <span class="d-sm-none">Tokens</span>
-      </div>
-    </div>
-
-    <div class="row g-2 mb-2 align-items-center" id="stats-row-gpt5">
-      <div class="col-3 text-muted small fw-semibold" style="padding-left:4px;">gpt-5-mini</div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-time-gpt5mini">—</div></div></div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-cost-gpt5mini">—</div></div></div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-tokens-gpt5mini">—</div></div></div>
-    </div>
-
-    <div class="row g-2 mb-2 align-items-center" id="stats-row-gpt41">
-      <div class="col-3 text-muted small fw-semibold" style="padding-left:4px;">gpt-4.1-mini</div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-time-gpt41mini">—</div></div></div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-cost-gpt41mini">—</div></div></div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-tokens-gpt41mini">—</div></div></div>
-    </div>
-
-    <div class="row g-2 mb-0 align-items-center" id="stats-row-gpt54">
-      <div class="col-3 text-muted small fw-semibold" style="padding-left:4px;">gpt-5.4-mini</div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-time-gpt54mini">—</div></div></div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-cost-gpt54mini">—</div></div></div>
-      <div class="col-3"><div class="stat-card py-2"><div class="stat-value" id="stat-tokens-gpt54mini">—</div></div></div>
-    </div>
-
-    <hr class="section-divider">
-
     <!-- Demo -->
     <p class="section-heading">Demo</p>
     <div class="ratio ratio-16x9 mb-1" style="border-radius:6px;border:1px solid #e0e0e0;overflow:hidden;">
@@ -300,39 +234,4 @@
 
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-fetch('/api/usage/daily')
-  .then(r => r.json())
-  .then(data => {
-    const modelIds = { 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'gpt-5.4-mini': 'gpt54mini' };
-
-    data.models.forEach(model => {
-      const suffix = modelIds[model];
-      if (!suffix) return;
-      const s = data.series[model];
-
-      let totalTime = 0, timeCount = 0;
-      let totalCost = 0, costCount = 0;
-      let totalTokens = 0, tokenCount = 0;
-
-      s.total_time_s.forEach(v => { if (v > 0) { totalTime += v; timeCount++; } });
-      s.cost.forEach(v => { if (v > 0) { totalCost += v; costCount++; } });
-      s.input_tokens.forEach((v, i) => {
-        const out = s.output_tokens[i] || 0;
-        if (v > 0 || out > 0) { totalTokens += v + out; tokenCount++; }
-      });
-
-      if (timeCount > 0)
-        document.getElementById('stat-time-' + suffix).textContent = (totalTime / timeCount).toFixed(1) + 's';
-      if (costCount > 0)
-        document.getElementById('stat-cost-' + suffix).textContent = '$' + (totalCost / costCount).toFixed(4);
-      if (tokenCount > 0)
-        document.getElementById('stat-tokens-' + suffix).textContent = Math.round(totalTokens / tokenCount).toLocaleString();
-    });
-  })
-  .catch(() => {}); // silently fail — stats are informational
-</script>
 {% endblock %}

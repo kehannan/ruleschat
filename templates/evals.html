@@ -5,33 +5,9 @@
 {% block extra_css %}
 <style>
   .table > tbody > tr.row-highlight > td { background-color: #f0f0f0 !important; }
-
-  .finding-card {
-    padding: 1.25rem 1rem;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    text-align: center;
-  }
-  .finding-card .finding-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    line-height: 1;
-    color: #2c3e50;
-    margin-bottom: 0.2rem;
-  }
-  .finding-card .finding-label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #888;
-    margin-bottom: 0.2rem;
-  }
-  .finding-card .finding-sub {
-    font-size: 0.8rem;
-    color: #aaa;
-  }
-  .finding-card.finding-caution .finding-value { color: #c0392b; }
+  .cell-good   { background-color: #e8f5e9 !important; }
+  .cell-mid    { background-color: #fef7e0 !important; }
+  .cell-bad    { background-color: #fce8e6 !important; }
 </style>
 {% endblock %}
 
@@ -44,111 +20,63 @@
       Accuracy measured across 213 <strong>basic rules questions</strong> — human-verified against expected answers.
     </p>
 
-    <!-- Key Findings -->
-    <div class="row g-3 mb-3">
-      <div class="col-sm-4">
-        <div class="finding-card">
-          <div class="finding-value">99%</div>
-          <div class="finding-label">Recall accuracy</div>
-          <div class="finding-sub">gpt-5-mini · 183 / 185 questions</div>
-        </div>
-      </div>
-      <div class="col-sm-4">
-        <div class="finding-card">
-          <div class="finding-value">86%</div>
-          <div class="finding-label">Calc accuracy</div>
-          <div class="finding-sub">gpt-5-mini · 50% for gpt-4.1-mini</div>
-        </div>
-      </div>
-      <div class="col-sm-4">
-        <div class="finding-card finding-caution">
-          <div class="finding-value">Too Slow</div>
-          <div class="finding-label">gpt-5-mini latency</div>
-          <div class="finding-sub">~20k token RAG context per query</div>
-        </div>
-      </div>
+    <!-- Model Comparison Table -->
+    {% if model_order is defined %}
+    {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini'} %}
+    <div class="table-responsive mb-3">
+      <table class="table table-bordered align-middle mb-0" style="font-size: 0.875rem;">
+        <thead class="table-light">
+          <tr>
+            <th>Model</th>
+            <th class="text-center">Recall accuracy</th>
+            <th class="text-center">Calc accuracy</th>
+            <th class="text-center">Cost / query</th>
+            <th class="text-center">Avg response time</th>
+            <th class="text-center">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for model in model_order %}
+          {% set acc = model_accuracy.get(model, {}) if model_accuracy is defined else {} %}
+          {% set fid = model_latest_file.get(model) if model_latest_file is defined else None %}
+          {% set est = model_estimated is defined and model in model_estimated %}
+          <tr>
+            <td class="fw-semibold">{{ model }}</td>
+            {% if 'recall' in acc %}
+              {% set rc = acc['recall'] %}
+              <td class="text-center {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+            {% else %}<td class="text-center">—</td>{% endif %}
+            {% if 'calc' in acc %}
+              {% set cc = acc['calc'] %}
+              <td class="text-center {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+            {% else %}<td class="text-center">—</td>{% endif %}
+            <td class="text-center" id="tbl-cost-{{ mid[model] }}">—</td>
+            <td class="text-center" id="tbl-time-{{ mid[model] }}">—</td>
+            <td class="text-center">
+              {% if fid %}
+              <a href="{{ url_for('evals_detail', file_id=fid) }}?judge=human" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;">View</a>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    <p class="text-muted small mb-4">Accuracy from human-reviewed evals · Cost and timing from live production chat<br>
+    <sup>*</sup> Estimated: gpt-5.4 run on 24 questions where gpt-5.4-mini failed; remaining 190 assumed correct.</p>
+    {% endif %}
 
     <!-- Narrative -->
     <div class="mb-4 p-3" style="background:#f8f9fa; border-left: 3px solid #2c3e50; border-radius: 0 4px 4px 0; font-size:13px;">
-      <p class="mb-2">
-        <strong>gpt-5-mini handles basic questions well — but it's too slow.</strong>
-        99% recall and 86% calc accuracy on basic, single-rule questions is strong,
-        but the ~20k token RAG context injected per query pushes response times to an unacceptable range for a chat interface.
-      </p>
-      <p class="mb-2">
-        <strong>gpt-4.1-mini is faster and solid on recall, but falls apart on calc.</strong>
-        Recall accuracy is competitive, and latency is much more acceptable.
-        The problem is calculation: at roughly 50% calc accuracy, it frequently gets the arithmetic wrong
-        even when it retrieves the right rules — making it unreliable for questions that require any computation.
-      </p>
-      <p class="mb-0" style="color:#666;">
-        Both models are mini-class, chosen for cost (&lt;$0.01/query vs ~$0.06 for a full frontier model).
-        The central question is whether mini models can match frontier accuracy on this domain.
-        These results cover basic questions only — harder scenarios with edge-case interactions or chained
-        reasoning are not yet in this eval set. All results confirmed by human review.
-      </p>
+      <ul class="mb-0" style="line-height: 2;">
+        <li><strong>gpt-5-mini has the best accuracy and competitive cost, but is too slow.</strong></li>
+        <li><strong>gpt-5.4-mini is surprisingly worse than gpt-5-mini on accuracy, but ~5x faster.</strong></li>
+        <li><strong>gpt-5.4 doesn't justify its cost on this simple eval. Need to create a harder eval to test frontier models.</strong></li>
+      </ul>
     </div>
 
     {% if error %}
     <div class="alert alert-danger" role="alert">{{ error }}</div>
-    {% endif %}
-
-    {% if eval_runs is defined and eval_runs %}
-    <div class="card">
-      <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-bordered align-middle table-sm" style="font-size: 13px;">
-            <thead class="table-primary align-bottom">
-              <tr>
-                <th scope="col">DATE</th>
-                <th scope="col">MODEL</th>
-                <th scope="col">EVAL</th>
-                <th scope="col">JUDGE</th>
-                <th scope="col">QUESTION TYPE</th>
-                <th scope="col" class="text-center">PASS</th>
-                <th scope="col" class="text-center">FAIL</th>
-                <th scope="col" class="text-center d-none d-md-table-cell">NEEDS REVIEW</th>
-                <th scope="col" class="text-center d-none d-md-table-cell">TOTAL</th>
-                <th scope="col">ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for run in eval_runs %}
-              <tr{% if loop.index <= 2 %} class="row-highlight"{% endif %}>
-                <td class="align-middle">{{ run.date }}</td>
-                <td class="align-middle">{{ run.model }}</td>
-                <td class="align-middle">{{ run.eval_name }}</td>
-                <td class="align-middle">{{ run.judge_type }}</td>
-                <td class="align-middle">{{ run.question_type }}</td>
-                <td class="text-center">{{ run.pass_count }} ({{ "%.0f"|format(run.pass_pct) }}%)</td>
-                <td class="text-center">{{ run.fail_count }} ({{ "%.0f"|format(run.fail_pct) }}%)</td>
-                <td class="text-center d-none d-md-table-cell">{{ run.needs_review }} ({{ "%.0f"|format(run.needs_review_pct) }}%)</td>
-                <td class="text-center d-none d-md-table-cell">{{ run.total }}</td>
-                <td class="align-middle text-center">
-                  <a href="{{ url_for('evals_detail', file_id=run.file_id) }}?judge=human"
-                    class="btn btn-sm btn-outline-primary">View Details</a>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Notes -->
-    <div class="mt-3 text-muted small">
-      <strong>Notes:</strong>
-      <strong>Calc</strong> = calculation questions (recall + computation) ·
-      <strong>Recall</strong> = pure rule lookup ·
-      Only Human Review results are shown
-    </div>
-
-    {% elif not error %}
-    <div class="alert alert-info" role="alert">
-      No evaluation results found. Run the evaluation script first.
-    </div>
     {% endif %}
 
     <!-- Usage Charts -->
@@ -185,10 +113,13 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
+const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini' };
+
 const MODEL_COLORS = {
   'gpt-4.1-mini':  { in: 'rgba(54, 162, 235, 0.45)', out: 'rgb(54, 162, 235)', cost: 'rgb(54, 162, 235)' },
   'gpt-5-mini':    { in: 'rgba(255, 99, 132, 0.45)', out: 'rgb(255, 99, 132)', cost: 'rgb(255, 99, 132)' },
   'gpt-5.4-mini':  { in: 'rgba(153, 102, 255, 0.45)', out: 'rgb(153, 102, 255)', cost: 'rgb(153, 102, 255)' },
+  'gpt-5.4':       { in: 'rgba(255, 159, 64, 0.45)', out: 'rgb(255, 159, 64)', cost: 'rgb(255, 159, 64)' },
 };
 
 function getColor(model, idx) {
@@ -200,6 +131,28 @@ fetch('/api/usage/daily')
   .then(r => r.json())
   .then(data => {
     if (!data.models || data.models.length === 0) return;
+
+    // Fill cost/timing into comparison table
+    data.models.forEach(model => {
+      const s = data.series[model];
+      const id = MODEL_ID_MAP[model];
+      if (!id) return;
+      let totalCost = 0, costCount = 0, totalTime = 0, timeCount = 0;
+      s.cost.forEach(v => { if (v != null && v > 0) { totalCost += v; costCount++; } });
+      s.total_time_s.forEach(v => { if (v != null && v > 0) { totalTime += v; timeCount++; } });
+      const costEl = document.getElementById('tbl-cost-' + id);
+      const timeEl = document.getElementById('tbl-time-' + id);
+      if (costEl && costCount > 0) {
+        const avgCostCents = (totalCost / costCount) * 100;
+        costEl.textContent = avgCostCents.toFixed(2) + '¢';
+        costEl.className = 'text-center ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
+      }
+      if (timeEl && timeCount > 0) {
+        const avgTime = totalTime / timeCount;
+        timeEl.textContent = avgTime.toFixed(1) + 's';
+        timeEl.className = 'text-center ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
+      }
+    });
 
     const tokenDatasets = [];
     data.models.forEach((model, i) => {

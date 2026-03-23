@@ -245,7 +245,7 @@ async def websocket_demo(websocket: WebSocket):
                     _increment(db, ip, today)
                     remaining_after = remaining - 1
 
-                    allowed_models = {"gpt-5-mini", "gpt-4.1-mini"}
+                    allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-5.4"}
                     model = selected_model if selected_model in allowed_models else DEMO_MODEL
 
                     asl_service = get_asl_service()
