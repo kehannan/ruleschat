@@ -160,18 +160,35 @@ async def admin_dashboard(
     
     # Get all users and invitations
     from app.models import User as UserModel, Invitation
-    from datetime import datetime
-    
+    from app.models.demo import DemoUsage
+    from datetime import datetime, date
+    from sqlalchemy import func
+
     users = db.query(UserModel).all()
     invitations = db.query(Invitation).filter(
         Invitation.expires_at > datetime.utcnow()
     ).order_by(Invitation.created_at.desc()).all()
-    
+
+    # Demo usage stats
+    today_str = date.today().isoformat()
+    demo_today = db.query(func.sum(DemoUsage.count)).filter(DemoUsage.date == today_str).scalar() or 0
+    demo_total = db.query(func.sum(DemoUsage.count)).scalar() or 0
+    demo_recent = (
+        db.query(DemoUsage.date, func.sum(DemoUsage.count).label("total"))
+        .group_by(DemoUsage.date)
+        .order_by(DemoUsage.date.desc())
+        .limit(14)
+        .all()
+    )
+
     context = get_base_context(request, user)
     context["users"] = users
     context["invitations"] = invitations
     context["message"] = request.query_params.get("message")
     context["message_type"] = request.query_params.get("message_type", "info")
+    context["demo_today"] = demo_today
+    context["demo_total"] = demo_total
+    context["demo_recent"] = demo_recent
 
     return templates.TemplateResponse("admin.html", context)
 

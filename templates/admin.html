@@ -32,6 +32,29 @@
                     </form>
                 </div>
 
+                <!-- Demo Usage Section -->
+                <div class="mb-4">
+                    <h4>Demo Usage</h4>
+                    <p class="mb-2">
+                        <strong>Today:</strong> {{ demo_today }} &nbsp;|&nbsp;
+                        <strong>All-time:</strong> {{ demo_total }}
+                    </p>
+                    {% if demo_recent %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped" style="max-width: 300px;">
+                            <thead>
+                                <tr><th>Date</th><th>Uses</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in demo_recent %}
+                                <tr><td>{{ row.date }}</td><td>{{ row.total }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+
                 <!-- User Management Section -->
                 <div class="mb-4">
                     <h4>User Management</h4>
