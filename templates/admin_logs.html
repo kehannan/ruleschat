@@ -11,61 +11,144 @@
                 <a href="{{ url_for('admin_dashboard') }}" class="btn btn-light btn-sm">Back to Admin</a>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-sm">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>User</th>
-                                <th>Question</th>
-                                <th>Answer</th>
-                                <th>Model</th>
-                                <th>In</th>
-                                <th>Out</th>
-                                <th>TTFT</th>
-                                <th>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for e in entries %}
-                            <tr>
-                                <td class="text-nowrap">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
-                                <td>{{ e.user_email }}</td>
-                                <td title="{{ e.question }}">{{ e.question_short }}</td>
-                                <td title="{{ e.answer_short }}">{{ e.answer_short }}</td>
-                                <td>{{ e.model }}</td>
-                                <td>{{ e.input_tokens }}</td>
-                                <td>{{ e.output_tokens }}</td>
-                                <td>{% if e.ttft_ms %}{{ '%.0f' % e.ttft_ms }}{% else %}—{% endif %}</td>
-                                <td>{% if e.total_time_ms %}{{ '%.0f' % e.total_time_ms }}{% else %}—{% endif %}</td>
-                            </tr>
-                            {% endfor %}
-                            {% if not entries %}
-                            <tr>
-                                <td colspan="9" class="text-center text-muted">No chat logs yet.</td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
 
-                <nav>
-                    <ul class="pagination justify-content-center">
-                        {% if has_prev %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page - 1 }}">Previous</a>
-                        </li>
-                        {% endif %}
-                        <li class="page-item disabled"><span class="page-link">Page {{ page }}</span></li>
-                        {% if has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page + 1 }}">Next</a>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </nav>
+                <ul class="nav nav-tabs mb-3" id="logTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="user-tab" data-bs-toggle="tab" data-bs-target="#user-logs" type="button" role="tab">User Logs</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="demo-tab" data-bs-toggle="tab" data-bs-target="#demo-logs" type="button" role="tab">Demo Logs</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+
+                    <!-- User Logs Tab -->
+                    <div class="tab-pane fade show active" id="user-logs" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>User</th>
+                                        <th>Question</th>
+                                        <th>Answer</th>
+                                        <th>Model</th>
+                                        <th>In</th>
+                                        <th>Out</th>
+                                        <th>TTFT</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for e in entries %}
+                                    <tr>
+                                        <td class="text-nowrap">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
+                                        <td>{{ e.user_email }}</td>
+                                        <td title="{{ e.question }}">{{ e.question_short }}</td>
+                                        <td title="{{ e.answer_short }}">{{ e.answer_short }}</td>
+                                        <td>{{ e.model }}</td>
+                                        <td>{{ e.input_tokens }}</td>
+                                        <td>{{ e.output_tokens }}</td>
+                                        <td>{% if e.ttft_ms %}{{ '%.0f' % e.ttft_ms }}{% else %}—{% endif %}</td>
+                                        <td>{% if e.total_time_ms %}{{ '%.0f' % e.total_time_ms }}{% else %}—{% endif %}</td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if not entries %}
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted">No chat logs yet.</td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <nav>
+                            <ul class="pagination justify-content-center">
+                                {% if has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page - 1 }}&demo_page={{ demo_page }}">Previous</a>
+                                </li>
+                                {% endif %}
+                                <li class="page-item disabled"><span class="page-link">Page {{ page }}</span></li>
+                                {% if has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page + 1 }}&demo_page={{ demo_page }}">Next</a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+
+                    <!-- Demo Logs Tab -->
+                    <div class="tab-pane fade" id="demo-logs" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>IP</th>
+                                        <th>Question</th>
+                                        <th>Answer</th>
+                                        <th>Model</th>
+                                        <th>In</th>
+                                        <th>Out</th>
+                                        <th>TTFT</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for e in demo_entries %}
+                                    <tr>
+                                        <td class="text-nowrap">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
+                                        <td>{{ e.ip_address }}</td>
+                                        <td title="{{ e.question }}">{{ e.question_short }}</td>
+                                        <td title="{{ e.answer_short }}">{{ e.answer_short }}</td>
+                                        <td>{{ e.model }}</td>
+                                        <td>{{ e.input_tokens }}</td>
+                                        <td>{{ e.output_tokens }}</td>
+                                        <td>{% if e.ttft_ms %}{{ '%.0f' % e.ttft_ms }}{% else %}—{% endif %}</td>
+                                        <td>{% if e.total_time_ms %}{{ '%.0f' % e.total_time_ms }}{% else %}—{% endif %}</td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if not demo_entries %}
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted">No demo logs yet.</td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <nav>
+                            <ul class="pagination justify-content-center">
+                                {% if demo_has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page }}&demo_page={{ demo_page - 1 }}#demo">Previous</a>
+                                </li>
+                                {% endif %}
+                                <li class="page-item disabled"><span class="page-link">Page {{ demo_page }}</span></li>
+                                {% if demo_has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page }}&demo_page={{ demo_page + 1 }}#demo">Next</a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+
+                </div><!-- tab-content -->
             </div>
         </div>
     </div>
 </div>
+
+<script>
+// Restore active tab from hash or query param
+(function () {
+    const hash = window.location.hash;
+    if (hash === '#demo') {
+        const tab = document.getElementById('demo-tab');
+        if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
+    }
+})();
+</script>
 {% endblock %}

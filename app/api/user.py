@@ -259,6 +259,7 @@ async def admin_create_test_user(
 async def admin_logs(
     request: Request,
     page: int = Query(1, ge=1),
+    demo_page: int = Query(1, ge=1),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -270,10 +271,12 @@ async def admin_logs(
     if user.email != admin_email:
         return RedirectResponse(url="/", status_code=303)
 
-    per_page = 50
-    offset = (page - 1) * per_page
+    from app.models.demo import DemoMessage
 
-    # Query assistant messages (each has timing_data) joined with conversation for user info
+    per_page = 50
+
+    # --- User chat logs ---
+    offset = (page - 1) * per_page
     logs = (
         db.query(ChatMessage, ChatConversation, User)
         .join(ChatConversation, ChatMessage.conversation_id == ChatConversation.id)
@@ -285,13 +288,11 @@ async def admin_logs(
         .limit(per_page + 1)
         .all()
     )
-
     has_next = len(logs) > per_page
     logs = logs[:per_page]
 
     entries = []
     for msg, conv, msg_user in logs:
-        # Get the preceding user message for the question
         user_msg = (
             db.query(ChatMessage)
             .filter(
@@ -302,14 +303,54 @@ async def admin_logs(
             .order_by(desc(ChatMessage.created_at))
             .first()
         )
-
         timing = msg.timing_data or {}
         question = user_msg.content if user_msg else "N/A"
         answer = msg.content
-
         entries.append({
             "timestamp": msg.created_at,
             "user_email": msg_user.email,
+            "question": question,
+            "question_short": (question[:120] + "...") if len(question) > 120 else question,
+            "answer_short": (answer[:120] + "...") if len(answer) > 120 else answer,
+            "model": timing.get("model", "—"),
+            "input_tokens": timing.get("input_tokens", "—"),
+            "output_tokens": timing.get("output_tokens", "—"),
+            "ttft_ms": timing.get("ttft_ms"),
+            "total_time_ms": timing.get("total_time_ms"),
+        })
+
+    # --- Demo logs ---
+    demo_offset = (demo_page - 1) * per_page
+    assistant_msgs = (
+        db.query(DemoMessage)
+        .filter(DemoMessage.role == "assistant")
+        .order_by(desc(DemoMessage.created_at))
+        .offset(demo_offset)
+        .limit(per_page + 1)
+        .all()
+    )
+    demo_has_next = len(assistant_msgs) > per_page
+    assistant_msgs = assistant_msgs[:per_page]
+
+    demo_entries = []
+    for amsg in assistant_msgs:
+        # Find the preceding user message from the same IP closest in time
+        user_msg = (
+            db.query(DemoMessage)
+            .filter(
+                DemoMessage.ip_address == amsg.ip_address,
+                DemoMessage.role == "user",
+                DemoMessage.created_at <= amsg.created_at,
+            )
+            .order_by(desc(DemoMessage.created_at))
+            .first()
+        )
+        timing = amsg.timing_data or {}
+        question = user_msg.content if user_msg else "N/A"
+        answer = amsg.content
+        demo_entries.append({
+            "timestamp": amsg.created_at,
+            "ip_address": amsg.ip_address,
             "question": question,
             "question_short": (question[:120] + "...") if len(question) > 120 else question,
             "answer_short": (answer[:120] + "...") if len(answer) > 120 else answer,
@@ -325,6 +366,10 @@ async def admin_logs(
     context["page"] = page
     context["has_next"] = has_next
     context["has_prev"] = page > 1
+    context["demo_entries"] = demo_entries
+    context["demo_page"] = demo_page
+    context["demo_has_next"] = demo_has_next
+    context["demo_has_prev"] = demo_page > 1
 
     return templates.TemplateResponse("admin_logs.html", context)
 
