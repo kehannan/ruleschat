@@ -45,8 +45,8 @@
                                     <tr>
                                         <td class="text-nowrap">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
                                         <td>{{ e.user_email }}</td>
-                                        <td title="{{ e.question }}">{{ e.question_short }}</td>
-                                        <td title="{{ e.answer_short }}">{{ e.answer_short }}</td>
+                                        <td class="expandable-cell" data-full="{{ e.question|e }}" data-short="{{ e.question_short|e }}">{{ e.question_short }}</td>
+                                        <td class="expandable-cell" data-full="{{ e.answer|e }}" data-short="{{ e.answer_short|e }}">{{ e.answer_short }}</td>
                                         <td>{{ e.model }}</td>
                                         <td>{{ e.input_tokens }}</td>
                                         <td>{{ e.output_tokens }}</td>
@@ -101,8 +101,8 @@
                                     <tr>
                                         <td class="text-nowrap">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
                                         <td>{{ e.ip_address }}</td>
-                                        <td title="{{ e.question }}">{{ e.question_short }}</td>
-                                        <td title="{{ e.answer_short }}">{{ e.answer_short }}</td>
+                                        <td class="expandable-cell" data-full="{{ e.question|e }}" data-short="{{ e.question_short|e }}">{{ e.question_short }}</td>
+                                        <td class="expandable-cell" data-full="{{ e.answer|e }}" data-short="{{ e.answer_short|e }}">{{ e.answer_short }}</td>
                                         <td>{{ e.model }}</td>
                                         <td>{{ e.input_tokens }}</td>
                                         <td>{{ e.output_tokens }}</td>
@@ -141,6 +141,20 @@
     </div>
 </div>
 
+<style>
+.expandable-cell {
+    cursor: pointer;
+    max-width: 300px;
+}
+.expandable-cell:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+.expandable-cell.expanded {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+</style>
+
 <script>
 // Restore active tab from hash or query param
 (function () {
@@ -150,5 +164,21 @@
         if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
     }
 })();
+
+// Click to expand/collapse truncated cells
+document.querySelectorAll('.expandable-cell').forEach(function(cell) {
+    cell.addEventListener('click', function() {
+        const full = cell.getAttribute('data-full');
+        const short = cell.getAttribute('data-short');
+        if (full === short) return; // nothing to expand
+        if (cell.classList.contains('expanded')) {
+            cell.textContent = short;
+            cell.classList.remove('expanded');
+        } else {
+            cell.textContent = full;
+            cell.classList.add('expanded');
+        }
+    });
+});
 </script>
 {% endblock %}
