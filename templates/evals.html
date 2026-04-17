@@ -28,6 +28,7 @@
         <thead class="table-light">
           <tr>
             <th>Model</th>
+            <th class="text-center">Input (RAG) tokens</th>
             <th class="text-center">Recall accuracy</th>
             <th class="text-center">Calc accuracy</th>
             <th class="text-center">Cost / query</th>
@@ -42,6 +43,7 @@
           {% set est = model_estimated is defined and model in model_estimated %}
           <tr>
             <td class="fw-semibold">{{ model }}</td>
+            <td class="text-center">~20k</td>
             {% if 'recall' in acc %}
               {% set rc = acc['recall'] %}
               <td class="text-center {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
@@ -69,9 +71,8 @@
     <!-- Narrative -->
     <div class="mb-4 p-3" style="background:#f8f9fa; border-left: 3px solid #2c3e50; border-radius: 0 4px 4px 0; font-size:13px;">
       <ul class="mb-0" style="line-height: 2;">
-        <li><strong>gpt-5-mini has the best accuracy and competitive cost, but is too slow.</strong></li>
-        <li><strong>gpt-5.4-mini is surprisingly worse than gpt-5-mini on accuracy, but ~5x faster.</strong></li>
-        <li><strong>gpt-5.4 doesn't justify its cost on this simple eval. Need to create a harder eval to test frontier models.</strong></li>
+        <li><strong>The latest models can accurately answer recall questions for this simple eval.</strong> Next step is to evaluate with a harder eval; building the eval now.</li>
+        <li><strong>The models don't reliably answer calculation questions.</strong> Next step: analyzing calculation errors to identify whether failures stem from retrieval, reasoning, or arithmetic — then targeting the weakest link.</li>
       </ul>
     </div>
 
