@@ -69,8 +69,9 @@ fetch('/static/rulebook/section_pages.json')
     .catch(e => console.warn('Could not load section page map:', e));
 
 function makeSectionReferencesClickable(element) {
-    const sectionPattern     = /\b([A-Z]?\d+\.\d+(?:\.\d+)?)\b/g;
-    const sectionWithPage    = /\{([A-Z]?\d+\.\d+(?:\.\d+)?)\|(\d+)\}/g;
+    const sectionWithPage = /\{([A-Z]?\d+\.\d+(?:\.\d+)?)\|(\d+)\}/g;
+    const sectionPattern  = /\b([A-Z]?\d+\.\d+(?:\.\d+)?)\b/g;
+    const perrySezPattern = /\bPerry\s+Sez\b/gi;
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
 
     const textNodes = [];
@@ -79,38 +80,55 @@ function makeSectionReferencesClickable(element) {
 
     textNodes.forEach(textNode => {
         const text = textNode.textContent;
-        const matchesWithPage = [...text.matchAll(sectionWithPage)];
-        const matches = [...text.matchAll(sectionPattern)];
-        if (matchesWithPage.length === 0 && matches.length === 0) return;
+        const all = [];
+
+        for (const m of text.matchAll(sectionWithPage)) {
+            all.push({ type: 'sectionPage', start: m.index, end: m.index + m[0].length, section: m[1], page: parseInt(m[2]) });
+        }
+        for (const m of text.matchAll(perrySezPattern)) {
+            all.push({ type: 'perrySez', start: m.index, end: m.index + m[0].length });
+        }
+        for (const m of text.matchAll(sectionPattern)) {
+            all.push({ type: 'section', start: m.index, end: m.index + m[0].length, section: m[0] });
+        }
+
+        if (all.length === 0) return;
+
+        all.sort((a, b) => a.start - b.start);
+
+        const filtered = [];
+        let lastEnd = -1;
+        for (const m of all) {
+            if (m.start < lastEnd) continue;
+            filtered.push(m);
+            lastEnd = m.end;
+        }
 
         const fragment = document.createDocumentFragment();
         let lastIndex = 0;
-        const processedRanges = [];
 
-        matchesWithPage.forEach(match => {
-            const start = match.index, end = start + match[0].length;
-            if (start > lastIndex) fragment.appendChild(document.createTextNode(text.substring(lastIndex, start)));
+        for (const m of filtered) {
+            if (m.start > lastIndex) fragment.appendChild(document.createTextNode(text.substring(lastIndex, m.start)));
+
             const link = document.createElement('span');
             link.className = 'section-link';
-            link.textContent = match[1];
-            link.setAttribute('data-page', parseInt(match[2]));
-            link.onclick = (e) => { e.preventDefault(); openPdfModal(match[1], parseInt(match[2])); };
-            fragment.appendChild(link);
-            lastIndex = end;
-            processedRanges.push({ start, end });
-        });
 
-        matches.forEach(match => {
-            const start = match.index, end = start + match[0].length;
-            if (processedRanges.some(r => start >= r.start && end <= r.end)) return;
-            if (start > lastIndex) fragment.appendChild(document.createTextNode(text.substring(lastIndex, start)));
-            const link = document.createElement('span');
-            link.className = 'section-link';
-            link.textContent = match[0];
-            link.onclick = (e) => { e.preventDefault(); openPdfModal(match[0]); };
+            if (m.type === 'sectionPage') {
+                link.textContent = m.section;
+                link.setAttribute('data-page', m.page);
+                link.onclick = (e) => { e.preventDefault(); openPdfModal(m.section, m.page); };
+            } else if (m.type === 'section') {
+                link.textContent = m.section;
+                link.onclick = (e) => { e.preventDefault(); openPdfModal(m.section); };
+            } else if (m.type === 'perrySez') {
+                link.textContent = 'PS';
+                link.title = 'Perry Sez';
+                link.onclick = (e) => { e.preventDefault(); openPerrySezModal(); };
+            }
+
             fragment.appendChild(link);
-            lastIndex = end;
-        });
+            lastIndex = m.end;
+        }
 
         if (lastIndex < text.length) fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
         textNode.parentNode.replaceChild(fragment, textNode);
@@ -121,27 +139,53 @@ function makeSectionReferencesClickable(element) {
 // PDF viewer
 // ============================================================
 
+const PDF_SOURCES = {
+    rulebook: {
+        url: '/static/rulebook/eASLRB_v3_14_INHERIT_ZOOM.pdf',
+        title: 'ASL Rulebook (eASLRB v3.14)',
+        doc: null,
+        preloadPromise: null,
+    },
+    perrySez: {
+        url: '/static/rulebook/Perry-Sez-v34.pdf',
+        title: 'Perry Sez (v34)',
+        doc: null,
+        preloadPromise: null,
+    },
+};
+
 let pdfDoc = null;
+let currentSource = 'rulebook';
 let currentPage = 1;
 let totalPages = 0;
 let scale = 1.5;
-const pdfUrl = '/static/rulebook/eASLRB_v3_14_INHERIT_ZOOM.pdf';
 const devicePixelRatio = window.devicePixelRatio || 1;
-let pdfPreloadStarted = false;
-let pdfPreloadPromise = null;
 
-function preloadPdf() {
-    if (pdfPreloadStarted) return;
-    pdfPreloadStarted = true;
-    pdfPreloadPromise = pdfjsLib.getDocument(pdfUrl).promise.then(doc => {
-        pdfDoc = doc;
-        totalPages = doc.numPages;
+function preloadPdf(source = 'rulebook') {
+    const s = PDF_SOURCES[source];
+    if (s.doc || s.preloadPromise) return s.preloadPromise;
+    s.preloadPromise = pdfjsLib.getDocument(s.url).promise.then(doc => {
+        s.doc = doc;
         return doc;
     }).catch(err => {
-        console.warn('PDF: Preload failed:', err);
-        pdfPreloadStarted = false;
-        pdfPreloadPromise = null;
+        console.warn(`PDF: Preload failed for ${source}:`, err);
+        s.preloadPromise = null;
     });
+    return s.preloadPromise;
+}
+
+async function switchPdfSource(source) {
+    const s = PDF_SOURCES[source];
+    if (!s.doc) {
+        if (s.preloadPromise) await s.preloadPromise;
+        if (!s.doc) s.doc = await pdfjsLib.getDocument(s.url).promise;
+    }
+    currentSource = source;
+    pdfDoc = s.doc;
+    totalPages = pdfDoc.numPages;
+    const titleEl = document.querySelector('#pdf-modal .pdf-modal-header h3');
+    if (titleEl) titleEl.textContent = s.title;
+    return pdfDoc;
 }
 
 async function openPdfModal(section, pageNum = null) {
@@ -151,15 +195,8 @@ async function openPdfModal(section, pageNum = null) {
     loading.classList.add('show');
 
     try {
-        if (!pdfDoc) {
-            if (pdfPreloadPromise) {
-                await pdfPreloadPromise;
-            } else {
-                pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
-                totalPages = pdfDoc.numPages;
-            }
-            updatePageInfo();
-        }
+        await switchPdfSource('rulebook');
+        updatePageInfo();
         if (pageNum)       { currentPage = pageNum; await renderPage(currentPage); }
         else if (section)  { await navigateToSection(section); }
         else               { await renderPage(currentPage); }
@@ -167,6 +204,24 @@ async function openPdfModal(section, pageNum = null) {
         updateControls();
     } catch (err) {
         console.error('Error loading PDF:', err);
+        loading.textContent = 'Error loading PDF. Please try again.';
+    }
+}
+
+async function openPerrySezModal() {
+    const modal   = document.getElementById('pdf-modal');
+    const loading = document.getElementById('pdf-loading');
+    modal.style.display = 'flex';
+    loading.classList.add('show');
+
+    try {
+        await switchPdfSource('perrySez');
+        currentPage = 1;
+        await renderPage(currentPage);
+        loading.classList.remove('show');
+        updateControls();
+    } catch (err) {
+        console.error('Error loading Perry Sez PDF:', err);
         loading.textContent = 'Error loading PDF. Please try again.';
     }
 }

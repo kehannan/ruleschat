@@ -110,8 +110,8 @@ Your response:"""
                 temperature=0.0,  # Use 0 for deterministic verification
                 stream=False,
                 tools=[{
-                        "type": "file_search",
-                    "vector_store_ids": [self.config.vector_store_id],
+                    "type": "file_search",
+                    "vector_store_ids": self.config.all_vector_store_ids,
                 }]
             )
             
@@ -192,7 +192,7 @@ Your response:"""
             tools = [
                 {
                     "type": "file_search",
-                    "vector_store_ids": [self.config.vector_store_id],
+                    "vector_store_ids": self.config.all_vector_store_ids,
                     "max_num_results": num_chunks
                 }
             ]

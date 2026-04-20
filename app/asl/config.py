@@ -16,55 +16,73 @@ class ASLConfig:
     org_id: Optional[str]
     project_id: Optional[str]
     vector_store_id: str
+    perry_sez_vector_store_id: Optional[str]
     model: str
     temperature: float
     system_instructions: str
 
+    @property
+    def all_vector_store_ids(self) -> list[str]:
+        """Vector stores to pass to file_search (rulebook + optional Perry Sez)."""
+        ids = [self.vector_store_id]
+        if self.perry_sez_vector_store_id:
+            ids.append(self.perry_sez_vector_store_id)
+        return ids
 
-def _load_vector_store_id(config_file: Optional[str] = None) -> Optional[str]:
-    """
-    Load vector store ID from config file.
-    
-    Args:
-        config_file: Path to responses_api_config.json (defaults to ./responses_api_config.json)
-        
-    Returns:
-        Vector store ID or None if not found
-    """
+
+def _read_config_json(config_file: Optional[str] = None) -> Optional[dict]:
     if config_file is None:
         config_file = "responses_api_config.json"
-    
     config_path = Path(config_file)
     if not config_path.exists():
         logging.warning(f"⚠️ Config file not found: {config_path}")
         return None
-    
     try:
         with open(config_path, "r") as f:
-            config = json.load(f)
-        
-        # Handle versioned config format
-        if "versions" in config and "active_version" in config:
-            active_version = config.get("active_version")
-            if active_version and active_version in config["versions"]:
-                version_data = config["versions"][active_version]
-                vector_store_id = version_data.get("vector_store_id")
-                if vector_store_id:
-                    logging.info(f"✅ Loaded vector store ID from versioned config: {active_version}")
-                    return vector_store_id
-        
-        # Handle legacy format
-        vector_store_id = config.get("vector_store_id")
-        if vector_store_id:
-            logging.info("✅ Loaded vector store ID from legacy config")
-            return vector_store_id
-        
-        logging.warning("⚠️ No vector_store_id found in config file")
-        return None
-        
+            return json.load(f)
     except Exception as e:
         logging.error(f"❌ Error loading config file: {e}")
         return None
+
+
+def _load_vector_store_id(config_file: Optional[str] = None) -> Optional[str]:
+    """Load the active rulebook vector store ID from config."""
+    config = _read_config_json(config_file)
+    if config is None:
+        return None
+
+    if "versions" in config and "active_version" in config:
+        active_version = config.get("active_version")
+        if active_version and active_version in config["versions"]:
+            vector_store_id = config["versions"][active_version].get("vector_store_id")
+            if vector_store_id:
+                logging.info(f"✅ Loaded vector store ID from versioned config: {active_version}")
+                return vector_store_id
+
+    vector_store_id = config.get("vector_store_id")
+    if vector_store_id:
+        logging.info("✅ Loaded vector store ID from legacy config")
+        return vector_store_id
+
+    logging.warning("⚠️ No vector_store_id found in config file")
+    return None
+
+
+def _load_perry_sez_vector_store_id(config_file: Optional[str] = None) -> Optional[str]:
+    """Load the active Perry Sez vector store ID from config. Optional — None if not present."""
+    config = _read_config_json(config_file)
+    if config is None:
+        return None
+
+    versions = config.get("perry_sez_versions") or {}
+    active = config.get("active_perry_sez_version")
+    if active and active in versions:
+        vs_id = versions[active].get("vector_store_id")
+        if vs_id:
+            logging.info(f"✅ Loaded Perry Sez vector store ID: {active}")
+            return vs_id
+
+    return None
 
 
 def load_asl_config(
@@ -98,19 +116,23 @@ def load_asl_config(
         vector_store_id = _load_vector_store_id(config_file)
         if not vector_store_id:
             raise ValueError("vector_store_id not found in config file or environment")
-    
+
+    # Load Perry Sez vector store ID (optional)
+    perry_sez_vector_store_id = _load_perry_sez_vector_store_id(config_file)
+
     # Load model and temperature
     model = os.getenv("DEFAULT_MODEL", DEFAULT_MODEL)
     temperature = float(os.getenv("TEMPERATURE", str(TEMPERATURE)))
-    
+
     # Load system instructions
     system_instructions = os.getenv("ASL_SYSTEM_INSTRUCTIONS", ASL_SYSTEM_INSTRUCTIONS)
-    
+
     return ASLConfig(
         api_key=api_key,
         org_id=org_id,
         project_id=project_id,
         vector_store_id=vector_store_id,
+        perry_sez_vector_store_id=perry_sez_vector_store_id,
         model=model,
         temperature=temperature,
         system_instructions=system_instructions
