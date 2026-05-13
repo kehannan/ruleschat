@@ -11,6 +11,7 @@ This is a FastAPI web application that lets players ask Advanced Squad Leader (A
 - **RAG pipeline** — OpenAI Responses API with `file_search` against a vector store of the rulebook (up to 20 chunks per query)
 - **Streaming WebSocket** — responses stream token-by-token; TTFT, cost, and token counts surfaced per query
 - **In-browser PDF viewer** — rule citations (e.g. A4.34) open the rulebook PDF at the exact page
+- **Image attachment (multimodal)** — paste a VASL board screenshot into the chat; the model sees the image alongside the rulebook RAG and answers about board state. Auto-routes to `gpt-5.4` when an image is attached. See [docs/multimodal_plan.md](docs/multimodal_plan.md) for design and known limitations.
 - **Model selector** — switch between models in-chat (tested with gpt-4.1-mini and gpt-5-mini)
 - **Automated evals** — zero-shot AI Judge scores responses Pass/Fail/Needs Review; results manually reviewed
 - **Demo mode** — unauthenticated users get 5 questions/day
@@ -29,9 +30,11 @@ Browser ──WebSocket──▶ FastAPI ──▶ OpenAI Responses API
 
 **Key files:**
 - [app/asl/client.py](app/asl/client.py) — Responses API wrapper
-- [app/services/asl_service.py](app/services/asl_service.py) — main assistant service
-- [app/api/chat.py](app/api/chat.py) — WebSocket handler
+- [app/services/asl_service.py](app/services/asl_service.py) — main assistant service; `_build_multimodal_input` for image attachments
+- [app/services/image_storage.py](app/services/image_storage.py) — validate + persist user-uploaded images
+- [app/api/chat.py](app/api/chat.py) — WebSocket handler; `GET /api/uploads/{conv_id}/{filename}` retrieval route
 - [app/config.py](app/config.py) — system instructions
+- [static/js/chat-shared.js](static/js/chat-shared.js) — clipboard paste handler + client-side resize
 
 ## Project Structure
 
@@ -49,6 +52,8 @@ Browser ──WebSocket──▶ FastAPI ──▶ OpenAI Responses API
 ├── static/            # CSS, JS, images
 ├── templates/         # Jinja2 HTML templates
 ├── tests/             # Playwright mobile tests, manual API tests
+├── data/uploads/      # User-uploaded images (gitignored), keyed by conversation_id
+├── docs/              # Design docs (multimodal plan, etc.)
 └── run.py             # Dev server runner
 ```
 

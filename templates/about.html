@@ -56,35 +56,36 @@
         Chat is delivered over a persistent WebSocket connection, streaming tokens to the browser
         as they are generated.
       </p>
-      <p>Each question goes through the following pipeline:</p>
+      <p>Each question flows through a four-step pipeline:</p>
       <ul class="tech-list mb-3">
         <li>
-          <strong>Retrieval</strong> — The question is sent to the
+          <strong>Retrieve &amp; Generate</strong> — The question is sent to the
           <a href="https://platform.openai.com/docs/api-reference/responses" target="_blank" rel="noopener noreferrer">OpenAI Responses API</a>
-          with a <code>file_search</code> tool configured against a vector store of the rulebook.
-          Up to 20 chunks are retrieved per query.
+          with a <code>file_search</code> tool over a vector store of the rulebook. Up to 20 chunks
+          are retrieved and injected into a structured system prompt that instructs the model to cite
+          specific rule section numbers (e.g. A4.34). The response streams token-by-token over
+          WebSocket; the frontend renders markdown progressively and tracks TTFT, RAG latency,
+          total response time, token counts, and estimated cost per query. Conversation history is
+          included for multi-turn context.
         </li>
         <li>
-          <strong>Generation</strong> — Retrieved chunks are injected into a structured system prompt
-          that instructs the model to cite specific rule section numbers (e.g. A4.34) in every answer.
-          Conversation history is included for multi-turn context.
+          <strong>Validate</strong> <span class="text-muted small">(optional)</span> —
+          Rule citations in responses are rendered as clickable links that open an in-browser PDF
+          viewer at the exact rulebook page, using a pre-built section-to-page index, so the user
+          can check the answer against the source.
         </li>
         <li>
-          <strong>Streaming</strong> — The response streams token-by-token over WebSocket.
-          The frontend renders markdown progressively and tracks time-to-first-token (TTFT),
-          RAG latency, total response time, token counts, and estimated cost per query.
+          <strong>Evaluate</strong> — Structured eval sets are run against the model and scored by
+          a zero-shot AI Judge as Pass, Fail, or Needs Review. Flagged responses are reviewed
+          manually to confirm or correct the judge's verdict, giving a human-verified accuracy
+          signal across model versions. Results are broken down by question type (Recall vs. Calc).
+        </li>
+        <li>
+          <strong>Curate</strong> — Every chat interaction is logged. Promising user Q&amp;A pairs
+          are triaged through a review UI into eval sets or SFT training data, feeding the loop
+          that measures and improves the model over time.
         </li>
       </ul>
-      <p>
-        Rule citations in responses are rendered as clickable links that open an in-browser PDF
-        viewer at the exact rulebook page, using a pre-built section-to-page index.
-      </p>
-      <p class="mb-0">
-        <strong>Evaluation</strong> — every chat interaction is logged. Structured eval sets are run
-        against the model and scored by a zero-shot AI Judge (Pass / Fail / Needs Review).
-        Flagged responses are then reviewed manually to confirm or correct the judge's verdict,
-        giving a human-verified accuracy signal across model versions.
-      </p>
     </div>
 
     <hr class="my-4">
@@ -119,9 +120,9 @@
 
     <hr class="my-4">
 
-    <!-- Evaluation -->
+    <!-- Evaluation & Curation Loop -->
     <div class="about-section">
-      <h2>Evaluation</h2>
+      <h2>Evaluation &amp; Curation Loop</h2>
       <p>
         Model performance is tracked using a structured eval pipeline. Each eval consists of a
         question and a reference answer. After running a model against the eval set, a zero-shot
@@ -132,6 +133,12 @@
         Evals are split by question type — <strong>Recall</strong> (pure rule lookup) and
         <strong>Calc</strong> (recall + computation) — since these require different capabilities
         and tend to show different failure modes.
+      </p>
+      <p>
+        Real production questions feed back into this loop. A review UI surfaces logged user
+        questions alongside the production answer; promising ones are imported into eval files or
+        SFT training data, while duplicates and rejects are hashed and filtered so they never
+        reappear. This keeps the eval set grounded in what users actually ask.
       </p>
       <p class="mb-0">
         <a href="{{ url_for('evals') }}">View current evaluation results →</a>

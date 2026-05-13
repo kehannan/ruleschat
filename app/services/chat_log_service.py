@@ -14,6 +14,7 @@ def append_chat_log(
     answer: str,
     model: str,
     timing_data: dict,
+    image_path: str = None,
 ):
     """Append a single Q&A interaction as one JSON line."""
     try:
@@ -29,6 +30,7 @@ def append_chat_log(
             "ttft_ms": timing_data.get("ttft_ms"),
             "total_time_ms": timing_data.get("total_time_ms"),
             "file_search_time_ms": timing_data.get("file_search_time_ms"),
+            "image_path": image_path,
         }
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(entry) + "\n")

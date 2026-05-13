@@ -34,6 +34,18 @@ logging.basicConfig(
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+# One-shot idempotent column additions for SQLite (no migration tool in use)
+def _ensure_column(table: str, column: str, ddl: str):
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+        if column not in cols:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {ddl}"))
+            conn.commit()
+            logging.info(f"Added column {table}.{column}")
+
+_ensure_column("chat_messages", "image_path", "image_path VARCHAR(255)")
+
 # Load runtime config from DB
 from app.api.demo import load_demo_enabled_from_db, is_demo_enabled
 load_demo_enabled_from_db()

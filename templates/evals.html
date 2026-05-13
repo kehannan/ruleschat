@@ -88,7 +88,7 @@
       <div class="card-body">
         <div class="row mb-4">
           <div class="col-md-6">
-            <h6 class="text-center">Tokens per Question</h6>
+            <h6 class="text-center">Total Tokens per Question</h6>
             <canvas id="tokensChart" height="250"></canvas>
           </div>
           <div class="col-md-6">
@@ -128,15 +128,22 @@ function getColor(model, idx) {
   return MODEL_COLORS[model] || { in: fallback, out: fallback, cost: fallback };
 }
 
+// Image-variant series are rendered dashed to distinguish from text-only baselines.
+const IMAGE_DASH = [6, 4];
+
+// Variants hidden from all charts (still counted in the comparison table above).
+const CHART_EXCLUDED = new Set(['gpt-4.1-mini', 'gpt-5-mini (image)', 'gpt-5.4-mini']);
+
 fetch('/api/usage/daily')
   .then(r => r.json())
   .then(data => {
     if (!data.models || data.models.length === 0) return;
 
-    // Fill cost/timing into comparison table
-    data.models.forEach(model => {
-      const s = data.series[model];
-      const id = MODEL_ID_MAP[model];
+    // Comparison table is text-only baseline; image variants are charted but skipped here.
+    data.models.forEach(variant => {
+      const s = data.series[variant];
+      if (s.is_image) return;
+      const id = MODEL_ID_MAP[s.base_model];
       if (!id) return;
       let totalCost = 0, costCount = 0, totalTime = 0, timeCount = 0;
       s.cost.forEach(v => { if (v != null && v > 0) { totalCost += v; costCount++; } });
@@ -156,18 +163,19 @@ fetch('/api/usage/daily')
     });
 
     const tokenDatasets = [];
-    data.models.forEach((model, i) => {
-      const s = data.series[model];
-      const colors = getColor(model, i);
+    data.models.forEach((variant, i) => {
+      if (CHART_EXCLUDED.has(variant)) return;
+      const s = data.series[variant];
+      const colors = getColor(s.base_model, i);
+      const dash = s.is_image ? IMAGE_DASH : [];
       tokenDatasets.push({
-        label: `${model} (in)`,
-        data: s.dates.map((d, j) => ({ x: d, y: s.input_tokens[j] })),
-        borderColor: colors.in, backgroundColor: colors.in, tension: 0.3, pointRadius: 3, spanGaps: false,
-      });
-      tokenDatasets.push({
-        label: `${model} (out)`,
-        data: s.dates.map((d, j) => ({ x: d, y: s.output_tokens[j] })),
-        borderColor: colors.out, backgroundColor: colors.out, tension: 0.3, pointRadius: 3, spanGaps: false,
+        label: variant,
+        data: s.dates.map((d, j) => {
+          const i = s.input_tokens[j], o = s.output_tokens[j];
+          return { x: d, y: (i == null && o == null) ? null : (i || 0) + (o || 0) };
+        }),
+        borderColor: colors.out, backgroundColor: colors.out, borderDash: dash,
+        tension: 0.3, pointRadius: 3, spanGaps: false,
       });
     });
 
@@ -177,20 +185,23 @@ fetch('/api/usage/daily')
         responsive: true,
         scales: {
           x: { type: 'category', title: { display: true, text: 'Date' } },
-          y: { title: { display: true, text: 'Tokens / Question' }, beginAtZero: true },
+          y: { title: { display: true, text: 'Total Tokens (in+out) / Question' }, beginAtZero: true },
         },
         plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
       },
     });
 
     const costDatasets = [];
-    data.models.forEach((model, i) => {
-      const s = data.series[model];
-      const colors = getColor(model, i);
+    data.models.forEach((variant, i) => {
+      if (CHART_EXCLUDED.has(variant)) return;
+      const s = data.series[variant];
+      const colors = getColor(s.base_model, i);
+      const dash = s.is_image ? IMAGE_DASH : [];
       costDatasets.push({
-        label: model,
+        label: variant,
         data: s.dates.map((d, j) => ({ x: d, y: s.cost[j] })),
-        borderColor: colors.cost, backgroundColor: colors.cost, tension: 0.3, pointRadius: 3, spanGaps: false,
+        borderColor: colors.cost, backgroundColor: colors.cost, borderDash: dash,
+        tension: 0.3, pointRadius: 3, spanGaps: false,
       });
     });
 
@@ -207,13 +218,16 @@ fetch('/api/usage/daily')
     });
 
     const timeDatasets = [];
-    data.models.forEach((model, i) => {
-      const s = data.series[model];
-      const colors = getColor(model, i);
+    data.models.forEach((variant, i) => {
+      if (CHART_EXCLUDED.has(variant)) return;
+      const s = data.series[variant];
+      const colors = getColor(s.base_model, i);
+      const dash = s.is_image ? IMAGE_DASH : [];
       timeDatasets.push({
-        label: model,
+        label: variant,
         data: s.dates.map((d, j) => ({ x: d, y: s.total_time_s[j] })),
-        borderColor: colors.cost, backgroundColor: colors.cost, tension: 0.3, pointRadius: 3, spanGaps: false,
+        borderColor: colors.cost, backgroundColor: colors.cost, borderDash: dash,
+        tension: 0.3, pointRadius: 3, spanGaps: false,
       });
     });
 
