@@ -306,3 +306,75 @@ document.addEventListener('keydown', (e) => {
         if (modal && modal.style.display !== 'none') closePdfModal();
     }
 });
+
+// ============================================================
+// Image attachment (clipboard paste)
+// ============================================================
+
+let pendingImage = null;
+const IMAGE_MAX_DIM = 2048;
+const IMAGE_JPEG_QUALITY = 0.85;
+
+function getPendingImage() { return pendingImage; }
+
+async function handleImagePaste(e) {
+    if (!e.clipboardData) return;
+    const item = [...e.clipboardData.items].find(i => i.type && i.type.startsWith('image/'));
+    if (!item) return;
+    e.preventDefault();
+    const blob = item.getAsFile();
+    if (!blob) return;
+    try {
+        const dataUrl = await resizeImageToDataUrl(blob, IMAGE_MAX_DIM, IMAGE_JPEG_QUALITY);
+        setPendingImage(dataUrl);
+    } catch (err) {
+        console.error('Image paste failed:', err);
+    }
+}
+
+async function resizeImageToDataUrl(blob, maxDim, quality) {
+    const img = await createImageBitmap(blob);
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    let outBlob;
+    if (typeof OffscreenCanvas !== 'undefined') {
+        const canvas = new OffscreenCanvas(w, h);
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        outBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+    } else {
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        outBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+    }
+    return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(outBlob);
+    });
+}
+
+function setPendingImage(dataUrl) {
+    pendingImage = dataUrl;
+    const preview = document.getElementById('image-preview');
+    const thumb = document.getElementById('image-preview-thumb');
+    if (thumb) thumb.src = dataUrl;
+    if (preview) preview.style.display = 'flex';
+}
+
+function clearPendingImage() {
+    pendingImage = null;
+    const preview = document.getElementById('image-preview');
+    const thumb = document.getElementById('image-preview-thumb');
+    if (preview) preview.style.display = 'none';
+    if (thumb) thumb.removeAttribute('src');
+}
+
+function bindImagePasteHandler() {
+    const input = document.getElementById('chat-message-input');
+    if (input) input.addEventListener('paste', handleImagePaste);
+    const removeBtn = document.querySelector('.image-preview-remove');
+    if (removeBtn) removeBtn.addEventListener('click', clearPendingImage);
+}

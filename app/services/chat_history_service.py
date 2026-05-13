@@ -63,7 +63,18 @@ class ChatHistoryService:
             ChatConversation.user_id == user_id,
             ChatConversation.is_active == True
         ).first()
-    
+
+    def get_conversation_any_owner(
+        self,
+        db: Session,
+        conversation_id: int
+    ) -> Optional[ChatConversation]:
+        """Admin-only: get conversation without ownership check."""
+        return db.query(ChatConversation).filter(
+            ChatConversation.id == conversation_id,
+            ChatConversation.is_active == True
+        ).first()
+
     def get_user_conversations(
         self, 
         db: Session, 
@@ -106,13 +117,14 @@ class ChatHistoryService:
         ).order_by(ChatMessage.created_at).all()
     
     def add_message(
-        self, 
-        db: Session, 
-        conversation_id: int, 
-        role: str, 
-        content: str, 
-        rag_sources: dict = None, 
-        timing_data: dict = None
+        self,
+        db: Session,
+        conversation_id: int,
+        role: str,
+        content: str,
+        rag_sources: dict = None,
+        timing_data: dict = None,
+        image_path: str = None
     ) -> ChatMessage:
         """
         Add a message to a conversation.
@@ -134,7 +146,8 @@ class ChatHistoryService:
             content=content,
             token_count=estimate_tokens(content),
             rag_sources=rag_sources,
-            timing_data=timing_data
+            timing_data=timing_data,
+            image_path=image_path
         )
         db.add(message)
         

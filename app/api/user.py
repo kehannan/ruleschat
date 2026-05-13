@@ -318,6 +318,8 @@ async def admin_logs(
             "output_tokens": timing.get("output_tokens", "—"),
             "ttft_ms": timing.get("ttft_ms"),
             "total_time_ms": timing.get("total_time_ms"),
+            "image_path": user_msg.image_path if user_msg else None,
+            "conversation_id": msg.conversation_id,
         })
 
     # --- Demo logs ---

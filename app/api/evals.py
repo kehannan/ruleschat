@@ -77,7 +77,11 @@ async def evals_detail_page(request: Request, file_id: str = None, judge: str = 
 
 @router.get("/api/usage/daily", name="usage_daily")
 async def usage_daily(db: Session = Depends(get_db)):
-    """Return daily per-question average tokens and cost by model."""
+    """Return daily per-question average tokens and cost by model.
+
+    Image-attached queries are aggregated as a separate variant ("{model} (image)")
+    so the /evals charts can show text vs image queries side by side.
+    """
     ALLOWED_MODELS = {"gpt-5-mini", "gpt-4.1-mini", "gpt-5.4", "gpt-5.4-mini"}
 
     messages = (
@@ -96,61 +100,95 @@ async def usage_daily(db: Session = Depends(get_db)):
         .all()
     )
 
-    # Aggregate by date + model
+    # Backfill: for assistant messages whose timing_data lacks image_attached,
+    # detect the flag from the preceding user message's image_path.
+    image_user_msgs = (
+        db.query(ChatMessage.conversation_id, ChatMessage.created_at)
+        .filter(ChatMessage.role == "user")
+        .filter(ChatMessage.image_path.isnot(None))
+        .all()
+    )
+    images_by_conv = defaultdict(list)
+    for conv_id, created_at in image_user_msgs:
+        images_by_conv[conv_id].append(created_at)
+
+    def is_image_query(msg) -> bool:
+        timing = msg.timing_data or {}
+        if "image_attached" in timing:
+            return bool(timing["image_attached"])
+        if not hasattr(msg, "conversation_id"):
+            return False
+        for img_t in images_by_conv.get(msg.conversation_id, ()):
+            if img_t <= msg.created_at:
+                return True
+        return False
+
+    # Aggregate by (date, model, is_image)
     daily = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "total_time_ms": 0, "count": 0})
+    variants_seen = set()
     for msg in list(messages) + list(demo_messages):
         timing = msg.timing_data or {}
         model = timing.get("model", "unknown")
         if model not in ALLOWED_MODELS:
             continue
+        is_image = is_image_query(msg)
+        variant = f"{model} (image)" if is_image else model
+        variants_seen.add(variant)
         date_str = msg.created_at.strftime("%Y-%m-%d") if msg.created_at else "unknown"
-        key = (date_str, model)
+        key = (date_str, variant)
         daily[key]["input_tokens"] += timing.get("input_tokens", 0) or 0
         daily[key]["output_tokens"] += timing.get("output_tokens", 0) or 0
         daily[key]["total_time_ms"] += timing.get("total_time_ms", 0) or 0
         daily[key]["count"] += 1
 
-    models = sorted(set(k[1] for k in daily.keys()))
+    MODEL_PRICING = {
+        "gpt-5-mini":   (0.25, 1.00),
+        "gpt-5.4":      (3.00, 15.00),
+        "gpt-5.4-mini": (0.25, 2.00),
+        "gpt-4.1-mini": (0.40, 1.60),
+    }
+
+    def base_model(variant: str) -> str:
+        return variant.replace(" (image)", "")
+
+    variants = sorted(variants_seen)
     dates = sorted(set(k[0] for k in daily.keys()))
 
     series = {}
-    for model in models:
-        series[model] = {
+    for variant in variants:
+        series[variant] = {
             "dates": [],
             "input_tokens": [],
             "output_tokens": [],
             "cost": [],
             "total_time_s": [],
+            "is_image": variant.endswith(" (image)"),
+            "base_model": base_model(variant),
         }
+        inp_price, out_price = MODEL_PRICING.get(base_model(variant), (0.40, 1.60))
         for date in dates:
-            key = (date, model)
+            key = (date, variant)
             data = daily.get(key)
-            series[model]["dates"].append(date)
+            series[variant]["dates"].append(date)
             if not data or data["count"] == 0:
-                series[model]["input_tokens"].append(None)
-                series[model]["output_tokens"].append(None)
-                series[model]["cost"].append(None)
-                series[model]["total_time_s"].append(None)
+                series[variant]["input_tokens"].append(None)
+                series[variant]["output_tokens"].append(None)
+                series[variant]["cost"].append(None)
+                series[variant]["total_time_s"].append(None)
             else:
                 count = data["count"]
                 inp = data["input_tokens"] / count
                 out = data["output_tokens"] / count
                 total_time_s = (data["total_time_ms"] / count) / 1000
-                MODEL_PRICING = {
-                    "gpt-5-mini":   (0.25, 1.00),
-                    "gpt-5.4":      (3.00, 15.00),
-                    "gpt-5.4-mini": (0.25, 2.00),
-                    "gpt-4.1-mini": (0.40, 1.60),
-                }
-                inp_price, out_price = MODEL_PRICING.get(model, (0.40, 1.60))
                 cost = (inp * inp_price + out * out_price) / 1_000_000
                 has_tokens = (inp > 0 or out > 0)
-                series[model]["input_tokens"].append(round(inp) if has_tokens else None)
-                series[model]["output_tokens"].append(round(out) if has_tokens else None)
-                series[model]["cost"].append(round(cost, 6) if has_tokens else None)
-                series[model]["total_time_s"].append(round(total_time_s, 1) if total_time_s > 0 else None)
+                series[variant]["input_tokens"].append(round(inp) if has_tokens else None)
+                series[variant]["output_tokens"].append(round(out) if has_tokens else None)
+                series[variant]["cost"].append(round(cost, 6) if has_tokens else None)
+                series[variant]["total_time_s"].append(round(total_time_s, 1) if total_time_s > 0 else None)
 
-    return JSONResponse({"dates": dates, "models": models, "series": series})
+    # "models" key kept for backward compat (old name = variant identifier)
+    return JSONResponse({"dates": dates, "models": variants, "series": series})
 
 
 # --- Public Logic ---

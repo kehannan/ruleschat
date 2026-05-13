@@ -40,6 +40,9 @@ class ChatMessage(Base):
     # Optional metadata (assistant messages only)
     rag_sources = Column(JSON)
     timing_data = Column(JSON)
+
+    # Optional image attachment (user messages only); relative path under data/uploads/
+    image_path = Column(String(255))
     
     # Relationship
     conversation = relationship("ChatConversation", back_populates="messages")

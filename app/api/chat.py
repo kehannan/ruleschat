@@ -6,7 +6,7 @@ import logging
 import time
 from typing import Optional
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, Depends, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from starlette.websockets import WebSocketState
 from jose import jwt, JWTError
@@ -14,11 +14,12 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 
 from app.config import ASL_SYSTEM_INSTRUCTIONS, DEFAULT_MODEL, TEMPERATURE, WEBSOCKET_PING_INTERVAL
-from app.core.auth import SECRET_KEY, ALGORITHM
+from app.core.auth import SECRET_KEY, ALGORITHM, require_user
 from app.services.user_service import get_user_by_email
 from app.services.asl_service import get_asl_service
 from app.services.chat_history_service import get_chat_history_service
 from app.services.chat_log_service import append_chat_log
+from app.services.image_storage import save_image_data_url, resolve_image_path, ImageValidationError
 from app.database import SessionLocal, get_db
 from app.models.user import User
 
@@ -119,6 +120,32 @@ def home_page(request: Request):
     return templates.TemplateResponse("home.html", context)
 
 
+@router.get("/api/uploads/{conversation_id}/{filename}")
+def get_upload(
+    conversation_id: int,
+    filename: str,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """Auth-gated retrieval of an uploaded image. Owner-only, with admin bypass."""
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    is_admin = user.email == os.getenv("ADMIN_EMAIL")
+    if is_admin:
+        conv = get_chat_history_service().get_conversation_any_owner(db, conversation_id)
+    else:
+        conv = get_chat_history_service().get_conversation(db, conversation_id, user.id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    try:
+        fpath = resolve_image_path(f"{conversation_id}/{filename}")
+    except ImageValidationError:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not fpath.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(fpath)
+
+
 @router.get("/ruleschat", name="ruleschat", response_class=HTMLResponse)
 def ruleschat(request: Request):
     """Protected rules chat page."""
@@ -200,7 +227,8 @@ async def get_conversation_messages(conversation_id: int, request: Request):
                 "role": m.role,
                 "content": m.content,
                 "created_at": m.created_at.isoformat(),
-                "rag_sources": m.rag_sources
+                "rag_sources": m.rag_sources,
+                "image_path": m.image_path,
             }
             for m in messages
         ]
@@ -331,13 +359,15 @@ async def websocket_chat(websocket: WebSocket):
                     if cmd.get("type") == "chat" and cmd.get("text"):
                         message = cmd.get("text")
                         selected_model = cmd.get("model")  # Optional model override
+                        image_data_url = cmd.get("image")  # Optional data URL
                     else:
                         continue  # Unknown command
-                        
+
                 except json.JSONDecodeError:
                     # Not JSON, treat as plain text chat message
                     message = raw_message
                     selected_model = None
+                    image_data_url = None
                 
                 logging.info(f"✅ Received question: {message[:100]}...")
                 
@@ -357,6 +387,20 @@ async def websocket_chat(websocket: WebSocket):
                             "title": conv.title
                         }))
                         logging.info(f"📝 Auto-created conversation: {conv.id}")
+
+                    # Persist attached image, if any
+                    image_path = None
+                    if image_data_url:
+                        try:
+                            image_path = save_image_data_url(image_data_url, conversation_id)
+                            logging.info(f"🖼️  Saved image for conv {conversation_id}: {image_path}")
+                        except ImageValidationError as e:
+                            logging.warning(f"Image rejected: {e}")
+                            await websocket.send_text(json.dumps({
+                                "type": "error",
+                                "message": f"Image rejected: {e}"
+                            }))
+                            continue
                     
                     # Build input with conversation history
                     history_prefix = chat_history_service.format_history_for_api(db, conversation_id)
@@ -370,12 +414,18 @@ async def websocket_chat(websocket: WebSocket):
                     allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-5.4", "gpt-4.1-mini"}
                     model_override = selected_model if selected_model in allowed_models else None
 
+                    # Force vision-capable model when an image is attached
+                    if image_path and model_override != "gpt-5.4":
+                        logging.info(f"🖼️  Image attached — overriding model {model_override} → gpt-5.4")
+                        model_override = "gpt-5.4"
+
                     # Get streaming response from service
                     stream, timing_data = asl_service.get_answer(
                         full_input,
                         stream=True,
                         return_timing=True,
-                        model=model_override
+                        model=model_override,
+                        image_path=image_path,
                     )
                     
                     logging.info("🔄 Streaming response from OpenAI...")
@@ -400,12 +450,14 @@ async def websocket_chat(websocket: WebSocket):
                         
                         # Save messages to history
                         chat_history_service.add_message(
-                            db, conversation_id, "user", message
+                            db, conversation_id, "user", message,
+                            image_path=image_path
                         )
                         
                         rag_sources = timing_data.get('rag_sources', [])
                         timing_without_sources = {k: v for k, v in timing_data.items() if k != 'rag_sources'}
                         timing_without_sources["model"] = model_override or DEFAULT_MODEL
+                        timing_without_sources["image_attached"] = bool(image_path)
 
                         chat_history_service.add_message(
                             db, conversation_id, "assistant", full_response,
@@ -422,6 +474,7 @@ async def websocket_chat(websocket: WebSocket):
                             answer=full_response,
                             model=model_override or DEFAULT_MODEL,
                             timing_data=timing_without_sources,
+                            image_path=image_path,
                         )
                         logging.info(f"📤 Sending {len(rag_sources)} RAG sources to frontend")
                         

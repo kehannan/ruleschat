@@ -4,11 +4,13 @@ ASL Rules Assistant Service
 This service provides a unified interface for getting ASL rule answers.
 Used by both the web application and evaluation scripts to ensure consistency.
 """
+import base64
 import os
 import json
 import logging
 import time
-from typing import Optional, Generator, Tuple, Any, Dict, List
+from pathlib import Path
+from typing import Optional, Generator, Tuple, Any, Dict, List, Union
 
 from app.asl.config import load_asl_config, ASLConfig
 from app.asl.client import OpenAIResponsesClient
@@ -18,6 +20,55 @@ from app.asl.postprocess import (
     compute_timing_metrics
 )
 from app.asl.tools import TOOL_SCHEMAS, execute_tool
+
+_IMAGE_MIME_BY_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+_TERRAIN_LEGEND_PATH = Path(__file__).resolve().parents[2] / "static" / "img" / "terrain_legend.png"
+
+
+def _load_terrain_legend_data_url() -> Optional[str]:
+    if not _TERRAIN_LEGEND_PATH.is_file():
+        logging.warning("Terrain legend not found at %s; multimodal calls will skip it", _TERRAIN_LEGEND_PATH)
+        return None
+    b64 = base64.b64encode(_TERRAIN_LEGEND_PATH.read_bytes()).decode()
+    return f"data:image/png;base64,{b64}"
+
+
+_TERRAIN_LEGEND_DATA_URL = _load_terrain_legend_data_url()
+
+VISION_INSTRUCTIONS_ADDENDUM = """
+
+Two images are attached. The FIRST is a fixed VASL terrain legend showing labeled examples of 12 terrain types: Open Ground, Road (Dirt), Road (Paved), Woods, Wooden Building, Stone Building, Wall, Hedge, Grain, Brush, Orchard, and Hill. The SECOND is the user's board screenshot.
+
+Before naming any terrain on the user's board, do visual matching against the legend - compare each board hex's color, pattern, and shape to the legend cells, and pick the closest match. Do not rely on prior assumptions about VASL conventions; the legend is the source of truth for what each terrain looks like. Distinguish Wooden Building (+2 TEM) from Stone Building (+3 TEM) by color/texture - Wooden is reddish-brown, Stone is gray. Distinguish Road (Dirt) from Road (Paved) similarly.
+
+Counters in VASL frequently appear ROTATED at angles (commonly 30-60 degrees) when a unit has moved, fired, or is in a special state - this is normal VASL behavior, not image corruption. Rotation flips the counter to show its "moved" / "fired" / "CX" face. Read counter labels (firepower-range-morale, gun caliber like 75LL, MA value, vehicle ID, leadership) regardless of orientation; mentally rotate the text. AFV counters carry small numeric details (Basic TH#, MA, Target Size) that are critical for to-hit calculations - extract them when readable, and explicitly say which fields are unreadable when they are not.
+
+Then: describe what you see in the user's board (hexes visible, counters and their state - broken/CX/disrupted/pinned, apparent LOS lines, terrain identified via the legend). Call file_search for the rule sections that govern the situation depicted. Cite specific rule sections (e.g., A6.4) in your answer. Reason over both the image and the retrieved rules. If a counter, hex, or detail is unreadable, say so explicitly rather than guessing. Never make a rule claim without a file_search citation."""
+
+
+def _build_multimodal_input(question: str, image_path: str) -> list:
+    """Read image from disk, encode as data URL, return Responses API multipart input.
+
+    Includes the fixed terrain legend as the first input_image (when available)
+    so the model can do visual matching against canonical VASL terrain examples.
+    """
+    p = Path(image_path)
+    if not p.is_absolute():
+        p = Path("data/uploads") / image_path
+    if not p.is_file():
+        raise FileNotFoundError(f"Image not found: {p}")
+    mime = _IMAGE_MIME_BY_EXT.get(p.suffix.lower())
+    if not mime:
+        raise ValueError(f"Unsupported image extension: {p.suffix}")
+    b64 = base64.b64encode(p.read_bytes()).decode()
+    data_url = f"data:{mime};base64,{b64}"
+
+    content: List[Dict[str, Any]] = [{"type": "input_text", "text": question}]
+    if _TERRAIN_LEGEND_DATA_URL is not None:
+        content.append({"type": "input_image", "image_url": _TERRAIN_LEGEND_DATA_URL, "detail": "high"})
+    content.append({"type": "input_image", "image_url": data_url, "detail": "high"})
+    return [{"role": "user", "content": content}]
 
 
 class ASLService:
@@ -140,7 +191,8 @@ Your response:"""
         force_web_search: bool = False,
         use_verification: bool = False,
         use_agentic: bool = False,
-        max_chunks: Optional[int] = None
+        max_chunks: Optional[int] = None,
+        image_path: Optional[str] = None
     ):
         """
         Get an answer to an ASL question.
@@ -180,6 +232,15 @@ Your response:"""
             question,
             force_web_search=force_web_search
         )
+        if image_path:
+            instructions = instructions + VISION_INSTRUCTIONS_ADDENDUM
+
+        # Build input — multimodal if image attached, else plain string
+        if image_path:
+            api_input = _build_multimodal_input(question, image_path)
+            logging.info(f"🖼️  Multimodal input built for image: {image_path}")
+        else:
+            api_input = question
         
         # Start timing for RAG latency measurement
         api_call_start_time = time.time()
@@ -205,7 +266,7 @@ Your response:"""
             # Build common API kwargs — some models (e.g. gpt-5-mini) don't support temperature
             api_kwargs = {
                 "model": model,
-                "input": question,
+                "input": api_input,
                 "instructions": instructions,
                 "tools": tools,
             }

@@ -60,27 +60,6 @@
     color: #666;
     margin-bottom: 0;
   }
-  .capability-card {
-    padding: 1rem;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    height: 100%;
-  }
-  .capability-card .cap-icon {
-    font-size: 1.25rem;
-    color: #2c3e50;
-    margin-bottom: 0.5rem;
-  }
-  .capability-card h6 {
-    font-size: 0.8rem;
-    font-weight: 700;
-    margin-bottom: 0.3rem;
-  }
-  .capability-card p {
-    font-size: 0.8rem;
-    color: #666;
-    margin-bottom: 0;
-  }
   .section-divider {
     margin: 1.5rem 0;
     border-color: #e0e0e0;
@@ -138,77 +117,53 @@
     <!-- How It Works -->
     <p class="section-heading">How It Works</p>
     <div class="row g-3 mb-2">
-      <div class="col-md-4">
+      <div class="col-md-6 col-lg-3">
         <div class="pipeline-step">
           <div class="step-num">1</div>
           <div>
-            <h6>Retrieve</h6>
+            <h6>Retrieve &amp; Generate</h6>
             <p>
-              The question is sent to OpenAI's Responses API with a <code>file_search</code> tool
-              pointed at a vector store of the ASL rulebook. Up to 20 relevant chunks are retrieved.
+              OpenAI's Responses API uses a <code>file_search</code> tool over a vector store
+              of the ASL rulebook; the model answers from the retrieved chunks and streams
+              back, citing rule sections (e.g. A4.34).
             </p>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-6 col-lg-3">
         <div class="pipeline-step">
           <div class="step-num">2</div>
           <div>
-            <h6>Generate</h6>
+            <h6>Validate <span class="text-muted small">(optional)</span></h6>
             <p>
-              Retrieved chunks are injected into the prompt and the model generates an answer,
-              citing rule section numbers (e.g. A4.34). Conversation history is included for
-              multi-turn context.
+              Each citation is a clickable link that opens the rulebook PDF at the exact page,
+              so you can check the answer against the source.
             </p>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-6 col-lg-3">
         <div class="pipeline-step">
           <div class="step-num">3</div>
           <div>
-            <h6>Respond</h6>
+            <h6>Evaluate</h6>
             <p>
-              The answer streams in real time over WebSocket with cited rule section numbers
-              (e.g. A4.34). Citations are clickable links that open the rulebook PDF at the
-              exact page.
+              An LLM judge scores the answer against an expected answer, with pass / fail /
+              needs-review verdicts tracked by model and question type.
             </p>
           </div>
         </div>
       </div>
-    </div>
-
-    <hr class="section-divider">
-
-    <!-- Technical Capabilities -->
-    <p class="section-heading">Technical Capabilities</p>
-    <div class="row g-3 mb-0">
-      <div class="col-sm-6 col-lg-3">
-        <div class="capability-card">
-          <div class="cap-icon"><i class="bi bi-database"></i></div>
-          <h6>RAG Pipeline</h6>
-          <p>OpenAI Responses API with <code>file_search</code>. Vector store of the 1M+ token rulebook; multimodal document converted to text chunks.</p>
-        </div>
-      </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="capability-card">
-          <div class="cap-icon"><i class="bi bi-lightning-charge"></i></div>
-          <h6>Streaming WebSocket</h6>
-          <p>Responses stream token-by-token to the browser. Markdown rendered progressively. TTFT, RAG latency, and cost surfaced per query.</p>
-        </div>
-      </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="capability-card">
-          <div class="cap-icon"><i class="bi bi-file-earmark-pdf"></i></div>
-          <h6>In-Browser PDF Viewer</h6>
-          <p>Rule citations like "A4.34" open the rulebook PDF in a modal at the correct page, powered by a section-to-page index.</p>
-        </div>
-      </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="capability-card">
-          <div class="cap-icon"><i class="bi bi-graph-up"></i></div>
-          <h6>Automated Evals</h6>
-          <p>A zero-shot AI Judge evaluates answers against expected outputs. Results tracked by model, eval set, and question type — focused on whether cheap mini models can match expensive ones.</p>
+      <div class="col-md-6 col-lg-3">
+        <div class="pipeline-step">
+          <div class="step-num">4</div>
+          <div>
+            <h6>Curate</h6>
+            <p>
+              Promising Q&amp;A pairs are triaged into eval sets or SFT training data, feeding
+              the loop that measures and improves the model.
+            </p>
+          </div>
         </div>
       </div>
     </div>
