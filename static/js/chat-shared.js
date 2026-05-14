@@ -311,22 +311,27 @@ document.addEventListener('keydown', (e) => {
 // Image attachment (clipboard paste)
 // ============================================================
 
-let pendingImage = null;
+let pendingImages = [];                        // array of data URLs (most recent paste appended)
 const IMAGE_MAX_DIM = 2048;
 const IMAGE_JPEG_QUALITY = 0.85;
+const MAX_PENDING_IMAGES = 3;
 
-function getPendingImage() { return pendingImage; }
+function getPendingImages() { return pendingImages.slice(); }
 
 async function handleImagePaste(e) {
     if (!e.clipboardData) return;
     const item = [...e.clipboardData.items].find(i => i.type && i.type.startsWith('image/'));
     if (!item) return;
     e.preventDefault();
+    if (pendingImages.length >= MAX_PENDING_IMAGES) {
+        console.warn(`Max ${MAX_PENDING_IMAGES} images per message; ignoring paste.`);
+        return;
+    }
     const blob = item.getAsFile();
     if (!blob) return;
     try {
         const dataUrl = await resizeImageToDataUrl(blob, IMAGE_MAX_DIM, IMAGE_JPEG_QUALITY);
-        setPendingImage(dataUrl);
+        addPendingImage(dataUrl);
     } catch (err) {
         console.error('Image paste failed:', err);
     }
@@ -356,12 +361,9 @@ async function resizeImageToDataUrl(blob, maxDim, quality) {
     });
 }
 
-function setPendingImage(dataUrl) {
-    pendingImage = dataUrl;
-    const preview = document.getElementById('image-preview');
-    const thumb = document.getElementById('image-preview-thumb');
-    if (thumb) thumb.src = dataUrl;
-    if (preview) preview.style.display = 'flex';
+function addPendingImage(dataUrl) {
+    pendingImages.push(dataUrl);
+    renderPendingImages();
     // Image queries get force-overridden to gpt-5.4 server-side; mirror that in the
     // selector so the user sees the model that will actually run.
     const sel = document.getElementById('model-selector');
@@ -371,17 +373,64 @@ function setPendingImage(dataUrl) {
     }
 }
 
-function clearPendingImage() {
-    pendingImage = null;
+function clearPendingImages() {
+    pendingImages = [];
+    renderPendingImages();
+}
+
+function removePendingImageAt(idx) {
+    if (idx < 0 || idx >= pendingImages.length) return;
+    pendingImages.splice(idx, 1);
+    renderPendingImages();
+}
+
+function renderPendingImages() {
     const preview = document.getElementById('image-preview');
-    const thumb = document.getElementById('image-preview-thumb');
-    if (preview) preview.style.display = 'none';
-    if (thumb) thumb.removeAttribute('src');
+    if (!preview) return;
+    if (pendingImages.length === 0) {
+        preview.style.display = 'none';
+        preview.innerHTML = '';
+        return;
+    }
+    preview.style.display = 'flex';
+    // Build chips: thumb + remove (×) per image, plus a single label for the count
+    preview.innerHTML = '';
+    pendingImages.forEach((url, idx) => {
+        const item = document.createElement('div');
+        item.className = 'image-preview-item';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = `Pasted image ${idx + 1}`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'image-preview-remove';
+        btn.title = 'Remove image';
+        btn.textContent = '×';
+        btn.addEventListener('click', () => removePendingImageAt(idx));
+        item.appendChild(img);
+        item.appendChild(btn);
+        preview.appendChild(item);
+    });
+    const label = document.createElement('span');
+    label.className = 'image-preview-label';
+    label.textContent = pendingImages.length === 1
+        ? '1 image attached'
+        : `${pendingImages.length} images attached`;
+    preview.appendChild(label);
 }
 
 function bindImagePasteHandler() {
     const input = document.getElementById('chat-message-input');
     if (input) input.addEventListener('paste', handleImagePaste);
-    const removeBtn = document.querySelector('.image-preview-remove');
-    if (removeBtn) removeBtn.addEventListener('click', clearPendingImage);
+    // Clear any stale state from the static markup; renderPendingImages takes over.
+    pendingImages = [];
+    renderPendingImages();
+}
+
+// Back-compat shims for callers that still use the singular API.
+function getPendingImage() { return pendingImages[0] || null; }
+function clearPendingImage() { clearPendingImages(); }
+function setPendingImage(dataUrl) {
+    pendingImages = [];
+    addPendingImage(dataUrl);
 }

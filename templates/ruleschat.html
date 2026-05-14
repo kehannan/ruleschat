@@ -18,13 +18,9 @@
         </div>
 
         <div class="chat-input-container">
-            <div id="image-preview" class="image-preview" style="display: none;">
-                <img id="image-preview-thumb" alt="Pasted image" />
-                <span class="image-preview-label">Image attached</span>
-                <button type="button" class="image-preview-remove" title="Remove image">×</button>
-            </div>
+            <div id="image-preview" class="image-preview" style="display: none;"></div>
             <div class="chat-input-wrapper">
-                <textarea id="chat-message-input" class="chat-input" placeholder="Message Rules Chat... (paste an image to attach)"
+                <textarea id="chat-message-input" class="chat-input" placeholder="Message Rules Chat... (paste up to 3 images to attach)"
                     rows="1"></textarea>
                 <button id="chat-message-submit" class="send-button" type="button" title="Send message">Send</button>
             </div>
@@ -152,6 +148,7 @@
     .image-preview {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 0.5rem;
         padding: 0.5rem 0.75rem;
         margin: 0 0 0.5rem 0;
@@ -160,43 +157,60 @@
         border-radius: 6px;
     }
 
-    .image-preview img {
+    .image-preview-item {
+        position: relative;
+        display: inline-block;
+    }
+
+    .image-preview-item img {
         max-height: 48px;
         max-width: 64px;
         object-fit: cover;
         border-radius: 4px;
         border: 1px solid #ccc;
+        display: block;
     }
 
     .image-preview-label {
-        flex: 1;
         font-size: 0.85rem;
         color: #666;
+        margin-left: auto;
     }
 
-    .image-preview-remove {
-        background: transparent;
-        border: none;
-        font-size: 1.4rem;
-        line-height: 1;
-        color: #888;
+    .image-preview-item .image-preview-remove {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 18px;
+        height: 18px;
+        background: #fff;
+        border: 1px solid #aaa;
+        border-radius: 50%;
+        font-size: 14px;
+        line-height: 14px;
+        color: #555;
         cursor: pointer;
-        padding: 0 0.4rem;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    .image-preview-remove:hover {
-        color: #333;
+    .image-preview-item .image-preview-remove:hover {
+        color: #000;
+        border-color: #555;
     }
 
-    /* Attached image inside a user message bubble */
+    /* Attached image(s) inside a user message bubble */
     .user-message .message-image {
-        display: block;
+        display: inline-block;
         max-width: 280px;
         max-height: 200px;
-        margin-top: 0.5rem;
+        margin: 0.5rem 0.4rem 0 0;
         border-radius: 6px;
         border: 1px solid #ccc;
         cursor: zoom-in;
+        vertical-align: top;
     }
 </style>
 {% endblock %}
@@ -456,7 +470,7 @@
         };
     }
 
-    function createUserMessage(text, imageDataUrl) {
+    function createUserMessage(text, imageDataUrls) {
         const chatContainer = document.querySelector('#chat-container');
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('user-message');
@@ -465,14 +479,15 @@
         content.classList.add('message-content');
         content.textContent = text;
 
-        if (imageDataUrl) {
+        const urls = Array.isArray(imageDataUrls) ? imageDataUrls : (imageDataUrls ? [imageDataUrls] : []);
+        urls.forEach((url, idx) => {
             const img = document.createElement('img');
-            img.src = imageDataUrl;
-            img.alt = 'Attached image';
+            img.src = url;
+            img.alt = `Attached image ${idx + 1}`;
             img.className = 'message-image';
-            img.addEventListener('click', () => window.open(imageDataUrl, '_blank'));
+            img.addEventListener('click', () => window.open(url, '_blank'));
             content.appendChild(img);
-        }
+        });
 
         messageDiv.appendChild(content);
         chatContainer.appendChild(messageDiv);
@@ -518,20 +533,20 @@
         }
 
         const selectedModel = document.getElementById('model-selector').value;
-        const attachedImage = getPendingImage();
+        const attachedImages = (typeof getPendingImages === 'function') ? getPendingImages() : [];
         const payload = {
             type: 'chat',
             text: message,
             model: selectedModel,
         };
-        if (attachedImage) payload.image = attachedImage;
+        if (attachedImages.length > 0) payload.images = attachedImages;
         chatSocket.send(JSON.stringify(payload));
         messageInput.value = '';
         messageInput.style.height = 'auto';
-        clearPendingImage();
+        if (typeof clearPendingImages === 'function') clearPendingImages();
 
         const chatContainer = document.querySelector('#chat-container');
-        createUserMessage(message, attachedImage);
+        createUserMessage(message, attachedImages);
         createSearchingBubble();
         chatContainer.scrollTop = chatContainer.scrollHeight;
         lastUserQuestion = message;

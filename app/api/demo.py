@@ -206,13 +206,15 @@ async def websocket_demo(websocket: WebSocket):
                     continue
 
                 # Parse message
-                image_data_url = None
+                image_data_urls: list[str] = []
                 try:
                     cmd = json.loads(raw_message)
                     if cmd.get("type") == "chat" and cmd.get("text"):
                         message = cmd["text"].strip()
                         selected_model = cmd.get("model")
-                        image_data_url = cmd.get("image")
+                        image_data_urls = cmd.get("images") or []
+                        if not image_data_urls and cmd.get("image"):
+                            image_data_urls = [cmd.get("image")]
                     else:
                         continue
                 except json.JSONDecodeError:
@@ -222,18 +224,30 @@ async def websocket_demo(websocket: WebSocket):
                 if not message:
                     continue
 
-                # If an image was attached, validate + save before we touch the rate limit
-                image_path = None
-                if image_data_url:
+                # Cap + validate + save attached images before touching the rate limit
+                MAX_DEMO_IMAGES_PER_MESSAGE = 3
+                image_paths: list[str] = []
+                if len(image_data_urls) > MAX_DEMO_IMAGES_PER_MESSAGE:
+                    await websocket.send_text(json.dumps({
+                        "type": "error",
+                        "message": f"At most {MAX_DEMO_IMAGES_PER_MESSAGE} images per message.",
+                    }))
+                    continue
+                image_save_failed = False
+                for url in image_data_urls:
                     try:
-                        image_path = save_image_data_url(image_data_url, "demo")
-                        logging.info(f"🖼️  Demo image saved: {image_path}")
+                        image_paths.append(save_image_data_url(url, "demo"))
                     except ImageValidationError as ive:
                         await websocket.send_text(json.dumps({
                             "type": "error",
                             "message": f"Image rejected: {ive}",
                         }))
-                        continue
+                        image_save_failed = True
+                        break
+                if image_save_failed:
+                    continue
+                if image_paths:
+                    logging.info(f"🖼️  Demo {len(image_paths)} image(s) saved: {image_paths}")
 
                 db = SessionLocal()
                 try:
@@ -264,9 +278,9 @@ async def websocket_demo(websocket: WebSocket):
                     allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-5.4"}
                     model = selected_model if selected_model in allowed_models else DEMO_MODEL
 
-                    # Force vision-capable model when an image is attached
-                    if image_path and model != "gpt-5.4":
-                        logging.info(f"🖼️  Demo image attached - overriding model {model} -> gpt-5.4")
+                    # Force vision-capable model when image(s) attached
+                    if image_paths and model != "gpt-5.4":
+                        logging.info(f"🖼️  Demo image(s) attached - overriding model {model} -> gpt-5.4")
                         model = "gpt-5.4"
 
                     asl_service = get_asl_service()
@@ -276,7 +290,7 @@ async def websocket_demo(websocket: WebSocket):
                         return_timing=True,
                         model=model,
                         max_chunks=DEMO_MAX_CHUNKS,
-                        image_path=image_path,
+                        image_paths=image_paths or None,
                     )
 
                     full_response = ""
@@ -291,12 +305,15 @@ async def websocket_demo(websocket: WebSocket):
                         rag_sources = timing_data.get("rag_sources", [])
                         timing_clean = {k: v for k, v in timing_data.items() if k != "rag_sources"}
                         timing_clean["model"] = model
-                        timing_clean["image_attached"] = bool(image_path)
+                        timing_clean["image_attached"] = bool(image_paths)
 
                         # Log user + assistant messages for stats
                         log_db = SessionLocal()
                         try:
-                            log_db.add(DemoMessage(ip_address=ip, role="user", content=message, image_path=image_path))
+                            log_db.add(DemoMessage(
+                                ip_address=ip, role="user", content=message,
+                                image_paths=image_paths or None,
+                            ))
                             log_db.add(DemoMessage(ip_address=ip, role="assistant", content=full_response, timing_data=timing_clean))
                             log_db.commit()
                         except Exception as log_err:
