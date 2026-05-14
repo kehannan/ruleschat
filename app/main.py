@@ -44,8 +44,53 @@ def _ensure_column(table: str, column: str, ddl: str):
             conn.commit()
             logging.info(f"Added column {table}.{column}")
 
-_ensure_column("chat_messages", "image_path", "image_path VARCHAR(255)")
-_ensure_column("demo_messages", "image_path", "image_path VARCHAR(255)")
+def _migrate_image_path_to_paths(table: str):
+    """Migrate single-image storage to multi-image:
+      - Legacy schema (image_path only): RENAME the column to image_paths and
+        wrap each existing string value as a JSON 1-element array.
+      - In-progress state (both columns exist): backfill image_paths from
+        image_path where empty, then DROP the legacy column.
+      - Modern schema (image_paths only) or fresh table (neither): no-op.
+    Idempotent across all states.
+    """
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+        has_old = "image_path" in cols
+        has_new = "image_paths" in cols
+        if not has_old:
+            return  # already migrated, or table was created with the new schema
+        # Path scheme is "<conv_id>/<uuid>.<ext>" with no quote/backslash chars,
+        # so plain string interpolation in JSON construction is safe here.
+        if not has_new:
+            # SQLite 3.25+ supports RENAME COLUMN; the prod DO box has it.
+            conn.execute(text(f"ALTER TABLE {table} RENAME COLUMN image_path TO image_paths"))
+            conn.execute(text(
+                f"UPDATE {table} SET image_paths = '[\"' || image_paths || '\"]' "
+                f"WHERE image_paths IS NOT NULL AND image_paths NOT LIKE '[%'"
+            ))
+            conn.commit()
+            logging.info(f"Renamed + converted {table}.image_path -> image_paths (JSON)")
+        else:
+            # Both columns present (caused by interleaved migration steps in dev).
+            # Backfill new column from old where new is empty, then drop the old.
+            conn.execute(text(
+                f"UPDATE {table} SET image_paths = '[\"' || image_path || '\"]' "
+                f"WHERE image_paths IS NULL AND image_path IS NOT NULL"
+            ))
+            # SQLite 3.35+ supports DROP COLUMN; if the runtime is older, log
+            # and leave the legacy column in place (harmless, just unused).
+            try:
+                conn.execute(text(f"ALTER TABLE {table} DROP COLUMN image_path"))
+                conn.commit()
+                logging.info(f"Backfilled and dropped legacy {table}.image_path")
+            except Exception as e:
+                conn.commit()
+                logging.warning(f"Backfilled {table}.image_paths but could not DROP image_path: {e}")
+
+
+_migrate_image_path_to_paths("chat_messages")
+_migrate_image_path_to_paths("demo_messages")
 
 # Load runtime config from DB
 from app.api.demo import load_demo_enabled_from_db, is_demo_enabled

@@ -124,11 +124,11 @@ class ChatHistoryService:
         content: str,
         rag_sources: dict = None,
         timing_data: dict = None,
-        image_path: str = None
+        image_paths: List[str] = None,
     ) -> ChatMessage:
         """
         Add a message to a conversation.
-        
+
         Args:
             db: Database session
             conversation_id: Conversation to add message to
@@ -136,7 +136,8 @@ class ChatHistoryService:
             content: Message text
             rag_sources: Optional RAG chunks used (assistant only)
             timing_data: Optional timing metrics (assistant only)
-            
+            image_paths: Optional list of stored image relative paths (user only)
+
         Returns:
             Created ChatMessage
         """
@@ -147,7 +148,7 @@ class ChatHistoryService:
             token_count=estimate_tokens(content),
             rag_sources=rag_sources,
             timing_data=timing_data,
-            image_path=image_path
+            image_paths=image_paths or None,
         )
         db.add(message)
         

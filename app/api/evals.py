@@ -101,11 +101,11 @@ async def usage_daily(db: Session = Depends(get_db)):
     )
 
     # Backfill: for assistant messages whose timing_data lacks image_attached,
-    # detect the flag from the preceding user message's image_path.
+    # detect the flag from the preceding user message's image_paths.
     image_user_msgs = (
         db.query(ChatMessage.conversation_id, ChatMessage.created_at)
         .filter(ChatMessage.role == "user")
-        .filter(ChatMessage.image_path.isnot(None))
+        .filter(ChatMessage.image_paths.isnot(None))
         .all()
     )
     images_by_conv = defaultdict(list)

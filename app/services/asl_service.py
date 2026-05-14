@@ -38,21 +38,17 @@ _TERRAIN_LEGEND_DATA_URL = _load_terrain_legend_data_url()
 
 VISION_INSTRUCTIONS_ADDENDUM = """
 
-Two images are attached. The FIRST is a fixed VASL terrain legend showing labeled examples of 12 terrain types: Open Ground, Road (Dirt), Road (Paved), Woods, Wooden Building, Stone Building, Wall, Hedge, Grain, Brush, Orchard, and Hill. The SECOND is the user's board screenshot.
+Multiple images are attached. The FIRST image is a fixed VASL terrain legend showing labeled examples of 12 terrain types: Open Ground, Road (Dirt), Road (Paved), Woods, Wooden Building, Stone Building, Wall, Hedge, Grain, Brush, Orchard, and Hill. The REMAINING image(s) are the user's board screenshot(s) - the user may attach more than one view of the same situation (for example: a wide view plus a zoomed-in detail of specific counters). Treat all user images as views of the same game situation unless they obviously depict different scenes.
 
 Before naming any terrain on the user's board, do visual matching against the legend - compare each board hex's color, pattern, and shape to the legend cells, and pick the closest match. Do not rely on prior assumptions about VASL conventions; the legend is the source of truth for what each terrain looks like. Distinguish Wooden Building (+2 TEM) from Stone Building (+3 TEM) by color/texture - Wooden is reddish-brown, Stone is gray. Distinguish Road (Dirt) from Road (Paved) similarly.
 
-Counters in VASL frequently appear ROTATED at angles (commonly 30-60 degrees) when a unit has moved, fired, or is in a special state - this is normal VASL behavior, not image corruption. Rotation flips the counter to show its "moved" / "fired" / "CX" face. Read counter labels (firepower-range-morale, gun caliber like 75LL, MA value, vehicle ID, leadership) regardless of orientation; mentally rotate the text. AFV counters carry small numeric details (Basic TH#, MA, Target Size) that are critical for to-hit calculations - extract them when readable, and explicitly say which fields are unreadable when they are not.
+Counters in VASL frequently appear ROTATED at angles (commonly 30-60 degrees) when a unit has moved, fired, or is in a special state - this is normal VASL behavior, not image corruption. Rotation flips the counter to show its "moved" / "fired" / "CX" face. Read counter labels (firepower-range-morale, gun caliber like 75LL, MA value, vehicle ID, leadership) regardless of orientation; mentally rotate the text. AFV counters carry small numeric details (Basic TH#, MA, Target Size) that are critical for to-hit calculations - extract them when readable, and explicitly say which fields are unreadable when they are not. When multiple user views are attached, prefer the highest-detail view for reading small counter labels.
 
-Then: describe what you see in the user's board (hexes visible, counters and their state - broken/CX/disrupted/pinned, apparent LOS lines, terrain identified via the legend). Call file_search for the rule sections that govern the situation depicted. Cite specific rule sections (e.g., A6.4) in your answer. Reason over both the image and the retrieved rules. If a counter, hex, or detail is unreadable, say so explicitly rather than guessing. Never make a rule claim without a file_search citation."""
+Then: describe what you see across the user's board view(s) (hexes visible, counters and their state - broken/CX/disrupted/pinned, apparent LOS lines, terrain identified via the legend). Call file_search for the rule sections that govern the situation depicted. Cite specific rule sections (e.g., A6.4) in your answer. Reason over both the image(s) and the retrieved rules. If a counter, hex, or detail is unreadable, say so explicitly rather than guessing. Never make a rule claim without a file_search citation."""
 
 
-def _build_multimodal_input(question: str, image_path: str) -> list:
-    """Read image from disk, encode as data URL, return Responses API multipart input.
-
-    Includes the fixed terrain legend as the first input_image (when available)
-    so the model can do visual matching against canonical VASL terrain examples.
-    """
+def _read_image_as_data_url(image_path: str) -> str:
+    """Decode a stored image file into a base64 data URL for the Responses API."""
     p = Path(image_path)
     if not p.is_absolute():
         p = Path("data/uploads") / image_path
@@ -62,12 +58,24 @@ def _build_multimodal_input(question: str, image_path: str) -> list:
     if not mime:
         raise ValueError(f"Unsupported image extension: {p.suffix}")
     b64 = base64.b64encode(p.read_bytes()).decode()
-    data_url = f"data:{mime};base64,{b64}"
+    return f"data:{mime};base64,{b64}"
+
+
+def _build_multimodal_input(question: str, image_paths: List[str]) -> list:
+    """Build the Responses API multipart input for one or more attached images.
+
+    Order of input_image blocks: terrain legend first (if available, as a
+    fixed visual reference), then each user image in the order pasted.
+    """
+    if not image_paths:
+        raise ValueError("_build_multimodal_input requires at least one image_path")
 
     content: List[Dict[str, Any]] = [{"type": "input_text", "text": question}]
     if _TERRAIN_LEGEND_DATA_URL is not None:
         content.append({"type": "input_image", "image_url": _TERRAIN_LEGEND_DATA_URL, "detail": "high"})
-    content.append({"type": "input_image", "image_url": data_url, "detail": "high"})
+    for path in image_paths:
+        data_url = _read_image_as_data_url(path)
+        content.append({"type": "input_image", "image_url": data_url, "detail": "high"})
     return [{"role": "user", "content": content}]
 
 
@@ -192,7 +200,7 @@ Your response:"""
         use_verification: bool = False,
         use_agentic: bool = False,
         max_chunks: Optional[int] = None,
-        image_path: Optional[str] = None
+        image_paths: Optional[List[str]] = None,
     ):
         """
         Get an answer to an ASL question.
@@ -232,13 +240,13 @@ Your response:"""
             question,
             force_web_search=force_web_search
         )
-        if image_path:
+        if image_paths:
             instructions = instructions + VISION_INSTRUCTIONS_ADDENDUM
 
-        # Build input — multimodal if image attached, else plain string
-        if image_path:
-            api_input = _build_multimodal_input(question, image_path)
-            logging.info(f"🖼️  Multimodal input built for image: {image_path}")
+        # Build input — multimodal if image(s) attached, else plain string
+        if image_paths:
+            api_input = _build_multimodal_input(question, image_paths)
+            logging.info(f"🖼️  Multimodal input built for {len(image_paths)} image(s): {image_paths}")
         else:
             api_input = question
         

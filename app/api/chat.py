@@ -247,7 +247,7 @@ async def get_conversation_messages(conversation_id: int, request: Request):
                 "content": m.content,
                 "created_at": m.created_at.isoformat(),
                 "rag_sources": m.rag_sources,
-                "image_path": m.image_path,
+                "image_paths": m.image_paths,
             }
             for m in messages
         ]
@@ -378,7 +378,11 @@ async def websocket_chat(websocket: WebSocket):
                     if cmd.get("type") == "chat" and cmd.get("text"):
                         message = cmd.get("text")
                         selected_model = cmd.get("model")  # Optional model override
-                        image_data_url = cmd.get("image")  # Optional data URL
+                        # New shape: images is a list. Accept legacy single-image
+                        # field too, just in case an old client connects.
+                        image_data_urls = cmd.get("images") or []
+                        if not image_data_urls and cmd.get("image"):
+                            image_data_urls = [cmd.get("image")]
                     else:
                         continue  # Unknown command
 
@@ -386,7 +390,7 @@ async def websocket_chat(websocket: WebSocket):
                     # Not JSON, treat as plain text chat message
                     message = raw_message
                     selected_model = None
-                    image_data_url = None
+                    image_data_urls = []
                 
                 logging.info(f"✅ Received question: {message[:100]}...")
                 
@@ -407,19 +411,31 @@ async def websocket_chat(websocket: WebSocket):
                         }))
                         logging.info(f"📝 Auto-created conversation: {conv.id}")
 
-                    # Persist attached image, if any
-                    image_path = None
-                    if image_data_url:
+                    # Persist attached images, if any (capped at 3 per message)
+                    MAX_IMAGES_PER_MESSAGE = 3
+                    image_paths: list[str] = []
+                    if len(image_data_urls) > MAX_IMAGES_PER_MESSAGE:
+                        await websocket.send_text(json.dumps({
+                            "type": "error",
+                            "message": f"At most {MAX_IMAGES_PER_MESSAGE} images per message.",
+                        }))
+                        continue
+                    image_save_failed = False
+                    for url in image_data_urls:
                         try:
-                            image_path = save_image_data_url(image_data_url, conversation_id)
-                            logging.info(f"🖼️  Saved image for conv {conversation_id}: {image_path}")
+                            image_paths.append(save_image_data_url(url, conversation_id))
                         except ImageValidationError as e:
                             logging.warning(f"Image rejected: {e}")
                             await websocket.send_text(json.dumps({
                                 "type": "error",
-                                "message": f"Image rejected: {e}"
+                                "message": f"Image rejected: {e}",
                             }))
-                            continue
+                            image_save_failed = True
+                            break
+                    if image_save_failed:
+                        continue
+                    if image_paths:
+                        logging.info(f"🖼️  Saved {len(image_paths)} image(s) for conv {conversation_id}: {image_paths}")
                     
                     # Build input with conversation history
                     history_prefix = chat_history_service.format_history_for_api(db, conversation_id)
@@ -433,9 +449,9 @@ async def websocket_chat(websocket: WebSocket):
                     allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-5.4", "gpt-4.1-mini"}
                     model_override = selected_model if selected_model in allowed_models else None
 
-                    # Force vision-capable model when an image is attached
-                    if image_path and model_override != "gpt-5.4":
-                        logging.info(f"🖼️  Image attached — overriding model {model_override} → gpt-5.4")
+                    # Force vision-capable model when image(s) attached
+                    if image_paths and model_override != "gpt-5.4":
+                        logging.info(f"🖼️  Image(s) attached — overriding model {model_override} → gpt-5.4")
                         model_override = "gpt-5.4"
 
                     # Get streaming response from service
@@ -444,7 +460,7 @@ async def websocket_chat(websocket: WebSocket):
                         stream=True,
                         return_timing=True,
                         model=model_override,
-                        image_path=image_path,
+                        image_paths=image_paths or None,
                     )
                     
                     logging.info("🔄 Streaming response from OpenAI...")
@@ -470,13 +486,13 @@ async def websocket_chat(websocket: WebSocket):
                         # Save messages to history
                         chat_history_service.add_message(
                             db, conversation_id, "user", message,
-                            image_path=image_path
+                            image_paths=image_paths or None,
                         )
-                        
+
                         rag_sources = timing_data.get('rag_sources', [])
                         timing_without_sources = {k: v for k, v in timing_data.items() if k != 'rag_sources'}
                         timing_without_sources["model"] = model_override or DEFAULT_MODEL
-                        timing_without_sources["image_attached"] = bool(image_path)
+                        timing_without_sources["image_attached"] = bool(image_paths)
 
                         chat_history_service.add_message(
                             db, conversation_id, "assistant", full_response,
@@ -493,7 +509,7 @@ async def websocket_chat(websocket: WebSocket):
                             answer=full_response,
                             model=model_override or DEFAULT_MODEL,
                             timing_data=timing_without_sources,
-                            image_path=image_path,
+                            image_paths=image_paths or None,
                         )
                         logging.info(f"📤 Sending {len(rag_sources)} RAG sources to frontend")
                         

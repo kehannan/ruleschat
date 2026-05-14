@@ -41,8 +41,9 @@ class ChatMessage(Base):
     rag_sources = Column(JSON)
     timing_data = Column(JSON)
 
-    # Optional image attachment (user messages only); relative path under data/uploads/
-    image_path = Column(String(255))
+    # Optional image attachments (user messages only); JSON list of relative paths
+    # under data/uploads/, e.g. ["27/abc.jpg", "27/def.jpg"]. None when no images.
+    image_paths = Column(JSON)
     
     # Relationship
     conversation = relationship("ChatConversation", back_populates="messages")
