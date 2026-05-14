@@ -22,3 +22,6 @@ class DemoMessage(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     timing_data = Column(JSON)                  # assistant only
+
+    # Optional image attachment (user messages only); relative path under data/uploads/
+    image_path = Column(String(255))

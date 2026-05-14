@@ -45,6 +45,7 @@ def _ensure_column(table: str, column: str, ddl: str):
             logging.info(f"Added column {table}.{column}")
 
 _ensure_column("chat_messages", "image_path", "image_path VARCHAR(255)")
+_ensure_column("demo_messages", "image_path", "image_path VARCHAR(255)")
 
 # Load runtime config from DB
 from app.api.demo import load_demo_enabled_from_db, is_demo_enabled

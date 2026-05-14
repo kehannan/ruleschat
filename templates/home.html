@@ -28,35 +28,21 @@
     color: #888;
     margin-bottom: 0.75rem;
   }
-  .pipeline-step {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-    padding: 1rem;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    height: 100%;
+  .feature-row {
+    padding: 0.75rem 0;
+    border-top: 1px solid #e8e8e8;
   }
-  .pipeline-step .step-num {
-    flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: #2c3e50;
-    color: #fff;
-    font-size: 12px;
+  .feature-row:last-child {
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .feature-row h6 {
+    font-size: 0.95rem;
     font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    margin-bottom: 0;
+    color: #2c3e50;
   }
-  .pipeline-step h6 {
+  .feature-row p {
     font-size: 0.875rem;
-    font-weight: 700;
-    margin-bottom: 0.3rem;
-  }
-  .pipeline-step p {
-    font-size: 0.8rem;
     color: #666;
     margin-bottom: 0;
   }
@@ -91,7 +77,6 @@
           <a href="{{ url_for('demo') }}" class="btn btn-primary">Try the Demo</a>
         {% endif %}
         <a href="{{ url_for('evals') }}" class="btn btn-outline-secondary">View Eval Results</a>
-        <a href="{{ url_for('about') }}" class="btn btn-outline-secondary">How It's Built</a>
       </div>
     </div>
 
@@ -101,10 +86,10 @@
       <a href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">Advanced Squad Leader (ASL)</a> is a tactical WWII board game that historically was played on cardboard maps with cardboard counters and dice.
     </p>
     <p>
-      Now most play happens digitally via <a href="https://vassalengine.org/" target="_blank" rel="noopener noreferrer">VASSAL</a>, but the platform only handles moving counters and rolling dice — all rules interpretation and calculation is still done entirely by the players.
+      Now most play happens digitally via <a href="https://vassalengine.org/" target="_blank" rel="noopener noreferrer">VASSAL</a>/<a href="https://vasl.info/" target="_blank" rel="noopener noreferrer">VASL</a>, but the platform only handles moving counters and rolling dice — all rules interpretation and calculation is still done entirely by the players.
     </p>
     <p>
-      A rules assistant is useful because the game and its rules are complex. During a game, players frequently refer to the 716-page rule book and tables for two purposes:
+      During a game, players frequently refer to the 716-page rule book and tables for two purposes:
     </p>
     <ol>
       <li><strong>Rule lookup:</strong> answer a question about the rules that doesn't require a calculation (e.g., "What is the movement cost to enter a woods hex?")</li>
@@ -114,57 +99,46 @@
 
     <hr class="section-divider">
 
-    <!-- How It Works -->
-    <p class="section-heading">How It Works</p>
-    <div class="row g-3 mb-2">
-      <div class="col-md-6 col-lg-3">
-        <div class="pipeline-step">
-          <div class="step-num">1</div>
-          <div>
-            <h6>Retrieve &amp; Generate</h6>
-            <p>
-              OpenAI's Responses API uses a <code>file_search</code> tool over a vector store
-              of the ASL rulebook; the model answers from the retrieved chunks and streams
-              back, citing rule sections (e.g. A4.34).
-            </p>
-          </div>
-        </div>
+    <!-- Features -->
+    <p class="section-heading">Features</p>
+    <div class="feature-row row align-items-start">
+      <div class="col-md-4 col-lg-3">
+        <h6>RAG <span class="text-muted small fw-normal">(Retrieval-Augmented Generation)</span></h6>
       </div>
-      <div class="col-md-6 col-lg-3">
-        <div class="pipeline-step">
-          <div class="step-num">2</div>
-          <div>
-            <h6>Validate <span class="text-muted small">(optional)</span></h6>
-            <p>
-              Each citation is a clickable link that opens the rulebook PDF at the exact page,
-              so you can check the answer against the source.
-            </p>
-          </div>
-        </div>
+      <div class="col-md-8 col-lg-9">
+        <p>Retrieve relevant rulebook chunks and generate grounded answers with citations.</p>
       </div>
-      <div class="col-md-6 col-lg-3">
-        <div class="pipeline-step">
-          <div class="step-num">3</div>
-          <div>
-            <h6>Evaluate</h6>
-            <p>
-              An LLM judge scores the answer against an expected answer, with pass / fail /
-              needs-review verdicts tracked by model and question type.
-            </p>
-          </div>
-        </div>
+    </div>
+    <div class="feature-row row align-items-start">
+      <div class="col-md-4 col-lg-3">
+        <h6>Citation Verification</h6>
       </div>
-      <div class="col-md-6 col-lg-3">
-        <div class="pipeline-step">
-          <div class="step-num">4</div>
-          <div>
-            <h6>Curate</h6>
-            <p>
-              Promising Q&amp;A pairs are triaged into eval sets or SFT training data, feeding
-              the loop that measures and improves the model.
-            </p>
-          </div>
-        </div>
+      <div class="col-md-8 col-lg-9">
+        <p>User can verify answers against linked source passages from rulebook.</p>
+      </div>
+    </div>
+    <div class="feature-row row align-items-start">
+      <div class="col-md-4 col-lg-3">
+        <h6>LLM-as-a-Judge Evaluation</h6>
+      </div>
+      <div class="col-md-8 col-lg-9">
+        <p>Automatically score responses against expected answers using structured evaluation criteria.</p>
+      </div>
+    </div>
+    <div class="feature-row row align-items-start">
+      <div class="col-md-4 col-lg-3">
+        <h6>Data Curation &amp; Feedback Loop</h6>
+      </div>
+      <div class="col-md-8 col-lg-9">
+        <p>Curate high-quality Q&amp;A pairs into eval datasets and training corpora to improve the system.</p>
+      </div>
+    </div>
+    <div class="feature-row row align-items-start">
+      <div class="col-md-4 col-lg-3">
+        <h6>Multimodal</h6>
+      </div>
+      <div class="col-md-8 col-lg-9">
+        <p>Attach a board screenshot to ask questions about a specific game situation, grounded in cited rules.</p>
       </div>
     </div>
 

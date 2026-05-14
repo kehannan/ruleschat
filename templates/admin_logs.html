@@ -95,6 +95,7 @@
                                     <tr>
                                         <th>Timestamp</th>
                                         <th>IP</th>
+                                        <th>Img</th>
                                         <th>Question</th>
                                         <th>Answer</th>
                                         <th>Model</th>
@@ -109,6 +110,13 @@
                                     <tr>
                                         <td class="text-nowrap">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
                                         <td>{{ e.ip_address }}</td>
+                                        <td>
+                                            {% if e.image_filename %}
+                                            <a href="/api/admin/uploads/demo/{{ e.image_filename }}" target="_blank" title="Open full size">
+                                                <img src="/api/admin/uploads/demo/{{ e.image_filename }}" class="log-thumb" alt="attachment" />
+                                            </a>
+                                            {% else %}—{% endif %}
+                                        </td>
                                         <td class="expandable-cell" data-full="{{ e.question|e }}" data-short="{{ e.question_short|e }}">{{ e.question_short }}</td>
                                         <td class="expandable-cell" data-full="{{ e.answer|e }}" data-short="{{ e.answer_short|e }}">{{ e.answer_short }}</td>
                                         <td>{{ e.model }}</td>
@@ -120,7 +128,7 @@
                                     {% endfor %}
                                     {% if not demo_entries %}
                                     <tr>
-                                        <td colspan="9" class="text-center text-muted">No demo logs yet.</td>
+                                        <td colspan="10" class="text-center text-muted">No demo logs yet.</td>
                                     </tr>
                                     {% endif %}
                                 </tbody>
