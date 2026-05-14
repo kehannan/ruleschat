@@ -362,6 +362,13 @@ function setPendingImage(dataUrl) {
     const thumb = document.getElementById('image-preview-thumb');
     if (thumb) thumb.src = dataUrl;
     if (preview) preview.style.display = 'flex';
+    // Image queries get force-overridden to gpt-5.4 server-side; mirror that in the
+    // selector so the user sees the model that will actually run.
+    const sel = document.getElementById('model-selector');
+    if (sel && sel.value !== 'gpt-5.4') {
+        const has54 = [...sel.options].some(o => o.value === 'gpt-5.4');
+        if (has54) sel.value = 'gpt-5.4';
+    }
 }
 
 function clearPendingImage() {

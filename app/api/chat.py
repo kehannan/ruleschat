@@ -146,6 +146,25 @@ def get_upload(
     return FileResponse(fpath)
 
 
+@router.get("/api/admin/uploads/demo/{filename}")
+def get_demo_upload(
+    filename: str,
+    user: User = Depends(require_user),
+):
+    """Admin-only retrieval of a demo (anonymous) uploaded image."""
+    if user.email != os.getenv("ADMIN_EMAIL"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    try:
+        fpath = resolve_image_path(f"demo/{filename}")
+    except ImageValidationError:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not fpath.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(fpath)
+
+
 @router.get("/ruleschat", name="ruleschat", response_class=HTMLResponse)
 def ruleschat(request: Request):
     """Protected rules chat page."""

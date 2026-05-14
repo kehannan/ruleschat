@@ -16,6 +16,7 @@ from sqlalchemy import func
 from app.database import SessionLocal
 from app.models.demo import DemoUsage, DemoMessage
 from app.models.config import SiteConfig
+from app.services.image_storage import save_image_data_url, ImageValidationError
 from app.services.asl_service import get_asl_service
 
 # In-memory flag — loaded from DB on startup, updated by admin toggle.
@@ -205,11 +206,13 @@ async def websocket_demo(websocket: WebSocket):
                     continue
 
                 # Parse message
+                image_data_url = None
                 try:
                     cmd = json.loads(raw_message)
                     if cmd.get("type") == "chat" and cmd.get("text"):
                         message = cmd["text"].strip()
                         selected_model = cmd.get("model")
+                        image_data_url = cmd.get("image")
                     else:
                         continue
                 except json.JSONDecodeError:
@@ -218,6 +221,19 @@ async def websocket_demo(websocket: WebSocket):
 
                 if not message:
                     continue
+
+                # If an image was attached, validate + save before we touch the rate limit
+                image_path = None
+                if image_data_url:
+                    try:
+                        image_path = save_image_data_url(image_data_url, "demo")
+                        logging.info(f"🖼️  Demo image saved: {image_path}")
+                    except ImageValidationError as ive:
+                        await websocket.send_text(json.dumps({
+                            "type": "error",
+                            "message": f"Image rejected: {ive}",
+                        }))
+                        continue
 
                 db = SessionLocal()
                 try:
@@ -248,6 +264,11 @@ async def websocket_demo(websocket: WebSocket):
                     allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-5.4"}
                     model = selected_model if selected_model in allowed_models else DEMO_MODEL
 
+                    # Force vision-capable model when an image is attached
+                    if image_path and model != "gpt-5.4":
+                        logging.info(f"🖼️  Demo image attached - overriding model {model} -> gpt-5.4")
+                        model = "gpt-5.4"
+
                     asl_service = get_asl_service()
                     stream, timing_data = asl_service.get_answer(
                         message,
@@ -255,6 +276,7 @@ async def websocket_demo(websocket: WebSocket):
                         return_timing=True,
                         model=model,
                         max_chunks=DEMO_MAX_CHUNKS,
+                        image_path=image_path,
                     )
 
                     full_response = ""
@@ -269,11 +291,12 @@ async def websocket_demo(websocket: WebSocket):
                         rag_sources = timing_data.get("rag_sources", [])
                         timing_clean = {k: v for k, v in timing_data.items() if k != "rag_sources"}
                         timing_clean["model"] = model
+                        timing_clean["image_attached"] = bool(image_path)
 
                         # Log user + assistant messages for stats
                         log_db = SessionLocal()
                         try:
-                            log_db.add(DemoMessage(ip_address=ip, role="user", content=message))
+                            log_db.add(DemoMessage(ip_address=ip, role="user", content=message, image_path=image_path))
                             log_db.add(DemoMessage(ip_address=ip, role="assistant", content=full_response, timing_data=timing_clean))
                             log_db.commit()
                         except Exception as log_err:

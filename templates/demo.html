@@ -33,9 +33,71 @@
     color: #bdc3c7;
     font-size: 12px;
   }
+  .experimental-notice {
+    background: #fef9e7;
+    border-bottom: 1px solid #f39c12;
+    color: #7d6608;
+    padding: 0.5rem 1rem 0.5rem 1rem;
+    font-size: 13px;
+    text-align: center;
+    position: relative;
+  }
+  .experimental-notice a {
+    color: #2c3e50;
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .experimental-notice .dismiss {
+    position: absolute;
+    top: 50%;
+    right: 0.6rem;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #7d6608;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.1rem 0.4rem;
+  }
+  .experimental-notice .dismiss:hover { color: #2c3e50; }
+
+  /* Image lightbox (for the experimental-notice "see example" link) */
+  .image-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 2rem;
+  }
+  .image-lightbox img {
+    max-width: 95%;
+    max-height: 90vh;
+    object-fit: contain;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+  }
+  .image-lightbox .lightbox-close {
+    position: absolute;
+    top: 1rem;
+    right: 1.25rem;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.25rem 0.75rem;
+  }
+  .image-lightbox .lightbox-close:hover { color: #f39c12; }
+  :root { --banner-height: 140px; } /* navbar + demo banner + experimental notice */
+  body.no-experimental-notice { --banner-height: 104px; } /* notice dismissed */
   .chat-layout {
     display: flex;
-    height: calc(100vh - 104px); /* account for navbar + banner */
+    height: calc(100vh - var(--banner-height));
     max-width: 1000px;
     margin: 0 auto;
     padding: 0 1rem;
@@ -91,6 +153,48 @@
     color: #2c3e50;
     font-weight: 600;
   }
+  /* Image attachment (paste a VASL screenshot) */
+  .image-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin: 0 0 0.5rem 0;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  .image-preview img {
+    max-height: 48px;
+    max-width: 64px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+  }
+  .image-preview-label {
+    flex: 1;
+    font-size: 0.85rem;
+    color: #666;
+  }
+  .image-preview-remove {
+    background: transparent;
+    border: none;
+    font-size: 1.4rem;
+    line-height: 1;
+    color: #888;
+    cursor: pointer;
+    padding: 0 0.4rem;
+  }
+  .image-preview-remove:hover { color: #333; }
+  .user-message .message-image {
+    display: block;
+    max-width: 280px;
+    max-height: 200px;
+    margin-top: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    cursor: zoom-in;
+  }
 </style>
 {% endblock %}
 
@@ -100,6 +204,10 @@
   <div>
     <span class="demo-counter">Demo mode &mdash; <span id="remaining-count">...</span> of 5 questions remaining today</span>
   </div>
+</div>
+<div class="experimental-notice" id="experimental-notice">
+  <strong>Experimental feature:</strong> Paste in a zoomed-in VASL screenshot to ask questions about the board (<a href="#" id="see-example-link">see example</a>).
+  <button type="button" class="dismiss" id="experimental-notice-dismiss" title="Dismiss" aria-label="Dismiss">×</button>
 </div>
 {% endblock %}
 
@@ -118,8 +226,13 @@
       </div>
     </div>
     <div class="chat-input-container">
+      <div id="image-preview" class="image-preview" style="display: none;">
+        <img id="image-preview-thumb" alt="Pasted image" />
+        <span class="image-preview-label">Image attached</span>
+        <button type="button" class="image-preview-remove" title="Remove image">×</button>
+      </div>
       <div class="chat-input-wrapper">
-        <textarea id="chat-message-input" class="chat-input" placeholder="Ask a rules question..."
+        <textarea id="chat-message-input" class="chat-input" placeholder="Ask a rules question... (paste a VASL screenshot to attach)"
           rows="1"></textarea>
         <button id="chat-message-submit" class="send-button" type="button" title="Send message">Send</button>
       </div>
@@ -158,6 +271,12 @@
       <div id="pdf-loading" class="pdf-loading">Loading PDF...</div>
     </div>
   </div>
+</div>
+
+<!-- Image Lightbox (for experimental-notice example) -->
+<div id="image-lightbox" class="image-lightbox" style="display: none;" role="dialog" aria-modal="true" aria-label="VASL example screenshot">
+  <button type="button" class="lightbox-close" id="image-lightbox-close" title="Close" aria-label="Close">×</button>
+  <img src="{{ url_for('static', path='img/VASL screen.png') }}" alt="VASL example screenshot showing a multimodal Q&A" />
 </div>
 {% endblock %}
 
@@ -209,13 +328,21 @@
     container.scrollTop = container.scrollHeight;
   }
 
-  function createUserMessage(text) {
+  function createUserMessage(text, imageDataUrl) {
     const container = document.querySelector('#chat-container');
     const div = document.createElement('div');
     div.classList.add('user-message');
     const content = document.createElement('div');
     content.classList.add('message-content');
     content.textContent = text;
+    if (imageDataUrl) {
+      const img = document.createElement('img');
+      img.src = imageDataUrl;
+      img.alt = 'Attached image';
+      img.className = 'message-image';
+      img.addEventListener('click', () => window.open(imageDataUrl, '_blank'));
+      content.appendChild(img);
+    }
     div.appendChild(content);
     container.appendChild(div);
     return div;
@@ -340,14 +467,19 @@
     const latencyDisplay = document.getElementById('latency-display');
     if (latencyDisplay) latencyDisplay.style.display = 'none';
 
+    const attachedImage = (typeof getPendingImage === 'function') ? getPendingImage() : null;
+
     lastUserQuestion = message;
-    createUserMessage(message);
+    createUserMessage(message, attachedImage);
     createSearchingBubble();
     input.value = '';
     input.style.height = 'auto';
+    if (typeof clearPendingImage === 'function') clearPendingImage();
 
     const model = document.getElementById('model-selector').value;
-    chatSocket.send(JSON.stringify({ type: 'chat', text: message, model: model }));
+    const payload = { type: 'chat', text: message, model: model };
+    if (attachedImage) payload.image = attachedImage;
+    chatSocket.send(JSON.stringify(payload));
   }
 
   // Auto-resize textarea
@@ -370,6 +502,55 @@
     });
 
     submitBtn.addEventListener('click', sendMessage);
+
+    if (typeof bindImagePasteHandler === 'function') bindImagePasteHandler();
+
+    // Experimental-notice dismiss (persists across sessions via localStorage)
+    const NOTICE_KEY = 'dismissed_experimental_notice';
+    const notice = document.getElementById('experimental-notice');
+    const noticeDismiss = document.getElementById('experimental-notice-dismiss');
+    if (notice && localStorage.getItem(NOTICE_KEY) === '1') {
+      notice.style.display = 'none';
+      document.body.classList.add('no-experimental-notice');
+    }
+    if (noticeDismiss) {
+      noticeDismiss.addEventListener('click', function() {
+        notice.style.display = 'none';
+        document.body.classList.add('no-experimental-notice');
+        try { localStorage.setItem(NOTICE_KEY, '1'); } catch (e) { /* private mode etc. */ }
+      });
+    }
+
+    // Example-image lightbox: open on "see example" click, close on x / backdrop / Escape.
+    const lightbox = document.getElementById('image-lightbox');
+    const lightboxClose = document.getElementById('image-lightbox-close');
+    const seeExampleLink = document.getElementById('see-example-link');
+    function openLightbox() {
+      if (!lightbox) return;
+      lightbox.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+    function closeLightbox() {
+      if (!lightbox) return;
+      lightbox.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    if (seeExampleLink) {
+      seeExampleLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        openLightbox();
+      });
+    }
+    if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox);
+    if (lightbox) {
+      lightbox.addEventListener('click', function(e) {
+        // Close when clicking the backdrop (not the image itself)
+        if (e.target === lightbox) closeLightbox();
+      });
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && lightbox && lightbox.style.display !== 'none') closeLightbox();
+    });
 
     document.getElementById('surprise-btn').addEventListener('click', async function() {
       if (input.disabled) return;

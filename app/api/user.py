@@ -351,6 +351,11 @@ async def admin_logs(
         timing = amsg.timing_data or {}
         question = user_msg.content if user_msg else "N/A"
         answer = amsg.content
+        # image_path on a demo user message is stored as "demo/<uuid>.<ext>";
+        # surface just the filename for the admin-only demo upload route.
+        demo_image_filename = None
+        if user_msg and user_msg.image_path and user_msg.image_path.startswith("demo/"):
+            demo_image_filename = user_msg.image_path[len("demo/"):]
         demo_entries.append({
             "timestamp": amsg.created_at,
             "ip_address": amsg.ip_address,
@@ -363,6 +368,7 @@ async def admin_logs(
             "output_tokens": timing.get("output_tokens", "—"),
             "ttft_ms": timing.get("ttft_ms"),
             "total_time_ms": timing.get("total_time_ms"),
+            "image_filename": demo_image_filename,
         })
 
     context = get_base_context(request, user)
