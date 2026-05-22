@@ -93,7 +93,7 @@ Required variables:
 
 ### 3. Set up the vector store
 
-You need to upload the ASL rulebook PDF to OpenAI and create a vector store. See [RESPONSES_API_README.md](RESPONSES_API_README.md) for details.
+You need to upload the ASL rulebook PDF to OpenAI and create a vector store. See [docs/RESPONSES_API_README.md](docs/RESPONSES_API_README.md) for details.
 
 ```bash
 # After uploading, copy the example config and fill in your IDs
@@ -129,12 +129,12 @@ See [deployment/QUICKSTART.md](deployment/QUICKSTART.md) for production setup (n
 ```bash
 # Mobile/responsive UI tests (requires Playwright + a running server)
 pip install playwright && python -m playwright install chromium
-python test_mobile.py
+python tests/test_mobile.py
 ```
 
 ## Evaluation
 
-Eval results are stored in `data/evals/` as JSON. The evals page (`/evals`) reads from this directory. See [RESPONSES_API_README.md](RESPONSES_API_README.md) for how evals are run.
+Eval results are stored in `data/evals/` as JSON. The evals page (`/evals`) reads from this directory. See [docs/RESPONSES_API_README.md](docs/RESPONSES_API_README.md) for how evals are run.
 
 ## Related
 

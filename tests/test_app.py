@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 """Quick test script to verify the refactored app works."""
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 
 def test_imports():
     """Test that all modules can be imported."""

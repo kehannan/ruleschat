@@ -3,9 +3,12 @@
 Smoke tests to run before deploying. Hits key routes and checks for
 expected content / absence of known bad states.
 
-Usage: python smoke_test.py
+Usage: python tests/smoke_test.py
 """
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from app.main import app
 from starlette.testclient import TestClient
 

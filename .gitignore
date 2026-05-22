@@ -209,7 +209,7 @@ CLAUDE.md
 responses_api_config.json
 
 # Test screenshots (generated output)
-test_screenshots/
+tests/screenshots/
 
 # Scratch / dev scripts
 latency_test.py
