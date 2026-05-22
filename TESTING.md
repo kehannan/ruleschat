@@ -94,7 +94,7 @@ SELECT email FROM users;
 
 | Issue | Solution |
 |-------|----------|
-| Module not found | Run from project root: `cd /Users/kevinhannan/projects/mysite2` |
+| Module not found | Run from project root (`cd` into the repo) |
 | Database errors | `python scripts/init_db.py` |
 | OpenAI API errors | Check `.env` has valid `OPENAI_API_KEY`, `OPENAI_ORG_ID`, `OPENAI_PROJECT_ID` |
 | WebSocket fails | Check `responses_api_config.json` exists with valid `vector_store_id` |

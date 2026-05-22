@@ -1,4 +1,4 @@
-name: mysite2_env
+name: ruleschat-env
 channels:
   - conda-forge
   - defaults
