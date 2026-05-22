@@ -11,8 +11,8 @@ This is a FastAPI web application that lets players ask Advanced Squad Leader (A
 - **RAG pipeline** — OpenAI Responses API with `file_search` against a vector store of the rulebook (up to 20 chunks per query)
 - **Streaming WebSocket** — responses stream token-by-token; TTFT, cost, and token counts surfaced per query
 - **In-browser PDF viewer** — rule citations (e.g. A4.34) open the rulebook PDF at the exact page
-- **Image attachment (multimodal)** — paste a VASL board screenshot into the chat; the model sees the image alongside the rulebook RAG and answers about board state. Auto-routes to `gpt-5.4` when an image is attached. See [docs/multimodal_plan.md](docs/multimodal_plan.md) for design and known limitations.
-- **Model selector** — switch between models in-chat (tested with gpt-4.1-mini and gpt-5-mini)
+- **Image attachment (multimodal)** — paste up to 3 VASL board screenshots into the chat (wide view + zoomed detail, etc.); a fixed terrain legend is sent alongside so the model visually matches board hexes, then it answers about board state with rulebook citations. Auto-routes to `gpt-5.4` when any image is attached. Available on both the authed chat and the public demo. See [docs/multimodal_plan.md](docs/multimodal_plan.md) for design and known limitations.
+- **Model selector** — switch between models in-chat (tested with gpt-4.1-mini and gpt-5-mini; image queries force gpt-5.4)
 - **Automated evals** — zero-shot AI Judge scores responses Pass/Fail/Needs Review; results manually reviewed
 - **Demo mode** — unauthenticated users get 5 questions/day
 - **Mobile-optimized** — responsive layout tested at 375px, 768px, 1280px viewports
@@ -30,11 +30,12 @@ Browser ──WebSocket──▶ FastAPI ──▶ OpenAI Responses API
 
 **Key files:**
 - [app/asl/client.py](app/asl/client.py) — Responses API wrapper
-- [app/services/asl_service.py](app/services/asl_service.py) — main assistant service; `_build_multimodal_input` for image attachments
+- [app/services/asl_service.py](app/services/asl_service.py) — main assistant service; `_build_multimodal_input` (terrain legend + N user images) and the vision prompt addendum
 - [app/services/image_storage.py](app/services/image_storage.py) — validate + persist user-uploaded images
-- [app/api/chat.py](app/api/chat.py) — WebSocket handler; `GET /api/uploads/{conv_id}/{filename}` retrieval route
+- [app/api/chat.py](app/api/chat.py) — authed WebSocket handler; `GET /api/uploads/{conv_id}/{filename}` + admin-only demo upload route
+- [app/api/demo.py](app/api/demo.py) — public demo WebSocket (same multi-image pipeline, rate-limited)
 - [app/config.py](app/config.py) — system instructions
-- [static/js/chat-shared.js](static/js/chat-shared.js) — clipboard paste handler + client-side resize
+- [static/js/chat-shared.js](static/js/chat-shared.js) — clipboard paste handler (multi-image, cap 3) + client-side resize
 
 ## Project Structure
 
@@ -52,7 +53,7 @@ Browser ──WebSocket──▶ FastAPI ──▶ OpenAI Responses API
 ├── static/            # CSS, JS, images
 ├── templates/         # Jinja2 HTML templates
 ├── tests/             # Playwright mobile tests, manual API tests
-├── data/uploads/      # User-uploaded images (gitignored), keyed by conversation_id
+├── data/uploads/      # User-uploaded images (gitignored): {conv_id}/ for authed chat, demo/ for anonymous demo
 ├── docs/              # Design docs (multimodal plan, etc.)
 └── run.py             # Dev server runner
 ```
@@ -64,7 +65,7 @@ Browser ──WebSocket──▶ FastAPI ──▶ OpenAI Responses API
 ```bash
 # Conda (recommended)
 conda env create -f environment.yml
-conda activate mysite2_env
+conda activate ruleschat-env
 
 # Or pip
 python -m venv venv
