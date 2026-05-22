@@ -23,7 +23,7 @@ See [README.md](README.md) for setup instructions.
 
 1. Fork the repo and create a branch from `main`
 2. Make your changes
-3. Test locally — run `python test_mobile.py` for UI tests
+3. Test locally — run `python tests/test_mobile.py` for UI tests
 4. Open a pull request with a clear description of what changed and why
 
 ## Issues

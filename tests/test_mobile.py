@@ -1,7 +1,7 @@
 """
 Mobile responsiveness tests using Playwright.
 Tests key pages at desktop (1280x800) and mobile (375x812 - iPhone SE/14) viewports.
-Run: python test_mobile.py
+Run: python tests/test_mobile.py
 """
 import asyncio
 import os
@@ -9,7 +9,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 BASE_URL = "http://localhost:8000"
-SCREENSHOT_DIR = Path("test_screenshots")
+SCREENSHOT_DIR = Path(__file__).parent / "screenshots"
 SCREENSHOT_DIR.mkdir(exist_ok=True)
 
 VIEWPORTS = {
