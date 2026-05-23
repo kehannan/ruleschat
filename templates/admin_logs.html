@@ -1,213 +1,306 @@
 {% extends "base.html" %}
 
-{% block title %}Chat Logs - Admin{% endblock %}
+{% block title %}Chat Logs — Admin{% endblock %}
 
-{% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <div class="card mt-4">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h3 class="card-title mb-0">Chat Logs</h3>
-                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-light btn-sm">Back to Admin</a>
-            </div>
-            <div class="card-body">
-
-                <ul class="nav nav-tabs mb-3" id="logTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="user-tab" data-bs-toggle="tab" data-bs-target="#user-logs" type="button" role="tab">User Logs</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="demo-tab" data-bs-toggle="tab" data-bs-target="#demo-logs" type="button" role="tab">Demo Logs</button>
-                    </li>
-                </ul>
-
-                <div class="tab-content">
-
-                    <!-- User Logs Tab -->
-                    <div class="tab-pane fade show active" id="user-logs" role="tabpanel">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>User</th>
-                                        <th>Img</th>
-                                        <th>Question</th>
-                                        <th>Answer</th>
-                                        <th>Model</th>
-                                        <th>In</th>
-                                        <th>Out</th>
-                                        <th>TTFT</th>
-                                        <th>Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for e in entries %}
-                                    <tr>
-                                        <td class="text-nowrap">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
-                                        <td>{{ e.user_email }}</td>
-                                        <td>
-                                            {% if e.image_paths %}
-                                              {% for p in e.image_paths %}
-                                              <a href="/api/uploads/{{ p }}" target="_blank" title="Open full size">
-                                                <img src="/api/uploads/{{ p }}" class="log-thumb" alt="attachment" />
-                                              </a>
-                                              {% endfor %}
-                                            {% else %}—{% endif %}
-                                        </td>
-                                        <td class="expandable-cell" data-full="{{ e.question|e }}" data-short="{{ e.question_short|e }}">{{ e.question_short }}</td>
-                                        <td class="expandable-cell" data-full="{{ e.answer|e }}" data-short="{{ e.answer_short|e }}">{{ e.answer_short }}</td>
-                                        <td>{{ e.model }}</td>
-                                        <td>{{ e.input_tokens }}</td>
-                                        <td>{{ e.output_tokens }}</td>
-                                        <td>{% if e.ttft_ms %}{{ '%.0f' % e.ttft_ms }}{% else %}—{% endif %}</td>
-                                        <td>{% if e.total_time_ms %}{{ '%.0f' % e.total_time_ms }}{% else %}—{% endif %}</td>
-                                    </tr>
-                                    {% endfor %}
-                                    {% if not entries %}
-                                    <tr>
-                                        <td colspan="10" class="text-center text-muted">No chat logs yet.</td>
-                                    </tr>
-                                    {% endif %}
-                                </tbody>
-                            </table>
-                        </div>
-                        <nav>
-                            <ul class="pagination justify-content-center">
-                                {% if has_prev %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ page - 1 }}&demo_page={{ demo_page }}">Previous</a>
-                                </li>
-                                {% endif %}
-                                <li class="page-item disabled"><span class="page-link">Page {{ page }}</span></li>
-                                {% if has_next %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ page + 1 }}&demo_page={{ demo_page }}">Next</a>
-                                </li>
-                                {% endif %}
-                            </ul>
-                        </nav>
-                    </div>
-
-                    <!-- Demo Logs Tab -->
-                    <div class="tab-pane fade" id="demo-logs" role="tabpanel">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>IP</th>
-                                        <th>Img</th>
-                                        <th>Question</th>
-                                        <th>Answer</th>
-                                        <th>Model</th>
-                                        <th>In</th>
-                                        <th>Out</th>
-                                        <th>TTFT</th>
-                                        <th>Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for e in demo_entries %}
-                                    <tr>
-                                        <td class="text-nowrap">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
-                                        <td>{{ e.ip_address }}</td>
-                                        <td>
-                                            {% if e.image_filenames %}
-                                              {% for fn in e.image_filenames %}
-                                              <a href="/api/admin/uploads/demo/{{ fn }}" target="_blank" title="Open full size">
-                                                <img src="/api/admin/uploads/demo/{{ fn }}" class="log-thumb" alt="attachment" />
-                                              </a>
-                                              {% endfor %}
-                                            {% else %}—{% endif %}
-                                        </td>
-                                        <td class="expandable-cell" data-full="{{ e.question|e }}" data-short="{{ e.question_short|e }}">{{ e.question_short }}</td>
-                                        <td class="expandable-cell" data-full="{{ e.answer|e }}" data-short="{{ e.answer_short|e }}">{{ e.answer_short }}</td>
-                                        <td>{{ e.model }}</td>
-                                        <td>{{ e.input_tokens }}</td>
-                                        <td>{{ e.output_tokens }}</td>
-                                        <td>{% if e.ttft_ms %}{{ '%.0f' % e.ttft_ms }}{% else %}—{% endif %}</td>
-                                        <td>{% if e.total_time_ms %}{{ '%.0f' % e.total_time_ms }}{% else %}—{% endif %}</td>
-                                    </tr>
-                                    {% endfor %}
-                                    {% if not demo_entries %}
-                                    <tr>
-                                        <td colspan="10" class="text-center text-muted">No demo logs yet.</td>
-                                    </tr>
-                                    {% endif %}
-                                </tbody>
-                            </table>
-                        </div>
-                        <nav>
-                            <ul class="pagination justify-content-center">
-                                {% if demo_has_prev %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ page }}&demo_page={{ demo_page - 1 }}#demo">Previous</a>
-                                </li>
-                                {% endif %}
-                                <li class="page-item disabled"><span class="page-link">Page {{ demo_page }}</span></li>
-                                {% if demo_has_next %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ page }}&demo_page={{ demo_page + 1 }}#demo">Next</a>
-                                </li>
-                                {% endif %}
-                            </ul>
-                        </nav>
-                    </div>
-
-                </div><!-- tab-content -->
-            </div>
-        </div>
-    </div>
-</div>
-
+{% block extra_css %}
 <style>
-.expandable-cell {
+  .site .logs-wrap { padding: 56px 0 80px; }
+
+  .site .logs-header {
+    display: flex; align-items: end; justify-content: space-between;
+    gap: 24px; flex-wrap: wrap;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .site .logs-header h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(28px, 3vw, 36px);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin: 8px 0 0;
+  }
+  .site .logs-header h1 em { font-style: italic; color: var(--accent); }
+
+  /* Tabs */
+  .site .log-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--hair);
+    margin-bottom: 24px;
+  }
+  .site .log-tab {
+    padding: 12px 18px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
     cursor: pointer;
-    max-width: 300px;
-}
-.expandable-cell:hover {
-    background-color: rgba(0, 123, 255, 0.05);
-}
-.expandable-cell.expanded {
+    transition: all .15s;
+    margin-bottom: -1px;
+  }
+  .site .log-tab:hover { color: var(--ink); }
+  .site .log-tab.active {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+  }
+
+  /* Log table */
+  .site .logs-table-wrap { overflow-x: auto; }
+  .site .logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    font-size: 13px;
+  }
+  .site .logs-table thead tr { border-bottom: 1px solid var(--ink); }
+  .site .logs-table th {
+    padding: 10px 12px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    background: var(--paper-2);
+    white-space: nowrap;
+  }
+  .site .logs-table tbody tr { border-top: 1px solid var(--hair); }
+  .site .logs-table td {
+    padding: 10px 12px;
+    color: var(--ink-2);
+    vertical-align: top;
+  }
+  .site .logs-table td.mono {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .site .logs-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .site .logs-table .empty-row td {
+    text-align: center;
+    color: var(--muted);
+    font-style: italic;
+    padding: 32px 12px;
+  }
+
+  /* Expandable cells */
+  .site .expandable-cell {
+    cursor: pointer;
+    max-width: 320px;
+    transition: background .15s;
+  }
+  .site .expandable-cell:hover {
+    background: color-mix(in oklch, var(--accent) 4%, transparent);
+  }
+  .site .expandable-cell.expanded {
     white-space: pre-wrap;
     word-break: break-word;
-}
-.log-thumb {
-    max-width: 80px;
-    max-height: 60px;
+  }
+
+  /* Log thumb */
+  .site .log-thumb {
+    max-width: 60px; max-height: 48px;
     object-fit: cover;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    border: 1px solid var(--hair);
+    border-radius: 2px;
     margin-right: 4px;
     vertical-align: middle;
-}
+  }
+
+  /* Pagination */
+  .site .pager {
+    display: flex; justify-content: center; align-items: center; gap: 16px;
+    margin-top: 24px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+  }
+  .site .pager .page-link {
+    padding: 6px 12px;
+    border: 1px solid var(--hair);
+    color: var(--ink-2);
+    text-transform: uppercase;
+    border-radius: 2px;
+    transition: all .15s;
+  }
+  .site .pager .page-link:hover { border-color: var(--ink-2); color: var(--ink); }
+  .site .pager .page-current {
+    color: var(--muted);
+    text-transform: uppercase;
+  }
 </style>
+{% endblock %}
 
+{% block main %}
+<div class="logs-wrap">
+  <div class="wrap">
+
+    <header class="logs-header">
+      <div>
+        <div class="eyebrow"><span class="dot"></span><span>Admin</span><span>·</span><span>Logs</span></div>
+        <h1>Chat <em>logs</em>.</h1>
+      </div>
+      <div>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-ghost btn-sm">← Back to admin</a>
+      </div>
+    </header>
+
+    <div class="log-tabs" role="tablist">
+      <button class="log-tab active" id="user-tab" data-target="user-logs" role="tab">User logs</button>
+      <button class="log-tab" id="demo-tab" data-target="demo-logs" role="tab">Demo logs</button>
+    </div>
+
+    <!-- USER LOGS -->
+    <div id="user-logs" class="log-pane">
+      <div class="logs-table-wrap">
+        <table class="logs-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>User</th>
+              <th>Img</th>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Model</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>TTFT</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in entries %}
+            <tr>
+              <td class="mono">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
+              <td>{{ e.user_email }}</td>
+              <td>
+                {% if e.image_paths %}
+                  {% for p in e.image_paths %}
+                  <a href="/api/uploads/{{ p }}" target="_blank" title="Open full size">
+                    <img src="/api/uploads/{{ p }}" class="log-thumb" alt="attachment" />
+                  </a>
+                  {% endfor %}
+                {% else %}—{% endif %}
+              </td>
+              <td class="expandable-cell" data-full="{{ e.question|e }}" data-short="{{ e.question_short|e }}">{{ e.question_short }}</td>
+              <td class="expandable-cell" data-full="{{ e.answer|e }}" data-short="{{ e.answer_short|e }}">{{ e.answer_short }}</td>
+              <td class="mono">{{ e.model }}</td>
+              <td class="mono num">{{ e.input_tokens }}</td>
+              <td class="mono num">{{ e.output_tokens }}</td>
+              <td class="mono num">{% if e.ttft_ms %}{{ '%.0f' % e.ttft_ms }}{% else %}—{% endif %}</td>
+              <td class="mono num">{% if e.total_time_ms %}{{ '%.0f' % e.total_time_ms }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% if not entries %}
+            <tr class="empty-row"><td colspan="10">No chat logs yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <nav class="pager">
+        {% if has_prev %}<a class="page-link" href="?page={{ page - 1 }}&demo_page={{ demo_page }}">← Prev</a>{% endif %}
+        <span class="page-current">Page {{ page }}</span>
+        {% if has_next %}<a class="page-link" href="?page={{ page + 1 }}&demo_page={{ demo_page }}">Next →</a>{% endif %}
+      </nav>
+    </div>
+
+    <!-- DEMO LOGS -->
+    <div id="demo-logs" class="log-pane" style="display:none;">
+      <div class="logs-table-wrap">
+        <table class="logs-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>IP</th>
+              <th>Img</th>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Model</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>TTFT</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in demo_entries %}
+            <tr>
+              <td class="mono">{{ e.timestamp.strftime('%Y-%m-%d %H:%M') if e.timestamp else '—' }}</td>
+              <td class="mono">{{ e.ip_address }}</td>
+              <td>
+                {% if e.image_filenames %}
+                  {% for fn in e.image_filenames %}
+                  <a href="/api/admin/uploads/demo/{{ fn }}" target="_blank" title="Open full size">
+                    <img src="/api/admin/uploads/demo/{{ fn }}" class="log-thumb" alt="attachment" />
+                  </a>
+                  {% endfor %}
+                {% else %}—{% endif %}
+              </td>
+              <td class="expandable-cell" data-full="{{ e.question|e }}" data-short="{{ e.question_short|e }}">{{ e.question_short }}</td>
+              <td class="expandable-cell" data-full="{{ e.answer|e }}" data-short="{{ e.answer_short|e }}">{{ e.answer_short }}</td>
+              <td class="mono">{{ e.model }}</td>
+              <td class="mono num">{{ e.input_tokens }}</td>
+              <td class="mono num">{{ e.output_tokens }}</td>
+              <td class="mono num">{% if e.ttft_ms %}{{ '%.0f' % e.ttft_ms }}{% else %}—{% endif %}</td>
+              <td class="mono num">{% if e.total_time_ms %}{{ '%.0f' % e.total_time_ms }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% if not demo_entries %}
+            <tr class="empty-row"><td colspan="10">No demo logs yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <nav class="pager">
+        {% if demo_has_prev %}<a class="page-link" href="?page={{ page }}&demo_page={{ demo_page - 1 }}#demo">← Prev</a>{% endif %}
+        <span class="page-current">Page {{ demo_page }}</span>
+        {% if demo_has_next %}<a class="page-link" href="?page={{ page }}&demo_page={{ demo_page + 1 }}#demo">Next →</a>{% endif %}
+      </nav>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
 <script>
-// Restore active tab from hash or query param
-(function () {
-    const hash = window.location.hash;
-    if (hash === '#demo') {
-        const tab = document.getElementById('demo-tab');
-        if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
-    }
-})();
+// Tab switching
+document.querySelectorAll('.log-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.log-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.log-pane').forEach(p => p.style.display = 'none');
+    document.getElementById(btn.dataset.target).style.display = '';
+  });
+});
 
-// Click to expand/collapse truncated cells
-document.querySelectorAll('.expandable-cell').forEach(function(cell) {
-    cell.addEventListener('click', function() {
-        const full = cell.getAttribute('data-full');
-        const short = cell.getAttribute('data-short');
-        if (full === short) return; // nothing to expand
-        if (cell.classList.contains('expanded')) {
-            cell.textContent = short;
-            cell.classList.remove('expanded');
-        } else {
-            cell.textContent = full;
-            cell.classList.add('expanded');
-        }
-    });
+// Restore tab from #demo hash
+if (window.location.hash === '#demo') {
+  const tab = document.getElementById('demo-tab');
+  if (tab) tab.click();
+}
+
+// Expand/collapse truncated cells
+document.querySelectorAll('.expandable-cell').forEach(cell => {
+  cell.addEventListener('click', () => {
+    const full = cell.getAttribute('data-full');
+    const short = cell.getAttribute('data-short');
+    if (full === short) return;
+    if (cell.classList.contains('expanded')) {
+      cell.textContent = short;
+      cell.classList.remove('expanded');
+    } else {
+      cell.textContent = full;
+      cell.classList.add('expanded');
+    }
+  });
 });
 </script>
 {% endblock %}
