@@ -1,172 +1,428 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard{% endblock %}
+{% block title %}Admin — ASL Rules Assistant{% endblock %}
 
-{% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <div class="card mt-4">
-            <div class="card-header bg-primary text-white">
-                <h3 class="card-title mb-0">Admin Dashboard</h3>
-            </div>
-            <div class="card-body">
-                {% if message %}
-                    <div class="alert alert-{{ message_type }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endif %}
+{% block extra_css %}
+<style>
+  .site .admin-wrap { padding: 56px 0 80px; }
 
-                <div class="mb-4 d-flex align-items-center gap-4">
-                    <a href="{{ url_for('admin_logs') }}" class="btn btn-outline-primary">
-                        <i class="bi bi-journal-text"></i> View Chat Logs
-                    </a>
-                    <form method="post" action="{{ url_for('admin_demo_mode') }}" class="d-flex align-items-center gap-2 mb-0">
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input" type="checkbox" role="switch" id="demoModeSwitch"
-                                onchange="this.form.querySelector('input[name=enabled]').value = this.checked ? 'true' : 'false'; this.form.submit();"
-                                {% if demo_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="demoModeSwitch">Demo mode</label>
-                        </div>
-                        <input type="hidden" name="enabled" value="{{ 'true' if demo_enabled else 'false' }}">
-                    </form>
-                </div>
+  /* Header row */
+  .site .admin-header {
+    display: flex; align-items: end; justify-content: space-between;
+    gap: 32px; flex-wrap: wrap;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .site .admin-header h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(32px, 3.5vw, 44px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 12px 0 0;
+  }
+  .site .admin-header h1 em { font-style: italic; color: var(--accent); }
+  .site .admin-controls {
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  }
+  .site .admin-controls .control-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
 
-                <!-- Demo Usage Section -->
-                <div class="mb-4">
-                    <h4>Demo Usage</h4>
-                    <p class="mb-2">
-                        <strong>Today:</strong> {{ demo_today }} &nbsp;|&nbsp;
-                        <strong>All-time:</strong> {{ demo_total }}
-                    </p>
-                    {% if demo_recent %}
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped" style="max-width: 300px;">
-                            <thead>
-                                <tr><th>Date</th><th>Uses</th></tr>
-                            </thead>
-                            <tbody>
-                                {% for row in demo_recent %}
-                                <tr><td>{{ row.date }}</td><td>{{ row.total }}</td></tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% endif %}
-                </div>
+  /* Toggle switch */
+  .site .switch { display: inline-flex; align-items: center; gap: 10px; }
+  .site .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .site .switch .track {
+    width: 36px; height: 20px;
+    background: var(--hair);
+    border-radius: 999px;
+    position: relative;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .site .switch .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px;
+    background: var(--paper);
+    border-radius: 50%;
+    transition: transform .15s;
+    box-shadow: 0 1px 2px rgba(0,0,0,.15);
+  }
+  .site .switch input:checked + .track { background: var(--field); }
+  .site .switch input:checked + .track::after { transform: translateX(16px); }
 
-                <!-- User Management Section -->
-                <div class="mb-4">
-                    <h4>User Management</h4>
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Email</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for user in users %}
-                                <tr>
-                                    <td>{{ user.email or 'Not set' }}</td>
-                                    <td>
-                                        <form method="post" action="/api/admin/user/{{ user.id }}" style="display:inline;" onsubmit="return deleteUserConfirm(event, this);">
-                                            <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Delete</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+  /* Alerts */
+  .site .admin-alert {
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    border-left: 3px solid var(--field);
+    background: color-mix(in oklch, var(--field) 8%, var(--paper));
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .site .admin-alert.danger, .site .admin-alert.error {
+    border-left-color: var(--fail);
+    background: color-mix(in oklch, var(--fail) 8%, var(--paper));
+  }
 
-                <!-- Invitation Section -->
-                <div class="mb-4">
-                    <h4>Send Invitation</h4>
-                    <form id="inviteForm" class="row g-3">
-                        <div class="col-md-8">
-                            <input type="email" class="form-control" id="inviteEmail" placeholder="Enter email address" required>
-                        </div>
-                        <div class="col-md-4">
-                            <button type="submit" class="btn btn-primary w-100">
-                                <i class="bi bi-envelope"></i> Send Invitation
-                            </button>
-                        </div>
-                    </form>
-                </div>
+  /* 4-card stats grid */
+  .site .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  .site .stat-card {
+    padding: 18px 20px;
+    background: var(--paper-2);
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+  }
+  .site .stat-card .stat-lbl {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .site .stat-card .stat-num {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .site .stat-card .stat-cap {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+  }
 
-                <!-- Create Test User Section -->
-                <div class="mb-4">
-                    <h4>Create Test User (Direct)</h4>
-                    <form method="post" action="{{ url_for('admin_create_test_user') }}">
-                        <div class="mb-3">
-                            <label for="test_user_email" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="test_user_email" name="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="test_user_password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="test_user_password" name="password" required>
-                        </div>
-                        <button type="submit" class="btn btn-secondary">Create Test User</button>
-                    </form>
-                </div>
+  /* Section block */
+  .site .admin-block { margin-bottom: 40px; }
+  .site .admin-block .block-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .site .admin-block h2 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0;
+  }
+  .site .admin-block .block-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+  .site .two-col-blocks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
 
-                <!-- Active Invitations Section -->
-                <div class="mb-4">
-                    <h4>Active Invitations</h4>
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Email</th>
-                                    <th>Created</th>
-                                    <th>Expires</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for invite in invitations %}
-                                <tr>
-                                    <td>{{ invite.email }}</td>
-                                    <td>{{ invite.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    <td>{{ invite.expires_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    <td>
-                                        {% if invite.used %}
-                                            <span class="badge bg-success">Used</span>
-                                        {% else %}
-                                            <span class="badge bg-warning">Pending</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-secondary" onclick="resendInvitation({{ invite.id }})">Resend</button>
-                                        <button class="btn btn-sm btn-danger" onclick="deleteInvitation({{ invite.id }})">Delete Invite</button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+  /* List frame */
+  .site .list-frame {
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .site .list-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--hair);
+    font-size: 14px;
+  }
+  .site .list-row:first-child { border-top: 0; }
+  .site .list-row:nth-child(even) { background: var(--paper-2); }
+  .site .list-row .avatar {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: color-mix(in oklch, var(--accent) 18%, var(--paper));
+    color: var(--accent);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    font-weight: 500;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .site .list-row .email { color: var(--ink); flex: 1; min-width: 0; word-break: break-all; }
+  .site .list-row .actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .site .row-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    color: var(--muted);
+    padding: 2px 6px;
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+  }
+  .site .row-tag.admin-tag {
+    color: var(--accent);
+    border-color: color-mix(in oklch, var(--accent) 35%, transparent);
+  }
+  .site .row-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 36px;
+    margin-top: -8px;
+    padding-bottom: 10px;
+    border-top: 0;
+  }
+  .site .btn-link-danger {
+    background: transparent;
+    border: 0;
+    padding: 4px 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    color: var(--fail);
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: background .15s;
+    border-radius: 2px;
+  }
+  .site .btn-link-danger:hover { background: color-mix(in oklch, var(--fail) 10%, var(--paper)); }
+  .site .btn-link-ghost {
+    background: transparent;
+    border: 1px solid var(--hair);
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    color: var(--ink-2);
+    cursor: pointer;
+    text-transform: uppercase;
+    border-radius: 2px;
+    transition: all .15s;
+  }
+  .site .btn-link-ghost:hover { border-color: var(--ink-2); color: var(--ink); }
+
+  /* Send invite card */
+  .site .invite-card {
+    background: var(--paper-2);
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    padding: 20px 22px;
+  }
+  .site .invite-card .invite-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 10px;
+    align-items: end;
+  }
+  .site .invite-card .field { margin-bottom: 0; }
+
+  /* Footer mono note */
+  .site .admin-footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--hair);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+  .site .admin-footer .accent { color: var(--accent); font-weight: 600; }
+
+  @media (max-width: 880px) {
+    .site .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .site .two-col-blocks { grid-template-columns: 1fr; }
+    .site .invite-card .invite-row { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block main %}
+{% set pending_invites = invitations | selectattr('used', 'equalto', False) | list | length if invitations is defined else 0 %}
+
+<div class="admin-wrap">
+  <div class="wrap">
+
+    <header class="admin-header">
+      <div>
+        <div class="eyebrow"><span class="dot"></span><span>Admin</span></div>
+        <h1><em>Dashboard</em>.</h1>
+      </div>
+      <div class="admin-controls">
+        <form method="post" action="{{ url_for('admin_demo_mode') }}" class="switch">
+          <span class="control-label">DEMO MODE</span>
+          <label>
+            <input type="checkbox" id="demoModeSwitch"
+                   onchange="this.form.querySelector('input[name=enabled]').value = this.checked ? 'true' : 'false'; this.form.submit();"
+                   {% if demo_enabled %}checked{% endif %}>
+            <span class="track"></span>
+          </label>
+          <input type="hidden" name="enabled" value="{{ 'true' if demo_enabled else 'false' }}">
+        </form>
+        <a href="{{ url_for('admin_logs') }}" class="btn btn-ghost btn-sm">View chat logs <span class="arrow">→</span></a>
+      </div>
+    </header>
+
+    {% if message %}
+    <div class="admin-alert {{ message_type or '' }}">{{ message }}</div>
+    {% endif %}
+
+    <!-- Stats grid -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-lbl">Users</div>
+        <div class="stat-num">{{ users|length }}</div>
+        <div class="stat-cap">registered accounts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Demo · today</div>
+        <div class="stat-num">{{ demo_today }}</div>
+        <div class="stat-cap">5/day per IP cap</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Demo · all-time</div>
+        <div class="stat-num">{{ demo_total }}</div>
+        <div class="stat-cap">since launch</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Pending inv.</div>
+        <div class="stat-num">{{ pending_invites }}</div>
+        <div class="stat-cap">unredeemed</div>
+      </div>
     </div>
-</div>
 
-<!-- Place JS at the end -->
+    <!-- Send invitation -->
+    <div class="admin-block">
+      <div class="block-head"><h2>Send invitation</h2></div>
+      <div class="invite-card">
+        <form id="inviteForm" class="invite-row">
+          <div class="field">
+            <label for="inviteEmail">Email address</label>
+            <input type="email" class="input" id="inviteEmail" placeholder="name@example.com" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Send invitation</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Two-col: Users + Invitations -->
+    <div class="two-col-blocks">
+
+      <!-- Users -->
+      <div class="admin-block">
+        <div class="block-head">
+          <h2>Users</h2>
+          <span class="block-meta">{{ users|length }} total</span>
+        </div>
+        <div class="list-frame">
+          {% for user in users %}
+          <div class="list-row">
+            <div class="avatar">{{ (user.email or '?')[:1]|upper }}</div>
+            <div class="email">{{ user.email or 'Not set' }}</div>
+            <div class="actions">
+              <form method="post" action="/api/admin/user/{{ user.id }}" style="display:inline;" onsubmit="return deleteUserConfirm(event, this);">
+                <button type="submit" class="btn-link-danger">Delete</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+          {% if not users %}
+          <div class="list-row" style="color: var(--muted);">No users yet.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Invitations -->
+      <div class="admin-block">
+        <div class="block-head">
+          <h2>Active invitations</h2>
+          <span class="block-meta">{{ pending_invites }} pending</span>
+        </div>
+        <div class="list-frame">
+          {% for invite in invitations %}
+          <div class="list-row" style="display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start;">
+            <div>
+              <div class="email" style="margin-bottom: 4px;">{{ invite.email }}</div>
+              <div style="font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .02em;">
+                created {{ invite.created_at.strftime('%b %d') }} · expires {{ invite.expires_at.strftime('%b %d') }}
+              </div>
+            </div>
+            <div class="actions">
+              {% if invite.used %}
+                <span class="ev-badge pass"><span class="glyph">✓</span>USED</span>
+              {% else %}
+                <span class="ev-badge review"><span class="glyph">⚠</span>PENDING</span>
+                <button class="btn-link-ghost" onclick="resendInvitation({{ invite.id }})">Resend</button>
+                <button class="btn-link-danger" onclick="deleteInvitation({{ invite.id }})">Delete</button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% if not invitations %}
+          <div class="list-row" style="color: var(--muted);">No invitations.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo usage breakdown (collapsed-but-available) -->
+    {% if demo_recent %}
+    <div class="admin-block">
+      <div class="block-head"><h2>Demo usage (recent days)</h2></div>
+      <div class="list-frame" style="max-width: 360px;">
+        {% for row in demo_recent %}
+        <div class="list-row" style="justify-content: space-between;">
+          <span style="font-family: var(--mono); font-size: 12px; color: var(--ink-2);">{{ row.date }}</span>
+          <span style="font-family: var(--mono); font-size: 12px; color: var(--ink); font-weight: 600;">{{ row.total }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Create Test User (direct) -->
+    <div class="admin-block">
+      <div class="block-head"><h2>Create test user (direct)</h2></div>
+      <div class="invite-card">
+        <form method="post" action="{{ url_for('admin_create_test_user') }}">
+          <div class="invite-row">
+            <div class="field">
+              <label for="test_user_email">Email</label>
+              <input type="email" class="input" id="test_user_email" name="email" required>
+            </div>
+            <div class="field">
+              <label for="test_user_password">Password</label>
+              <input type="password" class="input" id="test_user_password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-ghost">Create test user</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="admin-footer">
+      <span class="accent">ADMIN</span> — {{ user_email or 'authenticated' }}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
 <script>
-// Invitation Form
 document.getElementById('inviteForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('inviteEmail').value;
     try {
         const response = await fetch('/api/invite', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email }),
         });
         const data = await response.json();
@@ -228,4 +484,4 @@ function deleteUserConfirm(event, form) {
     return false;
 }
 </script>
-{% endblock %} 
+{% endblock %}
