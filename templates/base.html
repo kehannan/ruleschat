@@ -64,10 +64,12 @@
       </nav>
       {% endblock %}
 
+      {% block main %}
       <div class="container mt-4 mb-5" id="main-container">
         {% block content %}
         {% endblock %}
       </div>
+      {% endblock %}
     </div>
 
     <script
