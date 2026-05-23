@@ -1,280 +1,485 @@
 {% extends "base.html" %}
 
-{% block title %}Detailed Evaluation Results{% endblock %}
+{% block title %}Eval Detail — ASL Rules Assistant{% endblock %}
 
 {% block extra_css %}
 <style>
-  .result-card {
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    padding: 1rem;
-    background: #f8f9fa;
-    margin-bottom: 1rem;
+  /* Page-specific CSS — selectors not already in site-design-system.css. */
+
+  .site a.inline-link {
+    color: var(--accent);
+    border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+    transition: border-color .15s, color .15s;
   }
-  .result-card.human-override {
-    border-color: #ffc107;
-    background: #fffbf0;
+  .site a.inline-link:hover { border-bottom-color: var(--accent); }
+
+  /* MASTHEAD */
+  .site .detail-masthead {
+    padding: 48px 0 36px;
+    border-bottom: 2px solid var(--ink);
   }
-  .result-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    margin-bottom: 1rem;
-    gap: 15px;
+  .site .detail-masthead .crumb {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .site .detail-masthead .crumb a { color: var(--ink-2); }
+  .site .detail-masthead .crumb a:hover { color: var(--ink); }
+  .site .detail-masthead .crumb .current { color: var(--accent); }
+  .site .detail-masthead .mast-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 48px;
+    align-items: end;
+  }
+  .site .detail-masthead h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(34px, 3.8vw, 52px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0 0 14px;
+  }
+  .site .detail-masthead h1 em { font-style: italic; color: var(--accent); }
+  .site .detail-masthead .desc {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 580px;
+  }
+
+  /* Summary strip */
+  .site .summary-strip {
+    padding: 32px 0;
+    border-bottom: 1px solid var(--hair);
+    background: var(--paper-2);
+  }
+  .site .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 28px;
+  }
+  .site .summary-item .lbl {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .site .summary-item .num {
+    font-family: var(--serif);
+    font-size: 30px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .site .summary-item.tone-pass .num { color: var(--pass); }
+  .site .summary-item.tone-review .num { color: var(--review); }
+  .site .summary-item.tone-fail .num { color: var(--fail); }
+
+  /* Filter bar */
+  .site .filter-bar {
+    padding: 20px 0;
+    border-bottom: 1px solid var(--hair);
+  }
+  .site .filter-bar .inner {
+    display: flex; gap: 12px;
+    align-items: center;
     flex-wrap: wrap;
   }
-  .evaluation-badge {
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.875rem;
-    display: inline-block;
-  }
-  .evaluation-auto-pass {
-    background: #d4edda;
-    color: #155724;
-  }
-  .evaluation-needs-review {
-    background: #fff3cd;
-    color: #856404;
-  }
-  .evaluation-auto-fail {
-    background: #f8d7da;
-    color: #721c24;
-  }
-  .human-override-badge {
-    background: #ffc107;
-    color: #856404;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-  .result-field {
-    margin-bottom: 1rem;
-  }
-  .result-field label {
-    display: block;
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 0.5rem;
-    font-size: 0.875rem;
+  .site .filter-bar .lbl {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .14em;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
   }
-  .result-field-content {
-    color: #212529;
-    line-height: 1.6;
-    padding: 0.75rem;
-    background: white;
-    border-radius: 4px;
-    border-left: 3px solid #667eea;
-    white-space: pre-wrap;
-    font-size: 14px;
+  .site .filter-pill {
+    padding: 6px 12px;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    cursor: pointer;
+    transition: all .15s;
   }
-  .result-field-content.read-only {
-    color: #6c757d;
-    background: #f8f9fa;
-    border-left-color: #adb5bd;
+  .site .filter-pill:hover { border-color: var(--ink-2); }
+  .site .filter-pill.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
   }
-  .judgment-section {
-    background: #fff;
-    border: 1px solid #667eea;
-    border-radius: 4px;
-    padding: 1rem;
-    margin-top: 1rem;
+  .site .sort-control {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
   }
-  .judgment-section h3 {
-    color: #667eea;
-    margin-bottom: 0.75rem;
-    font-size: 1rem;
+  .site .sort-control select {
+    background: transparent;
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    padding: 4px 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-2);
+    cursor: pointer;
   }
-  .stats-grid {
+
+  /* Item cards */
+  .site .items { padding: 40px 0; }
+  .site .item-card {
+    margin-bottom: 20px;
+    background: var(--paper);
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    padding: 24px 28px;
+  }
+  .site .item-card.override {
+    background: color-mix(in oklch, var(--review) 6%, var(--paper));
+    border-color: var(--review);
+  }
+  .site .item-card .item-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .site .item-card .override-badge {
+    color: var(--review);
+    border: 1px solid var(--review);
+    background: color-mix(in oklch, var(--review) 10%, var(--paper));
+    padding: 2px 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    border-radius: 2px;
+    font-weight: 600;
+  }
+  .site .item-card .conf {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .site .item-card .conf b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .site .item-card .q-text {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 19px;
+    color: var(--ink);
+    margin-bottom: 18px;
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+  }
+  .site .item-card .ea-cols {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-    background: #e7f3ff;
-    border-radius: 4px;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-bottom: 18px;
   }
-  .stat-item {
+  .site .item-card .col-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .site .item-card .col-label.expected { color: var(--field); }
+  .site .item-card .col-label.got { color: var(--accent); }
+  .site .item-card .col-body {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    white-space: pre-wrap;
+  }
+  .site .item-card .reasoning {
+    background: var(--paper-2);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink-2);
+  }
+  .site .item-card .reasoning .reasoning-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .site .item-card .notes {
+    margin-top: 12px;
+    background: color-mix(in oklch, var(--review) 8%, var(--paper));
+    border-left: 3px solid var(--review);
+    padding: 14px 18px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink-2);
+  }
+  .site .item-card .notes .notes-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--review);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .site .empty-msg {
     text-align: center;
+    padding: 56px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
   }
-  .stat-item strong {
-    display: block;
-    color: #0056b3;
-    font-size: 1.25rem;
-    margin-bottom: 0.25rem;
+
+  /* Page-local footer */
+  .site footer.site-footer { padding: 56px 0 80px; border-top: 1px solid var(--hair); }
+
+  /* RESPONSIVE */
+  @media (max-width: 880px) {
+    .site .detail-masthead .mast-grid { grid-template-columns: 1fr; gap: 16px; }
+    .site .summary-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .site .item-card .ea-cols { grid-template-columns: 1fr; gap: 16px; }
   }
-  .stat-item span {
-    color: #6c757d;
-    font-size: 0.875rem;
-  }
-  .section-badge {
-    background: #667eea;
-    color: white;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.875rem;
-    margin-right: 0.5rem;
-  }
-  .question-type-badge {
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.875rem;
-    margin-right: 0.5rem;
-  }
-  .question-type-recall {
-    background: #28a745;
-    color: white;
-  }
-  .question-type-calc {
-    background: #fd7e14;
-    color: white;
-  }
-  .question-type-unknown {
-    background: #6c757d;
-    color: white;
+  @media (max-width: 620px) {
+    .site .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .site .sort-control { margin-left: 0; }
   }
 </style>
 {% endblock %}
 
-{% block content %}
-<div class="row">
-  <div class="col-lg-12">
-    <nav aria-label="breadcrumb">
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('evals') }}">Evals</a></li>
-        <li class="breadcrumb-item active" aria-current="page">Detail</li>
-      </ol>
-    </nav>
-    <h1 class="mb-3">Detailed Evaluation Results</h1>
-    {% if judge_type %}
-    <p class="text-muted mb-3">Showing: <strong>{{ judge_type }}</strong></p>
-    {% endif %}
-    
-    {% if error %}
-    <div class="alert alert-danger" role="alert">
-      {{ error }}
+{% block main %}
+{% set override_count = (results | selectattr('human_override') | list | length) if results is defined and results else 0 %}
+
+<!-- ─── MASTHEAD ─── -->
+<header class="detail-masthead">
+  <div class="wrap">
+    <div class="crumb">
+      <a href="{{ url_for('evals') }}">Evals</a>
+      &nbsp;/&nbsp;
+      <span class="current">detailed results{% if judge_type %} · {{ judge_type }}{% endif %}</span>
     </div>
-    {% endif %}
-    
-    {% if results is defined and results %}
-    <!-- Statistics -->
-    <div class="stats-grid">
-      <div class="stat-item">
-        <strong>{{ total }}</strong>
-        <span>Total</span>
-      </div>
-      <div class="stat-item">
-        <strong>{{ correct }}</strong>
-        <span>Correct</span>
-      </div>
-      <div class="stat-item">
-        <strong>{{ partial }}</strong>
-        <span>Partial</span>
-      </div>
-      <div class="stat-item">
-        <strong>{{ incorrect }}</strong>
-        <span>Incorrect</span>
-      </div>
-    </div>
-    
-    
-    <!-- Results Cards -->
-    {% for result in results %}
-    <div class="result-card {% if result.human_override %}human-override{% endif %}">
-      <div class="result-header">
-        <div>
-          {% if result.section %}
-            <span class="section-badge">{{ result.section }}</span>
-          {% endif %}
-          {% if result.question_type %}
-            <span class="question-type-badge question-type-{{ result.question_type }}">
-              {{ result.question_type.capitalize() }}
-            </span>
-          {% endif %}
-          {% if result.evaluation %}
-            <span class="evaluation-badge
-              {% if '✅' in result.evaluation %}evaluation-auto-pass
-              {% elif '⚠️' in result.evaluation %}evaluation-needs-review
-              {% elif '❌' in result.evaluation %}evaluation-auto-fail
-              {% endif %}">
-              {{ result.evaluation }}
-            </span>
-          {% endif %}
-          {% if result.human_override %}
-            <span class="human-override-badge">Human Override</span>
-          {% endif %}
+    <div class="mast-grid">
+      <div>
+        <div class="eyebrow" style="margin-bottom: 14px;">
+          <span class="dot"></span>
+          <span class="num">RUN</span><span>·</span>
+          <span>{{ judge_type or 'Per-item judgments' }}</span>
         </div>
+        <h1>
+          {% if results is defined and total %}{{ total }} questions,{% else %}Per-item{% endif %}<br />
+          <em>judgment review</em>.
+        </h1>
+        <p class="desc">
+          Each item shows the question, expected answer, model response, and
+          judge verdict. Filter by outcome or sort by section, confidence, or
+          run order.
+        </p>
       </div>
-      
-      {% if result.section %}
-      <div class="result-field">
-        <label>Section</label>
-        <div class="result-field-content read-only">{{ result.section }}</div>
+    </div>
+  </div>
+</header>
+
+{% if error %}
+<div class="wrap" style="margin: 24px auto;">
+  <div style="padding: 14px 18px; border-left: 3px solid var(--fail); background: color-mix(in oklch, var(--fail) 8%, var(--paper)); font-family: var(--mono); font-size: 12px; color: var(--ink);">{{ error }}</div>
+</div>
+{% endif %}
+
+{% if results is defined and results %}
+<!-- ─── SUMMARY STRIP ─── -->
+<section class="summary-strip">
+  <div class="wrap">
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="lbl">Total</div>
+        <div class="num">{{ total }}</div>
       </div>
-      {% endif %}
-      
-      <div class="result-field">
-        <label>Question</label>
-        <div class="result-field-content read-only">{{ result.question }}</div>
+      <div class="summary-item tone-pass">
+        <div class="lbl">Correct</div>
+        <div class="num">{{ correct }}</div>
       </div>
-      
-      <div class="result-field">
-        <label>Expected Answer</label>
-        <div class="result-field-content read-only">{{ result.expected_answer }}</div>
+      <div class="summary-item tone-review">
+        <div class="lbl">Partial</div>
+        <div class="num">{{ partial }}</div>
       </div>
-      
-      <div class="result-field">
-        <label>Model Response</label>
-        <div class="result-field-content read-only">{{ result.assistant_response }}</div>
+      <div class="summary-item tone-fail">
+        <div class="lbl">Incorrect</div>
+        <div class="num">{{ incorrect }}</div>
       </div>
-      
-      <div class="result-field">
-        <label>LLM Reasoning</label>
-        <div class="result-field-content read-only">{{ result.comments or 'N/A' }}</div>
+      <div class="summary-item">
+        <div class="lbl">Human-overridden</div>
+        <div class="num">{{ override_count }}</div>
       </div>
-      
-      <div class="judgment-section">
-        <h3>Judgment</h3>
-        <div class="result-field">
-          <label>Final Judgment</label>
-          <div class="result-field-content read-only">
-            {% if result.judgment == 'correct' %}
-              <span class="badge bg-success">Correct</span>
-            {% elif result.judgment == 'partial' %}
-              <span class="badge bg-warning">Partial</span>
-            {% elif result.judgment == 'incorrect' %}
-              <span class="badge bg-danger">Incorrect</span>
-            {% else %}
-              {{ result.judgment }}
-            {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- ─── FILTER BAR ─── -->
+<section class="filter-bar">
+  <div class="wrap">
+    <div class="inner">
+      <span class="lbl">FILTER</span>
+      <button class="filter-pill active" data-filter="all">All ({{ total }})</button>
+      <button class="filter-pill" data-filter="pass">Pass ({{ correct }})</button>
+      <button class="filter-pill" data-filter="review">Review ({{ partial }})</button>
+      <button class="filter-pill" data-filter="fail">Fail ({{ incorrect }})</button>
+      <button class="filter-pill" data-filter="override">Override ({{ override_count }})</button>
+      <span class="sort-control">
+        SORT
+        <select id="sort-select">
+          <option value="recent">Run order</option>
+          <option value="section">Section</option>
+          <option value="confidence">Confidence (low first)</option>
+        </select>
+      </span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── ITEM CARDS ─── -->
+<section class="items">
+  <div class="wrap">
+    <div id="item-list">
+      {% for result in results %}
+        {% set status = 'review' %}
+        {% if result.evaluation and '✅' in result.evaluation %}{% set status = 'pass' %}
+        {% elif result.evaluation and '❌' in result.evaluation %}{% set status = 'fail' %}
+        {% endif %}
+        {% set verdict = (result.judgment|capitalize) if result.judgment else (result.evaluation or '—') %}
+        {% set conf = result.confidence or 0 %}
+      <article class="item-card{% if result.human_override %} override{% endif %}"
+               data-status="{{ status }}"
+               data-override="{{ '1' if result.human_override else '0' }}"
+               data-section="{{ result.section or '' }}"
+               data-confidence="{{ '%.2f'|format(conf) }}"
+               data-index="{{ loop.index0 }}">
+        <header class="item-header">
+          {% if result.section %}<span class="cite">{{ result.section }}</span>{% endif %}
+          {% if result.question_type %}<span class="qtype-badge">{{ result.question_type }}</span>{% endif %}
+          <span class="ev-badge {{ status }}"><span class="glyph">{% if status == 'pass' %}✓{% elif status == 'review' %}⚠{% else %}✕{% endif %}</span>{{ verdict|upper }}</span>
+          {% if result.human_override %}<span class="override-badge">HUMAN OVERRIDE</span>{% endif %}
+          {% if result.confidence %}<span class="conf">judge confidence <b>{{ '%.2f'|format(result.confidence) }}</b></span>{% endif %}
+        </header>
+
+        <div class="q-text">{{ result.question }}</div>
+
+        <div class="ea-cols">
+          <div>
+            <div class="col-label expected">EXPECTED</div>
+            <div class="col-body">{{ result.expected_answer }}</div>
+          </div>
+          <div>
+            <div class="col-label got">MODEL RESPONSE</div>
+            <div class="col-body">{{ result.assistant_response }}</div>
           </div>
         </div>
-        <div class="result-field">
-          <label>Confidence</label>
-          <div class="result-field-content read-only">{{ "%.2f"|format(result.confidence) if result.confidence else 'N/A' }}</div>
-        </div>
-        {% if result.human_notes %}
-        <div class="result-field">
-          <label>Human Notes</label>
-          <div class="result-field-content read-only">{{ result.human_notes }}</div>
+
+        {% if result.comments %}
+        <div class="reasoning">
+          <div class="reasoning-label">JUDGE REASONING</div>
+          {{ result.comments }}
         </div>
         {% endif %}
-      </div>
+
+        {% if result.human_notes %}
+        <div class="notes">
+          <div class="notes-label">HUMAN NOTES</div>
+          {{ result.human_notes }}
+        </div>
+        {% endif %}
+      </article>
+      {% endfor %}
     </div>
-    {% endfor %}
-    
-    {% elif not error %}
-    <div class="alert alert-info" role="alert">
-      No evaluation results found. Run the evaluation script first.
-    </div>
-    {% endif %}
+    <div class="empty-msg" id="empty-msg" style="display:none;">No items match the current filter.</div>
   </div>
-</div>
+</section>
+
+{% elif not error %}
+<section class="items">
+  <div class="wrap">
+    <div class="empty-msg">No evaluation results found. Run the evaluation script first.</div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ─── FOOTER ─── -->
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="legal">
+      Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
+      This is a personal, non-commercial project with no affiliation with
+      Hasbro, Avalon Hill, or Multi-Man Publishing.
+    </div>
+  </div>
+</footer>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+(function() {
+  const list = document.getElementById('item-list');
+  if (!list) return;
+  const empty = document.getElementById('empty-msg');
+  const cards = Array.from(list.querySelectorAll('.item-card'));
+
+  // FILTER
+  let activeFilter = 'all';
+  function applyFilter() {
+    let visible = 0;
+    cards.forEach(c => {
+      let show = true;
+      if (activeFilter !== 'all') {
+        if (activeFilter === 'override') {
+          show = c.dataset.override === '1';
+        } else {
+          show = c.dataset.status === activeFilter;
+        }
+      }
+      c.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    empty.style.display = visible === 0 ? '' : 'none';
+  }
+  document.querySelectorAll('.filter-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFilter = btn.dataset.filter;
+      applyFilter();
+    });
+  });
+
+  // SORT
+  function applySort(mode) {
+    let sorted = cards.slice();
+    if (mode === 'section') {
+      sorted.sort((a, b) => (a.dataset.section || '').localeCompare(b.dataset.section || '', undefined, { numeric: true, sensitivity: 'base' }));
+    } else if (mode === 'confidence') {
+      sorted.sort((a, b) => parseFloat(a.dataset.confidence) - parseFloat(b.dataset.confidence));
+    } else {
+      // recent / run order
+      sorted.sort((a, b) => parseInt(a.dataset.index) - parseInt(b.dataset.index));
+    }
+    sorted.forEach(c => list.appendChild(c));
+  }
+  const sortSel = document.getElementById('sort-select');
+  if (sortSel) sortSel.addEventListener('change', e => applySort(e.target.value));
+})();
+</script>
+{% endblock %}

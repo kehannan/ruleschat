@@ -1,114 +1,594 @@
 {% extends "base.html" %}
 
-{% block title %}Evaluation Results{% endblock %}
+{% block title %}Evaluation Report — ASL Rules Assistant{% endblock %}
 
 {% block extra_css %}
 <style>
-  .table > tbody > tr.row-highlight > td { background-color: #f0f0f0 !important; }
-  .cell-good   { background-color: #e8f5e9 !important; }
-  .cell-mid    { background-color: #fef7e0 !important; }
-  .cell-bad    { background-color: #fce8e6 !important; }
+  /* Page-specific CSS — selectors not already in site-design-system.css. */
+
+  .site a.inline-link {
+    color: var(--accent);
+    border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+    transition: border-color .15s, color .15s;
+  }
+  .site a.inline-link:hover { border-bottom-color: var(--accent); }
+
+  /* MASTHEAD — heavy 2px ink rule signals "editorial header" */
+  .site .evals-masthead {
+    padding: 64px 0 48px;
+    border-bottom: 2px solid var(--ink);
+    position: relative;
+  }
+  .site .evals-masthead .mast-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 48px;
+    align-items: end;
+  }
+  .site .evals-masthead h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(36px, 4.2vw, 58px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0 0 18px;
+  }
+  .site .evals-masthead h1 em { font-style: italic; color: var(--accent); }
+  .site .evals-masthead .aside {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .04em;
+    text-align: right;
+    line-height: 1.8;
+  }
+  .site .evals-masthead .aside .author {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* TLDR strip */
+  .site .tldr-strip {
+    padding: 32px 0;
+    border-bottom: 1px solid var(--hair);
+    background: var(--paper-2);
+  }
+  .site .tldr-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 32px;
+  }
+  .site .tldr-item .tldr-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .site .tldr-item .tldr-num {
+    font-family: var(--serif);
+    font-size: 30px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .site .tldr-item .tldr-sub {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Editorial column layout (220px rail vs 180 on About — evals has more body content) */
+  .site .ev-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 56px;
+    align-items: baseline;
+  }
+  .site .ev-grid .ev-label .eyebrow { margin-bottom: 0; }
+  .site .ev-grid .ev-label .ev-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .site .ev-grid .ev-body h2 { margin: 0 0 18px; }
+  .site .ev-grid .ev-body .table-caption {
+    font-size: 14px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-bottom: 22px;
+  }
+  .site .ev-grid .ev-body .table-footnote {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .02em;
+  }
+
+  /* Findings list */
+  .site .findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 0; }
+  .site .findings li {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 16px;
+    padding: 18px 0;
+    border-top: 1px solid var(--hair);
+  }
+  .site .findings li:first-child { border-top: 1px solid var(--ink); }
+  .site .findings li:last-child { border-bottom: 1px solid var(--hair); }
+  .site .findings .num {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .site .findings .fnd-title {
+    font-family: var(--serif);
+    font-size: 19px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .site .findings .fnd-body {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink-2);
+  }
+
+  /* Comparison table */
+  .site .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    font-family: var(--sans);
+  }
+  .site .compare-table thead tr { border-bottom: 1px solid var(--ink); }
+  .site .compare-table th {
+    padding: 14px 12px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    background: var(--paper-2);
+    text-align: center;
+  }
+  .site .compare-table th.col-model { text-align: left; padding: 14px 16px; }
+  .site .compare-table th.col-action { text-align: right; padding: 14px 16px; }
+  .site .compare-table tbody tr { border-top: 1px solid var(--hair); }
+  .site .compare-table td {
+    padding: 14px 12px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-2);
+    text-align: center;
+  }
+  .site .compare-table td.col-model {
+    text-align: left;
+    padding: 14px 16px;
+    color: var(--ink);
+  }
+  .site .compare-table td.col-model .frontier {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 10.5px;
+    color: var(--accent);
+    margin-top: 2px;
+    font-weight: 500;
+  }
+  .site .compare-table td.col-action { text-align: right; padding: 14px 16px; }
+  .site .compare-table td.acc { font-weight: 600; }
+  .site .compare-table td.cell-good {
+    color: var(--pass);
+    background: color-mix(in oklch, var(--pass) 16%, var(--paper));
+  }
+  .site .compare-table td.cell-mid {
+    color: var(--review);
+    background: color-mix(in oklch, var(--review) 16%, var(--paper));
+  }
+  .site .compare-table td.cell-bad {
+    color: var(--fail);
+    background: color-mix(in oklch, var(--fail) 16%, var(--paper));
+  }
+  .site .compare-table .view-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: 2px;
+    text-transform: uppercase;
+    transition: all .15s;
+  }
+  .site .compare-table .view-link:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  /* Sample queries */
+  .site .sample-item {
+    padding: 20px 0;
+    border-top: 1px solid var(--hair);
+  }
+  .site .sample-item:first-of-type { border-top: 1px solid var(--ink); }
+  .site .sample-item .sample-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .site .sample-item .sample-conf {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .site .sample-item .sample-conf b { color: var(--ink); font-weight: 600; }
+  .site .sample-item .sample-q {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 17px;
+    color: var(--ink);
+    margin-bottom: 14px;
+    line-height: 1.4;
+  }
+  .site .sample-item .sample-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .site .sample-item .col-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .site .sample-item .col-label.expected { color: var(--field); }
+  .site .sample-item .col-label.got { color: var(--accent); }
+  .site .sample-item .col-body {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+
+  /* Production usage chart card */
+  .site .chart-card {
+    background: var(--paper);
+    padding: 24px;
+    border: 1px solid var(--hair);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 28px;
+  }
+  .site .chart-card .chart-block .chart-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  .site .chart-card .chart-block canvas {
+    background: var(--paper);
+  }
+
+  /* Page-local footer */
+  .site footer.site-footer { padding: 56px 0 80px; border-top: 1px solid var(--hair); }
+
+  /* RESPONSIVE */
+  @media (max-width: 880px) {
+    .site .evals-masthead .mast-grid { grid-template-columns: 1fr; gap: 24px; }
+    .site .evals-masthead .aside { text-align: left; }
+    .site .tldr-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+    .site .ev-grid { grid-template-columns: 1fr; gap: 24px; }
+    .site .chart-card { grid-template-columns: 1fr; }
+    .site .sample-item .sample-cols { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 620px) {
+    .site .compare-table th, .site .compare-table td { padding: 10px 6px; font-size: 11px; }
+  }
 </style>
 {% endblock %}
 
-{% block content %}
-<div class="row">
-  <div class="col-lg-10 mx-auto">
-
-    <h1 class="mb-1">Evaluation Results</h1>
-    <p class="text-muted mb-4" style="font-size:0.875rem;">
-      Accuracy measured across 213 <strong>basic rules questions</strong> — human-verified against expected answers.
-    </p>
-
-    <!-- Model Comparison Table -->
-    {% if model_order is defined %}
-    {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini'} %}
-    <div class="table-responsive mb-3">
-      <table class="table table-bordered align-middle mb-0" style="font-size: 0.875rem;">
-        <thead class="table-light">
-          <tr>
-            <th>Model</th>
-            <th class="text-center">Input (RAG) tokens</th>
-            <th class="text-center">Recall accuracy</th>
-            <th class="text-center">Calc accuracy</th>
-            <th class="text-center">Cost / query</th>
-            <th class="text-center">Avg response time</th>
-            <th class="text-center">Details</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for model in model_order %}
-          {% set acc = model_accuracy.get(model, {}) if model_accuracy is defined else {} %}
-          {% set fid = model_latest_file.get(model) if model_latest_file is defined else None %}
-          {% set est = model_estimated is defined and model in model_estimated %}
-          <tr>
-            <td class="fw-semibold">{{ model }}</td>
-            <td class="text-center">~20k</td>
-            {% if 'recall' in acc %}
-              {% set rc = acc['recall'] %}
-              <td class="text-center {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
-            {% else %}<td class="text-center">—</td>{% endif %}
-            {% if 'calc' in acc %}
-              {% set cc = acc['calc'] %}
-              <td class="text-center {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
-            {% else %}<td class="text-center">—</td>{% endif %}
-            <td class="text-center" id="tbl-cost-{{ mid[model] }}">—</td>
-            <td class="text-center" id="tbl-time-{{ mid[model] }}">—</td>
-            <td class="text-center">
-              {% if fid %}
-              <a href="{{ url_for('evals_detail', file_id=fid) }}?judge=human" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;">View</a>
-              {% else %}—{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <p class="text-muted small mb-4">Accuracy from human-reviewed evals · Cost and timing from live production chat<br>
-    <sup>*</sup> Estimated: gpt-5.4 run on 24 questions where gpt-5.4-mini failed; remaining 190 assumed correct.</p>
-    {% endif %}
-
-    <!-- Narrative -->
-    <div class="mb-4 p-3" style="background:#f8f9fa; border-left: 3px solid #2c3e50; border-radius: 0 4px 4px 0; font-size:13px;">
-      <ul class="mb-0" style="line-height: 2;">
-        <li><strong>The latest models can accurately answer recall questions for this simple eval.</strong> Next step is to evaluate with a harder eval; building the eval now.</li>
-        <li><strong>The models don't reliably answer calculation questions.</strong> Next step: analyzing calculation errors to identify whether failures stem from retrieval, reasoning, or arithmetic — then targeting the weakest link.</li>
-      </ul>
-    </div>
-
-    {% if error %}
-    <div class="alert alert-danger" role="alert">{{ error }}</div>
-    {% endif %}
-
-    <!-- Usage Charts -->
-    <hr class="my-5">
-    <h2 class="mb-1">Production Usage</h2>
-    <p class="text-muted mb-4" style="font-size:13px;">Token consumption, cost, and response time from live chat interactions.</p>
-    <div class="card">
-      <div class="card-body">
-        <div class="row mb-4">
-          <div class="col-md-6">
-            <h6 class="text-center">Total Tokens per Question</h6>
-            <canvas id="tokensChart" height="250"></canvas>
-          </div>
-          <div class="col-md-6">
-            <h6 class="text-center">Cost per Question</h6>
-            <canvas id="costChart" height="250"></canvas>
-          </div>
+{% block main %}
+<!-- ─── MASTHEAD ─── -->
+<header class="evals-masthead">
+  <div class="wrap">
+    <div class="mast-grid">
+      <div>
+        <div class="eyebrow" style="margin-bottom: 14px;">
+          <span class="dot"></span>
+          <span class="num">VOL. 01</span><span>·</span>
+          <span>EVALUATION REPORT</span><span>·</span>
+          <span>NOV 2026</span>
         </div>
-        <div class="row">
-          <div class="col-md-6">
-            <h6 class="text-center">Response Time per Question</h6>
-            <canvas id="timeChart" height="250"></canvas>
-          </div>
-          <div class="col-md-6"></div>
-        </div>
-        <p class="text-muted small mt-2 mb-0 text-center">Data from production chat interactions</p>
+        <h1>
+          Can a <em>mini-class</em> model<br />
+          answer ASL rules questions?
+        </h1>
+        <p class="lede" style="max-width: 620px;">
+          A human-verified comparison of four OpenAI models on a 213-question
+          eval set, split between pure rule lookup (Recall) and
+          rule-plus-computation (Calc). Production cost and latency from live
+          chat included.
+        </p>
+      </div>
+      <div class="aside">
+        <div class="author">K. HANNAN</div>
+        <div>kevmo.us/evals</div>
+        <div>v3.14 · last run nov&nbsp;14</div>
+        <div style="margin-top: 8px;">DOI&nbsp;—</div>
       </div>
     </div>
-
   </div>
-</div>
+</header>
+
+<!-- ─── TLDR STRIP ─── -->
+<section class="tldr-strip">
+  <div class="wrap">
+    <div class="tldr-grid">
+      <div class="tldr-item">
+        <div class="tldr-label">Recall accuracy</div>
+        <div class="tldr-num">92—99%</div>
+        <div class="tldr-sub">across mini-and-up</div>
+      </div>
+      <div class="tldr-item">
+        <div class="tldr-label">Calc accuracy</div>
+        <div class="tldr-num">42—86%</div>
+        <div class="tldr-sub">wide spread</div>
+      </div>
+      <div class="tldr-item">
+        <div class="tldr-label">Cost ratio</div>
+        <div class="tldr-num">15×</div>
+        <div class="tldr-sub">top model vs. mini</div>
+      </div>
+      <div class="tldr-item">
+        <div class="tldr-label">Sample size</div>
+        <div class="tldr-num">213</div>
+        <div class="tldr-sub">human-verified</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 01 · FINDINGS ─── -->
+<section class="section">
+  <div class="wrap">
+    <div class="ev-grid">
+      <div class="ev-label">
+        <div class="eyebrow"><span class="num">01</span></div>
+        <div class="ev-title">Findings</div>
+      </div>
+      <div class="ev-body">
+        <h2 class="h-section">Two clear results, two<br />open <em>questions</em>.</h2>
+        <ol class="findings">
+          <li>
+            <span class="num">i</span>
+            <div>
+              <div class="fnd-title">The latest models answer recall reliably.</div>
+              <div class="fnd-body">
+                On this 213-question eval, the top two models clear 95% on
+                pure rule lookups. Next step: a harder eval — currently being
+                built — to find where they actually start to break.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="num">ii</span>
+            <div>
+              <div class="fnd-title">Calculations are where the cheap models fail.</div>
+              <div class="fnd-body">
+                Calc accuracy spreads 42–86% across the lineup. Next step:
+                failure-mode analysis on calc errors to see whether the wall
+                is retrieval, reasoning, or arithmetic — then target the
+                weakest link.
+              </div>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 02 · MODEL COMPARISON ─── -->
+<section class="section alt" style="background: var(--paper-2);">
+  <div class="wrap">
+    <div class="ev-grid">
+      <div class="ev-label">
+        <div class="eyebrow"><span class="num">02</span></div>
+        <div class="ev-title">Model comparison</div>
+      </div>
+      <div class="ev-body">
+        <h2 class="h-section">Accuracy, cost, latency<br /><em>side by side</em>.</h2>
+        <p class="table-caption">TABLE 01 — 213 questions, human-verified · cost &amp; timing from live production chat</p>
+
+        {% if model_order is defined %}
+        {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini'} %}
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th class="col-model">Model</th>
+              <th>RAG in</th>
+              <th>Recall</th>
+              <th>Calc</th>
+              <th>Cost / q</th>
+              <th>Avg time</th>
+              <th class="col-action"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for model in model_order %}
+            {% set acc = model_accuracy.get(model, {}) if model_accuracy is defined else {} %}
+            {% set fid = model_latest_file.get(model) if model_latest_file is defined else None %}
+            {% set est = model_estimated is defined and model in model_estimated %}
+            <tr>
+              <td class="col-model">
+                {{ model }}
+                {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
+              </td>
+              <td>~20k</td>
+              {% if 'recall' in acc %}
+                {% set rc = acc['recall'] %}
+                <td class="acc {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+              {% else %}<td>—</td>{% endif %}
+              {% if 'calc' in acc %}
+                {% set cc = acc['calc'] %}
+                <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+              {% else %}<td>—</td>{% endif %}
+              <td id="tbl-cost-{{ mid[model] }}">—</td>
+              <td id="tbl-time-{{ mid[model] }}">—</td>
+              <td class="col-action">
+                {% if fid %}
+                <a href="{{ url_for('evals_detail', file_id=fid) }}?judge=human" class="view-link">VIEW →</a>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="table-footnote">
+          <sup>*</sup> Estimated: gpt-5.4 run on 24 questions where gpt-5.4-mini failed; remaining 190 assumed correct.
+        </p>
+        {% endif %}
+
+        {% if error %}
+        <div style="margin-top: 24px; padding: 14px 18px; border-left: 3px solid var(--fail); background: color-mix(in oklch, var(--fail) 8%, var(--paper)); font-family: var(--mono); font-size: 12px;">{{ error }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 03 · SAMPLE QUERIES ─── -->
+<section class="section">
+  <div class="wrap">
+    <div class="ev-grid">
+      <div class="ev-label">
+        <div class="eyebrow"><span class="num">03</span></div>
+        <div class="ev-title">Sample queries</div>
+      </div>
+      <div class="ev-body">
+        <h2 class="h-section">What the eval set<br /><em>looks like</em>.</h2>
+        <p class="table-caption">Three representative items — one pass, one needs-review, one fail.</p>
+
+        <div class="sample-item">
+          <div class="sample-header">
+            <span class="cite">B13.4</span>
+            <span class="qtype-badge">recall</span>
+            <span class="ev-badge pass"><span class="glyph">✓</span>PASS</span>
+            <span class="sample-conf">judge confidence <b>0.92</b></span>
+          </div>
+          <div class="sample-q">What is the MF cost for an infantry squad to enter a woods hex from open ground?</div>
+          <div class="sample-cols">
+            <div>
+              <div class="col-label expected">EXPECTED</div>
+              <div class="col-body">2 MF, regardless of hexside crossed (B13.4). Road rate does not apply.</div>
+            </div>
+            <div>
+              <div class="col-label got">MODEL RESPONSE</div>
+              <div class="col-body">Entering a Woods hex costs 2 MF for non-Cavalry infantry (B13.4). If a road runs through the woods, the road rate B3.4 does not apply because Woods overrides road effects.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sample-item">
+          <div class="sample-header">
+            <span class="cite">A12.1</span>
+            <span class="qtype-badge">recall</span>
+            <span class="ev-badge review"><span class="glyph">⚠</span>NEEDS REVIEW</span>
+            <span class="sample-conf">judge confidence <b>0.61</b></span>
+          </div>
+          <div class="sample-q">When a Concealment counter is removed, does the unit also lose Hidden Initiative status?</div>
+          <div class="sample-cols">
+            <div>
+              <div class="col-label expected">EXPECTED</div>
+              <div class="col-body">No. Concealment loss does not alter Hidden Initiative; the two are tracked independently (A12.1).</div>
+            </div>
+            <div>
+              <div class="col-label got">MODEL RESPONSE</div>
+              <div class="col-body">Yes — when a Concealment counter is lost, the unit also loses Hidden Initiative because they share the same trigger. (A4.34)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sample-item">
+          <div class="sample-header">
+            <span class="cite">C8.31</span>
+            <span class="qtype-badge">calc</span>
+            <span class="ev-badge fail"><span class="glyph">✕</span>FAIL</span>
+            <span class="sample-conf">judge confidence <b>0.84</b></span>
+          </div>
+          <div class="sample-q">A 4-6-7 fires at an unconcealed 4-4-7 in a Stone Building, range 4, no other DRM. What FP column and DRM?</div>
+          <div class="sample-cols">
+            <div>
+              <div class="col-label expected">EXPECTED</div>
+              <div class="col-body">4 FP column, +3 TEM (Stone Building), +1 long-range = +4 net DRM; 4 (1) column on IFT.</div>
+            </div>
+            <div>
+              <div class="col-label got">MODEL RESPONSE</div>
+              <div class="col-body">4 FP column, +3 TEM, no range DRM. Net +3 DRM on 4 (1) column.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 04 · PRODUCTION USAGE (charts) ─── -->
+<section class="section alt no-border" style="background: var(--paper-2);">
+  <div class="wrap">
+    <div class="ev-grid">
+      <div class="ev-label">
+        <div class="eyebrow"><span class="num">04</span></div>
+        <div class="ev-title">Production usage</div>
+      </div>
+      <div class="ev-body">
+        <h2 class="h-section">Token, cost &amp; latency<br /><em>in flight</em>.</h2>
+        <p class="table-caption">Daily averages from live chat interactions · text-only baselines, image variants dashed</p>
+        <div class="chart-card">
+          <div class="chart-block">
+            <div class="chart-title">Tokens / question</div>
+            <canvas id="tokensChart" height="180"></canvas>
+          </div>
+          <div class="chart-block">
+            <div class="chart-title">Cost / question ($)</div>
+            <canvas id="costChart" height="180"></canvas>
+          </div>
+          <div class="chart-block">
+            <div class="chart-title">Response time (s)</div>
+            <canvas id="timeChart" height="180"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="legal">
+      Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
+      This is a personal, non-commercial project with no affiliation with
+      Hasbro, Avalon Hill, or Multi-Man Publishing.
+    </div>
+  </div>
+</footer>
 {% endblock %}
 
 {% block extra_js %}
@@ -116,30 +596,61 @@
 <script>
 const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini' };
 
+// Design system palette: oxblood / olive / brass — one accent per series, no fills.
+const DS_PALETTE = ['#8B2E2E', '#4D5A3E', '#B08B3A', '#3B3833'];
 const MODEL_COLORS = {
-  'gpt-4.1-mini':  { in: 'rgba(54, 162, 235, 0.45)', out: 'rgb(54, 162, 235)', cost: 'rgb(54, 162, 235)' },
-  'gpt-5-mini':    { in: 'rgba(255, 99, 132, 0.45)', out: 'rgb(255, 99, 132)', cost: 'rgb(255, 99, 132)' },
-  'gpt-5.4-mini':  { in: 'rgba(153, 102, 255, 0.45)', out: 'rgb(153, 102, 255)', cost: 'rgb(153, 102, 255)' },
-  'gpt-5.4':       { in: 'rgba(255, 159, 64, 0.45)', out: 'rgb(255, 159, 64)', cost: 'rgb(255, 159, 64)' },
+  'gpt-5.4':       DS_PALETTE[0],  // oxblood — frontier
+  'gpt-5.4-mini':  DS_PALETTE[2],  // brass
+  'gpt-5-mini':    DS_PALETTE[1],  // olive — mini baseline
+  'gpt-4.1-mini':  DS_PALETTE[3],  // dark ink — legacy
 };
+function colorFor(model, idx) { return MODEL_COLORS[model] || DS_PALETTE[idx % DS_PALETTE.length]; }
 
-function getColor(model, idx) {
-  const fallback = ['rgb(75, 192, 192)', 'rgb(255, 159, 64)', 'rgb(153, 102, 255)'][idx % 3];
-  return MODEL_COLORS[model] || { in: fallback, out: fallback, cost: fallback };
-}
-
-// Image-variant series are rendered dashed to distinguish from text-only baselines.
-const IMAGE_DASH = [6, 4];
+// Image variants rendered dashed to distinguish from text-only baselines.
+const IMAGE_DASH = [4, 3];
 
 // Variants hidden from all charts (still counted in the comparison table above).
 const CHART_EXCLUDED = new Set(['gpt-4.1-mini', 'gpt-5-mini (image)', 'gpt-5.4-mini']);
+
+// Chart.js shared options for the editorial look:
+//   muted gridlines, mono tick fonts, no background fills, no curve tension.
+const SHARED_OPTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    x: {
+      type: 'category',
+      grid: { display: false },
+      ticks: { font: { family: 'JetBrains Mono, monospace', size: 10 }, color: '#6B6660' },
+    },
+    y: {
+      beginAtZero: true,
+      grid: { color: '#E8E1D2', drawBorder: false },
+      ticks: { font: { family: 'JetBrains Mono, monospace', size: 10 }, color: '#6B6660' },
+    },
+  },
+  plugins: {
+    legend: {
+      position: 'bottom',
+      labels: {
+        boxWidth: 10, boxHeight: 2,
+        font: { family: 'JetBrains Mono, monospace', size: 10 },
+        color: '#3B3833',
+      },
+    },
+  },
+  elements: {
+    line: { tension: 0, borderWidth: 1.5 },
+    point: { radius: 2.5, hoverRadius: 4 },
+  },
+};
 
 fetch('/api/usage/daily')
   .then(r => r.json())
   .then(data => {
     if (!data.models || data.models.length === 0) return;
 
-    // Comparison table is text-only baseline; image variants are charted but skipped here.
+    // Update comparison table cost/time cells from production data.
     data.models.forEach(variant => {
       const s = data.series[variant];
       if (s.is_image) return;
@@ -153,94 +664,51 @@ fetch('/api/usage/daily')
       if (costEl && costCount > 0) {
         const avgCostCents = (totalCost / costCount) * 100;
         costEl.textContent = avgCostCents.toFixed(2) + '¢';
-        costEl.className = 'text-center ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
+        costEl.className = 'acc ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
       }
       if (timeEl && timeCount > 0) {
         const avgTime = totalTime / timeCount;
         timeEl.textContent = avgTime.toFixed(1) + 's';
-        timeEl.className = 'text-center ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
+        timeEl.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
       }
     });
 
-    const tokenDatasets = [];
-    data.models.forEach((variant, i) => {
-      if (CHART_EXCLUDED.has(variant)) return;
-      const s = data.series[variant];
-      const colors = getColor(s.base_model, i);
-      const dash = s.is_image ? IMAGE_DASH : [];
-      tokenDatasets.push({
-        label: variant,
-        data: s.dates.map((d, j) => {
-          const i = s.input_tokens[j], o = s.output_tokens[j];
-          return { x: d, y: (i == null && o == null) ? null : (i || 0) + (o || 0) };
-        }),
-        borderColor: colors.out, backgroundColor: colors.out, borderDash: dash,
-        tension: 0.3, pointRadius: 3, spanGaps: false,
+    function buildDatasets(extractFn) {
+      const ds = [];
+      data.models.forEach((variant, i) => {
+        if (CHART_EXCLUDED.has(variant)) return;
+        const s = data.series[variant];
+        const color = colorFor(s.base_model, i);
+        ds.push({
+          label: variant,
+          data: s.dates.map((d, j) => ({ x: d, y: extractFn(s, j) })),
+          borderColor: color,
+          backgroundColor: color,
+          borderDash: s.is_image ? IMAGE_DASH : [],
+          spanGaps: false,
+          fill: false,
+        });
       });
-    });
+      return ds;
+    }
 
     new Chart(document.getElementById('tokensChart'), {
-      type: 'line', data: { datasets: tokenDatasets },
-      options: {
-        responsive: true,
-        scales: {
-          x: { type: 'category', title: { display: true, text: 'Date' } },
-          y: { title: { display: true, text: 'Total Tokens (in+out) / Question' }, beginAtZero: true },
-        },
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
-      },
+      type: 'line',
+      data: { datasets: buildDatasets((s, j) => {
+        const i = s.input_tokens[j], o = s.output_tokens[j];
+        return (i == null && o == null) ? null : (i || 0) + (o || 0);
+      }) },
+      options: SHARED_OPTS,
     });
-
-    const costDatasets = [];
-    data.models.forEach((variant, i) => {
-      if (CHART_EXCLUDED.has(variant)) return;
-      const s = data.series[variant];
-      const colors = getColor(s.base_model, i);
-      const dash = s.is_image ? IMAGE_DASH : [];
-      costDatasets.push({
-        label: variant,
-        data: s.dates.map((d, j) => ({ x: d, y: s.cost[j] })),
-        borderColor: colors.cost, backgroundColor: colors.cost, borderDash: dash,
-        tension: 0.3, pointRadius: 3, spanGaps: false,
-      });
-    });
-
     new Chart(document.getElementById('costChart'), {
-      type: 'line', data: { datasets: costDatasets },
-      options: {
-        responsive: true,
-        scales: {
-          x: { type: 'category', title: { display: true, text: 'Date' } },
-          y: { title: { display: true, text: 'Cost ($) / Question' }, beginAtZero: true },
-        },
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
-      },
+      type: 'line',
+      data: { datasets: buildDatasets((s, j) => s.cost[j]) },
+      options: SHARED_OPTS,
     });
-
-    const timeDatasets = [];
-    data.models.forEach((variant, i) => {
-      if (CHART_EXCLUDED.has(variant)) return;
-      const s = data.series[variant];
-      const colors = getColor(s.base_model, i);
-      const dash = s.is_image ? IMAGE_DASH : [];
-      timeDatasets.push({
-        label: variant,
-        data: s.dates.map((d, j) => ({ x: d, y: s.total_time_s[j] })),
-        borderColor: colors.cost, backgroundColor: colors.cost, borderDash: dash,
-        tension: 0.3, pointRadius: 3, spanGaps: false,
-      });
-    });
-
     new Chart(document.getElementById('timeChart'), {
-      type: 'line', data: { datasets: timeDatasets },
-      options: {
-        responsive: true,
-        scales: {
-          x: { type: 'category', title: { display: true, text: 'Date' } },
-          y: { title: { display: true, text: 'Time (s) / Question' }, beginAtZero: true },
-        },
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
-      },
+      type: 'line',
+      data: { datasets: buildDatasets((s, j) => s.total_time_s[j]) },
+      options: SHARED_OPTS,
     });
   })
   .catch(e => console.warn('Could not load usage data:', e));
