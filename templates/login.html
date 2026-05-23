@@ -1,41 +1,121 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-5">
-    <h1 class="mb-4">Login</h1>
-    <div class="card">
-      <div class="card-body">
-        {% if error %}
-        <div class="alert alert-danger" role="alert">
-          {{ error }}
+{% block title %}Log in — ASL Rules Assistant{% endblock %}
+
+{% block extra_css %}
+<style>
+  .site a.inline-link {
+    color: var(--accent);
+    border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+    transition: border-color .15s, color .15s;
+  }
+  .site a.inline-link:hover { border-bottom-color: var(--accent); }
+
+  .site .auth-wrap {
+    padding: 64px 0 96px;
+  }
+  .site .auth-col {
+    max-width: 460px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+  .site .auth-col h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(28px, 3vw, 38px);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    margin: 12px 0 16px;
+    text-wrap: balance;
+  }
+  .site .auth-col h1 em { font-style: italic; color: var(--accent); }
+  .site .auth-col .lede {
+    font-size: 15px;
+    color: var(--ink-2);
+    line-height: 1.5;
+    margin-bottom: 24px;
+  }
+  .site .auth-error {
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--fail);
+    background: color-mix(in oklch, var(--fail) 8%, var(--paper));
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .site .forgot-row {
+    display: flex; justify-content: flex-end;
+    margin-top: -10px; margin-bottom: 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .site .or-divider {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 14px;
+    align-items: center;
+    margin: 24px 0;
+  }
+  .site .or-divider::before,
+  .site .or-divider::after {
+    content: "";
+    height: 1px;
+    background: var(--hair);
+  }
+  .site .or-divider span {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    color: var(--muted);
+  }
+  .site .auth-footnote {
+    margin-top: 24px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .site .auth-footnote em { color: var(--accent); font-style: italic; }
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="auth-wrap">
+  <div class="auth-col">
+    <div class="eyebrow"><span class="dot"></span><span>Account access</span></div>
+    <h1>Log in to the <em>rules assistant</em>.</h1>
+    <p class="lede">
+      Full chat is invite-only. If you have an account, sign in below. Otherwise
+      the demo gives five free questions per day, no signup.
+    </p>
+
+    <div class="card-panel card-shadow">
+      {% if error %}
+      <div class="auth-error">{{ error }}</div>
+      {% endif %}
+
+      <form action="/login" method="POST">
+        <div class="field">
+          <label for="username">Email</label>
+          <input type="text" class="input" id="username" name="username" required autofocus>
         </div>
-        {% endif %}
-        <form action="/login" method="POST">
-          <div class="mb-3">
-            <label for="username" class="form-label">Email</label>
-            <input 
-              type="text"
-              class="form-control"
-              id="username"
-              name="username"
-              required
-            >
-          </div>
-          <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input
-              type="password"
-              class="form-control"
-              id="password"
-              name="password"
-              required
-            >
-          </div>
-          <button type="submit" class="btn btn-primary w-100">Login</button>
-        </form>
-      </div>
+        <div class="field" style="margin-bottom: 6px;">
+          <label for="password">Password</label>
+          <input type="password" class="input" id="password" name="password" required>
+        </div>
+        <div class="forgot-row"><span>forgot →</span></div>
+        <button type="submit" class="btn btn-primary btn-block">Log in <span class="arrow">→</span></button>
+      </form>
+
+      <div class="or-divider"><span>OR</span></div>
+
+      <a class="btn btn-ghost btn-block" href="{{ url_for('demo') }}">
+        Try the demo (5 questions/day) <span class="arrow">→</span>
+      </a>
     </div>
+
+    <div class="auth-footnote">No invite yet? <em>Request access</em></div>
   </div>
 </div>
 {% endblock %}
