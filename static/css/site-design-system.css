@@ -505,3 +505,17 @@
 .site .hairline { border: 0; border-top: 1px solid var(--hair); margin: 32px 0; }
 .site .mono { font-family: var(--mono); }
 .site .muted { color: var(--muted); }
+
+/* ───── Responsive (system-wide) ─────
+   Page templates layer their own @media rules on top of these. */
+html, body { overflow-x: hidden; }
+
+@media (max-width: 620px) {
+  .site .wrap { padding: 0 20px; }
+  .site .wrap-narrow { padding: 0 20px; }
+  .site .section { padding: 56px 0; }
+  /* Mobile nav: hide internal links so brand + CTA fit on one row.
+     Hamburger drawer for the full menu is a future addition. */
+  .site .nav-links a:not(.nav-cta) { display: none; }
+  .site .nav-cta { padding: 7px 12px; font-size: 12px; }
+}
