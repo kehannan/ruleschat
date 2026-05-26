@@ -333,11 +333,15 @@ def load_eval_runs():
             -TYPE_ORDER.get(x.get("question_type", ""), 99),
         ), reverse=True)
 
-        # Build model_accuracy: latest run per model per question type
-        MODEL_ORDER = ["gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "gpt-4.1-mini"]
+        # Build model_accuracy: latest run per model per question type.
+        # Order is "frontier → cheap"; deepseek-v3 sits with the cheaper tier
+        # (it's the first OpenRouter-routed model in the table).
+        MODEL_ORDER = ["gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
+        MODEL_VIA_OPENROUTER = {"deepseek-v3", "mercury-2"}
         model_accuracy = {}
         model_latest_file = {}
         model_estimated = set()
+        model_last_run_date = {}
         for run in eval_runs:
             m = run["model"]
             qt = run["question_type"].lower()
@@ -349,10 +353,21 @@ def load_eval_runs():
                 model_latest_file[m] = run["file_id"]
             if run.get("estimated"):
                 model_estimated.add(m)
+            # Track most recent run date per model. eval_runs is sorted desc by date,
+            # so the first time we see a model is its newest run.
+            if m not in model_last_run_date and run.get("date"):
+                try:
+                    model_last_run_date[m] = datetime.strptime(
+                        run["date"], "%Y-%m-%d"
+                    ).strftime("%b %-d")
+                except (ValueError, TypeError):
+                    pass
 
         return {"eval_runs": eval_runs, "model_accuracy": model_accuracy,
                 "model_order": MODEL_ORDER, "model_latest_file": model_latest_file,
-                "model_estimated": model_estimated, "error": None}
+                "model_estimated": model_estimated,
+                "model_last_run_date": model_last_run_date,
+                "model_via_openrouter": MODEL_VIA_OPENROUTER, "error": None}
     except Exception as e:
         return {"error": str(e)}
 
@@ -386,11 +401,19 @@ def load_eval_results(file_id=None, use_human_review=False):
 # --- Private Helpers ---
 
 
+# OpenRouter slugs → display label. The eval files use the full provider/slug
+# (e.g. `deepseek/deepseek-v3.2`); the public table shortens to `deepseek-v3`.
+OPENROUTER_DISPLAY = {
+    "deepseek/deepseek-v3.2": "deepseek-v3",
+    "inception/mercury-2": "mercury-2",
+}
+
+
 def _format_model_name(model_name: str) -> str:
     """Format a model name for display, extracting base model and custom name from fine-tuned models."""
     if not model_name or model_name == "Unknown":
         return model_name
-    
+
     # OpenAI fine-tuned format: ft:{base_model}:{org}:{custom_name}:{id}
     if model_name.startswith("ft:"):
         parts = model_name.split(":")
@@ -400,7 +423,12 @@ def _format_model_name(model_name: str) -> str:
             # Simplify base model name (remove date suffix if present)
             base_short = base_model.split("-2024")[0].split("-2025")[0].split("-2026")[0]
             return f"{base_short} / {custom_name}"
-    
+
+    # OpenRouter slug (vendor/model[:tag]) — use the registered short label, or
+    # fall back to the post-slash portion.
+    if "/" in model_name:
+        return OPENROUTER_DISPLAY.get(model_name, model_name.split("/", 1)[1])
+
     return model_name
 
 

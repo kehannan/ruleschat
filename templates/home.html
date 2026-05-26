@@ -1,18 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}ASL Rules Assistant — AI Rules Chat for Advanced Squad Leader{% endblock %}
+{% set active_page = 'home' %}
+
+{% block title %}ASL Ruleschat — AI for Advanced Squad Leader rules{% endblock %}
 
 {% block extra_css %}
 <style>
-  /* Page-specific CSS — selectors not already in site-design-system.css.
-     Scoped to .site so they pick up the design tokens. */
-
-  .site a.inline-link {
-    color: var(--accent);
-    border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
-    transition: border-color .15s, color .15s;
-  }
-  .site a.inline-link:hover { border-bottom-color: var(--accent); }
+  /* Page-specific CSS for the home page. Selectors not already in
+     site-design-system.css. Scoped to .site so tokens apply. */
 
   /* HERO */
   .site .hero {
@@ -45,29 +40,6 @@
     margin-bottom: 32px;
     text-wrap: pretty;
   }
-  .site .hero-meta {
-    display: flex; gap: 28px; flex-wrap: wrap;
-    margin-top: 36px;
-    padding-top: 28px;
-    border-top: 1px solid var(--hair);
-  }
-  .site .stat .stat-num {
-    font-family: var(--serif);
-    font-size: 28px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    line-height: 1;
-    color: var(--ink);
-  }
-  .site .stat .stat-num em { font-style: italic; color: var(--accent); font-weight: 500; }
-  .site .stat .stat-lbl {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-top: 8px;
-  }
   .site .ctas { display: flex; gap: 12px; flex-wrap: wrap; }
   .site .hex-deco {
     position: absolute;
@@ -89,7 +61,7 @@
     font-size: 14px;
   }
   .site .specimen::before {
-    content: "SPECIMEN — LIVE RESPONSE";
+    content: "EXAMPLE ANSWER";
     position: absolute;
     top: -10px; left: 18px;
     background: var(--paper);
@@ -119,10 +91,7 @@
     font-family: var(--serif);
     font-size: 15px;
   }
-  .site .spec-a {
-    display: flex; gap: 12px;
-    padding-top: 16px;
-  }
+  .site .spec-a { display: flex; gap: 12px; padding-top: 16px; }
   .site .spec-a .label {
     font-family: var(--mono);
     font-size: 11px;
@@ -162,46 +131,6 @@
     color: var(--accent);
     font-weight: 500;
   }
-  .site .needs {
-    margin-top: 32px;
-    padding: 22px 24px 24px;
-    background: var(--paper-2);
-    border-left: 3px solid var(--accent);
-  }
-  .site .needs h4 {
-    font-family: var(--mono);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .14em;
-    color: var(--accent);
-    margin: 0 0 14px;
-    font-weight: 600;
-  }
-  .site .needs ol {
-    margin: 0; padding: 0; list-style: none;
-    display: grid; gap: 14px;
-  }
-  .site .needs li {
-    display: grid;
-    grid-template-columns: 28px 1fr;
-    gap: 10px;
-    align-items: baseline;
-    line-height: 1.5;
-  }
-  .site .needs li .n {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: .04em;
-  }
-  .site .needs li strong {
-    font-family: var(--serif);
-    font-style: italic;
-    font-weight: 500;
-    color: var(--ink);
-    margin-right: 6px;
-  }
-  .site .needs li span.body { color: var(--ink-2); font-size: 15px; }
 
   .site .board-figure {
     position: relative;
@@ -237,12 +166,6 @@
     margin-bottom: 56px;
   }
   .site .pipeline-head .col-head { margin-bottom: 0; }
-  .site .pipeline-head .desc {
-    font-size: 16px;
-    line-height: 1.6;
-    color: var(--ink-2);
-    text-wrap: pretty;
-  }
   .site .pipeline { position: relative; padding: 8px 0 0; }
   .site .pipe-flow {
     display: grid;
@@ -323,102 +246,21 @@
     z-index: 0;
   }
 
-  /* FEEDBACK LOOP CALLOUT */
-  .site .feedback-loop {
-    margin-top: 56px;
-    padding: 32px 40px;
-    background: var(--paper-2);
-    border: 1px solid var(--hair);
-    border-radius: 2px;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 32px;
-    align-items: center;
-  }
-  .site .feedback-loop .icon {
-    width: 56px; height: 56px;
-    border-radius: 50%;
-    border: 1px dashed var(--accent);
-    display: grid; place-items: center;
-    color: var(--accent);
-  }
-  .site .feedback-loop h4 {
-    font-family: var(--serif);
-    font-size: 20px;
-    font-weight: 500;
-    margin: 0 0 6px;
-  }
-  .site .feedback-loop h4 em { font-style: italic; color: var(--accent); }
-  .site .feedback-loop p {
-    font-size: 14px;
-    color: var(--ink-2);
-    margin: 0;
-    line-height: 1.55;
-    max-width: 640px;
-  }
-  .site .feedback-loop .meta {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: .1em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-  .site .feedback-loop .meta b {
-    color: var(--accent);
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-  }
-
-  /* DEMO */
-  .site .demo-frame {
-    border: 1px solid var(--hair);
-    background: #0A0908;
-    aspect-ratio: 16/9;
-    border-radius: 2px;
-    position: relative;
-    overflow: hidden;
-  }
-  .site .demo-frame video {
-    display: block;
-    width: 100%; height: 100%;
-    object-fit: contain;
-    background: #000;
-  }
-  .site .demo-caption {
-    display: flex; justify-content: space-between;
-    margin-top: 16px;
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--muted);
-    letter-spacing: .02em;
-  }
-  .site .demo-caption .acc { color: var(--accent); }
-
-  /* FOOTER (page-local for now — will lift to base.html when other pages adopt) */
-  .site footer.site-footer {
-    padding: 56px 0 80px;
-    border-top: 1px solid var(--hair);
-  }
-
   /* RESPONSIVE */
   @media (max-width: 880px) {
     .site .hero-grid,
     .site .two-col,
-    .site .pipeline-head { grid-template-columns: 1fr; gap: 40px; }
+    .site .pipeline-head { grid-template-columns: 1fr; gap: 56px; }
     .site .pipe-flow { grid-template-columns: repeat(2, 1fr); gap: 32px 0; }
     .site .pipe-flow::before { display: none; }
     .site .pipe-node { border-left: 0; padding-left: 0; }
-    .site .feedback-loop { grid-template-columns: 1fr; text-align: left; gap: 16px; }
   }
   @media (max-width: 620px) {
     .site .hero { padding: 56px 0 48px; }
     .site .hex-deco { display: none; }
     .site .hero-head { font-size: clamp(34px, 9vw, 48px); }
     .site .specimen { box-shadow: 0 1px 0 var(--hair), 8px 8px 0 -1px var(--hair-2); }
-    .site .hero-meta { gap: 20px 24px; }
-    .site .stat .stat-num { font-size: 22px; }
     .site .pipe-flow { grid-template-columns: 1fr; gap: 24px; }
-    .site .feedback-loop { padding: 24px; }
   }
 </style>
 {% endblock %}
@@ -439,21 +281,13 @@
       <div>
         <div class="eyebrow">
           <span class="dot"></span>
-          <span class="num">No. 001</span>
-          <span>·</span>
-          <span>A personal experiment in retrieval</span>
+          <span>A personal project</span>
         </div>
         <h1 class="hero-head">
-          An AI that has<br />
-          <em>read the rulebook</em><br />
-          — all 716 pages of it.
+          Ruleschat for the wargame<br />
+          <em>Advanced Squad Leader</em>.
         </h1>
-        <p class="hero-lede">
-          Advanced Squad Leader has a 1M-token rulebook and a reputation for
-          punishing detail. This is a working test of whether retrieval-augmented
-          generation can answer rules questions reliably enough to actually use
-          mid-game — with citations, evals, and a published track record.
-        </p>
+        <p class="hero-lede">An AI for answering questions over the 700-page rulebook.</p>
         <div class="ctas">
           {% if user_email is defined and user_email %}
             <a class="btn btn-primary" href="{{ url_for('ruleschat') }}">
@@ -465,28 +299,6 @@
             </a>
           {% endif %}
           <a class="btn btn-ghost" href="{{ url_for('evals') }}">View eval results</a>
-        </div>
-        <div class="hero-meta">
-          <div class="stat">
-            <div class="stat-num">716 <em>pp.</em></div>
-            <div class="stat-lbl">Rulebook</div>
-          </div>
-          <div class="stat">
-            <div class="stat-num">1.04<em>M</em></div>
-            <div class="stat-lbl">Tokens indexed</div>
-          </div>
-          <div class="stat">
-            <div class="stat-num">20</div>
-            <div class="stat-lbl">Chunks / query</div>
-          </div>
-          <div class="stat">
-            <div class="stat-num"><em>~</em>3.2<em>s</em></div>
-            <div class="stat-lbl">Median TTFT</div>
-          </div>
-          <div class="stat">
-            <div class="stat-num"><em>~</em><em>¢</em>0.4</div>
-            <div class="stat-lbl">Cost / query</div>
-          </div>
         </div>
       </div>
       <aside class="specimen" aria-label="Sample question and answer">
@@ -517,70 +329,36 @@
   <div class="wrap">
     <div class="two-col">
       <div>
-        <div class="eyebrow"><span class="dot"></span><span class="num">01</span> · The domain</div>
-        <h2 class="col-head">A game where <em>looking things up</em><br />takes as long as playing.</h2>
+        <div class="eyebrow"><span class="dot"></span><span>The domain</span></div>
+        <h2 class="col-head">Advanced Squad Leader has<br />a <em>700-page rulebook</em>.</h2>
         <div class="prose">
           <p class="drop">
             <a class="inline-link" href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">Advanced Squad Leader</a>
-            is a tactical WWII wargame played on hex maps with cardboard
+            is a tactical WWII wargame that was historically played on hex maps with cardboard
             counters and dice. Most play has moved online through
             <a class="inline-link" href="https://vassalengine.org/" target="_blank" rel="noopener noreferrer">VASSAL</a> and
             <a class="inline-link" href="https://vasl.info/" target="_blank" rel="noopener noreferrer">VASL</a> —
             but those platforms only move counters and roll dice. Every rule
             interpretation, modifier, and edge case still falls on the players.
           </p>
-          <p>
-            And the rules are <em>dense</em>. A single firefight can require
-            cross-referencing terrain effects, line-of-sight rules, morale
-            modifiers, and a dozen other sub-systems before a single die is
-            rolled. The 716-page rulebook is the bottleneck.
-          </p>
-        </div>
-        <div class="needs">
-          <h4>The assistant supports two recurring tasks</h4>
-          <ol>
-            <li>
-              <span class="n">01</span>
-              <span class="body">
-                <strong>Rule lookup —</strong>
-                no-calculation answers, e.g. <em>"What is the MF cost to enter a woods hex?"</em>
-              </span>
-            </li>
-            <li>
-              <span class="n">02</span>
-              <span class="body">
-                <strong>Outcome calculation —</strong>
-                given a board state, what DR resolves an effect?
-                <em>"What roll do I need to break that squad given terrain and FP modifiers?"</em>
-              </span>
-            </li>
-          </ol>
         </div>
       </div>
       <figure class="board-figure">
         <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL board with counters" />
-        <figcaption class="board-caption">
-          <span class="acc">FIG. 01 ·</span> Hex 51H1, base level 0 — mid-Prep&nbsp;Fire
-        </figcaption>
+        <figcaption class="board-caption">Gameplay on VASL</figcaption>
       </figure>
     </div>
   </div>
 </section>
 
 <!-- ─── PIPELINE ─── -->
-<section class="section" id="features">
+<section class="section no-border" id="features">
   <div class="wrap">
     <div class="pipeline-head">
       <div>
-        <div class="eyebrow"><span class="dot"></span><span class="num">02</span> · How it works</div>
-        <h2 class="col-head">A pipeline, not<br />a <em>feature list</em>.</h2>
+        <div class="eyebrow"><span class="dot"></span><span>The pipeline</span></div>
+        <h2 class="col-head">How it <em>works</em>.</h2>
       </div>
-      <p class="desc">
-        Every query travels the same four stages. The output of one is the input
-        to the next — and the result of the whole loop feeds back into the
-        training data for the next iteration. Each stage below maps to a piece
-        of real machinery in the codebase.
-      </p>
     </div>
 
     <div class="pipeline">
@@ -596,11 +374,11 @@
           <div class="step-label">Stage 01 · Retrieval</div>
           <h3><em>RAG</em> over the rulebook</h3>
           <p>
-            OpenAI's Responses API with native <span class="mono">file_search</span>
-            pulls up to 20 relevant chunks from a vector store of the 716-page
-            rulebook. Vision-capable models accept board screenshots alongside text.
+            Each question goes through OpenAI's Responses API, which calls
+            <span class="mono">file_search</span> against a vector store of the
+            700-page rulebook and pulls 20 chunks into the model's context.
           </p>
-          <div class="tech"><span>Responses API</span><span>file_search</span><span>gpt-5-mini</span></div>
+          <div class="tech"><span>Responses API</span><span>file_search</span><span>20 chunks/q</span></div>
         </article>
 
         <article class="pipe-node">
@@ -614,11 +392,10 @@
           <div class="step-label">Stage 02 · Grounding</div>
           <h3><em>Cited</em> answers</h3>
           <p>
-            Every claim links to the rule section that supports it. Click a
-            citation like <span class="cite">A4.34</span> and the rulebook PDF
-            opens to that exact page in-browser. No hallucinated chapter numbers.
+            Every claim links to a rule section, and clicking a citation like
+            <span class="cite">A4.34</span> opens the rulebook PDF to that page in-browser.
           </p>
-          <div class="tech"><span>section_pages.json</span><span>pdf.js</span></div>
+          <div class="tech"><span>section_pages.json</span><span>pdf.js</span><span>eASLRB v3.14</span></div>
         </article>
 
         <article class="pipe-node">
@@ -632,11 +409,10 @@
           <div class="step-label">Stage 03 · Evaluation</div>
           <h3>LLM-as-a-<em>judge</em></h3>
           <p>
-            A zero-shot AI judge scores each response Pass / Fail / Needs Review
-            against expected answers. Results are manually reviewed and
-            published — so the accuracy claim is auditable, not asserted.
+            A zero-shot AI judge scores each response Pass / Fail / Needs Review against
+            expected answers, with manual review before results are published.
           </p>
-          <div class="tech"><span>structured output</span><span>eval rubric</span></div>
+          <div class="tech"><span>gpt-4.1-mini judge</span><span>JSON mode</span><span>human override</span></div>
         </article>
 
         <article class="pipe-node">
@@ -650,73 +426,63 @@
           <div class="step-label">Stage 04 · Improvement</div>
           <h3>Curate &amp; <em>retrain</em></h3>
           <p>
-            High-quality Q&amp;A pairs are pulled into eval datasets and
-            fine-tuning corpora. Bad answers become test cases. The feedback
-            loop is the whole point.
+            Strong Q&amp;A pairs feed eval datasets and fine-tuning corpora.
           </p>
-          <div class="tech"><span>SFT corpus</span><span>eval set</span></div>
+          <div class="tech"><span>SFT JSONL</span><span>OpenAI fine-tune</span><span>eval JSONL</span></div>
         </article>
       </div>
-
-      <div class="feedback-loop">
-        <div class="icon">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M3 14a11 11 0 0 1 19-7.5" stroke-linecap="round"/>
-            <path d="M22 2v5h-5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M25 14a11 11 0 0 1-19 7.5" stroke-linecap="round"/>
-            <path d="M6 26v-5h5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div>
-          <h4>The whole pipeline is a <em>feedback loop</em></h4>
-          <p>
-            Curated answers flow back into the retrieval corpus and the eval
-            set. The system gets better at the questions it has already seen,
-            and the eval results document the curve.
-          </p>
-        </div>
-        <div class="meta">
-          Multimodal input also supported<br />
-          <b>+ board screenshots ⇢ Stage 01</b>
-        </div>
-      </div>
     </div>
   </div>
 </section>
 
-<!-- ─── DEMO ─── -->
-<section class="section no-border" id="demo">
-  <div class="wrap">
-    <div class="pipeline-head" style="margin-bottom: 40px;">
-      <div>
-        <div class="eyebrow"><span class="dot"></span><span class="num">03</span> · See it work</div>
-        <h2 class="col-head">A rules question,<br />asked and <em>answered</em>.</h2>
-      </div>
-      <p class="desc">
-        Below: a recorded query, the RAG retrieval, the cited response, and a
-        click-through to the rulebook page that supports it.
-      </p>
-    </div>
-    <div class="demo-frame">
-      <video controls>
-        <source src="{{ url_for('static', path='videos/ruleschat.mp4') }}?v=2" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-    </div>
-    <div class="demo-caption">
-      <span><span class="acc">FIG. 02 ·</span> Live demo recording — RAG retrieval, cited response, PDF citation lookup</span>
-      <span>01:24</span>
-    </div>
-  </div>
-</section>
-
-<!-- ─── FOOTER (page-local; lift to base.html once other pages adopt) ─── -->
+<!-- ─── FOOTER ─── -->
 <footer class="site-footer">
   <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="{{ url_for('home') }}">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="var(--ink)" />
+              <text x="16" y="22" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="16" font-weight="500" fill="var(--paper)">a</text>
+            </svg>
+          </span>
+          <span class="brand-name">ASL <em>Ruleschat</em></span>
+        </a>
+        <p>
+          Built on OpenRouter and OpenAI with multiple
+          models. Hosted at <a class="inline-link" href="https://kevmo.us">kevmo.us</a>.
+        </p>
+      </div>
+      <div class="footer-col">
+        <h5>Product</h5>
+        <ul>
+          <li><a href="{{ url_for('demo') }}">Try the demo</a></li>
+          <li><a href="{{ url_for('login') }}">Full chat (login)</a></li>
+          <li><a href="{{ url_for('evals') }}">Eval results</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Docs</h5>
+        <ul>
+          <li><a href="{{ url_for('evals') }}">Eval methodology</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Code</h5>
+        <ul>
+          <li><a href="https://github.com/kehannan/ruleschat" target="_blank" rel="noopener noreferrer">GitHub repo</a></li>
+          <li><a href="https://github.com/kehannan/mysite2-evals-sft" target="_blank" rel="noopener noreferrer">Evals + SFT data</a></li>
+        </ul>
+      </div>
+    </div>
     <div class="legal">
-      Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
-      This is a personal, non-commercial project with no affiliation with
-      Hasbro, Avalon Hill, or Multi-Man Publishing.
+      <span>
+        Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
+        This is a personal, non-commercial project with no affiliation with
+        Hasbro, Avalon Hill, or Multi-Man Publishing.
+      </span>
+      <span class="right">© 2026 · MIT License</span>
     </div>
   </div>
 </footer>

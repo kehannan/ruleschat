@@ -1,39 +1,40 @@
 {% extends "base.html" %}
 
-{% block title %}Log in — ASL Rules Assistant{% endblock %}
+{% set active_page = 'login' %}
+
+{% block title %}Log in — ASL Ruleschat{% endblock %}
 
 {% block extra_css %}
 <style>
-  .site a.inline-link {
-    color: var(--accent);
-    border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
-    transition: border-color .15s, color .15s;
-  }
-  .site a.inline-link:hover { border-bottom-color: var(--accent); }
-
+  /* Auth column: 460px centered, vertically centered in the viewport */
   .site .auth-wrap {
-    padding: 64px 0 96px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 56px 0 80px;
   }
   .site .auth-col {
     max-width: 460px;
+    width: 100%;
     margin: 0 auto;
     padding: 0 32px;
   }
   .site .auth-col h1 {
     font-family: var(--serif);
     font-weight: 500;
-    font-size: clamp(28px, 3vw, 38px);
-    line-height: 1.1;
+    font-size: clamp(30px, 3.4vw, 42px);
+    line-height: 1.05;
     letter-spacing: -0.015em;
-    margin: 12px 0 16px;
+    margin: 0 0 14px;
     text-wrap: balance;
   }
   .site .auth-col h1 em { font-style: italic; color: var(--accent); }
   .site .auth-col .lede {
-    font-size: 15px;
+    font-size: 16px;
+    line-height: 1.55;
     color: var(--ink-2);
-    line-height: 1.5;
-    margin-bottom: 24px;
+    margin: 0 0 28px;
+    text-wrap: pretty;
   }
   .site .auth-error {
     margin-bottom: 18px;
@@ -45,11 +46,17 @@
   }
   .site .forgot-row {
     display: flex; justify-content: flex-end;
-    margin-top: -10px; margin-bottom: 18px;
+    margin: -10px 0 18px;
     font-family: var(--mono);
     font-size: 12px;
     color: var(--muted);
   }
+  .site .forgot-row a {
+    color: var(--muted);
+    border-bottom: 1px solid color-mix(in oklch, var(--muted) 40%, transparent);
+    transition: color .15s, border-color .15s;
+  }
+  .site .forgot-row a:hover { color: var(--accent); border-bottom-color: var(--accent); }
   .site .or-divider {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -59,9 +66,7 @@
   }
   .site .or-divider::before,
   .site .or-divider::after {
-    content: "";
-    height: 1px;
-    background: var(--hair);
+    content: ""; height: 1px; background: var(--hair);
   }
   .site .or-divider span {
     font-family: var(--mono);
@@ -69,14 +74,13 @@
     letter-spacing: .14em;
     color: var(--muted);
   }
-  .site .auth-footnote {
-    margin-top: 24px;
-    text-align: center;
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--muted);
+  /* Page wrapper makes the auth column vertically center between nav + footer */
+  .site { min-height: 100vh; display: flex; flex-direction: column; }
+
+  @media (max-width: 620px) {
+    .site .auth-col { padding: 0 20px; }
+    .site .card-panel { padding: 22px; box-shadow: 0 1px 0 var(--hair), 8px 8px 0 -1px var(--hair-2); }
   }
-  .site .auth-footnote em { color: var(--accent); font-style: italic; }
 </style>
 {% endblock %}
 
@@ -84,10 +88,9 @@
 <div class="auth-wrap">
   <div class="auth-col">
     <div class="eyebrow"><span class="dot"></span><span>Account access</span></div>
-    <h1>Log in to the <em>rules assistant</em>.</h1>
+    <h1>Log in to <em>Ruleschat</em>.</h1>
     <p class="lede">
-      Full chat is invite-only. If you have an account, sign in below. Otherwise
-      the demo gives five free questions per day, no signup.
+      Full chat is invite-only. If you have an account, sign in below. 
     </p>
 
     <div class="card-panel card-shadow">
@@ -98,13 +101,13 @@
       <form action="/login" method="POST">
         <div class="field">
           <label for="username">Email</label>
-          <input type="text" class="input" id="username" name="username" required autofocus>
+          <input type="email" class="input" id="username" name="username" required autofocus>
         </div>
         <div class="field" style="margin-bottom: 6px;">
           <label for="password">Password</label>
           <input type="password" class="input" id="password" name="password" required>
         </div>
-        <div class="forgot-row"><span>forgot →</span></div>
+        <div class="forgot-row"><a href="#" tabindex="-1">forgot →</a></div>
         <button type="submit" class="btn btn-primary btn-block">Log in <span class="arrow">→</span></button>
       </form>
 
@@ -114,8 +117,15 @@
         Try the demo (5 questions/day) <span class="arrow">→</span>
       </a>
     </div>
-
-    <div class="auth-footnote">No invite yet? <em>Request access</em></div>
   </div>
 </div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="legal">
+      Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
+      Personal, non-commercial project — no affiliation.
+    </div>
+  </div>
+</footer>
 {% endblock %}
