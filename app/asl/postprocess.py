@@ -48,22 +48,34 @@ def compute_timing_metrics(
     
     if first_event_time:
         metrics["first_event_time_ms"] = (first_event_time - api_call_start_time) * 1000
-    
+
     if file_search_complete_time:
         metrics["file_search_time_ms"] = (file_search_complete_time - api_call_start_time) * 1000
-    
+
     if first_delta_time:
         metrics["ttft_ms"] = (first_delta_time - api_call_start_time) * 1000
-    
+
     if stream_end_time:
         metrics["total_time_ms"] = (stream_end_time - api_call_start_time) * 1000
-    
+
     # Compute derived metrics
     if file_search_complete_time and first_delta_time:
         metrics["generation_time_ms"] = (first_delta_time - file_search_complete_time) * 1000
-    
+
     if file_search_complete_time and stream_end_time:
         metrics["post_rag_generation_time_ms"] = (stream_end_time - file_search_complete_time) * 1000
-    
+
+    # Split timing for the latency-row chips. `retrieval_ms` is the RAG
+    # round-trip; `inference_ms` is everything else (model warmup + streaming).
+    # When no file_search ran, all elapsed time is inference.
+    if stream_end_time:
+        total_ms = (stream_end_time - api_call_start_time) * 1000
+        if file_search_complete_time:
+            metrics["retrieval_ms"] = (file_search_complete_time - api_call_start_time) * 1000
+            metrics["inference_ms"] = (stream_end_time - file_search_complete_time) * 1000
+        else:
+            metrics["retrieval_ms"] = None
+            metrics["inference_ms"] = total_ms
+
     return metrics
 

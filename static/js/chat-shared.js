@@ -27,6 +27,12 @@ function displayLatencyTimeline(latencyData) {
     const totalMs       = latencyData.total_time_ms || 0;
     const inputTokens   = latencyData.input_tokens || 0;
     const outputTokens  = latencyData.output_tokens || 0;
+    // Inference = wall-clock minus the RAG round-trip. Server provides this
+    // as `inference_ms`; fall back to derived value if the server hasn't
+    // been updated yet (older payloads in the DB, or queries with no RAG).
+    const inferenceMs   = latencyData.inference_ms != null
+        ? latencyData.inference_ms
+        : (totalMs > 0 ? Math.max(0, totalMs - fileSearchMs) : 0);
 
     const formatTime = (ms) => ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
     const formatTokens = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : `${n}`;
@@ -42,10 +48,14 @@ function displayLatencyTimeline(latencyData) {
         return `$${d.toFixed(3)}`;
     };
 
-    // Build chips for the new design (mono 11px, TTFT/RAG/TOTAL/TOKENS/COST labels).
+    // Build chips for the new design (mono 11px). Order: TTFT · RAG · INFER ·
+    // TOTAL · TOKENS · COST. The INFER chip is the new breakdown — it makes
+    // it obvious how much wall-clock time is retrieval vs the model itself,
+    // which matters for OpenRouter models that pay an extra RAG round-trip.
     const chips = [];
     if (ttftMs > 0)       chips.push({ label: 'TTFT',  value: formatTime(ttftMs) });
     if (fileSearchMs > 0) chips.push({ label: 'RAG',   value: formatTime(fileSearchMs) });
+    if (inferenceMs > 0)  chips.push({ label: 'INFER', value: formatTime(inferenceMs) });
     if (totalMs > 0)      chips.push({ label: 'TOTAL', value: formatTime(totalMs) });
     if (inputTokens > 0 || outputTokens > 0) {
         const pricing   = getModelPricing();
