@@ -170,7 +170,7 @@ async def submit_feedback(
 
 
 # Registration routes
-@app.get("/register")
+@app.get("/register", name="register")
 async def register_page(request: Request, code: str = None):
     """Display registration page."""
     from fastapi import Request
@@ -213,35 +213,6 @@ async def register_complete(
     context = {"request": request}
     return templates.TemplateResponse("register_success.html", context)
 
-
-@app.get("/about", name="about", response_class=HTMLResponse)
-async def about_page(request: Request):
-    """Display about page."""
-    # Get current user for navbar context
-    user = None
-    token = request.cookies.get("access_token")
-    if token:
-        from jose import jwt, JWTError
-        from app.core.auth import SECRET_KEY, ALGORITHM
-        from app.services.user_service import get_user_by_email
-        from app.database import SessionLocal
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            email = payload.get("sub")
-            if email:
-                db = SessionLocal()
-                try:
-                    user = get_user_by_email(db, email)
-                finally:
-                    db.close()
-        except JWTError:
-            pass
-    
-    context = {"request": request, "demo_enabled": is_demo_enabled()}
-    if user:
-        context["user_email"] = user.email
-        context["admin_email"] = os.getenv("ADMIN_EMAIL")
-    return templates.TemplateResponse("about.html", context)
 
 if __name__ == "__main__":
     import uvicorn

@@ -22,9 +22,6 @@ function getModelPricing() {
 // ============================================================
 
 function displayLatencyTimeline(latencyData) {
-    const latencyDisplay = document.getElementById('latency-display');
-    if (!latencyDisplay) return;
-
     const fileSearchMs  = latencyData.file_search_time_ms || 0;
     const ttftMs        = latencyData.ttft_ms || 0;
     const totalMs       = latencyData.total_time_ms || 0;
@@ -33,28 +30,69 @@ function displayLatencyTimeline(latencyData) {
 
     const formatTime = (ms) => ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
     const formatTokens = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : `${n}`;
-    const formatCost = (d) => {
+    const formatCostCents = (d) => {
+        const cents = d * 100;
+        if (cents < 1)  return `¢${cents.toFixed(2)}`;
+        if (cents < 10) return `¢${cents.toFixed(2)}`;
+        return `¢${cents.toFixed(1)}`;
+    };
+    const formatCostDollars = (d) => {
         if (d < 0.001) return `$${(d * 1000).toFixed(2)}m`;
         if (d < 0.01)  return `$${d.toFixed(4)}`;
         return `$${d.toFixed(3)}`;
     };
 
-    const parts = [];
-    if (fileSearchMs > 0) parts.push(`RAG: ${formatTime(fileSearchMs)}`);
-    if (ttftMs > 0)       parts.push(`TTFT: ${formatTime(ttftMs)}`);
-    if (totalMs > 0)      parts.push(`Total: ${formatTime(totalMs)}`);
+    // Build chips for the new design (mono 11px, TTFT/RAG/TOTAL/TOKENS/COST labels).
+    const chips = [];
+    if (ttftMs > 0)       chips.push({ label: 'TTFT',  value: formatTime(ttftMs) });
+    if (fileSearchMs > 0) chips.push({ label: 'RAG',   value: formatTime(fileSearchMs) });
+    if (totalMs > 0)      chips.push({ label: 'TOTAL', value: formatTime(totalMs) });
     if (inputTokens > 0 || outputTokens > 0) {
         const pricing   = getModelPricing();
         const totalCost = (inputTokens / 1_000_000) * pricing.input +
                           (outputTokens / 1_000_000) * pricing.output;
-        parts.push(`${formatTokens(inputTokens)} in / ${formatTokens(outputTokens)} out • Cost: ${formatCost(totalCost)}`);
+        chips.push({ label: 'TOKENS', value: `${formatTokens(inputTokens)}→${formatTokens(outputTokens)}` });
+        chips.push({ label: 'COST',   value: formatCostCents(totalCost) });
     }
 
-    if (parts.length > 0) {
-        latencyDisplay.textContent = parts.join(' • ');
-        latencyDisplay.style.display = 'block';
-    } else {
-        latencyDisplay.style.display = 'none';
+    // New surface: per-assistant-message .latency-row block. Populate the most
+    // recently-created assistant message (.msg.assistant or legacy .bot-message).
+    const lastAssistant = document.querySelector(
+        '.msg.assistant:last-of-type, .bot-message:last-of-type'
+    );
+    if (lastAssistant) {
+        let row = lastAssistant.querySelector('.latency-row');
+        if (!row) {
+            row = document.createElement('div');
+            row.className = 'latency-row';
+            lastAssistant.appendChild(row);
+        }
+        row.innerHTML = chips.map(c =>
+            `<span><span class="ll-num">${c.label}</span> ${c.value}</span>`
+        ).join('');
+        row.style.display = chips.length ? 'flex' : 'none';
+    }
+
+    // Legacy surface: single #latency-display strip below the input (still used
+    // by ruleschat.html until that page is migrated).
+    const latencyDisplay = document.getElementById('latency-display');
+    if (latencyDisplay) {
+        const legacyParts = [];
+        if (fileSearchMs > 0) legacyParts.push(`RAG: ${formatTime(fileSearchMs)}`);
+        if (ttftMs > 0)       legacyParts.push(`TTFT: ${formatTime(ttftMs)}`);
+        if (totalMs > 0)      legacyParts.push(`Total: ${formatTime(totalMs)}`);
+        if (inputTokens > 0 || outputTokens > 0) {
+            const pricing   = getModelPricing();
+            const totalCost = (inputTokens / 1_000_000) * pricing.input +
+                              (outputTokens / 1_000_000) * pricing.output;
+            legacyParts.push(`${formatTokens(inputTokens)} in / ${formatTokens(outputTokens)} out • Cost: ${formatCostDollars(totalCost)}`);
+        }
+        if (legacyParts.length > 0) {
+            latencyDisplay.textContent = legacyParts.join(' • ');
+            latencyDisplay.style.display = 'block';
+        } else {
+            latencyDisplay.style.display = 'none';
+        }
     }
 }
 
@@ -111,7 +149,7 @@ function makeSectionReferencesClickable(element) {
             if (m.start > lastIndex) fragment.appendChild(document.createTextNode(text.substring(lastIndex, m.start)));
 
             const link = document.createElement('span');
-            link.className = 'section-link';
+            link.className = 'cite';
 
             if (m.type === 'sectionPage') {
                 link.textContent = m.section;

@@ -214,5 +214,9 @@ tests/screenshots/
 # Scratch / dev scripts
 latency_test.py
 
-# Design handoff bundle (reference only — not part of the app)
+# Design handoff bundles (reference only — not part of the app)
 design_handoff_full_site/
+design_handoff/
+
+# Local Claude Code project settings
+.claude/
