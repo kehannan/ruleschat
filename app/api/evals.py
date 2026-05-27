@@ -82,7 +82,17 @@ async def usage_daily(db: Session = Depends(get_db)):
     Image-attached queries are aggregated as a separate variant ("{model} (image)")
     so the /evals charts can show text vs image queries side by side.
     """
-    ALLOWED_MODELS = {"gpt-5-mini", "gpt-4.1-mini", "gpt-5.4", "gpt-5.4-mini"}
+    # Production chat tags messages with the full model id sent to the API.
+    # OpenRouter rows arrive as "deepseek/deepseek-v3.2" / "inception/mercury-2";
+    # they're normalized to display labels below via _normalize_model_for_usage.
+    ALLOWED_MODELS = {
+        "gpt-5-mini", "gpt-4.1-mini", "gpt-5.4", "gpt-5.4-mini",
+        "deepseek/deepseek-v3.2", "inception/mercury-2",
+    }
+    USAGE_DISPLAY = {
+        "deepseek/deepseek-v3.2": "deepseek-v3",
+        "inception/mercury-2": "mercury-2",
+    }
 
     messages = (
         db.query(ChatMessage)
@@ -123,7 +133,9 @@ async def usage_daily(db: Session = Depends(get_db)):
                 return True
         return False
 
-    # Aggregate by (date, model, is_image)
+    # Aggregate by (date, model, is_image). OpenRouter slugs are normalized to
+    # short display names so the chart legend reads "deepseek-v3" not the full
+    # provider/model id.
     daily = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "total_time_ms": 0, "count": 0})
     variants_seen = set()
     for msg in list(messages) + list(demo_messages):
@@ -131,8 +143,9 @@ async def usage_daily(db: Session = Depends(get_db)):
         model = timing.get("model", "unknown")
         if model not in ALLOWED_MODELS:
             continue
+        display_model = USAGE_DISPLAY.get(model, model)
         is_image = is_image_query(msg)
-        variant = f"{model} (image)" if is_image else model
+        variant = f"{display_model} (image)" if is_image else display_model
         variants_seen.add(variant)
         date_str = msg.created_at.strftime("%Y-%m-%d") if msg.created_at else "unknown"
         key = (date_str, variant)
@@ -141,11 +154,15 @@ async def usage_daily(db: Session = Depends(get_db)):
         daily[key]["total_time_ms"] += timing.get("total_time_ms", 0) or 0
         daily[key]["count"] += 1
 
+    # USD per 1M tokens (input, output). OpenRouter prices are approximate —
+    # verify against the live OpenRouter dashboard if exact COST chips matter.
     MODEL_PRICING = {
         "gpt-5-mini":   (0.25, 1.00),
         "gpt-5.4":      (3.00, 15.00),
         "gpt-5.4-mini": (0.25, 2.00),
         "gpt-4.1-mini": (0.40, 1.60),
+        "deepseek-v3":  (0.27, 1.10),
+        "mercury-2":    (0.25, 1.00),
     }
 
     def base_model(variant: str) -> str:

@@ -320,7 +320,7 @@
         <p class="table-caption">TABLE 01 — 200+ questions, human-verified · cost &amp; timing from live production chat</p>
 
         {% if model_order is defined %}
-        {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini'} %}
+        {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2'} %}
         <table class="compare-table">
           <thead>
             <tr>
@@ -444,7 +444,7 @@
 // One fetch against /api/usage/daily powers two things: (a) the cost/time cells
 // in the comparison table above, and (b) the three Chart.js line charts in
 // Section 04 below. Keeping it in a single .then() avoids a second round-trip.
-const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini' };
+const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2' };
 
 // Design-system palette: one accent per series, no fills.
 const DS_PALETTE = ['#8B2E2E', '#4D5A3E', '#B08B3A', '#3B3833'];
