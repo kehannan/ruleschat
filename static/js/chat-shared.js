@@ -4,11 +4,17 @@
 // Model pricing
 // ============================================================
 
+// USD per 1M tokens (input, output). Keys match the dropdown `value`
+// attributes — the COST chip uses these to convert token counts shown in
+// the latency-row. OpenRouter prices are approximate; verify against the
+// live OpenRouter dashboard if exact COST chips matter.
 const MODEL_PRICING = {
     'gpt-5-mini':   { input: 0.25, output: 1.00 },
     'gpt-4.1-mini': { input: 0.40, output: 1.60 },
     'gpt-5.4-mini': { input: 0.25, output: 2.00 },
     'gpt-5.4':      { input: 3.00, output: 15.00 },
+    'deepseek-v3':  { input: 0.27, output: 1.10 },
+    'mercury-2':    { input: 0.25, output: 1.00 },
 };
 
 function getModelPricing() {

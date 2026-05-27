@@ -445,11 +445,24 @@ async def websocket_chat(websocket: WebSocket):
                     else:
                         full_input = message
                     
-                    # Validate selected model (whitelist)
-                    allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-5.4", "gpt-4.1-mini"}
-                    model_override = selected_model if selected_model in allowed_models else None
+                    # Validate selected model (whitelist). OpenRouter shortcuts
+                    # are expanded to their full vendor/model slugs — the "/"
+                    # is what triggers OpenRouter routing in ASLService.
+                    OPENROUTER_SLUG = {
+                        "deepseek-v3": "deepseek/deepseek-v3.2",
+                        "mercury-2": "inception/mercury-2",
+                    }
+                    allowed_models = {
+                        "gpt-5-mini", "gpt-5.4-mini", "gpt-5.4", "gpt-4.1-mini",
+                        "deepseek-v3", "mercury-2",
+                    }
+                    if selected_model in allowed_models:
+                        model_override = OPENROUTER_SLUG.get(selected_model, selected_model)
+                    else:
+                        model_override = None
 
                     # Force vision-capable model when image(s) attached
+                    # (OpenRouter path doesn't support images yet).
                     if image_paths and model_override != "gpt-5.4":
                         logging.info(f"🖼️  Image(s) attached — overriding model {model_override} → gpt-5.4")
                         model_override = "gpt-5.4"

@@ -275,10 +275,26 @@ async def websocket_demo(websocket: WebSocket):
                     _increment(db, ip, today)
                     remaining_after = remaining - 1
 
-                    allowed_models = {"gpt-5-mini", "gpt-5.4-mini", "gpt-5.4"}
-                    model = selected_model if selected_model in allowed_models else DEMO_MODEL
+                    # Dropdown short names → ASLService model identifiers. The
+                    # OpenRouter ones (deepseek-v3, mercury-2) get expanded to
+                    # the full vendor/model slug; the "/" triggers OpenRouter
+                    # routing in ASLService.get_answer.
+                    OPENROUTER_SLUG = {
+                        "deepseek-v3": "deepseek/deepseek-v3.2",
+                        "mercury-2": "inception/mercury-2",
+                    }
+                    allowed_models = {
+                        "gpt-5-mini", "gpt-5.4-mini", "gpt-5.4",
+                        "deepseek-v3", "mercury-2",
+                    }
+                    if selected_model in allowed_models:
+                        model = OPENROUTER_SLUG.get(selected_model, selected_model)
+                    else:
+                        model = DEMO_MODEL
 
-                    # Force vision-capable model when image(s) attached
+                    # Force vision-capable model when image(s) attached.
+                    # OpenRouter path doesn't support images yet, so we
+                    # collapse to gpt-5.4 here regardless of user selection.
                     if image_paths and model != "gpt-5.4":
                         logging.info(f"🖼️  Demo image(s) attached - overriding model {model} -> gpt-5.4")
                         model = "gpt-5.4"

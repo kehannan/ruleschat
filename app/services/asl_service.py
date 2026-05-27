@@ -12,8 +12,12 @@ import time
 from pathlib import Path
 from typing import Optional, Generator, Tuple, Any, Dict, List, Union
 
+from openai import OpenAI
+
 from app.asl.config import load_asl_config, ASLConfig
 from app.asl.client import OpenAIResponsesClient
+from app.asl.openrouter_client import build_openrouter_client_from_env
+from app.asl.retrieval import retrieve_chunks, format_chunks_as_context
 from app.asl.policy import build_instructions
 from app.asl.postprocess import (
     extract_response_text,
@@ -98,8 +102,17 @@ class ASLService:
         """
         self.config = load_asl_config(api_key, vector_store_id, config_file)
         self.client = OpenAIResponsesClient(self.config)
-        
+        # Plain OpenAI client for client-side vector-store search (used when
+        # the LLM call goes through OpenRouter and we can't piggyback on the
+        # Responses API's server-side file_search).
+        self.retrieval_client = OpenAI(api_key=self.config.api_key)
+        # OpenRouter client — None if OPENROUTER_API_KEY isn't set.
+        # Selecting a "/" model when this is None raises a clear error.
+        self.openrouter_client = build_openrouter_client_from_env()
+
         logging.info(f"ASL Service initialized with vector store: {self.config.vector_store_id}")
+        if self.openrouter_client:
+            logging.info("OpenRouter client initialized (/-prefixed model names route here)")
     
     def _verify_answer(
         self, 
@@ -256,8 +269,39 @@ Your response:"""
         logging.info(f"[RAG Latency] API call started at: {api_call_start_time:.3f}")
         
         try:
-            # Build tools - base tools
             num_chunks = max_chunks if max_chunks is not None else int(os.getenv("RAG_MAX_CHUNKS", "20"))
+
+            # OpenRouter path: model names like "deepseek/deepseek-v3.2" go here.
+            # We do retrieval client-side via the OpenAI vector store, bake the
+            # chunks into the system prompt, and call OpenRouter for inference.
+            # Always non-streaming for now — the chat WebSocket gets the full
+            # answer as one delta. Image inputs aren't supported on this path.
+            if "/" in model:
+                if self.openrouter_client is None:
+                    raise RuntimeError(
+                        f"Model '{model}' requires OpenRouter, but OPENROUTER_API_KEY "
+                        "is not set on this deployment."
+                    )
+                if image_paths:
+                    raise ValueError(
+                        f"Model '{model}' (OpenRouter) does not support image inputs."
+                    )
+                if use_agentic or use_verification:
+                    raise ValueError(
+                        "use_agentic / use_verification are not supported on the OpenRouter path."
+                    )
+                return self._openrouter_answer(
+                    question=question,
+                    model=model,
+                    temperature=temperature,
+                    instructions=instructions,
+                    num_chunks=num_chunks,
+                    api_call_start_time=api_call_start_time,
+                    stream=stream,
+                    return_timing=return_timing,
+                )
+
+            # Build tools - base tools
             tools = [
                 {
                     "type": "file_search",
@@ -321,7 +365,102 @@ Your response:"""
             error_msg = f"Error getting response: {str(e)}"
             logging.error(error_msg)
             raise RuntimeError(error_msg) from e
-    
+
+    def _openrouter_answer(
+        self,
+        question: str,
+        model: str,
+        temperature: float,
+        instructions: str,
+        num_chunks: int,
+        api_call_start_time: float,
+        stream: bool,
+        return_timing: bool,
+    ):
+        """
+        OpenRouter path: client-side retrieval + non-streaming inference.
+
+        Returns the same shape the OpenAI path returns:
+          * stream=True  → (generator, timing_data). The generator yields the
+                           whole answer as ONE delta (we're non-streaming under
+                           the hood; the chat WebSocket sees a single chunk
+                           after the call completes).
+          * stream=False → answer string.
+
+        timing_data is populated *before* the generator is consumed (the
+        whole call is synchronous), unlike the OpenAI streaming path where
+        timing_data fills in during iteration.
+        """
+        # 1. Retrieval — OpenAI vector store search.
+        retrieval_start = time.time()
+        chunks = retrieve_chunks(
+            self.retrieval_client,
+            self.config.all_vector_store_ids,
+            query=question,
+            max_results_per_store=num_chunks,
+        )
+        context_block = format_chunks_as_context(chunks)
+        retrieval_ms = (time.time() - retrieval_start) * 1000
+        logging.info(f"[RAG Latency] OpenRouter retrieval: {retrieval_ms:.1f}ms ({len(chunks)} chunks)")
+
+        # 2. Build messages with retrieved context baked into the system prompt.
+        sys_with_context = instructions
+        if context_block:
+            sys_with_context = (
+                instructions
+                + "\n\nUse the following retrieved rulebook excerpts as your "
+                "primary source. Cite rule sections (e.g., A6.4) from these "
+                "excerpts in your answer.\n\n"
+                + context_block
+            )
+        messages = [
+            {"role": "system", "content": sys_with_context},
+            {"role": "user", "content": question},
+        ]
+
+        # 3. Inference via OpenRouter.
+        inference_start = time.time()
+        response = self.openrouter_client.create_chat(
+            model=model,
+            messages=messages,
+            stream=False,
+            temperature=temperature,
+        )
+        inference_ms = (time.time() - inference_start) * 1000
+        total_ms = retrieval_ms + inference_ms
+        logging.info(
+            f"[RAG Latency] OpenRouter inference: {inference_ms:.1f}ms · total {total_ms:.1f}ms"
+        )
+
+        text = (response.choices[0].message.content or "").strip()
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
+        output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
+
+        timing_data: Dict[str, Any] = {
+            "retrieval_ms": round(retrieval_ms, 1),
+            "inference_ms": round(inference_ms, 1),
+            # Aliases to keep the existing UI / persistence layer working —
+            # the latency-row JS reads file_search_time_ms for the RAG chip.
+            "file_search_time_ms": round(retrieval_ms, 1),
+            "ttft_ms": round(total_ms, 1),     # non-streaming: TTFT == TOTAL
+            "total_time_ms": round(total_ms, 1),
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            # No file_citation metadata from OpenRouter; rule references will
+            # still be clickable client-side via makeSectionReferencesClickable.
+            "rag_sources": [],
+        }
+
+        if stream:
+            def one_shot_generator():
+                yield text
+            if return_timing:
+                return one_shot_generator(), timing_data
+            return one_shot_generator(), []
+
+        return text
+
     def _handle_streaming_response(
         self,
         stream_manager,
