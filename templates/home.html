@@ -287,7 +287,7 @@
           Ruleschat for the wargame<br />
           <em>Advanced Squad Leader</em>.
         </h1>
-        <p class="hero-lede">An AI for answering questions over the 700-page rulebook.</p>
+        <p class="hero-lede">An AI for answering questions over the rulebook.</p>
         <div class="ctas">
           {% if user_email is defined and user_email %}
             <a class="btn btn-primary" href="{{ url_for('ruleschat') }}">
@@ -438,7 +438,7 @@
 <!-- ─── FOOTER ─── -->
 <footer class="site-footer">
   <div class="wrap">
-    <div class="footer-grid">
+    <div class="footer-grid" style="grid-template-columns: 2fr 1fr;">
       <div class="footer-brand">
         <a class="brand" href="{{ url_for('home') }}">
           <span class="brand-mark" aria-hidden="true">
@@ -460,19 +460,6 @@
           <li><a href="{{ url_for('demo') }}">Try the demo</a></li>
           <li><a href="{{ url_for('login') }}">Full chat (login)</a></li>
           <li><a href="{{ url_for('evals') }}">Eval results</a></li>
-        </ul>
-      </div>
-      <div class="footer-col">
-        <h5>Docs</h5>
-        <ul>
-          <li><a href="{{ url_for('evals') }}">Eval methodology</a></li>
-        </ul>
-      </div>
-      <div class="footer-col">
-        <h5>Code</h5>
-        <ul>
-          <li><a href="https://github.com/kehannan/ruleschat" target="_blank" rel="noopener noreferrer">GitHub repo</a></li>
-          <li><a href="https://github.com/kehannan/mysite2-evals-sft" target="_blank" rel="noopener noreferrer">Evals + SFT data</a></li>
         </ul>
       </div>
     </div>

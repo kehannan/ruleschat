@@ -188,16 +188,16 @@
     color: var(--paper);
   }
 
-  /* Production usage charts — paper card. Two Chart.js line charts side by
-     side; mono accent titles match the rest of the editorial chrome. */
+  /* Production usage charts — paper card. Two Chart.js line charts stacked
+     vertically; mono accent titles match the rest of the editorial chrome. */
   .site .chart-card {
     background: var(--paper);
     padding: 24px;
     border: 1px solid var(--hair);
     border-radius: 2px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 28px;
+    grid-template-columns: 1fr;
+    gap: 36px;
   }
   .site .chart-card .chart-block .chart-title {
     font-family: var(--mono);
@@ -213,14 +213,14 @@
      otherwise it grows unbounded. */
   .site .chart-card .chart-block .chart-canvas-wrap {
     position: relative;
-    height: 200px;
+    height: 340px;
   }
   .site .chart-card .chart-block canvas { background: var(--paper); }
 
   /* RESPONSIVE */
   @media (max-width: 880px) {
     .site .ev-grid { grid-template-columns: 1fr; gap: 24px; }
-    .site .chart-card { grid-template-columns: 1fr; gap: 24px; }
+    .site .chart-card .chart-block .chart-canvas-wrap { height: 260px; }
   }
   @media (max-width: 620px) {
     .site .compare-table th, .site .compare-table td { padding: 10px 6px; font-size: 11px; }
@@ -241,8 +241,8 @@
           <span>MAY 2026</span>
         </div>
         <h1>
-          Can LLMs <em>cost-effectively</em><br />
-          answer ASL rules questions?
+          Can LLMs answer ASL rules questions<br />
+          for less than <em>1 cent</em> per query?
         </h1>
         <p class="lede">
           A human-verified comparison across models on a 200+ question eval
@@ -263,7 +263,7 @@
         <div class="ev-title">Findings</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Three findings, two open<br /><em>questions</em>.</h2>
+        <h2 class="h-section">Three <em>findings</em>.</h2>
         <ol class="findings">
           <li>
             <span class="num">i</span>
@@ -284,8 +284,7 @@
               <div class="fnd-title">gpt-5.4 wins on accuracy-and-latency — at 10× the cost.</div>
               <div class="fnd-body">
                 On the combined axes of accuracy and latency, gpt-5.4 is
-                ahead. Pricing is roughly 10× the other competitive models,
-                so choosing it is a deliberate trade rather than a default.
+                ahead, but gpt-5.4 costs 6 cents per query vs. 0.7 cents for gpt-5-mini.
               </div>
             </div>
           </li>
@@ -378,6 +377,14 @@
           ~20k token RAG input per question, 20 chunks retrieved per query from
           a vector store of the 700-page rulebook.
         </p>
+        <p class="table-footnote">
+          <strong>Caveat —</strong> deepseek-v3 and mercury-2 make two API
+          calls per query — one to OpenAI's vector store for retrieval, then
+          one to OpenRouter for inference. OpenAI-native rows do both in a
+          single server-side call. So the Avg time column overstates how fast
+          those models actually are at inference; the extra round-trip is
+          baked in.
+        </p>
         {% if model_estimated %}
         <p class="table-footnote">
           <sup>*</sup> Estimated: gpt-5.4 run on 24 questions where gpt-5.4-mini failed; remaining 190 assumed correct.
@@ -459,7 +466,18 @@ const SHARED_OPTS = {
     x: {
       type: 'category',
       grid: { display: false },
-      ticks: { font: { family: 'JetBrains Mono, monospace', size: 10 }, color: '#6B6660' },
+      ticks: {
+        font: { family: 'JetBrains Mono, monospace', size: 10 },
+        color: '#6B6660',
+        // Strip the year — API returns YYYY-MM-DD; we want "May 25".
+        callback: function(value) {
+          const label = this.getLabelForValue(value);
+          const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(label);
+          if (!m) return label;
+          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          return `${months[parseInt(m[1], 10) - 1]} ${parseInt(m[2], 10)}`;
+        },
+      },
     },
     y: {
       beginAtZero: true,
