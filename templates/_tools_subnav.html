@@ -1,0 +1,22 @@
+<style>
+  .site .tools-subnav {
+    display: inline-flex; gap: 4px; margin-bottom: 28px;
+    border: 1px solid var(--hair); border-radius: 3px; padding: 3px;
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+  }
+  .site .tools-subnav a {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .06em;
+    text-transform: uppercase; text-decoration: none;
+    color: var(--muted); padding: 7px 16px; border-radius: 2px;
+    transition: color .15s, background .15s;
+  }
+  .site .tools-subnav a:hover { color: var(--ink); }
+  .site .tools-subnav a.active {
+    color: var(--ink); background: color-mix(in oklch, var(--accent) 12%, var(--paper));
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 40%, transparent);
+  }
+</style>
+<nav class="tools-subnav">
+  <a href="{{ url_for('ift') }}" {% if active_page == 'ift' %}class="active"{% endif %}>IFT</a>
+  <a href="{{ url_for('thtk') }}" {% if active_page == 'thtk' %}class="active"{% endif %}>TH / TK</a>
+</nav>
