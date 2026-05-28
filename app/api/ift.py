@@ -61,7 +61,7 @@ async def ift_distribution(
     column: int = Query(..., description="FP column, e.g. 16"),
     drm: int = Query(0, description="Total DR modifier; negative is favorable"),
     cowering: str = Query("none", description="none | regular | double"),
-    san: int = Query(7, description="Enemy Sniper Activation Number, 2-12"),
+    san: int = Query(3, description="Enemy Sniper Activation Number, 2-12"),
 ):
     """Return the probability distribution of IFT results for one attack."""
     try:
