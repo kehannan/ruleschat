@@ -27,7 +27,7 @@
     border-radius: 4px;
     padding: 24px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 18px 24px;
     align-items: end;
   }
@@ -65,6 +65,23 @@
     margin-bottom: 18px;
   }
   .site .ift-results .res-caption b { color: var(--accent); font-weight: 600; }
+
+  .site .summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;
+    margin-bottom: 32px;
+  }
+  .site .summary-cell {
+    border: 1px solid var(--hair); border-radius: 2px;
+    padding: 14px 16px; background: var(--paper-2);
+  }
+  .site .summary-cell .s-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+  }
+  .site .summary-cell .s-pct {
+    font-family: var(--serif); font-size: 26px; font-weight: 500;
+    letter-spacing: -0.01em; line-height: 1;
+  }
 
   .site .dist-rows { display: grid; gap: 8px; }
   .site .dist-row {
@@ -168,6 +185,10 @@
         <label for="ift-drm">DRM (− favors firer)</label>
         <input type="number" id="ift-drm" class="input" value="0" step="1" min="-20" max="20" />
       </div>
+      <div class="field">
+        <label for="ift-san">Enemy SAN</label>
+        <input type="number" id="ift-san" class="input" value="7" step="1" min="2" max="12" />
+      </div>
       <div class="field cowering-field">
         <label>Cowering</label>
         <div class="cowering-radios">
@@ -181,6 +202,7 @@
 
     <div class="ift-results" id="ift-results" style="display:none;">
       <div class="res-caption" id="res-caption"></div>
+      <div class="summary-grid" id="summary-grid"></div>
       <div class="dist-rows" id="dist-rows"></div>
 
       <div class="grid-heat">
@@ -202,8 +224,10 @@
 <script>
   const $col = document.getElementById('ift-column');
   const $drm = document.getElementById('ift-drm');
+  const $san = document.getElementById('ift-san');
   const $results = document.getElementById('ift-results');
   const $caption = document.getElementById('res-caption');
+  const $summary = document.getElementById('summary-grid');
   const $rows = document.getElementById('dist-rows');
   const $error = document.getElementById('ift-error');
 
@@ -236,6 +260,25 @@
   }
 
   const pct = (p) => (p * 100).toFixed(1) + '%';
+
+  // Three cumulative summary buckets:
+  //   PTC          — exactly a Pin Task Check
+  //   Any MC       — any morale check (NMC, 1MC..4MC)
+  //   K/1 or worse — any casualty result (K/1..K/4, 1KIA..7KIA)
+  function summarize(dist) {
+    let ptc = 0, mc = 0, kill = 0;
+    for (const d of dist) {
+      const r = d.result;
+      if (r === 'PTC') ptc += d.probability;
+      else if (r === 'NMC' || /^\d+MC$/.test(r)) mc += d.probability;
+      else if (r.startsWith('K/') || r.includes('KIA')) kill += d.probability;
+    }
+    return [
+      { label: 'PTC', p: ptc },
+      { label: 'Any MC', p: mc },
+      { label: 'K/1 or greater', p: kill },
+    ];
+  }
 
   // Render the per-cell probabilities painted onto the actual IFT grid.
   const $grid = document.getElementById('ift-grid');
@@ -292,6 +335,7 @@
       column: $col.value,
       drm: $drm.value || '0',
       cowering: cowMode(),
+      san: $san.value || '7',
     });
     let data;
     try {
@@ -310,6 +354,19 @@
     const drmStr = data.drm > 0 ? '+' + data.drm : '' + data.drm;
     const cowStr = data.cowering === 'none' ? 'no cowering' : data.cowering + ' cowering';
     $caption.innerHTML = `<b>${data.column} FP</b> · DRM ${drmStr} · ${cowStr}`;
+
+    // Cumulative summary buckets + sniper odds
+    const cells = summarize(data.distribution);
+    if (data.sniper) {
+      cells.push({ label: 'Big sniper', p: data.sniper.p_big });
+      cells.push({ label: 'Little sniper', p: data.sniper.p_little });
+    }
+    $summary.innerHTML = cells.map(c => `
+      <div class="summary-cell">
+        <div class="s-label">${c.label}</div>
+        <div class="s-pct">${(c.p * 100).toFixed(1)}<span style="font-size:14px;">%</span></div>
+      </div>
+    `).join('');
 
     // Order rows by ascending impact (least → most severe).
     const ordered = data.distribution.slice().sort((a, b) => {
@@ -335,6 +392,7 @@
 
   $col.addEventListener('change', recompute);
   $drm.addEventListener('input', recompute);
+  $san.addEventListener('input', recompute);
   document.querySelectorAll('input[name="cowering"]').forEach(el => el.addEventListener('change', recompute));
   document.addEventListener('DOMContentLoaded', recompute);
   recompute();

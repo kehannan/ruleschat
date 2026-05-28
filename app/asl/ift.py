@@ -49,7 +49,28 @@ def _dr_row_key(final_dr: int, dr_rows: List[str]) -> str:
     return str(final_dr)
 
 
-def compute_distribution(column: int, drm: int = 0, cowering: str = "none") -> Dict[str, Any]:
+def _sniper_probabilities(san: int) -> Dict[str, Any]:
+    """
+    Sniper-check odds for an enemy SAN.
+
+    A sniper check triggers when the original (unmodified) 2d6 total equals
+    the enemy SAN; a separate 1d6 then resolves it — 1 = big sniper,
+    2 = little sniper. So each is P(2d6 = SAN) × 1/6, independent of the
+    IFT FP / DRM / cowering.
+    """
+    san_count = sum(1 for d1 in range(1, 7) for d2 in range(1, 7) if d1 + d2 == san)
+    p_trigger = san_count / 36
+    return {
+        "san": san,
+        "p_trigger": round(p_trigger, 4),
+        "p_big": round(p_trigger / 6, 4),
+        "p_little": round(p_trigger / 6, 4),
+    }
+
+
+def compute_distribution(
+    column: int, drm: int = 0, cowering: str = "none", san: int | None = None
+) -> Dict[str, Any]:
     """
     Probability of each IFT result for the given attack.
 
@@ -60,6 +81,8 @@ def compute_distribution(column: int, drm: int = 0, cowering: str = "none") -> D
                   (doubles shift 2 columns left, e.g. Conscripts). When the
                   shift moves left of the 1 FP column the attack falls off the
                   table → no effect.
+        san: Enemy Sniper Activation Number (2–12), or None to skip the sniper
+             calc. When set, the result includes a `sniper` block.
 
     Returns a dict:
         {
@@ -88,6 +111,8 @@ def compute_distribution(column: int, drm: int = 0, cowering: str = "none") -> D
         raise ValueError(
             f"Invalid cowering mode {cowering!r}. Must be one of {list(COWERING_SHIFT)}."
         )
+    if san is not None and not (2 <= san <= 12):
+        raise ValueError(f"Invalid SAN {san!r}. Must be between 2 and 12.")
 
     base_idx = columns.index(column)
     shift = COWERING_SHIFT[cowering]
@@ -147,6 +172,7 @@ def compute_distribution(column: int, drm: int = 0, cowering: str = "none") -> D
             "active_columns": sorted(active_columns),
             "off_table": {"prob": round(off_table_count / 36, 4), "count": off_table_count},
         },
+        "sniper": _sniper_probabilities(san) if san is not None else None,
     }
 
 
