@@ -80,12 +80,20 @@ def compute_to_hit(
     rng: int,
     weapon_type: str,
     ammo: str,
+    mm: int,
+    nationality: str = "",
     hit_drm: int = 0,
 ) -> Dict[str, Any]:
     """
     To Hit number, itemized modifiers, and hit probability.
 
-    Final TH# = basic[target_type] - (range DRM + ammo DRM + user hit_drm).
+    Basic TH# (C3) depends on target type, range band, and nationality (German
+    optics use the higher column). C4 modifications are added to the basic number
+    (positive = easier): the weapon barrel class, the ammo, and the small-gun size
+    mods (<=57mm and <=40mm STACK). The Hit Determination DRM is a die modifier
+    (positive = harder) and is subtracted. So:
+
+        Final TH# = basic + weapon + ammo + size mods - hit_drm
     """
     t = _load()
     th = t["to_hit"]
@@ -96,34 +104,47 @@ def compute_to_hit(
         raise ValueError(f"Invalid weapon_type {weapon_type!r}. One of {t['weapon_types']}.")
     if ammo not in t["ammo_types"]:
         raise ValueError(f"Invalid ammo {ammo!r}. One of {t['ammo_types']}.")
+    if nationality and nationality not in t["nationalities"]:
+        raise ValueError(f"Invalid nationality {nationality!r}. One of {t['nationalities']}.")
     if rng < 0:
         raise ValueError(f"Invalid range {rng!r}. Must be >= 0.")
+    if mm <= 0:
+        raise ValueError(f"Invalid weapon size {mm!r}mm. Must be > 0.")
 
     bi = _range_bracket_index(rng)
     bracket = t["range_brackets"][bi]
 
-    basic = th["basic"][target_type]
-    range_drm = th["range_drm"][weapon_type][bi]
-    ammo_drm = th["ammo_drm"][ammo]
+    nat_class = "German" if nationality == th["german_nationality"] else "Other"
+    basic = th["basic"][target_type][nat_class][bi]
 
-    # Modifier breakdown (ASL DRM convention: positive = harder).
-    modifiers = [
-        {"label": f"Range {bracket['label']} ({weapon_type})", "drm": range_drm},
-        {"label": f"{ammo} ammo", "drm": ammo_drm},
-        {"label": "Hit determination", "drm": hit_drm},
-    ]
-    total_drm = range_drm + ammo_drm + hit_drm
-    final_th = basic - total_drm
+    mods = th["mods"]
+    # Each entry is a signed contribution to the To Hit number.
+    modifiers = [{"label": f"{weapon_type} weapon", "drm": mods["weapon_type"][weapon_type][bi]}]
+
+    ammo_val = mods["ammo"][ammo][bi]
+    if ammo != "AP/HE" or ammo_val != 0:
+        modifiers.append({"label": f"{ammo} ammo", "drm": ammo_val})
+
+    for spec in (mods["size"]["le57"], mods["size"]["le40"]):
+        if mm <= spec["max_mm"]:
+            modifiers.append({"label": f"≤{spec['max_mm']}mm gun", "drm": spec["drm"][bi]})
+
+    if hit_drm:
+        modifiers.append({"label": "Hit determination DRM", "drm": -hit_drm})
+
+    final_th = basic + sum(m["drm"] for m in modifiers)
 
     return {
         "target_type": target_type,
+        "nationality": nationality,
+        "nationality_class": nat_class,
         "range": rng,
         "range_bracket": bracket["label"],
         "weapon_type": weapon_type,
         "ammo": ammo,
+        "mm": mm,
         "basic_th": basic,
         "modifiers": modifiers,
-        "total_drm": total_drm,
         "final_th": final_th,
         "hit_prob": _round(prob_hit(final_th)),
     }
@@ -204,7 +225,7 @@ def compute(
         raise ValueError(f"Invalid nationality {nationality!r}. One of {t['nationalities']}.")
     return {
         "nationality": nationality,
-        "to_hit": compute_to_hit(target_type, rng, weapon_type, ammo, hit_drm),
+        "to_hit": compute_to_hit(target_type, rng, weapon_type, ammo, mm, nationality, hit_drm),
         "to_kill": compute_to_kill(mm, rng, ammo),
     }
 
