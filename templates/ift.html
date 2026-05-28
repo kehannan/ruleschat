@@ -57,6 +57,20 @@
     margin-top: 8px; letter-spacing: .02em; line-height: 1.5;
   }
 
+  /* DRM stepper: [−] [field] [+] */
+  .site .stepper { display: flex; align-items: stretch; gap: 6px; }
+  .site .stepper .input { flex: 1; min-width: 0; text-align: center; }
+  .site .step-btn {
+    flex: 0 0 auto; width: 38px;
+    border: 1px solid var(--hair); border-radius: 2px;
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    color: var(--ink-2); font-family: var(--sans); font-size: 18px; line-height: 1;
+    cursor: pointer; user-select: none;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  .site .step-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .site .step-btn:active { background: color-mix(in oklch, var(--accent) 8%, var(--paper)); }
+
   /* Results */
   .site .ift-results { margin-top: 40px; }
   .site .ift-results .res-caption {
@@ -165,6 +179,7 @@
 {% block main %}
 <div class="ift-wrap">
   <div class="ift-col">
+    {% include "_tools_subnav.html" %}
     <div class="eyebrow"><span class="dot"></span><span>Deterministic tool · no AI</span></div>
     <h1>Infantry Fire Table <em>probabilities</em>.</h1>
     <p class="lede">
@@ -184,7 +199,11 @@
       </div>
       <div class="field">
         <label for="ift-drm">DRM</label>
-        <input type="text" inputmode="numeric" id="ift-drm" class="input" value="0" />
+        <div class="stepper">
+          <button type="button" class="step-btn" id="drm-dec" aria-label="Decrease DRM">−</button>
+          <input type="text" inputmode="numeric" id="ift-drm" class="input" value="0" />
+          <button type="button" class="step-btn" id="drm-inc" aria-label="Increase DRM">+</button>
+        </div>
       </div>
       <div class="field">
         <label for="ift-san">Enemy SAN</label>
@@ -254,6 +273,13 @@
       const formatted = fmtDrm(parseDrm(raw));
       if (formatted !== raw) $drm.value = formatted;
     }
+    recompute();
+  }
+
+  // Step the DRM by ±1 (stepper buttons + Arrow keys), clamped to [-20, 20].
+  function stepDrm(delta) {
+    const n = Math.max(-20, Math.min(20, parseDrm($drm.value) + delta));
+    $drm.value = fmtDrm(n);
     recompute();
   }
 
@@ -414,6 +440,12 @@
   $col.addEventListener('change', recompute);
   $drm.addEventListener('input', syncDrm);
   $drm.addEventListener('blur', () => { $drm.value = fmtDrm(parseDrm($drm.value)); recompute(); });
+  $drm.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); stepDrm(1); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); stepDrm(-1); }
+  });
+  document.getElementById('drm-inc').addEventListener('click', () => stepDrm(1));
+  document.getElementById('drm-dec').addEventListener('click', () => stepDrm(-1));
   $san.addEventListener('input', recompute);
   document.querySelectorAll('input[name="cowering"]').forEach(el => el.addEventListener('change', recompute));
   $drm.value = fmtDrm(parseDrm($drm.value));   // normalize initial display
