@@ -97,6 +97,47 @@
     font-family: var(--mono); font-size: 12px; color: var(--ink);
   }
 
+  /* Embedded IFT grid heatmap */
+  .site .grid-heat { margin-top: 44px; }
+  .site .grid-heat-caption {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+  }
+  .site .grid-heat-scroll { overflow-x: auto; }
+  .site .ift-grid {
+    border-collapse: collapse; width: 100%; min-width: 680px;
+    font-family: var(--mono);
+  }
+  .site .ift-grid th, .site .ift-grid td {
+    border: 1px solid var(--hair);
+    text-align: center; padding: 4px 3px; font-size: 11px;
+    line-height: 1.2;
+  }
+  .site .ift-grid thead th {
+    background: var(--paper-2); color: var(--muted);
+    font-size: 10px; font-weight: 500;
+  }
+  .site .ift-grid th.col-dr, .site .ift-grid td.dr-label {
+    background: var(--paper-2); color: var(--ink-2);
+    font-weight: 600; width: 44px;
+  }
+  .site .ift-grid thead th.col-active {
+    color: var(--accent);
+    background: color-mix(in oklch, var(--accent) 12%, var(--paper-2));
+  }
+  /* Inactive cells: result code shown dimmed for context. */
+  .site .ift-grid td { color: var(--muted-2); }
+  .site .ift-grid td.cell-active { color: var(--ink); font-weight: 600; }
+  .site .ift-grid td .cp {
+    display: block; font-size: 9px; font-weight: 500;
+    color: var(--ink-2); margin-top: 1px;
+  }
+  .site .grid-heat-note {
+    margin-top: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    letter-spacing: .02em; line-height: 1.5;
+  }
+
   @media (max-width: 620px) {
     .site .ift-col { padding: 0 20px; }
     .site .ift-form { grid-template-columns: 1fr; }
@@ -108,7 +149,7 @@
 <div class="ift-wrap">
   <div class="ift-col">
     <div class="eyebrow"><span class="dot"></span><span>Deterministic tool · no AI</span></div>
-    <h1>Infantry Fire Table <em>odds</em>.</h1>
+    <h1>Infantry Fire Table <em>probabilities</em>.</h1>
     <p class="lede">
       Pick an FP column, a DRM, and a cowering mode. The outcome probabilities
       are computed exactly over all 36 two-die combinations — no model calls.
@@ -141,6 +182,14 @@
     <div class="ift-results" id="ift-results" style="display:none;">
       <div class="res-caption" id="res-caption"></div>
       <div class="dist-rows" id="dist-rows"></div>
+
+      <div class="grid-heat">
+        <div class="grid-heat-caption">Probability by table cell</div>
+        <div class="grid-heat-scroll">
+          <table class="ift-grid" id="ift-grid"></table>
+        </div>
+        <div class="grid-heat-note" id="grid-heat-note" style="display:none;"></div>
+      </div>
     </div>
 
     <div class="ift-error" id="ift-error" style="display:none;"></div>
@@ -149,6 +198,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>window.IFT_TABLE = {{ ift_table | tojson }};</script>
 <script>
   const $col = document.getElementById('ift-column');
   const $drm = document.getElementById('ift-drm');
@@ -186,6 +236,56 @@
   }
 
   const pct = (p) => (p * 100).toFixed(1) + '%';
+
+  // Render the per-cell probabilities painted onto the actual IFT grid.
+  const $grid = document.getElementById('ift-grid');
+  const $gridNote = document.getElementById('grid-heat-note');
+  const DR_LABEL = { '0': '≤0', '15': '≥15' };
+
+  function renderGrid(data) {
+    const T = window.IFT_TABLE;
+    const byCol = data.cells.by_column;          // {"8": {"4": {prob,count}}, ...}
+    const active = new Set(data.cells.active_columns);
+
+    let maxProb = 0;
+    for (const cv in byCol) for (const rk in byCol[cv]) {
+      maxProb = Math.max(maxProb, byCol[cv][rk].prob);
+    }
+    maxProb = maxProb || 1;
+
+    let html = '<thead><tr><th class="col-dr">DR</th>';
+    for (const c of T.columns) {
+      html += `<th class="${active.has(c) ? 'col-active' : ''}">${c}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+
+    for (const rk of T.dr_rows) {
+      html += `<tr><td class="dr-label">${DR_LABEL[rk] || rk}</td>`;
+      const row = T.results[rk];
+      T.columns.forEach((c, i) => {
+        const code = row[i] === T.no_effect ? '—' : row[i];
+        const cell = byCol[String(c)] && byCol[String(c)][rk];
+        if (cell) {
+          const alpha = (0.12 + 0.55 * (cell.prob / maxProb)).toFixed(3);
+          html += `<td class="cell-active" style="background: rgba(139,46,46,${alpha});">` +
+                  `${code}<span class="cp">${pct(cell.prob)}</span></td>`;
+        } else {
+          html += `<td>${code}</td>`;
+        }
+      });
+      html += '</tr>';
+    }
+    html += '</tbody>';
+    $grid.innerHTML = html;
+
+    const off = data.cells.off_table;
+    if (off && off.count > 0) {
+      $gridNote.style.display = 'block';
+      $gridNote.textContent = `+ ${pct(off.prob)} cowered off the left edge → no effect (not shown in grid).`;
+    } else {
+      $gridNote.style.display = 'none';
+    }
+  }
 
   async function recompute() {
     const params = new URLSearchParams({
@@ -228,6 +328,9 @@
         <div class="d-pct">${pct(d.probability)}</div>
       </div>
     `).join('');
+
+    // Heatmap of probabilities painted onto the IFT grid.
+    renderGrid(data);
   }
 
   $col.addEventListener('change', recompute);
