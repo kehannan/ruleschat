@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% set active_page = 'ift' %}
+
+{% block title %}IFT Odds — ASL Ruleschat{% endblock %}
+
+{% block extra_css %}
+<style>
+  .site .ift-wrap { padding: 56px 0 80px; }
+  .site .ift-col { max-width: 820px; margin: 0 auto; padding: 0 32px; }
+  .site .ift-col h1 {
+    font-family: var(--serif); font-weight: 500;
+    font-size: clamp(30px, 3.4vw, 44px);
+    line-height: 1.05; letter-spacing: -0.015em;
+    margin: 0 0 14px; text-wrap: balance;
+  }
+  .site .ift-col h1 em { font-style: italic; color: var(--accent); }
+  .site .ift-col .lede {
+    font-size: 16px; line-height: 1.55; color: var(--ink-2);
+    margin: 0 0 32px; text-wrap: pretty;
+  }
+
+  /* Input card */
+  .site .ift-form {
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    border: 1px solid var(--hair);
+    border-radius: 4px;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 24px;
+    align-items: end;
+  }
+  .site .ift-form .field { margin-bottom: 0; }
+  .site .ift-form .cowering-field { grid-column: 1 / -1; }
+  .site .cowering-radios { display: flex; gap: 8px; flex-wrap: wrap; }
+  .site .cowering-radios label {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 14px;
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    font-family: var(--sans); font-size: 14px; color: var(--ink-2);
+    cursor: pointer;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  .site .cowering-radios label:hover { border-color: var(--ink-2); }
+  .site .cowering-radios input { accent-color: var(--accent); margin: 0; }
+  .site .cowering-radios label:has(input:checked) {
+    border-color: var(--accent);
+    background: color-mix(in oklch, var(--accent) 8%, var(--paper));
+    color: var(--ink);
+  }
+  .site .cowering-note {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 8px; letter-spacing: .02em; line-height: 1.5;
+  }
+
+  /* Results */
+  .site .ift-results { margin-top: 40px; }
+  .site .ift-results .res-caption {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 18px;
+  }
+  .site .ift-results .res-caption b { color: var(--accent); font-weight: 600; }
+
+  .site .summary-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+    margin-bottom: 32px;
+  }
+  .site .summary-cell {
+    border: 1px solid var(--hair); border-radius: 2px;
+    padding: 12px 14px; background: var(--paper-2);
+  }
+  .site .summary-cell .s-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+  }
+  .site .summary-cell .s-pct {
+    font-family: var(--serif); font-size: 24px; font-weight: 500;
+    letter-spacing: -0.01em; line-height: 1;
+  }
+
+  .site .dist-rows { display: grid; gap: 8px; }
+  .site .dist-row {
+    display: grid; grid-template-columns: 70px 1fr 64px;
+    gap: 12px; align-items: center;
+  }
+  .site .dist-row .d-result {
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    color: var(--ink); text-align: right;
+  }
+  .site .dist-row .d-bar-track {
+    height: 18px; background: var(--paper-2);
+    border: 1px solid var(--hair); border-radius: 2px; overflow: hidden;
+  }
+  .site .dist-row .d-bar { height: 100%; background: var(--ink); }
+  .site .dist-row .d-bar.sev-kia    { background: var(--fail); }
+  .site .dist-row .d-bar.sev-k      { background: var(--accent-soft); }
+  .site .dist-row .d-bar.sev-mc     { background: var(--review); }
+  .site .dist-row .d-bar.sev-ptc    { background: var(--field); }
+  .site .dist-row .d-bar.sev-none   { background: var(--hair); }
+  .site .dist-row .d-pct {
+    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    font-variant-numeric: tabular-nums; text-align: right;
+  }
+
+  .site .ift-error {
+    margin-top: 24px; padding: 14px 18px;
+    border-left: 3px solid var(--fail);
+    background: color-mix(in oklch, var(--fail) 8%, var(--paper));
+    font-family: var(--mono); font-size: 12px; color: var(--ink);
+  }
+
+  @media (max-width: 620px) {
+    .site .ift-col { padding: 0 20px; }
+    .site .ift-form { grid-template-columns: 1fr; }
+    .site .summary-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="ift-wrap">
+  <div class="ift-col">
+    <div class="eyebrow"><span class="dot"></span><span>Deterministic tool · no AI</span></div>
+    <h1>Infantry Fire Table <em>odds</em>.</h1>
+    <p class="lede">
+      Pick an FP column, a DRM, and a cowering mode. The outcome probabilities
+      are computed exactly over all 36 two-die combinations — no model calls.
+    </p>
+
+    <div class="ift-form">
+      <div class="field">
+        <label for="ift-column">FP column</label>
+        <select id="ift-column" class="input">
+          {% for c in ift_columns %}
+          <option value="{{ c }}"{% if c == 16 %} selected{% endif %}>{{ c }} FP</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="ift-drm">DRM (− favors firer)</label>
+        <input type="number" id="ift-drm" class="input" value="0" step="1" min="-20" max="20" />
+      </div>
+      <div class="field cowering-field">
+        <label>Cowering</label>
+        <div class="cowering-radios">
+          <label><input type="radio" name="cowering" value="none" checked /> None</label>
+          <label><input type="radio" name="cowering" value="regular" /> Regular (−1 col)</label>
+          <label><input type="radio" name="cowering" value="double" /> Double (−2 cols)</label>
+        </div>
+        <div class="cowering-note">Cowering shifts the column left on doubles. Off the 1-FP edge → no effect.</div>
+      </div>
+    </div>
+
+    <div class="ift-results" id="ift-results" style="display:none;">
+      <div class="res-caption" id="res-caption"></div>
+      <div class="summary-grid" id="summary-grid"></div>
+      <div class="dist-rows" id="dist-rows"></div>
+    </div>
+
+    <div class="ift-error" id="ift-error" style="display:none;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const $col = document.getElementById('ift-column');
+  const $drm = document.getElementById('ift-drm');
+  const $results = document.getElementById('ift-results');
+  const $caption = document.getElementById('res-caption');
+  const $summary = document.getElementById('summary-grid');
+  const $rows = document.getElementById('dist-rows');
+  const $error = document.getElementById('ift-error');
+
+  function cowMode() {
+    const el = document.querySelector('input[name="cowering"]:checked');
+    return el ? el.value : 'none';
+  }
+
+  // Map a result code to a severity class for bar coloring.
+  function severity(result) {
+    if (result === '—') return 'sev-none';
+    if (result === 'PTC') return 'sev-ptc';
+    if (result.startsWith('K/')) return 'sev-k';
+    if (result.includes('KIA')) return 'sev-kia';
+    if (result.endsWith('MC')) return 'sev-mc';
+    return '';
+  }
+
+  // Group results into broad families for the summary cells.
+  function summarize(dist) {
+    const groups = { 'Casualty': 0, 'Kill / MC': 0, 'Morale check': 0, 'Pin': 0, 'No effect': 0 };
+    for (const d of dist) {
+      const r = d.result;
+      if (r === '—') groups['No effect'] += d.probability;
+      else if (r === 'PTC') groups['Pin'] += d.probability;
+      else if (r.startsWith('K/')) groups['Kill / MC'] += d.probability;
+      else if (r.includes('KIA')) groups['Casualty'] += d.probability;
+      else if (r.endsWith('MC')) groups['Morale check'] += d.probability;
+    }
+    return groups;
+  }
+
+  const pct = (p) => (p * 100).toFixed(1) + '%';
+
+  async function recompute() {
+    const params = new URLSearchParams({
+      column: $col.value,
+      drm: $drm.value || '0',
+      cowering: cowMode(),
+    });
+    let data;
+    try {
+      const res = await fetch('/api/ift/distribution?' + params.toString());
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
+    } catch (e) {
+      $results.style.display = 'none';
+      $error.style.display = 'block';
+      $error.textContent = 'Could not compute: ' + e.message;
+      return;
+    }
+    $error.style.display = 'none';
+    $results.style.display = 'block';
+
+    const drmStr = data.drm > 0 ? '+' + data.drm : '' + data.drm;
+    const cowStr = data.cowering === 'none' ? 'no cowering' : data.cowering + ' cowering';
+    $caption.innerHTML = `<b>${data.column} FP</b> · DRM ${drmStr} · ${cowStr}`;
+
+    // Summary cells
+    const groups = summarize(data.distribution);
+    $summary.innerHTML = Object.entries(groups).map(([label, p]) => `
+      <div class="summary-cell">
+        <div class="s-label">${label}</div>
+        <div class="s-pct">${Math.round(p * 100)}<span style="font-size:14px;">%</span></div>
+      </div>
+    `).join('');
+
+    // Detailed bars (probability as bar width, scaled to the max for contrast)
+    const maxP = Math.max(...data.distribution.map(d => d.probability), 0.0001);
+    $rows.innerHTML = data.distribution.map(d => `
+      <div class="dist-row">
+        <div class="d-result">${d.result === '—' ? 'no effect' : d.result}</div>
+        <div class="d-bar-track">
+          <div class="d-bar ${severity(d.result)}" style="width:${(d.probability / maxP) * 100}%;"></div>
+        </div>
+        <div class="d-pct">${pct(d.probability)}</div>
+      </div>
+    `).join('');
+  }
+
+  $col.addEventListener('change', recompute);
+  $drm.addEventListener('input', recompute);
+  document.querySelectorAll('input[name="cowering"]').forEach(el => el.addEventListener('change', recompute));
+  document.addEventListener('DOMContentLoaded', recompute);
+  recompute();
+</script>
+{% endblock %}
