@@ -1,5 +1,5 @@
 {
-  "_note": "VERIFY ME. First-pass transcription of ASL Chapter C To Hit (C3) and To Kill (C7) for the deterministic TH/TK calculator. The NUMBERS here (basic TH#, range DRM, base TK#, ammo modifiers) are a best-effort starting point and MUST be checked against the eASLRB cell-by-cell, exactly like ift_table.json was human-verified. The STRUCTURE is data-driven: fixing a value = editing this file, no code change. Conventions: TH/TK numbers are the 2d6 total you must roll AT OR UNDER to succeed; higher = easier. DRM follows ASL sign convention: positive DRM = harder (added to the dr / subtracted from the TH#). Range is bracketed; range_drm and the TK rows are indexed left-to-right against `range_brackets`.",
+  "_note": "To Hit data is the real ASL C3 TO HIT TABLE + C4 GUN & AMMO BASIC TO HIT NUMBER MODIFICATIONS, transcribed from the rules card (page after C27). To Kill (C7) is STILL PROVISIONAL placeholder data pending its table image. TH/TK numbers are the 2d6 total you must roll AT OR UNDER; higher = easier. C4 modifications are added to the basic To Hit number (positive = easier). The Hit Determination DRM is a die-roll modifier (positive = harder) and is subtracted from the To Hit number. Range-indexed rows are aligned left-to-right with `range_brackets`.",
 
   "target_types": ["vehicle", "infantry", "area"],
   "weapon_types": ["*", "L", "LL"],
@@ -7,57 +7,68 @@
   "nationalities": ["American", "British", "Italian", "Russian", "German", "Japanese"],
 
   "range_brackets": [
-    {"max": 2, "label": "0-2"},
-    {"max": 5, "label": "3-5"},
-    {"max": 9, "label": "6-9"},
-    {"max": 13, "label": "10-13"},
-    {"max": 18, "label": "14-18"},
-    {"max": 99999, "label": "19+"}
+    {"max": 6, "label": "0-6"},
+    {"max": 12, "label": "7-12"},
+    {"max": 18, "label": "13-18"},
+    {"max": 24, "label": "19-24"},
+    {"max": 30, "label": "25-30"},
+    {"max": 36, "label": "31-36"},
+    {"max": 42, "label": "37-42"},
+    {"max": 48, "label": "43-48"},
+    {"max": 54, "label": "49-54"},
+    {"max": 99999, "label": ">54"}
   ],
 
   "to_hit": {
-    "_note": "Final TH# = basic[target_type] - (range_drm[weapon_type][bracket] + ammo_drm[ammo] + user Hit Determination Modifiers). A To Hit dr of 2 always hits; 12 always misses.",
+    "_note": "Basic To Hit number by target type, split German (black column) vs Other (red column). Final TH# = basic[target][nationality_class][band] + weapon_type mod + ammo mod + size mods (<=57mm and <=40mm STACK) - Hit Determination DRM. A To Hit dr of 2 always hits; 12 always misses.",
     "basic": {
-      "vehicle": 7,
-      "infantry": 8,
-      "area": 10
+      "vehicle":  { "German": [10, 9, 8, 7, 6, 6, 5, 4, 3, 2], "Other": [10, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
+      "infantry": { "German": [8, 7, 6, 5, 4, 3, 2, 1, 0, -1], "Other": [8, 6, 5, 4, 3, 2, 1, 0, -1, -2] },
+      "area":     { "German": [7, 7, 8, 8, 7, 7, 6, 6, 5, 5], "Other": [7, 7, 8, 8, 7, 7, 6, 6, 5, 5] }
     },
-    "range_drm": {
-      "*":  [0, 1, 3, 5, 7, 9],
-      "L":  [0, 0, 1, 3, 5, 7],
-      "LL": [0, 0, 0, 1, 3, 5]
-    },
-    "ammo_drm": {
-      "AP/HE": 0,
-      "Smoke": -1,
-      "APDS/APCR": 0
+    "german_nationality": "German",
+    "mods": {
+      "weapon_type": {
+        "*":  [0, 0, -1, -1, -1, -1, -1, -1, -1, -1],
+        "L":  [0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+        "LL": [0, 0, 1, 1, 2, 2, 2, 2, 2, 2]
+      },
+      "ammo": {
+        "AP/HE": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "Smoke": [2, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+        "APDS/APCR": [0, 0, -1, -1, -2, -2, -3, -3, -4, -4]
+      },
+      "size": {
+        "le57": {"max_mm": 57, "drm": [0, 0, -1, -1, -2, -2, -3, -3, -4, -4]},
+        "le40": {"max_mm": 40, "drm": [0, 0, -1, -1, -1, -1, -1, -1, -1, -1]}
+      }
     }
   },
 
   "to_kill": {
-    "_note": "Base TK# by caliber row (mm) x range bracket. Final TK# = base + ammo_mod[ammo][bracket]. Target Armor is NOT subtracted here (no armor input) - the user applies armor themselves (each armor point = -1 to the TK#). Smoke cannot kill. Caliber rows are thresholds: a weapon's mm uses the largest row <= its mm.",
+    "_note": "PROVISIONAL placeholder — NOT the real C7 To Kill Table. Awaiting the C7 table image to transcribe like the C3 data above. Base TK# by caliber row (mm) x range bracket; Final TK# = base + ammo mod. Target Armor is NOT subtracted (no armor input) - the raw TK# is returned for the user to apply armor themselves (each armor point = -1). Smoke cannot kill. Caliber rows are thresholds: a weapon uses the largest row <= its mm.",
     "caliber_rows": [20, 28, 37, 45, 50, 57, 75, 76, 85, 88, 90, 100, 105, 122, 128, 150],
     "tk": {
-      "20":  [10, 8, 6, 4, 2, 1],
-      "28":  [12, 10, 8, 6, 4, 2],
-      "37":  [13, 11, 9, 7, 5, 3],
-      "45":  [14, 12, 10, 8, 6, 4],
-      "50":  [15, 13, 11, 9, 7, 5],
-      "57":  [16, 14, 12, 10, 8, 6],
-      "75":  [17, 15, 13, 11, 9, 7],
-      "76":  [18, 16, 14, 12, 10, 8],
-      "85":  [19, 17, 15, 13, 11, 9],
-      "88":  [20, 18, 16, 14, 12, 10],
-      "90":  [21, 19, 17, 15, 13, 11],
-      "100": [22, 20, 18, 16, 14, 12],
-      "105": [23, 21, 19, 17, 15, 13],
-      "122": [25, 23, 21, 19, 17, 15],
-      "128": [26, 24, 22, 20, 18, 16],
-      "150": [28, 26, 24, 22, 20, 18]
+      "20":  [6, 5, 4, 3, 2, 1, 0, -1, -2, -3],
+      "28":  [8, 7, 6, 5, 4, 3, 2, 1, 0, -1],
+      "37":  [10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+      "45":  [11, 10, 9, 8, 7, 6, 5, 4, 3, 2],
+      "50":  [12, 11, 10, 9, 8, 7, 6, 5, 4, 3],
+      "57":  [13, 12, 11, 10, 9, 8, 7, 6, 5, 4],
+      "75":  [15, 14, 13, 12, 11, 10, 9, 8, 7, 6],
+      "76":  [16, 15, 14, 13, 12, 11, 10, 9, 8, 7],
+      "85":  [17, 16, 15, 14, 13, 12, 11, 10, 9, 8],
+      "88":  [18, 17, 16, 15, 14, 13, 12, 11, 10, 9],
+      "90":  [19, 18, 17, 16, 15, 14, 13, 12, 11, 10],
+      "100": [20, 19, 18, 17, 16, 15, 14, 13, 12, 11],
+      "105": [21, 20, 19, 18, 17, 16, 15, 14, 13, 12],
+      "122": [23, 22, 21, 20, 19, 18, 17, 16, 15, 14],
+      "128": [24, 23, 22, 21, 20, 19, 18, 17, 16, 15],
+      "150": [26, 25, 24, 23, 22, 21, 20, 19, 18, 17]
     },
     "ammo_mod": {
-      "AP/HE": [0, 0, 0, 0, 0, 0],
-      "APDS/APCR": [4, 3, 2, 1, 0, 0],
+      "AP/HE": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "APDS/APCR": [4, 3, 2, 1, 0, 0, 0, 0, 0, 0],
       "Smoke": null
     }
   }

@@ -200,8 +200,8 @@
     <div class="thtk-error" id="thtk-error" style="display:none;"></div>
 
     <div class="verify-banner">
-      Table data (To Hit C3 / To Kill C7) is a first-pass transcription pending
-      verification against the eASLRB — treat the numbers as provisional.
+      To Hit uses the real C3 To Hit Table. To Kill numbers are still provisional
+      placeholder data (C7 not yet transcribed) — treat the kill % as unverified.
     </div>
   </div>
 </div>
@@ -263,7 +263,7 @@
         <div class="rc-num">${th.final_th}<span class="rc-num-sub">roll ≤ this</span></div>
         <div class="rc-pct">${pct(th.hit_prob)}<span class="rc-pct-sub">to hit</span></div>
       </div>
-      <div class="mods">${modsHtml(th.modifiers, 'Basic TH#', th.basic_th, 'Final TH#', th.final_th)}</div>`;
+      <div class="mods">${modsHtml(th.modifiers, 'Basic TH# · ' + th.nationality_class, th.basic_th, 'Final TH#', th.final_th)}</div>`;
   }
 
   function renderToKill(tk) {
