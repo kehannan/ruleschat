@@ -61,10 +61,11 @@ async def ift_distribution(
     column: int = Query(..., description="FP column, e.g. 16"),
     drm: int = Query(0, description="Total DR modifier; negative is favorable"),
     cowering: str = Query("none", description="none | regular | double"),
+    san: int = Query(7, description="Enemy Sniper Activation Number, 2-12"),
 ):
     """Return the probability distribution of IFT results for one attack."""
     try:
-        data = compute_distribution(column=column, drm=drm, cowering=cowering)
+        data = compute_distribution(column=column, drm=drm, cowering=cowering, san=san)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(data)
