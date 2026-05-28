@@ -1,0 +1,25 @@
+{
+  "_note": "A7 Infantry Fire Table — functional result grid for the IFT probability calculator. Rows keyed by final DR after DRM: '0' = the '≤0' row, '15' = the '≥15' row, '1'–'14' are literal. Each row holds one result per FP column, aligned left-to-right with `columns`. Decorative footnote markers (flame/rubble/minefield dots) from the printed table are intentionally omitted — only the core combat result is kept.",
+  "columns": [1, 2, 4, 6, 8, 12, 16, 20, 24, 30, 36],
+  "vehicle_columns": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+  "dr_rows": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+  "no_effect": "—",
+  "results": {
+    "0":  ["1KIA", "2KIA", "2KIA", "3KIA", "3KIA", "3KIA", "4KIA", "4KIA", "5KIA", "6KIA", "7KIA"],
+    "1":  ["K/1",  "1KIA", "1KIA", "2KIA", "2KIA", "2KIA", "3KIA", "3KIA", "4KIA", "5KIA", "6KIA"],
+    "2":  ["1MC",  "K/1",  "K/2",  "1KIA", "1KIA", "1KIA", "2KIA", "2KIA", "3KIA", "4KIA", "5KIA"],
+    "3":  ["1MC",  "1MC",  "2MC",  "K/2",  "K/2",  "K/3",  "1KIA", "1KIA", "2KIA", "3KIA", "4KIA"],
+    "4":  ["NMC",  "1MC",  "1MC",  "2MC",  "2MC",  "3MC",  "K/3",  "K/4",  "1KIA", "2KIA", "3KIA"],
+    "5":  ["PTC",  "NMC",  "1MC",  "1MC",  "2MC",  "2MC",  "3MC",  "4MC",  "K/4",  "1KIA", "2KIA"],
+    "6":  ["—",    "PTC",  "NMC",  "1MC",  "1MC",  "2MC",  "2MC",  "3MC",  "4MC",  "K/4",  "1KIA"],
+    "7":  ["—",    "—",    "PTC",  "NMC",  "1MC",  "1MC",  "2MC",  "2MC",  "3MC",  "4MC",  "K/4"],
+    "8":  ["—",    "—",    "—",    "PTC",  "NMC",  "1MC",  "1MC",  "2MC",  "2MC",  "3MC",  "4MC"],
+    "9":  ["—",    "—",    "—",    "—",    "PTC",  "NMC",  "1MC",  "1MC",  "2MC",  "2MC",  "3MC"],
+    "10": ["—",    "—",    "—",    "—",    "—",    "PTC",  "NMC",  "1MC",  "1MC",  "2MC",  "2MC"],
+    "11": ["—",    "—",    "—",    "—",    "—",    "—",    "PTC",  "NMC",  "1MC",  "1MC",  "2MC"],
+    "12": ["—",    "—",    "—",    "—",    "—",    "—",    "—",    "PTC",  "NMC",  "1MC",  "1MC"],
+    "13": ["—",    "—",    "—",    "—",    "—",    "—",    "—",    "—",    "PTC",  "NMC",  "1MC"],
+    "14": ["—",    "—",    "—",    "—",    "—",    "—",    "—",    "—",    "—",    "PTC",  "NMC"],
+    "15": ["—",    "—",    "—",    "—",    "—",    "—",    "—",    "—",    "—",    "—",    "PTC"]
+  }
+}
