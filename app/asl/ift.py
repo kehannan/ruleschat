@@ -92,6 +92,11 @@ def compute_distribution(column: int, drm: int = 0, cowering: str = "none") -> D
     base_idx = columns.index(column)
     shift = COWERING_SHIFT[cowering]
     tally: Dict[str, int] = defaultdict(int)
+    # Per-cell occurrence: (column_value, dr_row_key) -> count. Lets the UI
+    # paint a heatmap of where the dice land inside the actual IFT grid.
+    cell_counts: Dict[tuple, int] = defaultdict(int)
+    active_columns: set = set()
+    off_table_count = 0
     cowering_count = 0
 
     # Enumerate all 36 ordered dice combinations (each equally likely, 1/36).
@@ -107,11 +112,14 @@ def compute_distribution(column: int, drm: int = 0, cowering: str = "none") -> D
 
             if col_idx < 0:
                 # Shifted off the left edge of the table — no attack.
-                result = no_effect
+                tally[no_effect] += 1
+                off_table_count += 1
             else:
                 row_key = _dr_row_key(final_dr, dr_rows)
-                result = results[row_key][col_idx]
-            tally[result] += 1
+                tally[results[row_key][col_idx]] += 1
+                col_value = columns[col_idx]
+                cell_counts[(col_value, row_key)] += 1
+                active_columns.add(col_value)
 
     distribution = [
         {"result": r, "probability": round(c / 36, 4), "count": c}
@@ -120,10 +128,34 @@ def compute_distribution(column: int, drm: int = 0, cowering: str = "none") -> D
     # Sort by probability desc, then result string for stable ordering.
     distribution.sort(key=lambda x: (-x["count"], x["result"]))
 
+    # Cell grid: {column_value(str): {dr_row_key: {prob, count}}}
+    by_column: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for (col_value, row_key), c in cell_counts.items():
+        by_column.setdefault(str(col_value), {})[row_key] = {
+            "prob": round(c / 36, 4),
+            "count": c,
+        }
+
     return {
         "column": column,
         "drm": drm,
         "cowering": cowering,
         "distribution": distribution,
         "cowering_outcomes": cowering_count,
+        "cells": {
+            "by_column": by_column,
+            "active_columns": sorted(active_columns),
+            "off_table": {"prob": round(off_table_count / 36, 4), "count": off_table_count},
+        },
+    }
+
+
+def get_table() -> Dict[str, Any]:
+    """The static IFT grid the UI renders the heatmap onto."""
+    t = _load_table()
+    return {
+        "columns": t["columns"],
+        "dr_rows": t["dr_rows"],
+        "results": t["results"],
+        "no_effect": t.get("no_effect", "—"),
     }

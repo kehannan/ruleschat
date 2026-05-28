@@ -10,7 +10,7 @@ from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from app.asl.ift import compute_distribution, valid_columns, COWERING_SHIFT
+from app.asl.ift import compute_distribution, valid_columns, COWERING_SHIFT, get_table
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -48,6 +48,7 @@ async def ift_page(request: Request, user=Depends(get_current_user)):
         "demo_enabled": is_demo_enabled(),
         "ift_columns": valid_columns(),
         "cowering_modes": list(COWERING_SHIFT.keys()),
+        "ift_table": get_table(),
     }
     if user:
         context["user_email"] = user.email
