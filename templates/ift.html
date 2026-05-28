@@ -168,8 +168,9 @@
     <div class="eyebrow"><span class="dot"></span><span>Deterministic tool · no AI</span></div>
     <h1>Infantry Fire Table <em>probabilities</em>.</h1>
     <p class="lede">
-      Pick an FP column, a DRM, and a cowering mode. The outcome probabilities
-      are computed exactly over all 36 two-die combinations — no model calls.
+      Pick an FP column, a DRM, a cowering mode, and the enemy SAN. The outcome
+      probabilities are computed exactly over all 36 two-die combinations — no
+      model calls.
     </p>
 
     <div class="ift-form">
@@ -177,17 +178,17 @@
         <label for="ift-column">FP column</label>
         <select id="ift-column" class="input">
           {% for c in ift_columns %}
-          <option value="{{ c }}"{% if c == 16 %} selected{% endif %}>{{ c }} FP</option>
+          <option value="{{ c }}"{% if c == 8 %} selected{% endif %}>{{ c }} FP</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label for="ift-drm">DRM (− favors firer)</label>
-        <input type="number" id="ift-drm" class="input" value="0" step="1" min="-20" max="20" />
+        <label for="ift-drm">DRM</label>
+        <input type="text" inputmode="numeric" id="ift-drm" class="input" value="0" />
       </div>
       <div class="field">
         <label for="ift-san">Enemy SAN</label>
-        <input type="number" id="ift-san" class="input" value="7" step="1" min="2" max="12" />
+        <input type="number" id="ift-san" class="input" value="3" step="1" min="2" max="12" />
       </div>
       <div class="field cowering-field">
         <label>Cowering</label>
@@ -234,6 +235,26 @@
   function cowMode() {
     const el = document.querySelector('input[name="cowering"]:checked');
     return el ? el.value : 'none';
+  }
+
+  // DRM is shown with an explicit sign in the field (+2 / 0 / -1). Parse the
+  // signed text back to a clamped integer for the request.
+  function parseDrm(raw) {
+    let n = parseInt(String(raw).replace(/[^0-9-]/g, ''), 10);
+    if (!Number.isFinite(n)) n = 0;
+    return Math.max(-20, Math.min(20, n));
+  }
+  const fmtDrm = (n) => (n > 0 ? '+' + n : String(n));
+
+  // Rewrite the field to its signed form as the user types, then recompute.
+  // Leave "", "-", "+" untouched so the sign / empty field can be typed.
+  function syncDrm() {
+    const raw = $drm.value;
+    if (raw !== '' && raw !== '-' && raw !== '+') {
+      const formatted = fmtDrm(parseDrm(raw));
+      if (formatted !== raw) $drm.value = formatted;
+    }
+    recompute();
   }
 
   // Map a result code to a severity class for bar coloring.
@@ -333,9 +354,9 @@
   async function recompute() {
     const params = new URLSearchParams({
       column: $col.value,
-      drm: $drm.value || '0',
+      drm: String(parseDrm($drm.value)),
       cowering: cowMode(),
-      san: $san.value || '7',
+      san: $san.value || '3',
     });
     let data;
     try {
@@ -391,9 +412,11 @@
   }
 
   $col.addEventListener('change', recompute);
-  $drm.addEventListener('input', recompute);
+  $drm.addEventListener('input', syncDrm);
+  $drm.addEventListener('blur', () => { $drm.value = fmtDrm(parseDrm($drm.value)); recompute(); });
   $san.addEventListener('input', recompute);
   document.querySelectorAll('input[name="cowering"]').forEach(el => el.addEventListener('change', recompute));
+  $drm.value = fmtDrm(parseDrm($drm.value));   // normalize initial display
   document.addEventListener('DOMContentLoaded', recompute);
   recompute();
 </script>
