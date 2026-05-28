@@ -37,7 +37,7 @@
             <a href="{{ url_for('home') }}" {% if active_page == 'home' %}class="active"{% endif %}>Home</a>
             <a href="{{ url_for('ruleschat') }}" data-require-login="true" class="nav-chat {% if active_page == 'chat' %}active{% endif %}">Chat</a>
             <a href="{{ url_for('evals') }}" {% if active_page == 'evals' %}class="active"{% endif %}>Evals</a>
-            <a href="{{ url_for('ift') }}" {% if active_page == 'ift' %}class="active"{% endif %}>IFT odds</a>
+            <a href="{{ url_for('ift') }}" {% if active_page == 'ift' %}class="active"{% endif %}>Tools</a>
             <a href="{{ url_for('profile_page') }}" data-require-login="true" class="nav-profile {% if active_page == 'profile' %}active{% endif %}">Profile</a>
             <a href="{{ url_for('admin_dashboard') }}" data-require-admin="true" class="nav-admin {% if active_page == 'admin' %}active{% endif %}">Admin</a>
             <a href="{{ url_for('logout') }}" data-require-login="true" class="nav-logout">Logout</a>

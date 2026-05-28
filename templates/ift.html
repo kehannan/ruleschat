@@ -66,23 +66,6 @@
   }
   .site .ift-results .res-caption b { color: var(--accent); font-weight: 600; }
 
-  .site .summary-grid {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
-    margin-bottom: 32px;
-  }
-  .site .summary-cell {
-    border: 1px solid var(--hair); border-radius: 2px;
-    padding: 12px 14px; background: var(--paper-2);
-  }
-  .site .summary-cell .s-label {
-    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
-  }
-  .site .summary-cell .s-pct {
-    font-family: var(--serif); font-size: 24px; font-weight: 500;
-    letter-spacing: -0.01em; line-height: 1;
-  }
-
   .site .dist-rows { display: grid; gap: 8px; }
   .site .dist-row {
     display: grid; grid-template-columns: 70px 1fr 64px;
@@ -117,7 +100,6 @@
   @media (max-width: 620px) {
     .site .ift-col { padding: 0 20px; }
     .site .ift-form { grid-template-columns: 1fr; }
-    .site .summary-grid { grid-template-columns: 1fr 1fr; }
   }
 </style>
 {% endblock %}
@@ -158,7 +140,6 @@
 
     <div class="ift-results" id="ift-results" style="display:none;">
       <div class="res-caption" id="res-caption"></div>
-      <div class="summary-grid" id="summary-grid"></div>
       <div class="dist-rows" id="dist-rows"></div>
     </div>
 
@@ -173,7 +154,6 @@
   const $drm = document.getElementById('ift-drm');
   const $results = document.getElementById('ift-results');
   const $caption = document.getElementById('res-caption');
-  const $summary = document.getElementById('summary-grid');
   const $rows = document.getElementById('dist-rows');
   const $error = document.getElementById('ift-error');
 
@@ -192,18 +172,17 @@
     return '';
   }
 
-  // Group results into broad families for the summary cells.
-  function summarize(dist) {
-    const groups = { 'Casualty': 0, 'Kill / MC': 0, 'Morale check': 0, 'Pin': 0, 'No effect': 0 };
-    for (const d of dist) {
-      const r = d.result;
-      if (r === '—') groups['No effect'] += d.probability;
-      else if (r === 'PTC') groups['Pin'] += d.probability;
-      else if (r.startsWith('K/')) groups['Kill / MC'] += d.probability;
-      else if (r.includes('KIA')) groups['Casualty'] += d.probability;
-      else if (r.endsWith('MC')) groups['Morale check'] += d.probability;
-    }
-    return groups;
+  // Severity rank for ascending-impact ordering:
+  // no effect < PTC < NMC < 1MC..4MC < K/1..K/4 < 1KIA..7KIA
+  function severityRank(result) {
+    if (result === '—') return [0, 0];
+    if (result === 'PTC') return [1, 0];
+    if (result === 'NMC') return [2, 0];
+    let m;
+    if ((m = result.match(/^(\d+)MC$/)))  return [3, parseInt(m[1], 10)];
+    if ((m = result.match(/^K\/(\d+)$/))) return [4, parseInt(m[1], 10)];
+    if ((m = result.match(/^(\d+)KIA$/))) return [5, parseInt(m[1], 10)];
+    return [6, 0];
   }
 
   const pct = (p) => (p * 100).toFixed(1) + '%';
@@ -232,18 +211,15 @@
     const cowStr = data.cowering === 'none' ? 'no cowering' : data.cowering + ' cowering';
     $caption.innerHTML = `<b>${data.column} FP</b> · DRM ${drmStr} · ${cowStr}`;
 
-    // Summary cells
-    const groups = summarize(data.distribution);
-    $summary.innerHTML = Object.entries(groups).map(([label, p]) => `
-      <div class="summary-cell">
-        <div class="s-label">${label}</div>
-        <div class="s-pct">${Math.round(p * 100)}<span style="font-size:14px;">%</span></div>
-      </div>
-    `).join('');
+    // Order rows by ascending impact (least → most severe).
+    const ordered = data.distribution.slice().sort((a, b) => {
+      const ra = severityRank(a.result), rb = severityRank(b.result);
+      return ra[0] - rb[0] || ra[1] - rb[1];
+    });
 
     // Detailed bars (probability as bar width, scaled to the max for contrast)
-    const maxP = Math.max(...data.distribution.map(d => d.probability), 0.0001);
-    $rows.innerHTML = data.distribution.map(d => `
+    const maxP = Math.max(...ordered.map(d => d.probability), 0.0001);
+    $rows.innerHTML = ordered.map(d => `
       <div class="dist-row">
         <div class="d-result">${d.result === '—' ? 'no effect' : d.result}</div>
         <div class="d-bar-track">
