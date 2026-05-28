@@ -4,747 +4,601 @@
 
 {% block title %}Chat — ASL Ruleschat{% endblock %}
 
-{% block content %}
-<div class="chat-layout">
-    <!-- Main Chat Area -->
-    <div class="chat-wrapper" style="position: relative;">
-        <select id="model-selector" class="model-selector" title="Select model">
-            <option value="gpt-5-mini">gpt5-mini ($/slow)</option>
-            <option value="gpt-5.4">gpt5.4 ($$$/fast)</option>
-            <option value="deepseek-v3">deepseek-v3 ($)</option>
-            <option value="mercury-2">mercury-2 ($)</option>
-        </select>
-        <div id="chat-container" class="chat-messages">
-            <!-- Chat messages will be displayed here -->
-            <div class="welcome-message">
-                <div class="message-content">
-                    <p>How can I help you with Advanced Squad Leader rules today?</p>
-                </div>
-            </div>
-        </div>
+{% block extra_css %}
+<style>
+  /* Full chat is a full-viewport surface — same flex-column .site as demo
+     so <main class="chat-main"> fills the space below the nav. */
+  .site { min-height: 100vh; display: flex; flex-direction: column; }
+  .site .chat-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
-        <div class="chat-input-container">
-            <div id="image-preview" class="image-preview" style="display: none;"></div>
-            <div class="chat-input-wrapper">
-                <textarea id="chat-message-input" class="chat-input" placeholder="Message Rules Chat... (paste up to 3 images to attach)"
-                    rows="1"></textarea>
-                <button id="chat-message-submit" class="send-button" type="button" title="Send message">Send</button>
-            </div>
-            <div id="connection-status" class="connection-status">Connected</div>
-            <div id="latency-display" class="latency-display" style="display: none;"></div>
-        </div>
-    </div>
+  /* Image preview tray (between toolbar and input-dock) */
+  .site .image-preview {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    padding: 8px 12px;
+    margin: 0;
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--hair);
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted); letter-spacing: .02em;
+  }
+  .site .image-preview .image-preview-label { margin-left: auto; }
+  .site .image-preview-item { position: relative; display: inline-block; }
+  .site .image-preview-item img {
+    max-height: 48px; max-width: 64px;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid var(--hair);
+    display: block;
+  }
+  .site .image-preview-item .image-preview-remove {
+    position: absolute; top: -6px; right: -6px;
+    width: 18px; height: 18px;
+    background: var(--paper);
+    border: 1px solid var(--hair);
+    border-radius: 50%;
+    font-size: 13px; line-height: 13px;
+    color: var(--ink-2);
+    cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--sans);
+  }
+  .site .image-preview-item .image-preview-remove:hover {
+    color: var(--ink); border-color: var(--ink-2);
+  }
+
+  /* User-message attached image thumb (shown inline in the bubble) */
+  .site .msg.user .msg-bubble .message-image {
+    display: inline-block;
+    max-width: 280px; max-height: 200px;
+    margin: 8px 6px 0 0;
+    border-radius: 2px;
+    border: 1px solid var(--hair);
+    cursor: zoom-in;
+    vertical-align: top;
+  }
+
+  /* Searching bubble — small dots while waiting */
+  .site .searching-bubble {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 26px;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .site .searching-bubble .searching-dots { display: inline-flex; gap: 3px; }
+  .site .searching-bubble .searching-dots span {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent);
+    animation: dot-pulse 1.2s infinite ease-in-out;
+  }
+  .site .searching-bubble .searching-dots span:nth-child(2) { animation-delay: .2s; }
+  .site .searching-bubble .searching-dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes dot-pulse {
+    0%, 80%, 100% { opacity: .25; }
+    40% { opacity: 1; }
+  }
+
+  /* Feedback row beneath assistant messages — two small ghost buttons that
+     match the editorial chrome. Sits flush below .latency-row. */
+  .site .feedback-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 12px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted); letter-spacing: .02em;
+  }
+  .site .feedback-row button {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    background: transparent;
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    color: var(--ink-2);
+    cursor: pointer;
+    padding: 0;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .site .feedback-row button:hover:not(:disabled) {
+    border-color: var(--ink-2); color: var(--ink);
+  }
+  .site .feedback-row button.thumbs-up:hover:not(:disabled) {
+    border-color: var(--field); color: var(--field);
+  }
+  .site .feedback-row button.thumbs-down:hover:not(:disabled) {
+    border-color: var(--accent); color: var(--accent);
+  }
+  .site .feedback-row button:disabled { opacity: .35; cursor: default; }
+  .site .feedback-row button svg { display: block; }
+  .site .feedback-row .feedback-thankyou {
+    color: var(--field);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+  }
+
+  /* PDF Viewer Modal — new tokens, warm dark backdrop. Same chrome as demo. */
+  .site .pdf-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 32px;
+  }
+  .site .pdf-modal-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(15, 12, 8, .62);
+    cursor: pointer;
+  }
+  .site .pdf-modal-content {
+    position: relative;
+    background: var(--paper);
+    border: 1px solid var(--hair);
+    border-radius: 4px;
+    max-width: 1200px;
+    width: 100%;
+    max-height: 92vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 24px 60px rgba(0,0,0,.4);
+    overflow: hidden;
+  }
+  .site .pdf-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--hair);
+  }
+  .site .pdf-modal-header h3 {
+    font-family: var(--serif); font-weight: 500; font-size: 18px;
+    margin: 0; letter-spacing: -0.005em;
+  }
+  .site .pdf-modal-header h3 em { font-style: italic; color: var(--accent); }
+  .site .pdf-modal-close {
+    width: 32px; height: 32px;
+    background: transparent; border: 1px solid var(--hair);
+    color: var(--ink-2); font-size: 18px; line-height: 1;
+    cursor: pointer; border-radius: 2px;
+    display: grid; place-items: center;
+    transition: all .15s;
+  }
+  .site .pdf-modal-close:hover {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  .site .pdf-modal-body {
+    flex: 1;
+    display: flex; flex-direction: column;
+    min-height: 0;
+    background: var(--paper);
+  }
+  .site .pdf-controls {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--hair);
+    background: var(--paper-2);
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-2);
+  }
+  .site .pdf-controls button {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--ink); border-radius: 2px;
+    padding: 4px 10px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .04em; cursor: pointer;
+    transition: all .15s;
+  }
+  .site .pdf-controls button:hover:not(:disabled) {
+    background: var(--ink); color: var(--paper);
+  }
+  .site .pdf-controls button:disabled {
+    opacity: .35; cursor: not-allowed;
+  }
+  .site .pdf-container {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+    background: var(--paper-2);
+    display: flex; justify-content: center;
+  }
+  .site .pdf-container canvas { box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+  .site .pdf-loading {
+    padding: 24px;
+    text-align: center;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Connection status variants (mirrors demo) */
+  .site #connection-status.disconnected { color: var(--fail); }
+  .site #connection-status.disconnected .pip { background: var(--fail); }
+
+  @media (max-width: 620px) {
+    .site .chat-toolbar h4 { font-size: 16px; }
+    .site .msg.user .msg-bubble { max-width: 92%; }
+    .site .latency-row { gap: 12px; }
+    .site .pdf-modal { padding: 12px; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}
+{{ super() }}
+
+<!-- TOOLBAR (model selector only — no demo banner / exp-notice on authed chat) -->
+<div class="chat-toolbar">
+  <div class="wrap">
+    <select class="model-pill" id="model-selector" title="Select model">
+      <option value="gpt-5-mini">gpt-5-mini · $/slow</option>
+      <option value="gpt-5.4">gpt-5.4 · $$$/fast</option>
+      <option value="deepseek-v3">deepseek-v3 · $</option>
+      <option value="mercury-2">mercury-2 · $</option>
+    </select>
+  </div>
 </div>
+{% endblock %}
 
-<!-- Feedback template (hidden, cloned for each answer) -->
-<template id="feedback-template">
-    <div class="feedback-section">
-        <button class="thumbs-up" title="Thumbs up">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path
-                    d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-            </svg>
-        </button>
-        <button class="thumbs-down" title="Thumbs down">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path
-                    d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
-            </svg>
-        </button>
-        <span class="feedback-thankyou" style="display:none;">Thank you for your feedback!</span>
+{% block main %}
+<main class="chat-main">
+  <!-- SCROLL -->
+  <div class="chat-scroll" id="chat-container">
+    <div class="wrap">
+      <div class="welcome" id="welcome-state">
+        <div class="h2">Ask a <em>rules question</em>.</div>
+      </div>
     </div>
+  </div>
+
+  <!-- Image preview tray (between toolbar and input — shown when images pasted) -->
+  <div id="image-preview" class="image-preview" style="display: none;"></div>
+
+  <!-- INPUT DOCK -->
+  <div class="input-dock">
+    <div class="wrap">
+      <div class="input-frame">
+        <textarea id="chat-message-input" rows="1" placeholder="Message Ruleschat… (paste up to 3 images to attach)"></textarea>
+        <button class="send-btn" id="chat-message-submit" type="button">Send</button>
+      </div>
+      <div class="helper-strip">
+        <span>enter to send · shift-enter for newline</span>
+        <span class="status" id="connection-status"><span class="pip"></span>connecting…</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Feedback template (hidden, cloned and inserted after each assistant message) -->
+<template id="feedback-template">
+  <div class="feedback-row">
+    <button class="thumbs-up" title="Thumbs up" aria-label="Helpful">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+      </svg>
+    </button>
+    <button class="thumbs-down" title="Thumbs down" aria-label="Not helpful">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
+      </svg>
+    </button>
+    <span class="feedback-thankyou" style="display:none;">Thanks for the feedback.</span>
+  </div>
 </template>
 
 <!-- PDF Viewer Modal -->
 <div id="pdf-modal" class="pdf-modal" style="display: none;">
-    <div class="pdf-modal-backdrop" onclick="closePdfModal()"></div>
-    <div class="pdf-modal-content">
-        <div class="pdf-modal-header">
-            <h3>ASL Rulebook (eASLRB v3.14)</h3>
-            <button class="pdf-modal-close" onclick="closePdfModal()" title="Close">×</button>
-        </div>
-        <div class="pdf-modal-body">
-            <div id="pdf-controls" class="pdf-controls">
-                <button id="pdf-prev" onclick="pdfPrevPage()" disabled>Previous</button>
-                <span id="pdf-page-info">Page 1 of 1</span>
-                <button id="pdf-next" onclick="pdfNextPage()" disabled>Next</button>
-                <button id="pdf-zoom-out" onclick="pdfZoomOut()">-</button>
-                <span id="pdf-zoom-level">150%</span>
-                <button id="pdf-zoom-in" onclick="pdfZoomIn()">+</button>
-            </div>
-            <div id="pdf-container" class="pdf-container">
-                <canvas id="pdf-canvas"></canvas>
-            </div>
-            <div id="pdf-loading" class="pdf-loading">Loading PDF...</div>
-        </div>
+  <div class="pdf-modal-backdrop" onclick="closePdfModal()"></div>
+  <div class="pdf-modal-content">
+    <div class="pdf-modal-header">
+      <h3>ASL <em>Rulebook</em> (eASLRB v3.14)</h3>
+      <button class="pdf-modal-close" onclick="closePdfModal()" title="Close" aria-label="Close">×</button>
     </div>
+    <div class="pdf-modal-body">
+      <div id="pdf-controls" class="pdf-controls">
+        <button id="pdf-prev" onclick="pdfPrevPage()" disabled>← Prev</button>
+        <span id="pdf-page-info">Page 1 of 1</span>
+        <button id="pdf-next" onclick="pdfNextPage()" disabled>Next →</button>
+        <button id="pdf-zoom-out" onclick="pdfZoomOut()">−</button>
+        <span id="pdf-zoom-level">150%</span>
+        <button id="pdf-zoom-in" onclick="pdfZoomIn()">+</button>
+      </div>
+      <div id="pdf-container" class="pdf-container">
+        <canvas id="pdf-canvas"></canvas>
+      </div>
+      <div id="pdf-loading" class="pdf-loading">Loading PDF…</div>
+    </div>
+  </div>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', path='/css/chat.css') }}">
-<style>
-    /* Chat Layout */
-    .chat-layout {
-        display: flex;
-        height: calc(100vh - 60px);
-        max-width: 1000px;
-        margin: 0 auto;
-        padding: 0 1rem;
-        width: 100%;
-    }
-
-    /* Chat wrapper - override base chat.css max-width */
-    .chat-wrapper {
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-
-    /* Welcome message - align top left */
-    .welcome-message {
-        justify-content: flex-start !important;
-        align-items: flex-start;
-    }
-
-    .welcome-message .message-content {
-        text-align: left;
-    }
-
-    /* Keep messages area from centering content */
-    .chat-messages {
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-    }
-
-    /* Model selector - top right of chat */
-    .model-selector {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        z-index: 10;
-        font-size: 0.875rem;
-        padding: 6px 12px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        background: rgba(248, 248, 248, 0.95);
-        color: #555;
-        cursor: pointer;
-        outline: none;
-    }
-
-    .model-selector:hover {
-        border-color: #999;
-    }
-
-    .model-selector:focus {
-        border-color: #6c5ce7;
-    }
-    @media (max-width: 768px) {
-        .model-selector {
-            position: static;
-            align-self: flex-end;
-            margin: 0.5rem 0.75rem 0;
-        }
-    }
-
-    /* Image attachment preview chip */
-    .image-preview {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        padding: 0.5rem 0.75rem;
-        margin: 0 0 0.5rem 0;
-        background: #f5f5f5;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-    }
-
-    .image-preview-item {
-        position: relative;
-        display: inline-block;
-    }
-
-    .image-preview-item img {
-        max-height: 48px;
-        max-width: 64px;
-        object-fit: cover;
-        border-radius: 4px;
-        border: 1px solid #ccc;
-        display: block;
-    }
-
-    .image-preview-label {
-        font-size: 0.85rem;
-        color: #666;
-        margin-left: auto;
-    }
-
-    .image-preview-item .image-preview-remove {
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        width: 18px;
-        height: 18px;
-        background: #fff;
-        border: 1px solid #aaa;
-        border-radius: 50%;
-        font-size: 14px;
-        line-height: 14px;
-        color: #555;
-        cursor: pointer;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .image-preview-item .image-preview-remove:hover {
-        color: #000;
-        border-color: #555;
-    }
-
-    /* Attached image(s) inside a user message bubble */
-    .user-message .message-image {
-        display: inline-block;
-        max-width: 280px;
-        max-height: 200px;
-        margin: 0.5rem 0.4rem 0 0;
-        border-radius: 6px;
-        border: 1px solid #ccc;
-        cursor: zoom-in;
-        vertical-align: top;
-    }
-</style>
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 </script>
 <script src="{{ url_for('static', path='/js/chat-shared.js') }}"></script>
 <script>
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsBaseUrl = protocol + '//' + window.location.host + '/ws/chat/';
-    let chatSocket = null;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 5;
-    const reconnectInterval = 3000;
-    let lastUserQuestion = '';
-    let lastAssistantAnswer = '';
-    let streamingTimeout = null;
-    let chunkBuffer = [];
-    let isDisplaying = false;
-    let displayInterval = null;
-    
-    // Conversation state (tracked server-side for history)
-    let currentConversationId = null;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsBaseUrl = protocol + '//' + window.location.host + '/ws/chat/';
+  let chatSocket = null;
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 5;
+  const reconnectInterval = 3000;
+  let lastUserQuestion = '';
+  let lastAssistantAnswer = '';
+  let currentConversationId = null;
 
-    function createBotMessage() {
-        // Remove searching bubble if it exists
-        const searchingBubble = document.querySelector('.searching-bubble');
-        if (searchingBubble) {
-            searchingBubble.remove();
+  function hideWelcome() {
+    const welcome = document.getElementById('welcome-state');
+    if (welcome) welcome.style.display = 'none';
+  }
+
+  function scrollChatBottom() {
+    const container = document.getElementById('chat-container');
+    if (container) container.scrollTop = container.scrollHeight;
+  }
+
+  function currentTimeLabel() {
+    const d = new Date();
+    return d.getHours().toString().padStart(2, '0') + ':' +
+           d.getMinutes().toString().padStart(2, '0');
+  }
+
+  function appendToScroll(el) {
+    const wrap = document.querySelector('#chat-container .wrap');
+    if (wrap) wrap.appendChild(el);
+  }
+
+  function createUserMessage(text, imageDataUrls) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg user';
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.innerHTML = `<span>YOU · ${currentTimeLabel()}</span>`;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.textContent = text;
+    const urls = Array.isArray(imageDataUrls) ? imageDataUrls : (imageDataUrls ? [imageDataUrls] : []);
+    urls.forEach((url, idx) => {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = `Attached image ${idx + 1}`;
+      img.className = 'message-image';
+      img.addEventListener('click', () => window.open(url, '_blank'));
+      bubble.appendChild(img);
+    });
+    wrap.appendChild(meta);
+    wrap.appendChild(bubble);
+    appendToScroll(wrap);
+    scrollChatBottom();
+    return wrap;
+  }
+
+  function createAssistantMessage() {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg assistant current';
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    const model = document.getElementById('model-selector').value;
+    meta.innerHTML = `<span>ASSISTANT</span>` +
+                     `<span style="color: var(--muted)">· ${currentTimeLabel()}</span>` +
+                     `<span style="color: var(--muted)">· ${model}</span>`;
+    const content = document.createElement('div');
+    content.className = 'msg-content';
+    wrap.appendChild(meta);
+    wrap.appendChild(content);
+    appendToScroll(wrap);
+    return content;
+  }
+
+  function createSearchingBubble() {
+    const wrap = document.createElement('div');
+    wrap.className = 'searching-bubble';
+    wrap.innerHTML = 'Searching <span class="searching-dots"><span></span><span></span><span></span></span>';
+    appendToScroll(wrap);
+    scrollChatBottom();
+  }
+
+  function removeSearchingBubble() {
+    const bubble = document.querySelector('.searching-bubble');
+    if (bubble) bubble.remove();
+  }
+
+  function getCurrentAssistantContent() {
+    return document.querySelector('.msg.assistant.current .msg-content');
+  }
+
+  function finalizeMessage(contentEl) {
+    const raw = contentEl.getAttribute('data-content') || '';
+    contentEl.innerHTML = marked.parse(raw);
+    makeSectionReferencesClickable(contentEl);
+    lastAssistantAnswer = raw;
+    const msgEl = contentEl.closest('.msg.assistant');
+    if (msgEl) {
+      msgEl.classList.remove('current');
+      // Attach feedback row if not already present.
+      const next = msgEl.nextElementSibling;
+      if (!next || !next.classList.contains('feedback-row')) {
+        addFeedbackUI(msgEl, lastUserQuestion, lastAssistantAnswer);
+      }
+    }
+  }
+
+  function setConnectionStatus(state, label) {
+    const s = document.getElementById('connection-status');
+    if (!s) return;
+    s.classList.remove('connected', 'disconnected');
+    if (state) s.classList.add(state);
+    s.innerHTML = `<span class="pip"></span>${label}`;
+  }
+
+  function getWebSocketUrl() {
+    let url = wsBaseUrl;
+    if (currentConversationId) {
+      url += `?conversation_id=${currentConversationId}`;
+    }
+    return url;
+  }
+
+  function setupWebSocket() {
+    const wsUrl = getWebSocketUrl();
+    chatSocket = new WebSocket(wsUrl);
+
+    chatSocket.onopen = function () {
+      setConnectionStatus('connected', 'connected');
+      reconnectAttempts = 0;
+    };
+
+    chatSocket.onclose = function (e) {
+      if (e.code === 4001) {
+        setConnectionStatus('disconnected', 'session expired — redirecting…');
+        setTimeout(() => { window.location.href = '/login'; }, 2000);
+        return;
+      }
+      setConnectionStatus('disconnected', 'reconnecting…');
+      if (reconnectAttempts < maxReconnectAttempts) {
+        reconnectAttempts++;
+        setTimeout(setupWebSocket, reconnectInterval);
+      } else {
+        setConnectionStatus('disconnected', 'connection lost — reload');
+      }
+    };
+
+    chatSocket.onerror = function () {
+      setConnectionStatus('disconnected', 'connection error');
+    };
+
+    chatSocket.onmessage = function (e) {
+      if (e.data === '__ping__') {
+        chatSocket.send('__pong__');
+        return;
+      }
+
+      try {
+        const msg = JSON.parse(e.data);
+
+        if (msg.type === 'conversation_created' || msg.type === 'conversation_switched') {
+          currentConversationId = msg.conversation_id;
+          return;
         }
-
-        const chatContainer = document.querySelector('#chat-container');
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('bot-message', 'current');
-
-        const content = document.createElement('div');
-        content.classList.add('message-content');
-
-        messageDiv.appendChild(content);
-        chatContainer.appendChild(messageDiv);
-
-        return content;
-    }
-
-    function createSearchingBubble() {
-        const chatContainer = document.querySelector('#chat-container');
-        if (!chatContainer) {
-            return;
+        if (msg.type === 'error') {
+          console.error('Server error:', msg.message);
+          return;
         }
-        const searchingDiv = document.createElement('div');
-        searchingDiv.className = 'searching-bubble';
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
-        contentDiv.innerHTML = 'Searching <span class="searching-dots"><span></span><span></span><span></span></span>';
-        searchingDiv.appendChild(contentDiv);
-        chatContainer.appendChild(searchingDiv);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-
-    function displayBufferedChunks() {
-        if (isDisplaying || chunkBuffer.length === 0) return;
-        isDisplaying = true;
-
-        const chatContainer = document.querySelector('#chat-container');
-        let currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
-        if (!currentBotMessageContent) {
-            currentBotMessageContent = createBotMessage();
+        if (msg.type === 'latency') {
+          const contentEl = getCurrentAssistantContent();
+          if (contentEl) finalizeMessage(contentEl);
+          displayLatencyTimeline(msg.data);
+          return;
         }
-
-        displayInterval = setInterval(() => {
-            if (chunkBuffer.length === 0) {
-                clearInterval(displayInterval);
-                isDisplaying = false;
-                const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
-                currentBotMessageContent.innerHTML = marked.parse(finalContent);
-                makeSectionReferencesClickable(currentBotMessageContent);
-                lastAssistantAnswer = finalContent;
-
-                const currentBotMessage = currentBotMessageContent.closest('.bot-message');
-                currentBotMessage.classList.remove('current');
-
-                if (!currentBotMessage.nextElementSibling || !currentBotMessage.nextElementSibling.classList.contains('feedback-section')) {
-                    addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
-                }
-                return;
-            }
-
-            const chunk = chunkBuffer.shift();
-            const currentContent = currentBotMessageContent.getAttribute('data-content') || '';
-            const newContent = currentContent + chunk;
-            currentBotMessageContent.setAttribute('data-content', newContent);
-            currentBotMessageContent.textContent = newContent;
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }, 20);
-    }
-
-    function getWebSocketUrl() {
-        let url = wsBaseUrl;
-        if (currentConversationId) {
-            url += `?conversation_id=${currentConversationId}`;
+        if (msg.type === 'stream_complete') {
+          const contentEl = getCurrentAssistantContent();
+          if (contentEl) finalizeMessage(contentEl);
+          if (msg.conversation_id) currentConversationId = msg.conversation_id;
+          if (msg.timing) displayLatencyTimeline(msg.timing);
+          scrollChatBottom();
+          return;
         }
-        return url;
+      } catch (err) {
+        // Streaming text chunk — fall through.
+      }
+
+      preloadPdf();
+      removeSearchingBubble();
+      let contentEl = getCurrentAssistantContent();
+      if (!contentEl) contentEl = createAssistantMessage();
+      const current = contentEl.getAttribute('data-content') || '';
+      const updated = current + e.data;
+      contentEl.setAttribute('data-content', updated);
+      contentEl.innerHTML = marked.parse(updated);
+      scrollChatBottom();
+      lastAssistantAnswer = updated;
+    };
+  }
+
+  function sendMessage() {
+    if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+      alert('Connection lost. Please reload the page to reconnect.');
+      return;
     }
+    const input = document.getElementById('chat-message-input');
+    const message = input.value.trim();
+    if (!message) return;
 
-    function setupWebSocket() {
-        const wsUrl = getWebSocketUrl();
-        console.log('Connecting to WebSocket:', wsUrl);
-        chatSocket = new WebSocket(wsUrl);
-        
-        chatSocket.onopen = function () {
-            const statusEl = document.getElementById('connection-status');
-            statusEl.textContent = 'Connected';
-            statusEl.classList.remove('disconnected');
-            statusEl.classList.add('connected');
-            reconnectAttempts = 0;
-        };
-        
-        chatSocket.onclose = function (e) {
-            const statusEl = document.getElementById('connection-status');
-            
-            // Check if closed due to unauthorized
-            if (e.code === 4001) {
-                statusEl.textContent = 'Session expired. Please log in again.';
-                statusEl.classList.remove('connected');
-                statusEl.classList.add('disconnected');
-                setTimeout(() => {
-                    window.location.href = '/login';
-                }, 2000);
-                return;
-            }
-            
-            statusEl.textContent = 'Disconnected - attempting to reconnect...';
-            statusEl.classList.remove('connected');
-            statusEl.classList.add('disconnected');
-            if (reconnectAttempts < maxReconnectAttempts) {
-                reconnectAttempts++;
-                setTimeout(setupWebSocket, reconnectInterval);
-            } else {
-                statusEl.textContent = 'Connection lost. Please reload the page to reconnect.';
-            }
-        };
-        
-        chatSocket.onerror = function (err) {
-            const statusEl = document.getElementById('connection-status');
-            statusEl.textContent = 'Connection error';
-            statusEl.classList.remove('connected');
-            statusEl.classList.add('disconnected');
-        };
-        
-        chatSocket.onmessage = function (e) {
-            if (e.data === "__ping__") {
-                chatSocket.send("__pong__");
-                return;
-            }
+    hideWelcome();
 
-            // Check if this is a JSON message
-            try {
-                const message = JSON.parse(e.data);
+    const attachedImages = (typeof getPendingImages === 'function') ? getPendingImages() : [];
+    lastUserQuestion = message;
+    createUserMessage(message, attachedImages);
+    createSearchingBubble();
+    input.value = '';
+    input.style.height = 'auto';
+    if (typeof clearPendingImages === 'function') clearPendingImages();
 
-                // Handle conversation created
-                if (message.type === "conversation_created") {
-                    currentConversationId = message.conversation_id;
-                    console.log('Conversation created:', currentConversationId);
-                    return;
-                }
+    const model = document.getElementById('model-selector').value;
+    const payload = { type: 'chat', text: message, model: model };
+    if (attachedImages.length > 0) payload.images = attachedImages;
+    chatSocket.send(JSON.stringify(payload));
+  }
 
-                // Handle conversation switched
-                if (message.type === "conversation_switched") {
-                    currentConversationId = message.conversation_id;
-                    console.log('Switched to conversation:', currentConversationId);
-                    return;
-                }
+  // Feedback row appended after each finalized assistant message.
+  function addFeedbackUI(msgEl, question, answer) {
+    const template = document.getElementById('feedback-template');
+    const node = template.content.cloneNode(true);
+    const row = node.querySelector('.feedback-row');
+    const upBtn = row.querySelector('.thumbs-up');
+    const downBtn = row.querySelector('.thumbs-down');
+    const thankYou = row.querySelector('.feedback-thankyou');
 
-                // Handle errors
-                if (message.type === "error") {
-                    console.error('Server error:', message.message);
-                    return;
-                }
-
-                if (message.type === "latency") {
-                    const chatContainer = document.querySelector('#chat-container');
-                    const currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
-                    if (currentBotMessageContent) {
-                        const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
-                        currentBotMessageContent.innerHTML = marked.parse(finalContent);
-                        makeSectionReferencesClickable(currentBotMessageContent);
-                        lastAssistantAnswer = finalContent;
-
-                        const currentBotMessage = currentBotMessageContent.closest('.bot-message');
-                        currentBotMessage.classList.remove('current');
-
-                        if (!currentBotMessage.nextElementSibling || !currentBotMessage.nextElementSibling.classList.contains('feedback-section')) {
-                            addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
-                        }
-                    }
-                    displayLatencyTimeline(message.data);
-                    return;
-                }
-
-                if (message.type === "stream_complete") {
-                    const chatContainer = document.querySelector('#chat-container');
-                    const currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
-                    if (currentBotMessageContent) {
-                        const finalContent = currentBotMessageContent.getAttribute('data-content') || '';
-                        currentBotMessageContent.innerHTML = marked.parse(finalContent);
-                        makeSectionReferencesClickable(currentBotMessageContent);
-                        lastAssistantAnswer = finalContent;
-
-                        const currentBotMessage = currentBotMessageContent.closest('.bot-message');
-                        currentBotMessage.classList.remove('current');
-
-                        // const ragSources = message.rag_sources || [];
-                        // if (ragSources.length > 0) {
-                        //     console.log(`📚 Adding RAG sources section with ${ragSources.length} sources`);
-                        //     addRAGSourcesSection(currentBotMessage, ragSources);
-                        // }
-
-                        if (!currentBotMessage.nextElementSibling || !currentBotMessage.nextElementSibling.classList.contains('feedback-section')) {
-                            addFeedbackUI(currentBotMessage, lastUserQuestion, lastAssistantAnswer);
-                        }
-                    }
-
-                    // Update conversation_id if provided
-                    if (message.conversation_id) {
-                        currentConversationId = message.conversation_id;
-                    }
-
-                    if (message.timing) {
-                        displayLatencyTimeline(message.timing);
-                    }
-                    return;
-                }
-            } catch (err) {
-                // Not JSON, treat as regular text chunk
-            }
-
-            // Preload PDF on first response chunk so it's ready when user clicks a link
-            preloadPdf();
-
-            // Display chunk immediately with progressive markdown rendering
-            const chatContainer = document.querySelector('#chat-container');
-            let currentBotMessageContent = chatContainer.querySelector('.bot-message.current .message-content');
-            if (!currentBotMessageContent) {
-                currentBotMessageContent = createBotMessage();
-            }
-
-            const currentContent = currentBotMessageContent.getAttribute('data-content') || '';
-            const newContent = currentContent + e.data;
-            currentBotMessageContent.setAttribute('data-content', newContent);
-            currentBotMessageContent.innerHTML = marked.parse(newContent);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            lastAssistantAnswer = newContent;
-        };
-    }
-
-    function createUserMessage(text, imageDataUrls) {
-        const chatContainer = document.querySelector('#chat-container');
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('user-message');
-
-        const content = document.createElement('div');
-        content.classList.add('message-content');
-        content.textContent = text;
-
-        const urls = Array.isArray(imageDataUrls) ? imageDataUrls : (imageDataUrls ? [imageDataUrls] : []);
-        urls.forEach((url, idx) => {
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = `Attached image ${idx + 1}`;
-            img.className = 'message-image';
-            img.addEventListener('click', () => window.open(url, '_blank'));
-            content.appendChild(img);
+    const submit = (thumbsUp) => {
+      upBtn.disabled = true;
+      downBtn.disabled = true;
+      fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, answer, thumbs_up: thumbsUp, comment: '' }),
+      })
+        .then(r => r.json())
+        .then(() => {
+          thankYou.style.display = '';
+          setTimeout(() => { row.style.display = 'none'; }, 2000);
+        })
+        .catch(() => {
+          upBtn.disabled = false;
+          downBtn.disabled = false;
         });
+    };
+    upBtn.onclick = () => submit(true);
+    downBtn.onclick = () => submit(false);
+    msgEl.parentNode.insertBefore(row, msgEl.nextSibling);
+  }
 
-        messageDiv.appendChild(content);
-        chatContainer.appendChild(messageDiv);
+  function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+  }
 
-        return messageDiv;
+  document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('chat-message-input');
+    const submitBtn = document.getElementById('chat-message-submit');
+
+    if (input) {
+      input.addEventListener('input', function () { autoResizeTextarea(this); });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+          return false;
+        }
+      });
     }
+    if (submitBtn) submitBtn.onclick = sendMessage;
 
-    function sendMessage() {
-        if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
-            alert("Connection lost. Please reload the page to reconnect.");
-            return;
-        }
-        const messageInput = document.querySelector('#chat-message-input');
-        const message = messageInput.value.trim();
-        if (!message) return;
+    if (typeof bindImagePasteHandler === 'function') bindImagePasteHandler();
 
-        console.log('About to send message:', message);
-
-        // Remove welcome message if it exists
-        const welcomeMessage = document.querySelector('.welcome-message');
-        if (welcomeMessage) {
-            welcomeMessage.remove();
-        }
-
-        // Clear buffer and stop any ongoing display
-        chunkBuffer = [];
-        if (displayInterval) {
-            clearInterval(displayInterval);
-            displayInterval = null;
-        }
-        isDisplaying = false;
-
-        // Clear latency display
-        const latencyDisplay = document.getElementById('latency-display');
-        if (latencyDisplay) {
-            latencyDisplay.style.display = 'none';
-            latencyDisplay.textContent = '';
-        }
-
-        const currentBotMessage = document.querySelector('.bot-message.current');
-        if (currentBotMessage) {
-            currentBotMessage.classList.remove('current');
-        }
-
-        const selectedModel = document.getElementById('model-selector').value;
-        const attachedImages = (typeof getPendingImages === 'function') ? getPendingImages() : [];
-        const payload = {
-            type: 'chat',
-            text: message,
-            model: selectedModel,
-        };
-        if (attachedImages.length > 0) payload.images = attachedImages;
-        chatSocket.send(JSON.stringify(payload));
-        messageInput.value = '';
-        messageInput.style.height = 'auto';
-        if (typeof clearPendingImages === 'function') clearPendingImages();
-
-        const chatContainer = document.querySelector('#chat-container');
-        createUserMessage(message, attachedImages);
-        createSearchingBubble();
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-        lastUserQuestion = message;
-    }
-
-    // ========================================================================
-    // Conversation Management (history is tracked server-side)
-    // ========================================================================
-
-    function clearChatMessages() {
-        const chatContainer = document.querySelector('#chat-container');
-        chatContainer.innerHTML = `
-            <div class="welcome-message">
-                <div class="message-content">
-                    <p>How can I help you with Advanced Squad Leader rules today?</p>
-                </div>
-            </div>
-        `;
-    }
-
-    // UI helpers (MODEL_PRICING, getModelPricing, displayLatencyTimeline,
-    // makeSectionReferencesClickable, PDF viewer) are in chat-shared.js
-
-    function addFeedbackUI(botMessageElem, question, answer) {
-        if (botMessageElem.nextElementSibling && botMessageElem.nextElementSibling.classList.contains('feedback-section')) {
-            botMessageElem.nextElementSibling.remove();
-        }
-        const template = document.getElementById('feedback-template');
-        const feedbackElem = template.content.cloneNode(true);
-        const section = feedbackElem.querySelector('.feedback-section');
-        const upBtn = section.querySelector('.thumbs-up');
-        const downBtn = section.querySelector('.thumbs-down');
-        const thankYou = section.querySelector('.feedback-thankyou');
-
-        upBtn.onclick = function () {
-            upBtn.disabled = true;
-            downBtn.disabled = true;
-            fetch('/api/feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    question: question,
-                    answer: answer,
-                    thumbs_up: true,
-                    comment: ''
-                })
-            }).then(r => r.json()).then(data => {
-                thankYou.style.display = '';
-                setTimeout(() => {
-                    section.style.display = 'none';
-                }, 2000);
-            });
-        };
-        downBtn.onclick = function () {
-            upBtn.disabled = true;
-            downBtn.disabled = true;
-            fetch('/api/feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    question: question,
-                    answer: answer,
-                    thumbs_up: false,
-                    comment: ''
-                })
-            }).then(r => r.json()).then(data => {
-                thankYou.style.display = '';
-                setTimeout(() => {
-                    section.style.display = 'none';
-                }, 2000);
-            });
-        };
-        botMessageElem.parentNode.insertBefore(section, botMessageElem.nextSibling);
-    }
-
-    function autoResizeTextarea(textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-    }
-
-    // ========================================================================
-    // Initialization
-    // ========================================================================
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const inputField = document.querySelector('#chat-message-input');
-        if (inputField) {
-            inputField.addEventListener('input', function () {
-                autoResizeTextarea(this);
-            });
-
-            inputField.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                    return false;
-                }
-            });
-        }
-
-        const submitButton = document.querySelector('#chat-message-submit');
-        if (submitButton) {
-            submitButton.onclick = sendMessage;
-        }
-
-        document.addEventListener('visibilitychange', function () {
-            if (document.visibilityState === 'visible' &&
-                (!chatSocket || chatSocket.readyState !== WebSocket.OPEN)) {
-                setupWebSocket();
-            }
-        });
-
-        // Image clipboard paste (Phase 1: preview only, not sent yet)
-        bindImagePasteHandler();
-
-        // Setup WebSocket (conversation history is tracked server-side)
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible' &&
+          (!chatSocket || chatSocket.readyState !== WebSocket.OPEN)) {
         setupWebSocket();
+      }
     });
 
-
-    // ========================================================================
-    // RAG Sources section
-    // ========================================================================
-    
-    function addRAGSourcesSection(messageElement, ragSources) {
-        if (!ragSources || ragSources.length === 0) return;
-        
-        const sourcesSection = document.createElement('div');
-        sourcesSection.className = 'rag-sources-section';
-        
-        const header = document.createElement('div');
-        header.className = 'rag-sources-header';
-        header.innerHTML = `
-            <span class="rag-sources-toggle">▼</span>
-            <span class="rag-sources-title">Sources Used (${ragSources.length} ${ragSources.length === 1 ? 'chunk' : 'chunks'})</span>
-        `;
-        header.style.cursor = 'pointer';
-        header.style.userSelect = 'none';
-        header.style.padding = '12px';
-        header.style.backgroundColor = '#f5f5f5';
-        header.style.borderTop = '1px solid #ddd';
-        header.style.borderRadius = '0 0 8px 8px';
-        header.style.marginTop = '16px';
-        header.style.fontWeight = '500';
-        header.style.color = '#333';
-        header.style.display = 'flex';
-        header.style.alignItems = 'center';
-        header.style.gap = '8px';
-        
-        const content = document.createElement('div');
-        content.className = 'rag-sources-content';
-        content.style.display = 'none';
-        content.style.padding = '16px';
-        content.style.backgroundColor = '#fafafa';
-        content.style.borderTop = '1px solid #e0e0e0';
-        
-        ragSources.forEach((source, index) => {
-            const sourceItem = document.createElement('div');
-            sourceItem.className = 'rag-source-item';
-            sourceItem.style.marginBottom = index < ragSources.length - 1 ? '16px' : '0';
-            sourceItem.style.padding = '12px';
-            sourceItem.style.backgroundColor = '#fff';
-            sourceItem.style.border = '1px solid #e0e0e0';
-            sourceItem.style.borderRadius = '4px';
-            
-            const sourceContent = document.createElement('div');
-            sourceContent.style.whiteSpace = 'pre-wrap';
-            sourceContent.style.fontSize = '0.9em';
-            sourceContent.style.lineHeight = '1.6';
-            sourceContent.style.color = '#333';
-            sourceContent.style.maxHeight = '200px';
-            sourceContent.style.overflowY = 'auto';
-            sourceContent.textContent = source.content || '(No content available)';
-            
-            sourceItem.appendChild(sourceContent);
-            content.appendChild(sourceItem);
-        });
-        
-        let isExpanded = false;
-        header.addEventListener('click', () => {
-            isExpanded = !isExpanded;
-            content.style.display = isExpanded ? 'block' : 'none';
-            const toggle = header.querySelector('.rag-sources-toggle');
-            toggle.textContent = isExpanded ? '▲' : '▼';
-        });
-        
-        sourcesSection.appendChild(header);
-        sourcesSection.appendChild(content);
-        
-        if (messageElement && messageElement.parentNode) {
-            messageElement.parentNode.insertBefore(sourcesSection, messageElement.nextSibling);
-        }
-    }
+    setupWebSocket();
+  });
 </script>
 {% endblock %}
