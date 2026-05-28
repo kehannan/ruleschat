@@ -446,17 +446,26 @@
 // Section 04 below. Keeping it in a single .then() avoids a second round-trip.
 const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2' };
 
-// Design-system palette: one accent per series, no fills.
-const DS_PALETTE = ['#8B2E2E', '#4D5A3E', '#B08B3A', '#3B3833'];
+// Editorial-but-separable palette — 6 distinct hues so adjacent lines on
+// the chart don't blur into each other. Stays in the warm/muted family but
+// pulls in cool blue + plum to break up the red-yellow-green cluster.
+const DS_PALETTE = ['#8B2E2E', '#4D5A3E', '#B08B3A', '#3D5A78', '#6B3D5F', '#3B3833'];
 const MODEL_COLORS = {
-  'gpt-5.4':       DS_PALETTE[0],  // oxblood — frontier
-  'gpt-5.4-mini':  DS_PALETTE[2],  // brass
-  'gpt-5-mini':    DS_PALETTE[1],  // olive — mini baseline
-  'gpt-4.1-mini':  DS_PALETTE[3],  // dark ink — legacy
+  'gpt-5.4':       '#8B2E2E',  // oxblood — frontier
+  'gpt-5-mini':    '#4D5A3E',  // field green
+  'gpt-5.4-mini':  '#B08B3A',  // brass
+  'deepseek-v3':   '#3D5A78',  // slate blue
+  'mercury-2':     '#6B3D5F',  // plum
+  'gpt-4.1-mini':  '#3B3833',  // dark ink — legacy
 };
 function colorFor(model, idx) { return MODEL_COLORS[model] || DS_PALETTE[idx % DS_PALETTE.length]; }
 const IMAGE_DASH = [4, 3];                                  // image variants render dashed
-const CHART_EXCLUDED = new Set(['gpt-4.1-mini', 'gpt-5-mini (image)', 'gpt-5.4-mini']);
+const CHART_EXCLUDED = new Set([
+  'gpt-4.1-mini',
+  'gpt-5-mini (image)',
+  'gpt-5.4 (image)',
+  'gpt-5.4-mini',
+]);
 
 // Shared Chart.js options — muted gridlines, mono tick fonts, no fills, no curve tension.
 const SHARED_OPTS = {
@@ -496,8 +505,8 @@ const SHARED_OPTS = {
     },
   },
   elements: {
-    line: { tension: 0, borderWidth: 1.5 },
-    point: { radius: 2.5, hoverRadius: 4 },
+    line: { tension: 0, borderWidth: 2 },
+    point: { radius: 3, hoverRadius: 5 },
   },
 };
 
