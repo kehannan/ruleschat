@@ -1,8 +1,8 @@
 """
 To Hit / To Kill probability calculator — deterministic, no LLM.
 
-  GET /thtk                 → the calculator UI page
-  GET /api/thtk/compute     → JSON TH/TK result for one ordnance attack
+  GET /thtk             → the calculator UI page
+  GET /api/thtk/flow    → JSON flow-tree resolution for one ordnance attack
 """
 import os
 
@@ -10,7 +10,7 @@ from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from app.asl.thtk import compute, get_options
+from app.asl.thtk import compute_flow, get_options
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -58,26 +58,32 @@ async def thtk_page(request: Request, user=Depends(get_current_user)):
     return templates.TemplateResponse("thtk.html", context)
 
 
-@router.get("/api/thtk/compute", name="thtk_compute")
-async def thtk_compute(
+@router.get("/api/thtk/flow", name="thtk_flow")
+async def thtk_flow(
     target_type: str = Query(..., description="vehicle | infantry | area"),
     range: int = Query(..., ge=0, description="Range to target, in hexes"),
-    weapon_type: str = Query(..., description="* | L | LL (barrel class)"),
+    weapon_type: str = Query(..., description="Normal | * | L | LL (barrel class)"),
     ammo: str = Query(..., description="AP/HE | Smoke | APDS/APCR"),
     mm: int = Query(..., gt=0, description="Weapon size in mm"),
     nationality: str = Query("", description="Firer nationality"),
-    hit_drm: int = Query(0, description="Net Hit Determination DRM; positive is harder"),
+    th_drm: int = Query(0, description="Hit Determination DRM; positive is harder"),
+    tk_drm: int = Query(0, description="To Kill DRM; positive is harder"),
+    hull_armor: int = Query(0, ge=0, description="Target hull Armor Factor"),
+    turret_armor: int = Query(0, ge=0, description="Target turret Armor Factor"),
 ):
-    """Return the TH/TK result for one ordnance attack."""
+    """Return the flow-tree resolution (To Hit branches → per-branch To Kill conds)."""
     try:
-        data = compute(
+        data = compute_flow(
             target_type=target_type,
             rng=range,
             weapon_type=weapon_type,
             ammo=ammo,
             mm=mm,
             nationality=nationality,
-            hit_drm=hit_drm,
+            th_drm=th_drm,
+            tk_drm=tk_drm,
+            hull_af=hull_armor,
+            turret_af=turret_armor,
         )
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)

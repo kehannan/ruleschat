@@ -2,17 +2,28 @@
 To Hit / To Kill (TH/TK) probability engine — deterministic, no LLM.
 
 Ordnance combat, ASL Chapter C. Given a firing Gun (caliber, barrel class, ammo,
-nationality) and a target (type, range), compute:
-  - the To Hit number, the modifiers applied, and the chance to hit;
-  - the To Kill number, the modifiers applied, and the chance to kill.
+nationality) and a target (type, range, armor), `compute_flow` resolves the two
+dependent 2d6 rolls as a flow tree:
 
-Both probabilities come from the 2d6 distribution. A To Hit dr of 2 always hits
-and a dr of 12 always misses, per the rules. Target Armor is NOT subtracted on the
-To Kill side (no armor input) — the raw TK# is reported so the user applies armor
-themselves (each armor point = -1 to the TK#).
+  1) To Hit  — classify all 36 ordered dice combos vs the Final TH# (from the C3
+     table) into Critical / Multiple / Normal hit branches (or Miss).
+  2) To Kill — per branch, the conditional probability of each outcome (Burn/Elim,
+     Immobilized, Shock, Possible Shock) from the gun's To Kill# (C7.31 BASIC TK# +
+     Case D range modifier) minus the struck Aspect's armor, read against C7.7.
 
-All table data lives in `thtk_tables.json` and is a first-pass transcription pending
-human verification — see that file's `_note`.
+A To Hit dr of 2 always hits and 12 always misses. Facing is derived from the dice:
+turret if the colored dr < the white dr, else hull (so doubles always strike hull).
+
+Provisional / v1 simplifications (flagged in the UI):
+  - Critical Hit is fixed to the original DR 2 (real CH triggers on doubles ≤ a
+    gun-specific CH#); it doubles the gun's To Kill# and always strikes the hull.
+  - Multiple Hit (two To Kill DRs, most-severe-of-two) is gated to 15–40mm guns vs
+    Vehicle/Infantry per rule 3.8; for other guns a non-CH doubles hit is a Normal
+    hull hit.
+  - AP To Kill table only; APDS/APCR treated as AP, HEAT/HE not modeled. BASIC TK#
+    numbers still being verified.
+
+All table data lives in `thtk_tables.json`.
 """
 
 import json
@@ -36,68 +47,35 @@ def _load() -> Dict[str, Any]:
 _TWO_DICE: Counter = Counter(a + b for a in range(1, 7) for b in range(1, 7))
 
 
-def prob_le(n: int) -> float:
-    """P(2d6 <= n), plain cumulative. 0.0 below 2, 1.0 at/above 12."""
-    return sum(c for s, c in _TWO_DICE.items() if s <= n) / 36
+def _round(p: float) -> float:
+    return round(p, 4)
 
 
-def prob_hit(th: int) -> float:
-    """
-    Chance a 2d6 To Hit dr succeeds against a To Hit number `th`.
-
-    ASL: an original dr of 2 always hits, a dr of 12 always misses, regardless of
-    the modified TH#. So a TH# >= 12 still misses on boxcars (35/36) and a TH# <= 1
-    still hits on snake eyes (1/36).
-    """
-    count = sum(c for s, c in _TWO_DICE.items() if s == 2 or (s <= th and s != 12))
-    return count / 36
-
-
-def _range_bracket_index(rng: int) -> int:
-    brackets = _load()["range_brackets"]
+def _bracket_index(rng: int, brackets: List[Dict[str, Any]]) -> int:
     for i, b in enumerate(brackets):
         if rng <= b["max"]:
             return i
     return len(brackets) - 1
 
 
-def _caliber_row(mm: int) -> str:
-    """Largest To Kill caliber row <= mm (clamped to the smallest row)."""
-    rows: List[int] = _load()["to_kill"]["caliber_rows"]
-    chosen = rows[0]
-    for r in rows:
-        if mm >= r:
-            chosen = r
-    return str(chosen)
+_WEAPON_SUFFIX = {"Normal": "", "*": "*", "L": "L", "LL": "LL"}
 
 
-def _round(p: float) -> float:
-    return round(p, 4)
+def _gun_size_key(mm: int, weapon_type: str) -> str:
+    """The To Kill gun-size string, e.g. (37, 'L') -> '37L', (75, 'Normal') -> '75'."""
+    return f"{mm}{_WEAPON_SUFFIX.get(weapon_type, '')}"
 
 
-def compute_to_hit(
-    target_type: str,
-    rng: int,
-    weapon_type: str,
-    ammo: str,
-    mm: int,
-    nationality: str = "",
-    hit_drm: int = 0,
-) -> Dict[str, Any]:
-    """
-    To Hit number, itemized modifiers, and hit probability.
+def _case_d_bucket(tk: Dict[str, Any], mm: int) -> str:
+    """Map mm to a Case D row key (le25 / mid / ge65)."""
+    if mm <= tk["case_d"]["le25"]["max_mm"]:
+        return "le25"
+    if mm <= tk["case_d"]["mid"]["max_mm"]:
+        return "mid"
+    return "ge65"
 
-    Basic TH# (C3) depends on target type, range band, and nationality (German
-    optics use the higher column). C4 modifications are added to the basic number
-    (positive = easier): the weapon barrel class, the ammo, and the small-gun size
-    mods (<=57mm and <=40mm STACK). The Hit Determination DRM is a die modifier
-    (positive = harder) and is subtracted. So:
 
-        Final TH# = basic + weapon + ammo + size mods - hit_drm
-    """
-    t = _load()
-    th = t["to_hit"]
-
+def _validate(t, target_type, weapon_type, ammo, nationality, rng, mm):
     if target_type not in t["target_types"]:
         raise ValueError(f"Invalid target_type {target_type!r}. One of {t['target_types']}.")
     if weapon_type not in t["weapon_types"]:
@@ -111,122 +89,220 @@ def compute_to_hit(
     if mm <= 0:
         raise ValueError(f"Invalid weapon size {mm!r}mm. Must be > 0.")
 
-    bi = _range_bracket_index(rng)
+
+def final_to_hit(target_type, rng, weapon_type, ammo, mm, nationality="", th_drm=0):
+    """
+    Final To Hit number from the C3 TO HIT TABLE + C4 modifications.
+
+    Basic TH# depends on target type, range band, and nationality (German optics use
+    the higher column). C4 modifications add to the basic number (positive = easier):
+    barrel class, ammo, and small-gun size mods (≤57mm and ≤40mm STACK). The Hit
+    Determination DRM is a die modifier (positive = harder), subtracted. Returns
+    (final_th, basic, modifiers).
+    """
+    t = _load()
+    th = t["to_hit"]
+    bi = _bracket_index(rng, t["range_brackets"])
     bracket = t["range_brackets"][bi]
 
     nat_class = "German" if nationality == th["german_nationality"] else "Other"
     basic = th["basic"][target_type][nat_class][bi]
 
     mods = th["mods"]
-    # Each entry is a signed contribution to the To Hit number.
     modifiers = [{"label": f"{weapon_type} weapon", "drm": mods["weapon_type"][weapon_type][bi]}]
-
     ammo_val = mods["ammo"][ammo][bi]
     if ammo != "AP/HE" or ammo_val != 0:
         modifiers.append({"label": f"{ammo} ammo", "drm": ammo_val})
-
     for spec in (mods["size"]["le57"], mods["size"]["le40"]):
         if mm <= spec["max_mm"]:
             modifiers.append({"label": f"≤{spec['max_mm']}mm gun", "drm": spec["drm"][bi]})
-
-    if hit_drm:
-        modifiers.append({"label": "Hit determination DRM", "drm": -hit_drm})
+    if th_drm:
+        modifiers.append({"label": "Hit determination DRM", "drm": -th_drm})
 
     final_th = basic + sum(m["drm"] for m in modifiers)
-
-    return {
-        "target_type": target_type,
-        "nationality": nationality,
-        "nationality_class": nat_class,
-        "range": rng,
-        "range_bracket": bracket["label"],
-        "weapon_type": weapon_type,
-        "ammo": ammo,
-        "mm": mm,
-        "basic_th": basic,
-        "modifiers": modifiers,
-        "final_th": final_th,
-        "hit_prob": _round(prob_hit(final_th)),
-    }
+    return final_th, basic, modifiers
 
 
-def compute_to_kill(
-    mm: int,
-    rng: int,
-    ammo: str,
-) -> Dict[str, Any]:
+def gun_to_kill(mm, rng, ammo, weapon_type, nationality=""):
     """
-    To Kill number, itemized modifiers, and kill probability.
+    The gun's To Kill# (C7.31 BASIC TK# + Case D range modifier), before armor.
 
-    Final TK# = base_tk[caliber_row][range_bracket] + ammo modifier. Smoke cannot
-    kill. Target Armor is not subtracted (no armor input) — the raw TK# is returned.
+    basic_tk is an int (all nationalities) or a per-country object with an optional
+    "default"; the firer's nationality is checked first, then "default". Returns a
+    dict: {can_kill, gun_tk, gun_label, note}. Smoke / gun-not-in-table / out-of-range
+    return can_kill=False with a note and gun_tk=None.
     """
     t = _load()
     tk = t["to_kill"]
+    bi = _bracket_index(rng, tk["range_brackets"])
+    gun_size = _gun_size_key(mm, weapon_type)
 
-    if ammo not in t["ammo_types"]:
-        raise ValueError(f"Invalid ammo {ammo!r}. One of {t['ammo_types']}.")
-    if mm <= 0:
-        raise ValueError(f"Invalid weapon size {mm!r}mm. Must be > 0.")
-    if rng < 0:
-        raise ValueError(f"Invalid range {rng!r}. Must be >= 0.")
+    def no(note, label=None):
+        return {"can_kill": False, "gun_tk": None, "gun_label": label or gun_size, "note": note}
 
-    bi = _range_bracket_index(rng)
-    bracket = t["range_brackets"][bi]
-    row = _caliber_row(mm)
-    base_tk = tk["tk"][row][bi]
+    if ammo == "Smoke":
+        return no("Smoke cannot kill")
 
-    ammo_mod_table = tk["ammo_mod"].get(ammo)
-    if ammo_mod_table is None:
-        # Smoke (or any null row) cannot kill.
-        return {
-            "mm": mm,
-            "caliber_row": int(row),
-            "range": rng,
-            "range_bracket": bracket["label"],
-            "ammo": ammo,
-            "can_kill": False,
-            "base_tk": base_tk,
-            "modifiers": [],
-            "final_tk": None,
-            "kill_prob": 0.0,
-        }
+    entry = tk["basic_tk"].get(gun_size)
+    if entry is None:
+        return no(f"Gun size {gun_size!r} is not in the AP To Kill table")
 
-    ammo_mod = ammo_mod_table[bi]
-    modifiers = [{"label": f"{ammo} ammo", "drm": ammo_mod}]
-    final_tk = base_tk + ammo_mod
+    if isinstance(entry, dict):
+        if nationality in entry:
+            base_tk, variant = entry[nationality], nationality
+        elif "default" in entry:
+            base_tk, variant = entry["default"], "all others"
+        else:
+            return no(f"Gun size {gun_size!r} is not available to {nationality or 'this nationality'}")
+    else:
+        base_tk, variant = entry, None
+    gun_label = f"{gun_size} ({variant})" if variant else gun_size
 
-    return {
-        "mm": mm,
-        "caliber_row": int(row),
-        "range": rng,
-        "range_bracket": bracket["label"],
-        "ammo": ammo,
-        "can_kill": True,
-        "base_tk": base_tk,
-        "modifiers": modifiers,
-        "final_tk": final_tk,
-        "kill_prob": _round(prob_le(final_tk)),
-    }
+    bucket = _case_d_bucket(tk, mm)
+    case_d_mod = tk["case_d"][bucket]["drm"][bi]
+    bucket_label = {"le25": "≤25mm", "mid": "37-57mm", "ge65": "≥65mm"}[bucket]
+    if case_d_mod is None:
+        return no(f"NA — out of To Kill range for a {bucket_label} gun", gun_label)
+
+    return {"can_kill": True, "gun_tk": base_tk + case_d_mod, "gun_label": gun_label, "note": None}
 
 
-def compute(
+def _kill_dist(ftk: int, tk_drm: int) -> Dict[str, float]:
+    """
+    C7.7 outcome category probabilities for a single To Kill DR vs a Final TK#.
+    eff = 2d6 + tk_drm:
+        eff ≤ ftk-1 → burn_elim   (Burning wreck + Eliminated, lumped)
+        eff == ftk  → mid          (Immobilized on hull / Shock on turret)
+        eff == ftk+1 → pshock      (Possible Shock)
+        eff ≥ ftk+2 → none
+    """
+    cat = {"burn_elim": 0, "mid": 0, "pshock": 0, "none": 0}
+    for s, c in _TWO_DICE.items():
+        eff = s + tk_drm
+        if eff <= ftk - 1:
+            cat["burn_elim"] += c
+        elif eff == ftk:
+            cat["mid"] += c
+        elif eff == ftk + 1:
+            cat["pshock"] += c
+        else:
+            cat["none"] += c
+    return {k: v / 36 for k, v in cat.items()}
+
+
+def _best_of_2(d: Dict[str, float]) -> Dict[str, float]:
+    """Most-severe-of-two outcomes (severity burn_elim > mid > pshock > none)."""
+    pE, pM, pP, pN = d["burn_elim"], d["mid"], d["pshock"], d["none"]
+    best_e = 1 - (1 - pE) ** 2
+    best_m = 1 - (1 - pE - pM) ** 2 - best_e
+    best_p = 1 - (1 - pE - pM - pP) ** 2 - best_e - best_m
+    return {"burn_elim": best_e, "mid": max(0.0, best_m), "pshock": max(0.0, best_p), "none": pN ** 2}
+
+
+OUTCOME_KEYS = ["burn_elim", "imob", "shock", "pshock"]
+_BRANCH_LABELS = {"critical": "Critical Hit", "multiple": "Multiple Hit", "normal": "Normal Hit"}
+
+
+def compute_flow(
     target_type: str,
     rng: int,
     weapon_type: str,
     ammo: str,
     mm: int,
     nationality: str = "",
-    hit_drm: int = 0,
+    th_drm: int = 0,
+    tk_drm: int = 0,
+    hull_af: int = 0,
+    turret_af: int = 0,
 ) -> Dict[str, Any]:
-    """Full TH + TK result for one ordnance attack."""
+    """Flow-tree resolution: To Hit branches → per-branch To Kill outcome conditionals."""
     t = _load()
-    if nationality and nationality not in t["nationalities"]:
-        raise ValueError(f"Invalid nationality {nationality!r}. One of {t['nationalities']}.")
+    _validate(t, target_type, weapon_type, ammo, nationality, rng, mm)
+    th_drm = max(-8, min(8, th_drm))
+    tk_drm = max(-8, min(8, tk_drm))
+
+    final_th, basic_th, th_mods = final_to_hit(target_type, rng, weapon_type, ammo, mm, nationality, th_drm)
+    g = gun_to_kill(mm, rng, ammo, weapon_type, nationality)
+    can_kill = g["can_kill"]
+    gun_tk = g["gun_tk"]
+
+    # Multiple Hits (rule 3.8) only for 15–40mm guns vs Vehicle/Infantry.
+    is_mult_gun = (15 <= mm <= 40) and target_type != "area"
+
+    ftk_hull = ftk_turret = ftk_crit = None
+    if can_kill:
+        ftk_hull = gun_tk - hull_af
+        ftk_turret = gun_tk - turret_af
+        ftk_crit = 2 * gun_tk - hull_af  # Critical doubles the gun's TK#, hull only
+
+    # Classify the 36 ordered combos. Facing: turret if d1 < d2, else hull.
+    combos = {"critical": [], "multiple": [], "normal": []}
+    miss = 0
+    for d1 in range(1, 7):
+        for d2 in range(1, 7):
+            s = d1 + d2
+            if not (s == 2 or (s <= final_th and s != 12)):
+                miss += 1
+                continue
+            facing = "turret" if d1 < d2 else "hull"
+            combo = {"d1": d1, "d2": d2, "facing": facing}
+            if d1 == d2 and s == 2:
+                combos["critical"].append(combo)
+            elif d1 == d2 and is_mult_gun:
+                combos["multiple"].append(combo)
+            else:
+                combos["normal"].append(combo)
+
+    def cond_for(key: str, br_combos: List[Dict[str, Any]]) -> Dict[str, float]:
+        res = {k: 0.0 for k in OUTCOME_KEYS}
+        n = len(br_combos)
+        if not can_kill or n == 0:
+            return res
+        if key == "critical":
+            k = _kill_dist(ftk_crit, tk_drm)
+            res.update(burn_elim=k["burn_elim"], imob=k["mid"], shock=0.0, pshock=k["pshock"])
+        elif key == "multiple":
+            k = _best_of_2(_kill_dist(ftk_hull, tk_drm))
+            res.update(burn_elim=k["burn_elim"], imob=k["mid"], shock=0.0, pshock=k["pshock"])
+        else:  # normal — blend hull / turret combos
+            n_hull = sum(1 for c in br_combos if c["facing"] == "hull")
+            n_tur = n - n_hull
+            kh = _kill_dist(ftk_hull, tk_drm)
+            kt = _kill_dist(ftk_turret, tk_drm)
+            res["burn_elim"] = (n_hull * kh["burn_elim"] + n_tur * kt["burn_elim"]) / n
+            res["imob"] = (n_hull * kh["mid"]) / n
+            res["shock"] = (n_tur * kt["mid"]) / n
+            res["pshock"] = (n_hull * kh["pshock"] + n_tur * kt["pshock"]) / n
+        return {k: _round(v) for k, v in res.items()}
+
+    order = ["critical"] + (["multiple"] if is_mult_gun else []) + ["normal"]
+    branches = [{
+        "key": key,
+        "label": _BRANCH_LABELS[key],
+        "count": len(combos[key]),
+        "p": _round(len(combos[key]) / 36),
+        "combos": combos[key],
+        "cond": cond_for(key, combos[key]),
+    } for key in order]
+
     return {
+        "target_type": target_type,
         "nationality": nationality,
-        "to_hit": compute_to_hit(target_type, rng, weapon_type, ammo, mm, nationality, hit_drm),
-        "to_kill": compute_to_kill(mm, rng, ammo),
+        "weapon_type": weapon_type,
+        "ammo": ammo,
+        "mm": mm,
+        "range": rng,
+        "th_drm": th_drm,
+        "tk_drm": tk_drm,
+        "final_th": final_th,
+        "can_kill": can_kill,
+        "gun_tk": gun_tk,
+        "gun_label": g["gun_label"],
+        "note": g["note"],
+        "is_mult_gun": is_mult_gun,
+        "ftk": {"hull": ftk_hull, "turret": ftk_turret, "crit": ftk_crit},
+        "miss_p": _round(miss / 36),
+        "branches": branches,
     }
 
 
