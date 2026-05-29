@@ -55,16 +55,15 @@ def _sniper_probabilities(san: int) -> Dict[str, Any]:
 
     A sniper check triggers when the original (unmodified) 2d6 total equals
     the enemy SAN; a separate 1d6 then resolves it — 1 = big sniper,
-    2 = little sniper. So each is P(2d6 = SAN) × 1/6, independent of the
-    IFT FP / DRM / cowering.
+    2 = little sniper. So a sniper (big OR little) fires with probability
+    P(2d6 = SAN) × 2/6, independent of the IFT FP / DRM / cowering.
     """
     san_count = sum(1 for d1 in range(1, 7) for d2 in range(1, 7) if d1 + d2 == san)
     p_trigger = san_count / 36
     return {
         "san": san,
         "p_trigger": round(p_trigger, 4),
-        "p_big": round(p_trigger / 6, 4),
-        "p_little": round(p_trigger / 6, 4),
+        "p_sniper": round(p_trigger * 2 / 6, 4),
     }
 
 

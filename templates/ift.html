@@ -182,11 +182,6 @@
     {% include "_tools_subnav.html" %}
     <div class="eyebrow"><span class="dot"></span><span>Deterministic tool · no AI</span></div>
     <h1>Infantry Fire Table <em>probabilities</em>.</h1>
-    <p class="lede">
-      Pick an FP column, a DRM, a cowering mode, and the enemy SAN. The outcome
-      probabilities are computed exactly over all 36 two-die combinations — no
-      model calls.
-    </p>
 
     <div class="ift-form">
       <div class="field">
@@ -405,8 +400,7 @@
     // Cumulative summary buckets + sniper odds
     const cells = summarize(data.distribution);
     if (data.sniper) {
-      cells.push({ label: 'Big sniper', p: data.sniper.p_big });
-      cells.push({ label: 'Little sniper', p: data.sniper.p_little });
+      cells.push({ label: 'Sniper', p: data.sniper.p_sniper });
     }
     $summary.innerHTML = cells.map(c => `
       <div class="summary-cell">

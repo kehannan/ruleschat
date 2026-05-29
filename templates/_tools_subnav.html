@@ -1,22 +1,30 @@
 <style>
+  /* Block-level (flex) so it sits on its own line above the eyebrow, rather than
+     flowing inline next to the inline-flex .eyebrow. */
   .site .tools-subnav {
-    display: inline-flex; gap: 4px; margin-bottom: 28px;
-    border: 1px solid var(--hair); border-radius: 3px; padding: 3px;
-    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 30px;
   }
+  .site .tools-subnav .ts-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  }
+  .site .tools-subnav .ts-links { display: flex; align-items: baseline; gap: 12px; }
+  .site .tools-subnav .ts-sep { color: var(--hair); font-family: var(--mono); font-size: 12px; }
   .site .tools-subnav a {
     font-family: var(--mono); font-size: 12px; letter-spacing: .06em;
-    text-transform: uppercase; text-decoration: none;
-    color: var(--muted); padding: 7px 16px; border-radius: 2px;
-    transition: color .15s, background .15s;
+    text-transform: uppercase; text-decoration: none; color: var(--muted);
+    padding-bottom: 3px; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
   }
   .site .tools-subnav a:hover { color: var(--ink); }
-  .site .tools-subnav a.active {
-    color: var(--ink); background: color-mix(in oklch, var(--accent) 12%, var(--paper));
-    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 40%, transparent);
-  }
+  .site .tools-subnav a.active { color: var(--ink); border-bottom-color: var(--accent); }
 </style>
 <nav class="tools-subnav">
-  <a href="{{ url_for('ift') }}" {% if active_page == 'ift' %}class="active"{% endif %}>IFT</a>
-  <a href="{{ url_for('thtk') }}" {% if active_page == 'thtk' %}class="active"{% endif %}>TH / TK</a>
+  <span class="ts-label">Tools</span>
+  <span class="ts-links">
+    <a href="{{ url_for('ift') }}" {% if active_page == 'ift' %}class="active"{% endif %}>IFT</a>
+    <span class="ts-sep">·</span>
+    <a href="{{ url_for('thtk') }}" {% if active_page == 'thtk' %}class="active"{% endif %}>TH / TK</a>
+  </span>
 </nav>
