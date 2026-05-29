@@ -446,16 +446,17 @@
 // Section 04 below. Keeping it in a single .then() avoids a second round-trip.
 const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2' };
 
-// Editorial-but-separable palette — 6 distinct hues so adjacent lines on
-// the chart don't blur into each other. Stays in the warm/muted family but
-// pulls in cool blue + plum to break up the red-yellow-green cluster.
-const DS_PALETTE = ['#8B2E2E', '#4D5A3E', '#B08B3A', '#3D5A78', '#6B3D5F', '#3B3833'];
+// Six maximally-separable hues spread around the wheel (red / green / gold /
+// blue / violet / ink). The previous muted palette put mercury-2 (plum) right
+// next to gpt-5.4 (oxblood); mercury-2 is now a clear violet and deepseek a
+// clear blue so no two lines read alike.
+const DS_PALETTE = ['#8B2E2E', '#3E7D44', '#D2A02A', '#2F6FB2', '#8A3FA6', '#3B3833'];
 const MODEL_COLORS = {
   'gpt-5.4':       '#8B2E2E',  // oxblood — frontier
-  'gpt-5-mini':    '#4D5A3E',  // field green
-  'gpt-5.4-mini':  '#B08B3A',  // brass
-  'deepseek-v3':   '#3D5A78',  // slate blue
-  'mercury-2':     '#6B3D5F',  // plum
+  'gpt-5-mini':    '#3E7D44',  // green
+  'gpt-5.4-mini':  '#D2A02A',  // gold
+  'deepseek-v3':   '#2F6FB2',  // blue
+  'mercury-2':     '#8A3FA6',  // violet
   'gpt-4.1-mini':  '#3B3833',  // dark ink — legacy
 };
 function colorFor(model, idx) { return MODEL_COLORS[model] || DS_PALETTE[idx % DS_PALETTE.length]; }
