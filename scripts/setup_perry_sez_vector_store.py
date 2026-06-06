@@ -272,7 +272,7 @@ def main() -> None:
 
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    pdf_path = (project_root.parent / "mysite2-evals-sft" / "rulebook" / "Perry-Sez-v34.pdf").resolve()
+    pdf_path = (project_root.parent / "ruleschat-evals" / "rulebook" / "Perry-Sez-v34.pdf").resolve()
 
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")

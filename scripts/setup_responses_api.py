@@ -766,7 +766,7 @@ def main():
     # PDF file path - now in the evals-sft repository
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    pdf_path = project_root.parent / "mysite2-evals-sft" / "rulebook" / "eASLRB_v3_14_INHERIT_ZOOM.pdf"
+    pdf_path = project_root.parent / "ruleschat-evals" / "rulebook" / "eASLRB_v3_14_INHERIT_ZOOM.pdf"
     pdf_path = str(pdf_path.resolve())
     
     # Preview mode - quick look at first few pages

@@ -42,7 +42,7 @@ RAG_MAX_CHUNKS=20
 
 The setup script expects the rulebook here:
 ```
-../mysite2-evals-sft/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf
+../ruleschat-evals/rulebook/eASLRB_v2.12-INHERIT_ZOOM_unlocked.pdf
 ```
 
 Adjust the path in `scripts/setup_responses_api.py` if needed.

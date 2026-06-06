@@ -138,7 +138,7 @@ Eval results are stored in `data/evals/` as JSON. The evals page (`/evals`) read
 
 ## Related
 
-- [mysite2-evals-sft](https://github.com/kehannan/mysite2-evals-sft) — evaluation datasets and fine-tuning data
+- [ruleschat-evals](https://github.com/kehannan/ruleschat-evals) — evaluation datasets and fine-tuning data
 
 ## License
 

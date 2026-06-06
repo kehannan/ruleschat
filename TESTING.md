@@ -102,12 +102,12 @@ SELECT email FROM users;
 
 ## Evaluations
 
-Run evals from the `mysite2-evals-sft` repo:
+Run evals from the `ruleschat-evals` repo:
 
 ```bash
-cd ../mysite2-evals-sft
-conda activate mysite2-evals-sft-env
+cd ../ruleschat-evals
+conda activate ruleschat-evals-env
 python evals/src/scripts/asl_evals.py --model gpt-5-mini --file asl-evals-section-a-closed.jsonl
 ```
 
-See `mysite2-evals-sft/evals/EVAL_CREATION_GUIDE.md` for eval details.
+See `ruleschat-evals/evals/EVAL_CREATION_GUIDE.md` for eval details.
