@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% set active_page = 'privacy' %}
+
+{% block title %}Privacy Policy — ASL Ruleschat{% endblock %}
+
+{% block extra_css %}
+<style>
+  .site .privacy-wrap { flex: 1; padding: 56px 0 80px; }
+  .site .privacy-col {
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+  .site .privacy-col h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(30px, 3.4vw, 42px);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .site .privacy-col h1 em { font-style: italic; color: var(--accent); }
+  .site .privacy-col h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 22px;
+    margin: 36px 0 10px;
+  }
+  .site .privacy-col .lede {
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    margin: 0 0 28px;
+    text-wrap: pretty;
+  }
+  .site .privacy-col p,
+  .site .privacy-col li {
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+  .site .privacy-col p { margin: 0 0 14px; }
+  .site .privacy-col ul { padding-left: 22px; margin: 0 0 14px; }
+  .site .privacy-col .meta {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 32px 0 0;
+  }
+  .site { min-height: 100vh; display: flex; flex-direction: column; }
+
+  @media (max-width: 620px) {
+    .site .privacy-col { padding: 0 20px; }
+  }
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="privacy-wrap">
+  <div class="privacy-col">
+    <div class="eyebrow"><span class="dot"></span><span>Legal</span></div>
+    <h1>Privacy <em>Policy</em>.</h1>
+    <p class="lede">
+      Ruleschat is a small personal project. This page explains, in plain language,
+      what you should know about the data you enter on the site.
+    </p>
+
+    <h2>Don't enter personal information</h2>
+    <p>
+      Ruleschat is designed for asking questions about Advanced Squad Leader rules.
+      Please do not enter personally identifiable information (PII) — your own or
+      anyone else's — into chat messages, image uploads, or feedback. That includes
+      names, addresses, phone numbers, government IDs, financial details, health
+      information, login credentials, or anything else you would not want stored
+      and reviewed.
+    </p>
+    <p>
+      If you do enter such information, you do so at your own risk. Ruleschat and
+      its operator are not responsible for any consequences of personal data you
+      choose to submit.
+    </p>
+
+    <h2>How your data may be used</h2>
+    <p>
+      Messages, uploaded images, ratings, and feedback you submit on Ruleschat may
+      be reviewed and reused to improve the service and the models that power it.
+      That includes, without limitation:
+    </p>
+    <ul>
+      <li>analyzing questions and answers to find weaknesses in retrieval or generation;</li>
+      <li>building evaluation sets and fine-tuning datasets;</li>
+      <li>tuning prompts, tools, and rule references;</li>
+      <li>diagnosing bugs and abuse.</li>
+    </ul>
+    <p>
+      By using the site you grant Ruleschat the right to retain and use the
+      content you submit for these purposes.
+    </p>
+
+    <h2>Third-party model providers</h2>
+    <p>
+      Your messages and any attached images are sent to third-party AI providers
+      (currently OpenAI and OpenRouter) to generate responses. Their handling of
+      that content is governed by their own terms and privacy policies.
+    </p>
+
+    <h2>Accounts and cookies</h2>
+    <p>
+      If you create an account, your email address and a hashed password are
+      stored so you can log in. A session cookie keeps you signed in. The site
+      does not run third-party advertising or tracking.
+    </p>
+
+    <h2>Changes</h2>
+    <p>
+      This policy may change as the project evolves. Continued use of the site
+      after changes are posted means you accept the updated policy.
+    </p>
+
+    <p class="meta">Last updated: June 5, 2026</p>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="legal">
+      Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
+      Personal, non-commercial project — no affiliation.
+    </div>
+  </div>
+</footer>
+{% endblock %}

@@ -171,6 +171,15 @@ async def submit_feedback(
     return {"status": "ok"}
 
 
+@app.get("/privacy", name="privacy")
+async def privacy_page(request: Request):
+    """Display privacy policy."""
+    from app.api.chat import get_base_context, get_current_user_from_request
+    user = get_current_user_from_request(request)
+    context = get_base_context(request, user)
+    return templates.TemplateResponse("privacy.html", context)
+
+
 # Registration routes
 @app.get("/register", name="register")
 async def register_page(request: Request, code: str = None):
