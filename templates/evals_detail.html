@@ -338,9 +338,9 @@
     <div class="inner">
       <span class="lbl">FILTER</span>
       <button class="filter-pill active" data-filter="all">All ({{ total }})</button>
-      <button class="filter-pill" data-filter="pass">Pass ({{ correct }})</button>
-      <button class="filter-pill" data-filter="review">Review ({{ partial }})</button>
-      <button class="filter-pill" data-filter="fail">Fail ({{ incorrect }})</button>
+      <button class="filter-pill" data-filter="pass">Correct ({{ correct }})</button>
+      <button class="filter-pill" data-filter="review">Partial ({{ partial }})</button>
+      <button class="filter-pill" data-filter="fail">Incorrect ({{ incorrect }})</button>
       <button class="filter-pill" data-filter="override">Override ({{ override_count }})</button>
       <span class="sort-control">
         SORT
@@ -360,8 +360,8 @@
     <div id="item-list">
       {% for result in results %}
         {% set status = 'review' %}
-        {% if result.evaluation and '✅' in result.evaluation %}{% set status = 'pass' %}
-        {% elif result.evaluation and '❌' in result.evaluation %}{% set status = 'fail' %}
+        {% if result.judgment == 'correct' %}{% set status = 'pass' %}
+        {% elif result.judgment == 'incorrect' %}{% set status = 'fail' %}
         {% endif %}
         {% set verdict = (result.judgment|capitalize) if result.judgment else (result.evaluation or '—') %}
         {% set conf = result.confidence or 0 %}
