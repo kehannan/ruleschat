@@ -2,7 +2,7 @@
 
 A personal experiment: can a RAG-based AI reliably answer rules questions for a tabletop wargame with a 1M+ token rulebook?
 
-This is a FastAPI web application that lets players ask Advanced Squad Leader (ASL) rules questions and get answers with cited rule section numbers. Built on OpenAI's **Responses API** with native RAG via `file_search`. Accuracy varies — results are mixed and improving.
+It's a FastAPI web application that lets players ask Advanced Squad Leader (ASL) rules questions and get answers with cited rule section numbers, built on OpenAI's **Responses API** with native RAG via `file_search`. Accuracy varies — results are mixed and improving.
 
 > **Personal use only.** The ASL rulebook is copyrighted material (Avalon Hill / Multi-Man Publishing). This project does not distribute the rulebook and is not affiliated with or endorsed by the publishers.
 
@@ -84,7 +84,7 @@ Required variables:
 
 | Variable | Description |
 |---|---|
-| `SECRET_KEY` | JWT signing key (generate with `python scripts/generate_key.py`) |
+| `SECRET_KEY` | JWT signing key (generate with `python -c "import secrets; print(secrets.token_hex(32))"`) |
 | `OPENAI_API_KEY` | OpenAI API key |
 | `OPENAI_ORG_ID` | OpenAI organization ID |
 | `OPENAI_PROJECT_ID` | OpenAI project ID |

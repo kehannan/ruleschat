@@ -1,19 +1,31 @@
+"""Generate a new API key for a user and store it on their account."""
+import os
 import secrets
-import string
-import sqlite3
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Generate a secure random API key
-alphabet = string.ascii_letters + string.digits
-api_key = ''.join(secrets.choice(alphabet) for _ in range(32))
+from app.models import User
+from app.database import SessionLocal
 
-# Connect to the database
-conn = sqlite3.connect('test.db')
-cursor = conn.cursor()
+USER_EMAIL = os.environ.get("USER_EMAIL") or input("User email: ")
 
-# Get the first user (or specify username if you know it)
-cursor.execute("UPDATE users SET api_key = ? WHERE id = 1", (api_key,))
-conn.commit()
-conn.close()
+# URL-safe token; ~43 chars of entropy
+api_key = secrets.token_urlsafe(32)
 
-print(f"Generated API key: {api_key}")
-print("The key has been saved to the database.")
+db = SessionLocal()
+try:
+    user = db.query(User).filter(User.email == USER_EMAIL).first()
+
+    if user:
+        user.api_key = api_key
+        db.commit()
+        print(f"✅ Generated API key for '{USER_EMAIL}': {api_key}")
+    else:
+        print(f"❌ User '{USER_EMAIL}' not found. Run scripts/init_db.py first.")
+
+except Exception as e:
+    print(f"❌ Error generating API key: {e}")
+    db.rollback()
+finally:
+    db.close()
