@@ -76,7 +76,8 @@ class OpenAIResponsesClient:
         input: str,
         instructions: str,
         temperature: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
+        previous_response_id: Optional[str] = None
     ):
         """
         Stream a Responses API response and allow access to the final accumulated response.
@@ -85,6 +86,11 @@ class OpenAIResponsesClient:
             with client.stream_response(...) as stream:
                 for event in stream: ...
                 final = stream.get_final_response()
+
+        Args:
+            previous_response_id: Optional ID of a previous response for multi-turn
+                continuation (e.g. submitting function_call_output items). When set,
+                `input` may be the list of function outputs rather than a question.
 
         Returns:
             ResponseStreamManager context manager
@@ -101,6 +107,8 @@ class OpenAIResponsesClient:
         }
         if temperature is not None:
             kwargs["temperature"] = temperature
+        if previous_response_id:
+            kwargs["previous_response_id"] = previous_response_id
 
         return self.client.responses.stream(**kwargs)
 
