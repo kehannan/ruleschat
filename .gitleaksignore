@@ -1,0 +1,6 @@
+# Known false positives (placeholder strings, not real secrets).
+# Format: gitleaks fingerprints (commit:file:rule:line).
+0d5a39214527da4f2d1dd27f703b06424eee6e04:data/evals/eval_20260306_093522.json:generic-api-key:1934
+90686889a0cc59f310b853677107a2dd1be4b8a5:data/evals/eval_20260306_093522.json:generic-api-key:1916
+c754c155d0f259b1f1edb91010ef8a3df3607cc5:mcp_service/README.md:curl-auth-header:109
+c754c155d0f259b1f1edb91010ef8a3df3607cc5:mcp_service/README.md:curl-auth-header:118
