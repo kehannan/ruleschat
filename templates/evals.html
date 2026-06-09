@@ -410,7 +410,7 @@
       </div>
       <div class="ev-body">
         <h2 class="h-section">Cost and latency,<br /><em>in flight</em>.</h2>
-        <p class="table-caption">Daily averages from live chat · text-only baselines, image variants dashed</p>
+        <p class="table-caption">Daily averages from live chat · text-only baselines, image variants dashed, agentic (tool-using) variants dotted</p>
         <div class="chart-card">
           <div class="chart-block">
             <div class="chart-title">Cost / question ($)</div>
@@ -461,6 +461,7 @@ const MODEL_COLORS = {
 };
 function colorFor(model, idx) { return MODEL_COLORS[model] || DS_PALETTE[idx % DS_PALETTE.length]; }
 const IMAGE_DASH = [4, 3];                                  // image variants render dashed
+const AGENTIC_DASH = [2, 2];                                // agentic variants render dotted
 const CHART_EXCLUDED = new Set([
   'gpt-4.1-mini',
   'gpt-5-mini (image)',
@@ -516,10 +517,11 @@ fetch('/api/usage/daily')
   .then(data => {
     if (!data.models || data.models.length === 0) return;
 
-    // (a) Table cells.
+    // (a) Table cells. Agentic + image variants are split into their own
+    // chart series; the table row reflects baseline (text, non-agentic) cost.
     data.models.forEach(variant => {
       const s = data.series[variant];
-      if (s.is_image) return;
+      if (s.is_image || s.is_agentic) return;
       const id = MODEL_ID_MAP[s.base_model];
       if (!id) return;
       let totalCost = 0, costCount = 0, totalTime = 0, timeCount = 0;
@@ -551,7 +553,7 @@ fetch('/api/usage/daily')
           data: s.dates.map((d, j) => ({ x: d, y: extractFn(s, j) })),
           borderColor: color,
           backgroundColor: color,
-          borderDash: s.is_image ? IMAGE_DASH : [],
+          borderDash: s.is_image ? IMAGE_DASH : (s.is_agentic ? AGENTIC_DASH : []),
           spanGaps: false,
           fill: false,
         });

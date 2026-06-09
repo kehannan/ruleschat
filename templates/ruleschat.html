@@ -226,6 +226,10 @@
       <option value="gpt-5.4">gpt-5.4 · ¢¢¢/fast</option>
       <option value="deepseek-v3">deepseek-v3 · ¢</option>
     </select>
+    <label id="tools-toggle-label" class="tools-toggle" title="Let the assistant call the IFT and TH/TK calculators when relevant"
+           style="display:none;align-items:center;gap:.4em;margin-left:.6em;color:var(--muted);font-size:.85em;cursor:pointer;user-select:none;">
+      <input type="checkbox" id="agentic-toggle" style="cursor:pointer;margin:0;"> Tools
+    </label>
   </div>
 </div>
 {% endblock %}
@@ -530,7 +534,8 @@
     if (typeof clearPendingImages === 'function') clearPendingImages();
 
     const model = document.getElementById('model-selector').value;
-    const payload = { type: 'chat', text: message, model: model };
+    const agentic = document.getElementById('agentic-toggle')?.checked || false;
+    const payload = { type: 'chat', text: message, model: model, agentic: agentic };
     if (attachedImages.length > 0) payload.images = attachedImages;
     chatSocket.send(JSON.stringify(payload));
   }
@@ -575,6 +580,21 @@
   document.addEventListener('DOMContentLoaded', function () {
     const input = document.getElementById('chat-message-input');
     const submitBtn = document.getElementById('chat-message-submit');
+
+    // Tools toggle is only meaningful on gpt-5.4 — other models don't have
+    // function-calling wired into this app's agentic path.
+    const modelSel = document.getElementById('model-selector');
+    const toolsLabel = document.getElementById('tools-toggle-label');
+    const toolsCheckbox = document.getElementById('agentic-toggle');
+    function syncToolsVisibility() {
+      const isAgenticCapable = modelSel.value === 'gpt-5.4';
+      toolsLabel.style.display = isAgenticCapable ? 'inline-flex' : 'none';
+      if (!isAgenticCapable) toolsCheckbox.checked = false;
+    }
+    if (modelSel && toolsLabel) {
+      syncToolsVisibility();
+      modelSel.addEventListener('change', syncToolsVisibility);
+    }
 
     if (input) {
       input.addEventListener('input', function () { autoResizeTextarea(this); });

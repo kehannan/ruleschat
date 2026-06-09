@@ -83,6 +83,48 @@ def _build_multimodal_input(question: str, image_paths: List[str]) -> list:
     return [{"role": "user", "content": content}]
 
 
+def _get(obj, key, default=None):
+    """Read a field from a dict or an SDK object uniformly."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _output_function_calls(output) -> List[Dict[str, Any]]:
+    """Pull function_call blocks out of a Responses API `output` list."""
+    calls: List[Dict[str, Any]] = []
+    for block in output or []:
+        if _get(block, "type") == "function_call":
+            calls.append({
+                "call_id": _get(block, "call_id"),
+                "name": _get(block, "name"),
+                "arguments": _get(block, "arguments", "{}"),
+            })
+    return calls
+
+
+def _extract_rag_sources_from_output(output) -> List[Dict[str, Any]]:
+    """Extract file_search vector-store results from a Responses API `output` list."""
+    rag_results: List[Dict[str, Any]] = []
+    for item in output or []:
+        if _get(item, "type") != "file_search_call":
+            continue
+        for r in _get(item, "results", []) or []:
+            attributes = _get(r, "attributes", None)
+            text = _get(r, "text", None) or _get(r, "content", None)
+            rag_results.append({
+                "index": len(rag_results) + 1,
+                "file_id": _get(r, "file_id"),
+                "score": _get(r, "score"),
+                "content": text or "",
+                "attributes": attributes if isinstance(attributes, dict) else (
+                    attributes.__dict__ if hasattr(attributes, "__dict__") else None
+                ),
+                "filename": _get(r, "filename", None) or "Unknown",
+            })
+    return rag_results
+
+
 _PUA_LO, _PUA_HI = 0xE000, 0xF8FF  # Unicode Basic Multilingual Plane Private Use Area
 
 
@@ -128,7 +170,6 @@ class _CitationStripper:
     def flush(self) -> str:
         ws, self._pending_ws = self._pending_ws, ""
         return ws
-
 
 class ASLService:
     """Service for getting ASL rule answers via Responses API."""
@@ -273,14 +314,16 @@ Your response:"""
             return_timing: If True and stream=True, returns tuple (generator, timing_data)
             force_web_search: If True, emphasizes web search usage in instructions
             use_verification: If True, uses two-pass verification to check answer
-            use_agentic: If True, enables function tools for calculations (non-streaming only)
-            
+            use_agentic: If True, exposes the IFT / TH-TK function tools. Works in
+                both streaming and non-streaming modes (streaming resolves tool
+                calls, then streams the final answer).
+
         Returns:
             The answer as a string (or generator if stream=True)
             If return_timing=True and stream=True, returns (generator, timing_data)
-            
+
         Note:
-            use_verification and use_agentic require stream=False
+            use_verification requires stream=False.
         """
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
@@ -288,8 +331,6 @@ Your response:"""
         # Validation for special modes
         if use_verification and stream:
             raise ValueError("Verification is only supported in non-streaming mode (stream=False)")
-        if use_agentic and stream:
-            raise ValueError("Agentic mode is only supported in non-streaming mode (stream=False)")
         
         model = model or self.config.model
         temperature = temperature if temperature is not None else self.config.temperature
@@ -375,6 +416,18 @@ Your response:"""
                 api_kwargs["temperature"] = temperature
 
             if stream:
+                if use_agentic:
+                    # Resolve tool calls, then stream the final answer. Same
+                    # (generator, timing_data) contract as the plain stream path.
+                    return self._handle_agentic_streaming_response(
+                        input_data=api_input,
+                        instructions=instructions,
+                        model=model,
+                        temperature=api_kwargs.get("temperature"),
+                        tools=tools,
+                        api_call_start_time=api_call_start_time,
+                        return_timing=return_timing,
+                    )
                 # Use stream_response for true streaming with final response access
                 stream_manager = self.client.stream_response(**api_kwargs)
                 return self._handle_streaming_response(
@@ -636,6 +689,125 @@ Your response:"""
             return generator, timing_data
         return generator, []
     
+    def _handle_agentic_streaming_response(
+        self,
+        input_data,
+        instructions: str,
+        model: str,
+        temperature: Optional[float],
+        tools: List[Dict[str, Any]],
+        api_call_start_time: float,
+        return_timing: bool,
+        max_iterations: int = 5,
+    ) -> Tuple[Generator[str, None, None], Any]:
+        """
+        Agentic answer that preserves streaming: resolve any tool calls, then
+        stream the final answer.
+
+        Each turn is streamed. Turns where the model calls a function carry no
+        user-visible text (the model emits function_call items, not prose), so
+        forwarding output_text deltas as they arrive yields a clean
+        "tools resolve, then the answer streams" experience. After a turn, any
+        function_call blocks are executed locally and their outputs submitted
+        via previous_response_id; a turn with no function calls is the final
+        answer.
+
+        Returns (generator, timing_data) — same contract as
+        _handle_streaming_response: timing_data fills in once the generator is
+        fully consumed.
+        """
+        import json as json_module
+
+        timing_data: Dict[str, Any] = {}
+
+        def stream_generator():
+            prev_id: Optional[str] = None
+            current_input = input_data
+            first_delta_time: Optional[float] = None
+            file_search_complete_time: Optional[float] = None
+            total_input_tokens = 0
+            total_output_tokens = 0
+            rag_sources: List[Dict[str, Any]] = []
+            tools_called: List[str] = []
+
+            for iteration in range(max_iterations):
+                stream_manager = self.client.stream_response(
+                    model=model,
+                    input=current_input,
+                    instructions=instructions,
+                    temperature=temperature,
+                    tools=tools,
+                    previous_response_id=prev_id,
+                )
+                with stream_manager as stream:
+                    for event in stream:
+                        etype = getattr(event, "type", None)
+                        if file_search_complete_time is None and etype == "response.file_search_call.completed":
+                            file_search_complete_time = time.time()
+                        if etype == "response.output_text.delta":
+                            delta = getattr(event, "delta", None)
+                            if delta:
+                                if first_delta_time is None:
+                                    first_delta_time = time.time()
+                                yield delta
+                    final = stream.get_final_response()
+
+                prev_id = getattr(final, "id", None)
+                usage = getattr(final, "usage", None)
+                if usage:
+                    total_input_tokens += getattr(usage, "input_tokens", 0) or 0
+                    total_output_tokens += getattr(usage, "output_tokens", 0) or 0
+                output = getattr(final, "output", []) or []
+                rag_sources.extend(_extract_rag_sources_from_output(output))
+
+                calls = _output_function_calls(output)
+                if not calls:
+                    logging.info("🤖 Agentic(stream) finished after %d iteration(s)", iteration + 1)
+                    break
+
+                tools_called.extend(c["name"] for c in calls)
+                logging.info(
+                    "🔧 Agentic(stream) iter %d: executing %d tool call(s): %s",
+                    iteration + 1, len(calls), [c["name"] for c in calls],
+                )
+                function_results = []
+                for fc in calls:
+                    try:
+                        raw = fc.get("arguments")
+                        args = json_module.loads(raw) if isinstance(raw, str) else (raw or {})
+                        logging.info("  📞 %s(%s)", fc["name"], args)
+                        output_json = json_module.dumps(execute_tool(fc["name"], args))
+                    except Exception as e:
+                        logging.error("  ❌ Tool error in %s: %s", fc.get("name"), e)
+                        output_json = json_module.dumps({"error": str(e)})
+                    function_results.append({
+                        "type": "function_call_output",
+                        "call_id": fc["call_id"],
+                        "output": output_json,
+                    })
+                current_input = function_results
+            else:
+                logging.warning("⚠️ Agentic(stream) reached max_iterations=%d", max_iterations)
+
+            if return_timing:
+                stream_end_time = time.time()
+                for i, r in enumerate(rag_sources, 1):
+                    r["index"] = i
+                timing_data.update({
+                    "ttft_ms": round((first_delta_time - api_call_start_time) * 1000, 1) if first_delta_time else None,
+                    "file_search_time_ms": round((file_search_complete_time - api_call_start_time) * 1000, 1) if file_search_complete_time else None,
+                    "total_time_ms": round((stream_end_time - api_call_start_time) * 1000, 1),
+                    "input_tokens": total_input_tokens,
+                    "output_tokens": total_output_tokens,
+                    "rag_sources": rag_sources,
+                    "tools_called": tools_called,
+                })
+
+        generator = stream_generator()
+        if return_timing:
+            return generator, timing_data
+        return generator, []
+
     def _handle_non_streaming_response(
         self,
         response,

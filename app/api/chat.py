@@ -378,6 +378,7 @@ async def websocket_chat(websocket: WebSocket):
                     if cmd.get("type") == "chat" and cmd.get("text"):
                         message = cmd.get("text")
                         selected_model = cmd.get("model")  # Optional model override
+                        agentic = bool(cmd.get("agentic"))  # UI toggle: enable tool calling
                         # New shape: images is a list. Accept legacy single-image
                         # field too, just in case an old client connects.
                         image_data_urls = cmd.get("images") or []
@@ -390,6 +391,7 @@ async def websocket_chat(websocket: WebSocket):
                     # Not JSON, treat as plain text chat message
                     message = raw_message
                     selected_model = None
+                    agentic = False
                     image_data_urls = []
                 
                 logging.info(f"✅ Received question: {message[:100]}...")
@@ -467,6 +469,14 @@ async def websocket_chat(websocket: WebSocket):
                         logging.info(f"🖼️  Image(s) attached — overriding model {model_override} → gpt-5.4")
                         model_override = "gpt-5.4"
 
+                    # Agentic tool calling is an OpenAI-Responses-only feature;
+                    # disable it for OpenRouter-routed models (slug contains "/").
+                    agentic_enabled = agentic and not (model_override and "/" in model_override)
+                    if agentic and not agentic_enabled:
+                        logging.info("🤖 Agentic requested but disabled for OpenRouter model %s", model_override)
+                    elif agentic_enabled:
+                        logging.info("🤖 Agentic tool calling enabled for this message")
+
                     # Get streaming response from service
                     stream, timing_data = asl_service.get_answer(
                         full_input,
@@ -474,6 +484,7 @@ async def websocket_chat(websocket: WebSocket):
                         return_timing=True,
                         model=model_override,
                         image_paths=image_paths or None,
+                        use_agentic=agentic_enabled,
                     )
                     
                     logging.info("🔄 Streaming response from OpenAI...")
