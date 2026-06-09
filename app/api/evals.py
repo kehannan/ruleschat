@@ -133,9 +133,11 @@ async def usage_daily(db: Session = Depends(get_db)):
                 return True
         return False
 
-    # Aggregate by (date, model, is_image). OpenRouter slugs are normalized to
-    # short display names so the chart legend reads "deepseek-v3" not the full
-    # provider/model id.
+    # Aggregate by (date, model, is_image, is_agentic). OpenRouter slugs are
+    # normalized to short display names so the chart legend reads "deepseek-v3"
+    # not the full provider/model id. "(agentic)" = any turn where the model
+    # actually executed a tool call (tools_called in timing_data is non-empty);
+    # this is independent of whether the user toggled the Tools checkbox.
     daily = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "total_time_ms": 0, "count": 0})
     variants_seen = set()
     for msg in list(messages) + list(demo_messages):
@@ -145,7 +147,13 @@ async def usage_daily(db: Session = Depends(get_db)):
             continue
         display_model = USAGE_DISPLAY.get(model, model)
         is_image = is_image_query(msg)
-        variant = f"{display_model} (image)" if is_image else display_model
+        is_agentic = bool(timing.get("tools_called"))
+        suffix = ""
+        if is_image:
+            suffix = " (image)"
+        elif is_agentic:
+            suffix = " (agentic)"
+        variant = f"{display_model}{suffix}"
         variants_seen.add(variant)
         date_str = msg.created_at.strftime("%Y-%m-%d") if msg.created_at else "unknown"
         key = (date_str, variant)
@@ -166,7 +174,7 @@ async def usage_daily(db: Session = Depends(get_db)):
     }
 
     def base_model(variant: str) -> str:
-        return variant.replace(" (image)", "")
+        return variant.replace(" (image)", "").replace(" (agentic)", "")
 
     variants = sorted(variants_seen)
     dates = sorted(set(k[0] for k in daily.keys()))
@@ -180,6 +188,7 @@ async def usage_daily(db: Session = Depends(get_db)):
             "cost": [],
             "total_time_s": [],
             "is_image": variant.endswith(" (image)"),
+            "is_agentic": variant.endswith(" (agentic)"),
             "base_model": base_model(variant),
         }
         inp_price, out_price = MODEL_PRICING.get(base_model(variant), (0.40, 1.60))
