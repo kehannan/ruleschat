@@ -15,6 +15,7 @@ const MODEL_PRICING = {
     'gpt-5.4':      { input: 3.00, output: 15.00 },
     'deepseek-v3':  { input: 0.27, output: 1.10 },
     'mercury-2':    { input: 0.25, output: 1.00 },
+    'fable':        { input: 10.00, output: 50.00 },
 };
 
 function getModelPricing() {
