@@ -83,6 +83,53 @@ def _build_multimodal_input(question: str, image_paths: List[str]) -> list:
     return [{"role": "user", "content": content}]
 
 
+_PUA_LO, _PUA_HI = 0xE000, 0xF8FF  # Unicode Basic Multilingual Plane Private Use Area
+
+
+def _is_pua(ch: str) -> bool:
+    return _PUA_LO <= ord(ch) <= _PUA_HI
+
+
+class _CitationStripper:
+    """Remove OpenAI file_search citation markers from a streamed token sequence.
+
+    The Responses API emits inline citations like
+    ``fileciteturn0file3`` — Private Use Area delimiter
+    characters wrapping an alphanumeric citation token, with no embedded
+    whitespace. Normal rulebook text never contains PUA characters, so a PUA
+    char reliably marks the start of one. This is stateful so a marker split
+    across streaming chunks is still removed; whitespace immediately preceding a
+    marker is dropped so the text doesn't end up with double spaces.
+    """
+
+    def __init__(self) -> None:
+        self._in_marker = False
+        self._pending_ws = ""
+
+    def feed(self, text: str) -> str:
+        out: List[str] = []
+        for ch in text:
+            if self._in_marker:
+                if _is_pua(ch) or ch.isalnum():
+                    continue  # still inside the marker
+                self._in_marker = False  # terminator — handle it below
+            if _is_pua(ch):
+                self._in_marker = True
+                self._pending_ws = ""  # drop whitespace that preceded the marker
+            elif ch.isspace():
+                self._pending_ws += ch
+            else:
+                if self._pending_ws:
+                    out.append(self._pending_ws)
+                    self._pending_ws = ""
+                out.append(ch)
+        return "".join(out)
+
+    def flush(self) -> str:
+        ws, self._pending_ws = self._pending_ws, ""
+        return ws
+
+
 class ASLService:
     """Service for getting ASL rule answers via Responses API."""
     
@@ -521,7 +568,8 @@ Your response:"""
             first_event_time = None
             file_search_complete_time = None
             first_delta_time = None
-                
+            stripper = _CitationStripper()
+
             with stream_manager as stream:
                 for event in stream:
                     if first_event_time is None:
@@ -541,12 +589,20 @@ Your response:"""
                         ttft_ms = (first_delta_time - api_call_start_time) * 1000
                         logging.info(f"[RAG Latency] First token (TTFT): {ttft_ms:.1f}ms")
                     
-                    # Yield deltas immediately for true streaming
+                    # Yield deltas immediately for true streaming (citation
+                    # markers stripped on the way out).
                     if hasattr(event, 'type') and event.type == 'response.output_text.delta':
                         delta = getattr(event, 'delta', None)
                         if delta:
-                            yield delta
-                
+                            cleaned = stripper.feed(delta)
+                            if cleaned:
+                                yield cleaned
+
+                # Flush any whitespace held back by the stripper.
+                tail = stripper.flush()
+                if tail:
+                    yield tail
+
                 # After stream completes, extract RAG sources from final response
                 stream_end_time = time.time()
                 if return_timing:
