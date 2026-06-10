@@ -10,7 +10,7 @@ the standalone tool always agree. Tool schemas pull their enums live from the
 engines, so they can never drift from the underlying tables.
 """
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from app.asl import ift, thtk
 
@@ -44,6 +44,62 @@ def ift_odds(
     logging.info(
         "🎲 ift_odds(col=%s, drm=%s, cowering=%s, san=%s) -> %d outcomes",
         column, drm, cowering, san, len(result.get("distribution", [])),
+    )
+    return result
+
+
+def ift_attack(
+    units: List[Dict[str, Any]],
+    afph: bool = False,
+    opportunity_fire: bool = False,
+    area_fire_halvings: int = 0,
+    tem: int = 0,
+    hindrance: int = 0,
+    ffnam: bool = False,
+    ffmo: bool = False,
+    leadership: int = 0,
+    encircled_firer: bool = False,
+    other_drm: Optional[List[Dict[str, Any]]] = None,
+    inexperienced: bool = False,
+    firer_cowering_exempt: bool = False,
+    san: Optional[int] = None,
+    target: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Build and resolve a full IFT attack from the situation (A7.2–.36).
+
+    Resolves per-unit firepower modification, the FP column, an itemized DRM
+    ledger (with FFMO validation per A4.6), auto-derived cowering, the result
+    distribution, and optional break/pin/casualty odds vs a target. See
+    `ift.compute_attack` for the full contract.
+
+    Returns the computation chain (fp_breakdown / drm_breakdown / warnings)
+    plus the distribution, so the model can cite the math verbatim. The
+    UI-only heatmap grid is stripped to keep the tool output compact.
+    """
+    result = ift.compute_attack(
+        units=units,
+        afph=afph,
+        opportunity_fire=opportunity_fire,
+        area_fire_halvings=area_fire_halvings,
+        tem=tem,
+        hindrance=hindrance,
+        ffnam=ffnam,
+        ffmo=ffmo,
+        leadership=leadership,
+        encircled_firer=encircled_firer,
+        other_drm=other_drm,
+        inexperienced=inexperienced,
+        firer_cowering_exempt=firer_cowering_exempt,
+        san=san,
+        target=target,
+    )
+    result.pop("cells", None)  # UI-only heatmap data; not useful to the model
+    logging.info(
+        "🧮 ift_attack(%d unit(s), afph=%s, area=%s) -> %s FP, col %s, drm %s, cowering %s",
+        len(units), afph, area_fire_halvings,
+        result.get("total_fp"), result.get("column"), result.get("drm"),
+        result.get("cowering"),
     )
     return result
 
@@ -139,6 +195,172 @@ TOOL_SCHEMAS = [
     },
     {
         "type": "function",
+        "name": "ift_attack",
+        "description": (
+            "Build a full Infantry Fire Table attack from the SITUATION: computes each "
+            "firing unit's adjusted FP per A7.2-.36 (PBF/TPBF, long range, AFPh, area "
+            "fire, pinned, assault fire), picks the FP column, assembles an itemized DRM "
+            "(TEM, hindrance, FFNAM/FFMO with A4.6 validation, leadership, encirclement), "
+            "derives cowering, and returns the result distribution — plus break/pin/"
+            "casualty odds vs a target morale, or kill odds vs an unarmored vehicle. Use "
+            "whenever a question DESCRIBES the situation (units, range, terrain, "
+            "movement) rather than an already-known FP column; if the final column and "
+            "total DRM are already given, use ift_odds instead. Standard IFT only (no "
+            "IIFT); no LOS/terrain modeling — supply TEM/hindrance values yourself."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "units": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": (
+                        "Firing units. A squad firing a SW it mans is two entries "
+                        "(squad inherent FP + the SW's FP)."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "fp": {
+                                "type": "number",
+                                "description": "Printed FP of the unit or weapon.",
+                            },
+                            "pbf": {
+                                "type": "string",
+                                "enum": list(ift.PBF_MULTIPLIER.keys()),
+                                "description": (
+                                    "Point Blank Fire: 'pbf' = adjacent (x2), 'tpbf' = "
+                                    "same Location (x3). Small arms/MG/ATR/IFE only (A7.21)."
+                                ),
+                            },
+                            "long_range": {
+                                "type": "boolean",
+                                "description": "Firing at long range — FP halved (A7.22).",
+                            },
+                            "pinned": {
+                                "type": "boolean",
+                                "description": "Firer is pinned — FP halved (A7.8).",
+                            },
+                            "assault_fire": {
+                                "type": "boolean",
+                                "description": (
+                                    "Underscored-FP unit using Assault Fire in AFPh: +1 FP "
+                                    "after all other modification, then round up (A7.36). "
+                                    "NA at long range or with opportunity fire."
+                                ),
+                            },
+                        },
+                        "required": ["fp"],
+                        "additionalProperties": False,
+                    },
+                },
+                "afph": {
+                    "type": "boolean",
+                    "description": "Advancing Fire Phase — all FP halved unless opportunity fire (A7.24).",
+                },
+                "opportunity_fire": {
+                    "type": "boolean",
+                    "description": "Opportunity Fire — negates the AFPh halving; assault fire NA (A7.25).",
+                },
+                "area_fire_halvings": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": (
+                        "Number of attack-wide area-fire halvings (concealed target, "
+                        "spraying fire, ...). Each halves every unit again (A7.23, A9.5)."
+                    ),
+                },
+                "tem": {
+                    "type": "integer",
+                    "description": "Target Location TEM (e.g. +2 stone building, -1 open-ground FFMO handled separately).",
+                },
+                "hindrance": {
+                    "type": "integer",
+                    "description": "Total LOS hindrance DRM (smoke, grain, intervening hexes...).",
+                },
+                "ffnam": {
+                    "type": "boolean",
+                    "description": "First Fire vs Non-Assault Movement: -1 (Defensive First Fire only, A4.6).",
+                },
+                "ffmo": {
+                    "type": "boolean",
+                    "description": (
+                        "First Fire vs Moving in Open ground: -1. Automatically dropped "
+                        "with a warning if any hindrance or positive TEM applies (A4.6)."
+                    ),
+                },
+                "leadership": {
+                    "type": "integer",
+                    "description": "Directing leader's DRM, e.g. -2 (A7.531). Any non-zero value also prevents cowering.",
+                },
+                "encircled_firer": {
+                    "type": "boolean",
+                    "description": "Firer is encircled: +1 to its attacks (A7.7).",
+                },
+                "other_drm": {
+                    "type": "array",
+                    "description": "Any other DRM as labeled line items (air bursts, CX, ...).",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "drm": {"type": "integer"},
+                        },
+                        "required": ["label", "drm"],
+                        "additionalProperties": False,
+                    },
+                },
+                "inexperienced": {
+                    "type": "boolean",
+                    "description": "Inexperienced/conscript firer — cowers two columns (A7.9, A19.33).",
+                },
+                "firer_cowering_exempt": {
+                    "type": "boolean",
+                    "description": (
+                        "Firer never cowers: SMC, berserk/fanatic, British Elite/1st-line, "
+                        "Finn, vehicular/IFE fire, fire lane... (A7.9)."
+                    ),
+                },
+                "san": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 12,
+                    "description": "Enemy Sniper Activation Number (2-12). Omit to skip the sniper calc.",
+                },
+                "target": {
+                    "type": "object",
+                    "description": (
+                        "Optional target for outcome odds. kind 'personnel' needs morale; "
+                        "kind 'vehicle' (unarmored, A7.308) uses the IFT vehicle-line kill numbers."
+                    ),
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "enum": ["personnel", "vehicle"],
+                        },
+                        "morale": {
+                            "type": "integer",
+                            "description": "Target's current morale level (personnel only).",
+                        },
+                        "mc_drm": {
+                            "type": "integer",
+                            "description": "DRM on the target's MC DR, e.g. -1 leader in its Location (personnel only).",
+                        },
+                        "encircled": {
+                            "type": "boolean",
+                            "description": "Target is encircled: morale lowered by 1 vs this attack (A7.7, personnel only).",
+                        },
+                    },
+                    "required": ["kind"],
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["units"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
         "name": "thtk_odds",
         "description": (
             "Compute To Hit and To Kill numbers and probabilities for an ordnance "
@@ -198,6 +420,7 @@ TOOL_SCHEMAS = [
 
 TOOL_FUNCTIONS = {
     "ift_odds": ift_odds,
+    "ift_attack": ift_attack,
     "thtk_odds": thtk_odds,
 }
 
