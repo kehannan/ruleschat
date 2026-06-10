@@ -534,8 +534,25 @@ Your response:"""
 
         text = (response.choices[0].message.content or "").strip()
         usage = getattr(response, "usage", None)
-        input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
-        output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
+        # OpenRouter normalizes to OpenAI's prompt_tokens/completion_tokens, but
+        # some upstream providers (notably Anthropic) leak through with their
+        # native input_tokens/output_tokens field names. Accept either.
+        def _u(field_openai, field_anthropic):
+            if usage is None:
+                return 0
+            for name in (field_openai, field_anthropic):
+                v = getattr(usage, name, None)
+                if v is None and isinstance(usage, dict):
+                    v = usage.get(name)
+                if v:
+                    return v
+            return 0
+        input_tokens = _u("prompt_tokens", "input_tokens")
+        output_tokens = _u("completion_tokens", "output_tokens")
+        if usage is not None and input_tokens == 0 and output_tokens == 0:
+            logging.warning(f"OpenRouter usage missing tokens — raw usage: {usage!r}")
+        else:
+            logging.info(f"📊 Tokens (OpenRouter): {input_tokens} in / {output_tokens} out")
 
         timing_data: Dict[str, Any] = {
             "retrieval_ms": round(retrieval_ms, 1),
