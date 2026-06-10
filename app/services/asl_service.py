@@ -547,6 +547,7 @@ Your response:"""
             "total_time_ms": round(total_ms, 1),
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "rag_chunks": len(chunks),
             # No file_citation metadata from OpenRouter; rule references will
             # still be clickable client-side via makeSectionReferencesClickable.
             "rag_sources": [],
