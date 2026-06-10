@@ -520,11 +520,16 @@ Your response:"""
 
         # 3. Inference via OpenRouter.
         inference_start = time.time()
+        # Cap max_tokens: OpenRouter pre-authorizes max_tokens × the model's
+        # output rate against the credit balance, and an unset cap means the
+        # model's full ceiling (65K on some models) — which 402s on expensive
+        # models even though real answers are ~1K tokens.
         response = self.openrouter_client.create_chat(
             model=model,
             messages=messages,
             stream=False,
             temperature=temperature,
+            max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
         )
         inference_ms = (time.time() - inference_start) * 1000
         total_ms = retrieval_ms + inference_ms

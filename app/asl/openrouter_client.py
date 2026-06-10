@@ -43,6 +43,7 @@ class OpenRouterClient:
         messages: List[Dict[str, str]],
         stream: bool = False,
         temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ):
         """
         Make a chat-completions call.
@@ -58,6 +59,8 @@ class OpenRouterClient:
         }
         if temperature is not None:
             kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
         if self._extra_headers:
             kwargs["extra_headers"] = self._extra_headers
         return self.client.chat.completions.create(**kwargs)
