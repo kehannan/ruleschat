@@ -20,6 +20,18 @@
     margin: 0 0 32px; text-wrap: pretty;
   }
 
+  /* Mode tabs: Attack builder | Quick odds — same language as the tools subnav. */
+  .site .mode-tabs { display: flex; gap: 14px; margin: 0 0 18px; }
+  .site .mode-tab {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted);
+    background: none; border: none; cursor: pointer;
+    padding: 0 0 4px; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  .site .mode-tab:hover { color: var(--ink); }
+  .site .mode-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+
   /* Input card */
   .site .ift-form {
     background: color-mix(in oklch, var(--paper) 50%, white 50%);
@@ -34,7 +46,8 @@
   .site .ift-form .field { margin-bottom: 0; }
   .site .ift-form .cowering-field { grid-column: 1 / -1; }
   .site .cowering-radios { display: flex; gap: 8px; flex-wrap: wrap; }
-  .site .cowering-radios label {
+  .site .cowering-radios label,
+  .site .chk {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 9px 14px;
     border: 1px solid var(--hair);
@@ -45,9 +58,10 @@
     text-transform: none; letter-spacing: normal; font-weight: 400;
     transition: border-color .15s, background .15s, color .15s;
   }
-  .site .cowering-radios label:hover { border-color: var(--ink-2); }
-  .site .cowering-radios input { accent-color: var(--accent); margin: 0; }
-  .site .cowering-radios label:has(input:checked) {
+  .site .cowering-radios label:hover, .site .chk:hover { border-color: var(--ink-2); }
+  .site .cowering-radios input, .site .chk input { accent-color: var(--accent); margin: 0; }
+  .site .cowering-radios label:has(input:checked),
+  .site .chk:has(input:checked) {
     border-color: var(--accent);
     background: color-mix(in oklch, var(--accent) 8%, var(--paper));
     color: var(--ink);
@@ -70,6 +84,66 @@
   }
   .site .step-btn:hover { border-color: var(--accent); color: var(--accent); }
   .site .step-btn:active { background: color-mix(in oklch, var(--accent) 8%, var(--paper)); }
+
+  /* Attack builder card: stacked sections in one bordered card. */
+  .site .builder-card {
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    border: 1px solid var(--hair);
+    border-radius: 4px;
+  }
+  .site .b-section { padding: 20px 24px; }
+  .site .b-section + .b-section { border-top: 1px solid var(--hair); }
+  .site .b-caption {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .site .unit-row, .site .other-row {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-bottom: 8px;
+  }
+  .site .unit-row .u-fp { width: 80px; text-align: center; }
+  .site .unit-row .u-pbf { width: 120px; }
+  .site .other-row .o-label { width: 160px; }
+  .site .other-row .o-stepper { width: 130px; }
+  .site .row-x {
+    width: 34px; height: 34px;
+    border: 1px solid var(--hair); border-radius: 2px;
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    color: var(--muted); font-family: var(--sans); font-size: 16px; line-height: 1;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .site .row-x:hover:not(:disabled) { border-color: var(--fail); color: var(--fail); }
+  .site .row-x:disabled { opacity: .35; cursor: default; }
+  .site .add-btn {
+    border: 1px dashed var(--hair); border-radius: 2px;
+    background: none; color: var(--muted);
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 8px 14px; cursor: pointer; margin-top: 2px;
+    transition: border-color .15s, color .15s;
+  }
+  .site .add-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .site .b-flags { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+  .site .b-fields { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: end; }
+  .site .b-fields .field { margin-bottom: 0; width: 140px; }
+  .site .b-fields .field.field-wide { width: auto; }
+  .site .b-note {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 10px; letter-spacing: .02em; line-height: 1.5;
+  }
+
+  /* Live math line — the per-unit fp_breakdown + DRM ledger rendered inline. */
+  .site .math-line {
+    margin-top: 18px; padding: 14px 18px;
+    border-left: 3px solid var(--accent);
+    background: color-mix(in oklch, var(--accent) 6%, var(--paper));
+    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    line-height: 1.8; letter-spacing: .01em;
+  }
+  .site .math-line b { color: var(--ink); font-weight: 600; }
+  .site .math-line .ml-warn { color: var(--fail); }
 
   /* Results */
   .site .ift-results { margin-top: 40px; }
@@ -172,6 +246,7 @@
   @media (max-width: 620px) {
     .site .ift-col { padding: 0 20px; }
     .site .ift-form { grid-template-columns: 1fr; }
+    .site .b-fields .field { width: 120px; }
   }
 </style>
 {% endblock %}
@@ -183,35 +258,146 @@
     <div class="eyebrow"><span class="dot"></span><span>Deterministic tool · no AI</span></div>
     <h1>Infantry Fire Table <em>probabilities</em>.</h1>
 
-    <div class="ift-form">
-      <div class="field">
-        <label for="ift-column">FP column</label>
-        <select id="ift-column" class="input">
-          {% for c in ift_columns %}
-          <option value="{{ c }}"{% if c == 8 %} selected{% endif %}>{{ c }} FP</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label for="ift-drm">DRM</label>
-        <div class="stepper">
-          <button type="button" class="step-btn" id="drm-dec" aria-label="Decrease DRM">−</button>
-          <input type="text" inputmode="numeric" id="ift-drm" class="input" value="0" />
-          <button type="button" class="step-btn" id="drm-inc" aria-label="Increase DRM">+</button>
+    <div class="mode-tabs" role="tablist">
+      <button type="button" class="mode-tab active" id="tab-builder" data-mode="builder">Attack builder</button>
+      <button type="button" class="mode-tab" id="tab-quick" data-mode="quick">Quick odds</button>
+    </div>
+
+    <!-- ===================== Attack builder ===================== -->
+    <div id="panel-builder">
+      <div class="builder-card">
+        <div class="b-section">
+          <div class="b-caption">Firing units</div>
+          <div id="unit-rows"></div>
+          <button type="button" class="add-btn" id="add-unit">+ add unit</button>
+          <div class="b-flags">
+            <label class="chk"><input type="checkbox" id="b-afph" /> AFPh (÷2)</label>
+            <label class="chk"><input type="checkbox" id="b-opp" /> Opportunity Fire</label>
+            <div class="field" style="margin:0; width:150px;">
+              <label for="b-area">Area fire ×½</label>
+              <div class="stepper">
+                <button type="button" class="step-btn" id="b-area-dec" aria-label="Fewer halvings">−</button>
+                <input type="text" inputmode="numeric" id="b-area" class="input" value="0" />
+                <button type="button" class="step-btn" id="b-area-inc" aria-label="More halvings">+</button>
+              </div>
+            </div>
+            <label class="chk"><input type="checkbox" id="b-inexp" /> inexperienced</label>
+            <label class="chk"><input type="checkbox" id="b-exempt" /> never cowers</label>
+          </div>
+          <div class="b-note">Area fire ×½ counts attack-wide halvings (concealed target, spraying fire, …). Cowering is derived: leader direction or exemption → none; inexperienced → double; else regular.</div>
+        </div>
+
+        <div class="b-section">
+          <div class="b-caption">DRM</div>
+          <div class="b-fields">
+            <div class="field">
+              <label for="b-tem">TEM</label>
+              <div class="stepper">
+                <button type="button" class="step-btn" id="b-tem-dec">−</button>
+                <input type="text" inputmode="numeric" id="b-tem" class="input" value="0" />
+                <button type="button" class="step-btn" id="b-tem-inc">+</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="b-hind">Hindrance</label>
+              <div class="stepper">
+                <button type="button" class="step-btn" id="b-hind-dec">−</button>
+                <input type="text" inputmode="numeric" id="b-hind" class="input" value="0" />
+                <button type="button" class="step-btn" id="b-hind-inc">+</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="b-lead">Leadership</label>
+              <div class="stepper">
+                <button type="button" class="step-btn" id="b-lead-dec">−</button>
+                <input type="text" inputmode="numeric" id="b-lead" class="input" value="0" />
+                <button type="button" class="step-btn" id="b-lead-inc">+</button>
+              </div>
+            </div>
+            <div class="field field-wide" style="align-self: end;">
+              <label class="chk"><input type="checkbox" id="b-ffnam" /> FFNAM (−1)</label>
+              <label class="chk"><input type="checkbox" id="b-ffmo" /> FFMO (−1)</label>
+              <label class="chk"><input type="checkbox" id="b-enc-firer" /> firer encircled (+1)</label>
+            </div>
+          </div>
+          <div id="other-rows" style="margin-top:14px;"></div>
+          <button type="button" class="add-btn" id="add-other">+ other DRM</button>
+        </div>
+
+        <div class="b-section">
+          <div class="b-caption">Target (optional)</div>
+          <div class="b-fields">
+            <div class="field" style="width:170px;">
+              <label for="b-target-kind">Target</label>
+              <select id="b-target-kind" class="input">
+                <option value="none" selected>None — just the odds</option>
+                <option value="personnel">Personnel</option>
+                <option value="vehicle">Unarmored vehicle ★</option>
+              </select>
+            </div>
+            <div class="field t-personnel">
+              <label for="b-morale">Morale</label>
+              <div class="stepper">
+                <button type="button" class="step-btn" id="b-morale-dec">−</button>
+                <input type="text" inputmode="numeric" id="b-morale" class="input" value="7" />
+                <button type="button" class="step-btn" id="b-morale-inc">+</button>
+              </div>
+            </div>
+            <div class="field t-personnel">
+              <label for="b-mcdrm">MC DRM</label>
+              <div class="stepper">
+                <button type="button" class="step-btn" id="b-mcdrm-dec">−</button>
+                <input type="text" inputmode="numeric" id="b-mcdrm" class="input" value="0" />
+                <button type="button" class="step-btn" id="b-mcdrm-inc">+</button>
+              </div>
+            </div>
+            <div class="field field-wide t-personnel" style="align-self: end;">
+              <label class="chk"><input type="checkbox" id="b-t-enc" /> target encircled</label>
+            </div>
+            <div class="field" style="width:120px;">
+              <label for="b-san">Enemy SAN</label>
+              <input type="number" id="b-san" class="input" placeholder="–" step="1" min="2" max="12" />
+            </div>
+          </div>
+          <div class="b-note" id="b-target-note">Personnel: break / pin / casualty odds via a second 2d6 morale check. Vehicle: kill odds from the IFT ★ line. Blank SAN skips the sniper calc.</div>
         </div>
       </div>
-      <div class="field">
-        <label for="ift-san">Enemy SAN</label>
-        <input type="number" id="ift-san" class="input" value="3" step="1" min="2" max="12" />
-      </div>
-      <div class="field cowering-field">
-        <label>Cowering</label>
-        <div class="cowering-radios">
-          <label><input type="radio" name="cowering" value="none" checked /> None</label>
-          <label><input type="radio" name="cowering" value="regular" /> Regular (−1 col)</label>
-          <label><input type="radio" name="cowering" value="double" /> Double (−2 cols)</label>
+
+      <div class="math-line" id="math-line" style="display:none;"></div>
+    </div>
+
+    <!-- ===================== Quick odds (original form) ===================== -->
+    <div id="panel-quick" style="display:none;">
+      <div class="ift-form">
+        <div class="field">
+          <label for="ift-column">FP column</label>
+          <select id="ift-column" class="input">
+            {% for c in ift_columns %}
+            <option value="{{ c }}"{% if c == 8 %} selected{% endif %}>{{ c }} FP</option>
+            {% endfor %}
+          </select>
         </div>
-        <div class="cowering-note">Cowering shifts the column left on doubles. Off the 1-FP edge → no effect.</div>
+        <div class="field">
+          <label for="ift-drm">DRM</label>
+          <div class="stepper">
+            <button type="button" class="step-btn" id="drm-dec" aria-label="Decrease DRM">−</button>
+            <input type="text" inputmode="numeric" id="ift-drm" class="input" value="0" />
+            <button type="button" class="step-btn" id="drm-inc" aria-label="Increase DRM">+</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="ift-san">Enemy SAN</label>
+          <input type="number" id="ift-san" class="input" value="3" step="1" min="2" max="12" />
+        </div>
+        <div class="field cowering-field">
+          <label>Cowering</label>
+          <div class="cowering-radios">
+            <label><input type="radio" name="cowering" value="none" checked /> None</label>
+            <label><input type="radio" name="cowering" value="regular" /> Regular (−1 col)</label>
+            <label><input type="radio" name="cowering" value="double" /> Double (−2 cols)</label>
+          </div>
+          <div class="cowering-note">Cowering shifts the column left on doubles. Off the 1-FP edge → no effect.</div>
+        </div>
       </div>
     </div>
 
@@ -237,46 +423,20 @@
 {% block extra_js %}
 <script>window.IFT_TABLE = {{ ift_table | tojson }};</script>
 <script>
-  const $col = document.getElementById('ift-column');
-  const $drm = document.getElementById('ift-drm');
-  const $san = document.getElementById('ift-san');
+  // ======================= shared =======================
   const $results = document.getElementById('ift-results');
   const $caption = document.getElementById('res-caption');
   const $summary = document.getElementById('summary-grid');
   const $rows = document.getElementById('dist-rows');
   const $error = document.getElementById('ift-error');
 
-  function cowMode() {
-    const el = document.querySelector('input[name="cowering"]:checked');
-    return el ? el.value : 'none';
-  }
-
-  // DRM is shown with an explicit sign in the field (+2 / 0 / -1). Parse the
-  // signed text back to a clamped integer for the request.
-  function parseDrm(raw) {
+  // Signed integer parse/format shared by every stepper field (+2 / 0 / -1).
+  function parseSigned(raw, lo, hi) {
     let n = parseInt(String(raw).replace(/[^0-9-]/g, ''), 10);
     if (!Number.isFinite(n)) n = 0;
-    return Math.max(-20, Math.min(20, n));
+    return Math.max(lo, Math.min(hi, n));
   }
   const fmtDrm = (n) => (n > 0 ? '+' + n : String(n));
-
-  // Rewrite the field to its signed form as the user types, then recompute.
-  // Leave "", "-", "+" untouched so the sign / empty field can be typed.
-  function syncDrm() {
-    const raw = $drm.value;
-    if (raw !== '' && raw !== '-' && raw !== '+') {
-      const formatted = fmtDrm(parseDrm(raw));
-      if (formatted !== raw) $drm.value = formatted;
-    }
-    recompute();
-  }
-
-  // Step the DRM by ±1 (stepper buttons + Arrow keys), clamped to [-20, 20].
-  function stepDrm(delta) {
-    const n = Math.max(-20, Math.min(20, parseDrm($drm.value) + delta));
-    $drm.value = fmtDrm(n);
-    recompute();
-  }
 
   // Map a result code to a severity class for bar coloring.
   function severity(result) {
@@ -303,7 +463,7 @@
 
   const pct = (p) => (p * 100).toFixed(1) + '%';
 
-  // Three cumulative summary buckets:
+  // Three cumulative summary buckets (no target given):
   //   PTC          — exactly a Pin Task Check
   //   Any MC       — any morale check (NMC, 1MC..4MC)
   //   K/1 or worse — any casualty result (K/1..K/4, 1KIA..7KIA)
@@ -372,36 +532,12 @@
     }
   }
 
-  async function recompute() {
-    const params = new URLSearchParams({
-      column: $col.value,
-      drm: String(parseDrm($drm.value)),
-      cowering: cowMode(),
-      san: $san.value || '3',
-    });
-    let data;
-    try {
-      const res = await fetch('/api/ift/distribution?' + params.toString());
-      data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
-    } catch (e) {
-      $results.style.display = 'none';
-      $error.style.display = 'block';
-      $error.textContent = 'Could not compute: ' + e.message;
-      return;
-    }
+  // Shared result rendering: caption + summary cells + ordered bars + heatmap.
+  function renderResults(data, cells, captionHTML) {
     $error.style.display = 'none';
     $results.style.display = 'block';
+    $caption.innerHTML = captionHTML;
 
-    const drmStr = data.drm > 0 ? '+' + data.drm : '' + data.drm;
-    const cowStr = data.cowering === 'none' ? 'no cowering' : data.cowering + ' cowering';
-    $caption.innerHTML = `<b>${data.column} FP</b> · DRM ${drmStr} · ${cowStr}`;
-
-    // Cumulative summary buckets + sniper odds
-    const cells = summarize(data.distribution);
-    if (data.sniper) {
-      cells.push({ label: 'Sniper', p: data.sniper.p_sniper });
-    }
     $summary.innerHTML = cells.map(c => `
       <div class="summary-cell">
         <div class="s-label">${c.label}</div>
@@ -427,8 +563,89 @@
       </div>
     `).join('');
 
-    // Heatmap of probabilities painted onto the IFT grid.
     renderGrid(data);
+  }
+
+  function showError(msg) {
+    $results.style.display = 'none';
+    $error.style.display = 'block';
+    $error.textContent = msg;
+  }
+
+  // ======================= mode switching =======================
+  let mode = 'builder';
+  const $panelBuilder = document.getElementById('panel-builder');
+  const $panelQuick = document.getElementById('panel-quick');
+  const $mathLine = document.getElementById('math-line');
+
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('.mode-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.mode === m));
+    $panelBuilder.style.display = (m === 'builder') ? 'block' : 'none';
+    $panelQuick.style.display = (m === 'quick') ? 'block' : 'none';
+    recompute();
+  }
+  document.querySelectorAll('.mode-tab').forEach(t =>
+    t.addEventListener('click', () => setMode(t.dataset.mode)));
+
+  function recompute() {
+    if (mode === 'quick') recomputeQuick();
+    else recomputeBuilder();
+  }
+
+  // ======================= quick odds mode =======================
+  const $col = document.getElementById('ift-column');
+  const $drm = document.getElementById('ift-drm');
+  const $san = document.getElementById('ift-san');
+
+  function cowMode() {
+    const el = document.querySelector('input[name="cowering"]:checked');
+    return el ? el.value : 'none';
+  }
+
+  const parseDrm = (raw) => parseSigned(raw, -20, 20);
+
+  // Rewrite the field to its signed form as the user types, then recompute.
+  // Leave "", "-", "+" untouched so the sign / empty field can be typed.
+  function syncDrm() {
+    const raw = $drm.value;
+    if (raw !== '' && raw !== '-' && raw !== '+') {
+      const formatted = fmtDrm(parseDrm(raw));
+      if (formatted !== raw) $drm.value = formatted;
+    }
+    recompute();
+  }
+
+  // Step the DRM by ±1 (stepper buttons + Arrow keys), clamped to [-20, 20].
+  function stepDrm(delta) {
+    const n = Math.max(-20, Math.min(20, parseDrm($drm.value) + delta));
+    $drm.value = fmtDrm(n);
+    recompute();
+  }
+
+  async function recomputeQuick() {
+    const params = new URLSearchParams({
+      column: $col.value,
+      drm: String(parseDrm($drm.value)),
+      cowering: cowMode(),
+      san: $san.value || '3',
+    });
+    let data;
+    try {
+      const res = await fetch('/api/ift/distribution?' + params.toString());
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
+    } catch (e) {
+      showError('Could not compute: ' + e.message);
+      return;
+    }
+
+    const drmStr = fmtDrm(data.drm);
+    const cowStr = data.cowering === 'none' ? 'no cowering' : data.cowering + ' cowering';
+    const cells = summarize(data.distribution);
+    if (data.sniper) cells.push({ label: 'Sniper', p: data.sniper.p_sniper });
+    renderResults(data, cells, `<b>${data.column} FP</b> · DRM ${drmStr} · ${cowStr}`);
   }
 
   $col.addEventListener('change', recompute);
@@ -443,7 +660,247 @@
   $san.addEventListener('input', recompute);
   document.querySelectorAll('input[name="cowering"]').forEach(el => el.addEventListener('change', recompute));
   $drm.value = fmtDrm(parseDrm($drm.value));   // normalize initial display
-  document.addEventListener('DOMContentLoaded', recompute);
+
+  // ======================= attack builder mode =======================
+  // Generic signed stepper: [−] [text field] [+], same behavior as the quick
+  // form's DRM stepper (typing, blur normalize, arrow keys, clamping).
+  function wireStepper(id, lo, hi, signed) {
+    const $in = document.getElementById(id);
+    const fmt = signed ? fmtDrm : String;
+    const parse = (raw) => parseSigned(raw, lo, hi);
+    const step = (d) => { $in.value = fmt(parse(parse($in.value) + d)); recomputeBuilderDebounced(); };
+    $in.addEventListener('input', () => {
+      const raw = $in.value;
+      if (raw !== '' && raw !== '-' && raw !== '+') {
+        const formatted = fmt(parse(raw));
+        if (formatted !== raw) $in.value = formatted;
+      }
+      recomputeBuilderDebounced();
+    });
+    $in.addEventListener('blur', () => { $in.value = fmt(parse($in.value)); recomputeBuilderDebounced(); });
+    $in.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp') { e.preventDefault(); step(1); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
+    });
+    document.getElementById(id + '-dec').addEventListener('click', () => step(-1));
+    document.getElementById(id + '-inc').addEventListener('click', () => step(1));
+    $in.value = fmt(parse($in.value));
+    return { value: () => parse($in.value) };
+  }
+
+  const stArea   = wireStepper('b-area',   0, 6,  false);
+  const stTem    = wireStepper('b-tem',   -10, 10, true);
+  const stHind   = wireStepper('b-hind',   0, 10, true);
+  const stLead   = wireStepper('b-lead',  -3, 3,  true);
+  const stMorale = wireStepper('b-morale', 0, 10, false);
+  const stMcdrm  = wireStepper('b-mcdrm', -5, 5,  true);
+
+  const $unitRows = document.getElementById('unit-rows');
+  const $otherRows = document.getElementById('other-rows');
+  const $tKind = document.getElementById('b-target-kind');
+  const $bsan = document.getElementById('b-san');
+
+  function addUnitRow(fp) {
+    const row = document.createElement('div');
+    row.className = 'unit-row';
+    row.innerHTML = `
+      <input type="number" class="input u-fp" value="${fp}" min="0.5" step="0.5" aria-label="Firepower" />
+      <select class="input u-pbf" aria-label="Point blank fire">
+        <option value="none">No PBF</option>
+        <option value="pbf">PBF ×2</option>
+        <option value="tpbf">TPBF ×3</option>
+      </select>
+      <label class="chk"><input type="checkbox" class="u-lr" /> long range</label>
+      <label class="chk"><input type="checkbox" class="u-pin" /> pinned</label>
+      <label class="chk"><input type="checkbox" class="u-af" /> assault fire</label>
+      <button type="button" class="row-x" aria-label="Remove unit">×</button>
+    `;
+    row.querySelector('.row-x').addEventListener('click', () => {
+      row.remove(); syncRowButtons(); recomputeBuilderDebounced();
+    });
+    row.querySelectorAll('input, select').forEach(el =>
+      el.addEventListener('input', recomputeBuilderDebounced));
+    $unitRows.appendChild(row);
+    syncRowButtons();
+  }
+
+  // Keep at least one firing unit: disable the remove button on the last row.
+  function syncRowButtons() {
+    const rows = $unitRows.querySelectorAll('.unit-row');
+    rows.forEach(r => r.querySelector('.row-x').disabled = (rows.length === 1));
+  }
+
+  function addOtherRow() {
+    const row = document.createElement('div');
+    row.className = 'other-row';
+    row.innerHTML = `
+      <input type="text" class="input o-label" placeholder="label (air bursts, CX…)" />
+      <div class="stepper o-stepper">
+        <button type="button" class="step-btn o-dec">−</button>
+        <input type="text" inputmode="numeric" class="input o-drm" value="+1" />
+        <button type="button" class="step-btn o-inc">+</button>
+      </div>
+      <button type="button" class="row-x" aria-label="Remove DRM">×</button>
+    `;
+    const $drmIn = row.querySelector('.o-drm');
+    const step = (d) => {
+      $drmIn.value = fmtDrm(parseSigned(parseSigned($drmIn.value, -5, 5) + d, -5, 5));
+      recomputeBuilderDebounced();
+    };
+    row.querySelector('.o-dec').addEventListener('click', () => step(-1));
+    row.querySelector('.o-inc').addEventListener('click', () => step(1));
+    $drmIn.addEventListener('blur', () => { $drmIn.value = fmtDrm(parseSigned($drmIn.value, -5, 5)); recomputeBuilderDebounced(); });
+    row.querySelectorAll('input').forEach(el => el.addEventListener('input', recomputeBuilderDebounced));
+    row.querySelector('.row-x').addEventListener('click', () => { row.remove(); recomputeBuilderDebounced(); });
+    $otherRows.appendChild(row);
+  }
+
+  document.getElementById('add-unit').addEventListener('click', () => { addUnitRow(4); recomputeBuilderDebounced(); });
+  document.getElementById('add-other').addEventListener('click', addOtherRow);
+
+  // Show/hide personnel-only target fields by kind.
+  function syncTargetFields() {
+    const kind = $tKind.value;
+    document.querySelectorAll('.t-personnel').forEach(el =>
+      el.style.display = (kind === 'personnel') ? '' : 'none');
+  }
+  $tKind.addEventListener('change', () => { syncTargetFields(); recomputeBuilderDebounced(); });
+
+  ['b-afph', 'b-opp', 'b-inexp', 'b-exempt', 'b-ffnam', 'b-ffmo', 'b-enc-firer', 'b-t-enc']
+    .forEach(id => document.getElementById(id).addEventListener('change', recomputeBuilderDebounced));
+  $bsan.addEventListener('input', recomputeBuilderDebounced);
+
+  function gatherPayload() {
+    const units = [...$unitRows.querySelectorAll('.unit-row')].map(row => ({
+      fp: parseFloat(row.querySelector('.u-fp').value) || 0,
+      pbf: row.querySelector('.u-pbf').value,
+      long_range: row.querySelector('.u-lr').checked,
+      pinned: row.querySelector('.u-pin').checked,
+      assault_fire: row.querySelector('.u-af').checked,
+    })).filter(u => u.fp > 0);
+
+    const other = [...$otherRows.querySelectorAll('.other-row')].map(r => ({
+      label: r.querySelector('.o-label').value.trim() || 'other',
+      drm: parseSigned(r.querySelector('.o-drm').value, -5, 5),
+    })).filter(o => o.drm !== 0);
+
+    const payload = {
+      units,
+      afph: document.getElementById('b-afph').checked,
+      opportunity_fire: document.getElementById('b-opp').checked,
+      area_fire_halvings: stArea.value(),
+      tem: stTem.value(),
+      hindrance: Math.max(0, stHind.value()),
+      ffnam: document.getElementById('b-ffnam').checked,
+      ffmo: document.getElementById('b-ffmo').checked,
+      leadership: stLead.value(),
+      encircled_firer: document.getElementById('b-enc-firer').checked,
+      other_drm: other,
+      inexperienced: document.getElementById('b-inexp').checked,
+      firer_cowering_exempt: document.getElementById('b-exempt').checked,
+    };
+    const san = parseInt($bsan.value, 10);
+    if (san >= 2 && san <= 12) payload.san = san;
+
+    if ($tKind.value === 'personnel') {
+      payload.target = {
+        kind: 'personnel',
+        morale: stMorale.value(),
+        mc_drm: stMcdrm.value(),
+        encircled: document.getElementById('b-t-enc').checked,
+      };
+    } else if ($tKind.value === 'vehicle') {
+      payload.target = { kind: 'vehicle' };
+    }
+    return payload;
+  }
+
+  // The live math line: per-unit fp_breakdown + DRM ledger + warnings.
+  function renderMathLine(data) {
+    const lines = [];
+    for (const u of data.fp_breakdown || []) {
+      const steps = u.steps.length ? ' · ' + u.steps.join(' · ') : '';
+      lines.push(`FP ${u.fp}${steps} → <b>${u.final}</b>`);
+    }
+    const colStr = data.column ? `<b>${data.column} column</b>` : '<b>no attack</b>';
+    lines.push(`total <b>${data.total_fp} FP</b> → ${colStr}`);
+    const items = (data.drm_breakdown || []).map(d => `${fmtDrm(d.drm)} ${d.label}`).join(', ');
+    lines.push(`DRM: ${items || 'none'} = <b>${fmtDrm(data.drm)}</b> · cowering: ${data.cowering}`);
+    for (const w of data.warnings || []) {
+      lines.push(`<span class="ml-warn">⚠ ${w}</span>`);
+    }
+    $mathLine.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+    $mathLine.style.display = 'block';
+  }
+
+  // Headline cells: BREAK / PIN / CASUALTY / NO EFFECT vs a target, vehicle
+  // kill odds for the ★ line, or the generic buckets without a target.
+  function builderSummary(data) {
+    const vt = data.vs_target;
+    let cells;
+    if (vt && vt.kind === 'personnel') {
+      cells = [
+        { label: 'Break', p: vt.p_broken },
+        { label: 'Pin', p: vt.p_pinned },
+        { label: 'Casualty', p: vt.p_eliminated_or_reduced },
+        { label: 'No effect', p: vt.p_no_effect },
+      ];
+    } else if (vt && vt.kind === 'vehicle') {
+      cells = [
+        { label: 'Burning wreck', p: vt.p_burning_wreck },
+        { label: 'Eliminated', p: vt.p_eliminated },
+        { label: 'Immobilized', p: vt.p_immobilized },
+        { label: 'No effect', p: vt.p_no_effect },
+      ];
+    } else {
+      cells = summarize(data.distribution);
+    }
+    if (data.sniper) cells.push({ label: 'Sniper', p: data.sniper.p_sniper });
+    return cells;
+  }
+
+  async function recomputeBuilder() {
+    const payload = gatherPayload();
+    if (!payload.units.length) {
+      $mathLine.style.display = 'none';
+      showError('Add at least one firing unit with FP > 0.');
+      return;
+    }
+    let data;
+    try {
+      const res = await fetch('/api/ift/attack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.detail || 'Request failed');
+    } catch (e) {
+      $mathLine.style.display = 'none';
+      showError('Could not compute: ' + e.message);
+      return;
+    }
+
+    renderMathLine(data);
+    if (data.error) {
+      // Total FP below the 1 column — the math line shows how it got there.
+      showError(data.error);
+      return;
+    }
+    const cowStr = data.cowering === 'none' ? 'no cowering' : data.cowering + ' cowering';
+    renderResults(data, builderSummary(data),
+                  `<b>${data.column} FP</b> · DRM ${fmtDrm(data.drm)} · ${cowStr}`);
+  }
+
+  let builderTimer = null;
+  function recomputeBuilderDebounced() {
+    clearTimeout(builderTimer);
+    builderTimer = setTimeout(() => { if (mode === 'builder') recomputeBuilder(); }, 150);
+  }
+
+  // ======================= init =======================
+  addUnitRow(4);
+  syncTargetFields();
   recompute();
 </script>
 {% endblock %}

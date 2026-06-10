@@ -1,6 +1,6 @@
 # IFT Attack Builder — design
 
-Status: **design draft** (not implemented). Companion to the existing `/ift` odds
+Status: **implemented (worktree, pending review)**. Companion to the existing `/ift` odds
 engine (`app/asl/ift.py`), which this tool builds on top of — it does not replace it.
 
 ## The gap
