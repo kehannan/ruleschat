@@ -17,6 +17,9 @@ from app.database import SessionLocal
 from app.models.demo import DemoUsage, DemoMessage
 from app.models.config import SiteConfig
 from app.services.image_storage import save_image_data_url, ImageValidationError
+from app.services.vsav_service import (
+    save_vsav_data_url, parse_vsav, render_board_state, VsavError,
+)
 from app.services.asl_service import get_asl_service
 
 # In-memory flag — loaded from DB on startup, updated by admin toggle.
@@ -58,7 +61,7 @@ templates = Jinja2Templates(directory="templates")
 DEMO_PER_IP_LIMIT = 5
 DEMO_GLOBAL_LIMIT = 250
 DEMO_MAX_CHUNKS = 20
-DEMO_MODEL = "gpt-5-mini"
+DEMO_MODEL = "gpt-5.4-mini"
 WEBSOCKET_PING_INTERVAL = 30
 
 
@@ -207,6 +210,7 @@ async def websocket_demo(websocket: WebSocket):
 
                 # Parse message
                 image_data_urls: list[str] = []
+                vsav_data_url = None
                 try:
                     cmd = json.loads(raw_message)
                     if cmd.get("type") == "chat" and cmd.get("text"):
@@ -215,6 +219,8 @@ async def websocket_demo(websocket: WebSocket):
                         image_data_urls = cmd.get("images") or []
                         if not image_data_urls and cmd.get("image"):
                             image_data_urls = [cmd.get("image")]
+                        # Optional VASL .vsav save attachment (one per message)
+                        vsav_data_url = cmd.get("vsav")
                     else:
                         continue
                 except json.JSONDecodeError:
@@ -248,6 +254,38 @@ async def websocket_demo(websocket: WebSocket):
                     continue
                 if image_paths:
                     logging.info(f"🖼️  Demo {len(image_paths)} image(s) saved: {image_paths}")
+
+                # Persist + parse an attached VASL .vsav save, if any. A
+                # message with a vsav still counts as 1 against the daily cap
+                # (same as images). Errors are user-visible, never fatal.
+                vsav_paths: list[str] = []
+                board_state = None
+                vsav_state = None  # parsed dict for the resolve_attack tool
+                if vsav_data_url:
+                    try:
+                        vsav_rel_path = save_vsav_data_url(vsav_data_url, "demo")
+                        vsav_state = parse_vsav(vsav_rel_path)
+                        board_state = render_board_state(vsav_state)
+                        vsav_paths = [vsav_rel_path]
+                        val = vsav_state.get("validation", {})
+                        logging.info(
+                            f"🗺️  Demo .vsav parsed: {len(vsav_state.get('hexes', {}))} occupied hexes, "
+                            f"breadcrumb check {val.get('n_matched')}/{val.get('n_breadcrumbs_checked')}"
+                        )
+                    except VsavError as ve:
+                        await websocket.send_text(json.dumps({
+                            "type": "error",
+                            "message": f"VASL save rejected: {ve}",
+                        }))
+                        continue
+                    except Exception as ve:
+                        logging.error(f"Demo .vsav processing failed: {ve}", exc_info=True)
+                        await websocket.send_text(json.dumps({
+                            "type": "error",
+                            "message": "Could not process the attached VASL save. "
+                                       "Please try again or ask without the attachment.",
+                        }))
+                        continue
 
                 db = SessionLocal()
                 try:
@@ -285,7 +323,7 @@ async def websocket_demo(websocket: WebSocket):
                         "fable": "anthropic/claude-fable-5",
                     }
                     allowed_models = {
-                        "gpt-5-mini", "gpt-5.4-mini", "gpt-5.4",
+                        "gpt-5.4-mini", "gpt-5.4",
                         "deepseek-v3", "mercury-2", "fable",
                     }
                     if selected_model in allowed_models:
@@ -300,6 +338,13 @@ async def websocket_demo(websocket: WebSocket):
                         logging.info(f"🖼️  Demo image(s) attached - overriding model {model} -> gpt-5.4")
                         model = "gpt-5.4"
 
+                    # A .vsav attachment enables the deterministic resolve_attack
+                    # tool, which needs the OpenAI function-calling path — force
+                    # gpt-5.4 (OpenRouter models would reject use_agentic).
+                    if vsav_paths and model != "gpt-5.4":
+                        logging.info(f"🗺️  Demo .vsav attached - overriding model {model} -> gpt-5.4")
+                        model = "gpt-5.4"
+
                     asl_service = get_asl_service()
                     stream, timing_data = asl_service.get_answer(
                         message,
@@ -308,6 +353,9 @@ async def websocket_demo(websocket: WebSocket):
                         model=model,
                         max_chunks=DEMO_MAX_CHUNKS,
                         image_paths=image_paths or None,
+                        board_state=board_state,
+                        vsav_state=vsav_state,
+                        use_agentic=bool(vsav_paths),
                     )
 
                     full_response = ""
@@ -323,6 +371,7 @@ async def websocket_demo(websocket: WebSocket):
                         timing_clean = {k: v for k, v in timing_data.items() if k != "rag_sources"}
                         timing_clean["model"] = model
                         timing_clean["image_attached"] = bool(image_paths)
+                        timing_clean["vsav_attached"] = bool(vsav_paths)
 
                         # Log user + assistant messages for stats
                         log_db = SessionLocal()
@@ -330,6 +379,7 @@ async def websocket_demo(websocket: WebSocket):
                             log_db.add(DemoMessage(
                                 ip_address=ip, role="user", content=message,
                                 image_paths=image_paths or None,
+                                vsav_paths=vsav_paths or None,
                             ))
                             log_db.add(DemoMessage(ip_address=ip, role="assistant", content=full_response, timing_data=timing_clean))
                             log_db.commit()

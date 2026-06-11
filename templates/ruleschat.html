@@ -227,7 +227,7 @@
       <option value="deepseek-v3">deepseek-v3 · ¢</option>
       <option value="fable">fable · anthropic</option>
     </select>
-    <label id="tools-toggle-label" class="tools-toggle" title="Let the assistant call the IFT and TH/TK calculators when relevant"
+    <label id="tools-toggle-label" class="tools-toggle" title="Let the assistant call the IFT calculator when relevant"
            style="display:none;align-items:center;gap:.4em;margin-left:.6em;color:var(--muted);font-size:.85em;cursor:pointer;user-select:none;">
       <input type="checkbox" id="agentic-toggle" style="cursor:pointer;margin:0;"> Tools
     </label>
@@ -257,6 +257,9 @@
         <button class="send-btn" id="chat-message-submit" type="button">Send</button>
       </div>
       <div class="helper-strip">
+        <button id="vsav-attach-btn" type="button" title="Attach a VASL .vsav save — its board state is parsed and given to the model"
+                style="background:none;border:1px solid currentColor;border-radius:4px;cursor:pointer;font:inherit;color:inherit;opacity:.75;padding:0 6px;">📎 .vsav</button>
+        <input type="file" id="vsav-file-input" accept=".vsav" style="display:none;">
         <span>enter to send · shift-enter for newline</span>
         <span class="status" id="connection-status"><span class="pip"></span>connecting…</span>
       </div>
@@ -527,17 +530,20 @@
     hideWelcome();
 
     const attachedImages = (typeof getPendingImages === 'function') ? getPendingImages() : [];
+    const attachedVsav = (typeof getPendingVsav === 'function') ? getPendingVsav() : null;
     lastUserQuestion = message;
-    createUserMessage(message, attachedImages);
+    createUserMessage(attachedVsav ? `${message}\n📎 ${attachedVsav.name}` : message, attachedImages);
     createSearchingBubble();
     input.value = '';
     input.style.height = 'auto';
     if (typeof clearPendingImages === 'function') clearPendingImages();
+    if (typeof clearPendingVsav === 'function') clearPendingVsav();
 
     const model = document.getElementById('model-selector').value;
     const agentic = document.getElementById('agentic-toggle')?.checked || false;
     const payload = { type: 'chat', text: message, model: model, agentic: agentic };
     if (attachedImages.length > 0) payload.images = attachedImages;
+    if (attachedVsav) payload.vsav = attachedVsav.dataUrl;
     chatSocket.send(JSON.stringify(payload));
   }
 
@@ -610,6 +616,7 @@
     if (submitBtn) submitBtn.onclick = sendMessage;
 
     if (typeof bindImagePasteHandler === 'function') bindImagePasteHandler();
+    if (typeof bindVsavAttachHandler === 'function') bindVsavAttachHandler();
 
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible' &&

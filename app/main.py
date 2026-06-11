@@ -19,7 +19,7 @@ from app.core.auth import get_current_user
 from app.services.user_service import update_user_profile, get_user_by_email
 
 # Import routers
-from app.api import auth, user, chat, evals, demo, ift, thtk
+from app.api import auth, user, chat, evals, demo, ift
 
 # Load environment variables
 load_dotenv()
@@ -92,6 +92,12 @@ def _migrate_image_path_to_paths(table: str):
 _migrate_image_path_to_paths("chat_messages")
 _migrate_image_path_to_paths("demo_messages")
 
+# VASL .vsav attachments (JSON list of relative paths, like image_paths).
+# create_all only creates missing TABLES, so existing DBs need the column
+# added explicitly. Idempotent.
+_ensure_column("chat_messages", "vsav_paths", "vsav_paths JSON")
+_ensure_column("demo_messages", "vsav_paths", "vsav_paths JSON")
+
 # Load runtime config from DB
 from app.api.demo import load_demo_enabled_from_db, is_demo_enabled
 load_demo_enabled_from_db()
@@ -130,7 +136,6 @@ app.include_router(chat.router, tags=["chat"])
 app.include_router(evals.router, tags=["evals"])
 app.include_router(demo.router, tags=["demo"])
 app.include_router(ift.router, tags=["ift"])
-app.include_router(thtk.router, tags=["thtk"])
 
 
 # Admin dependency

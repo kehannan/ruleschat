@@ -246,7 +246,7 @@
 <div class="exp-notice" id="experimental-notice">
   <div class="wrap">
     <span class="label">EXPERIMENTAL</span>
-    <span>Paste up to three zoomed-in VASL screens to ask questions about the board (<a class="see-link" href="#" id="see-example-link">see example</a>).</span>
+    <span>Attach a VASL <strong>.vsav</strong> save (📎 button below) to ask questions about your board — exact units, positions, and terrain, with fire attacks resolved deterministically.</span>
     <button type="button" class="dismiss" id="experimental-notice-dismiss" title="Dismiss" aria-label="Dismiss">×</button>
   </div>
 </div>
@@ -255,7 +255,6 @@
 <div class="chat-toolbar">
   <div class="wrap">
     <select class="model-pill" id="model-selector" title="Select model">
-      <option value="gpt-5-mini">gpt-5-mini · ¢/slow</option>
       <option value="gpt-5.4">gpt-5.4 · ¢¢/fast</option>
       <option value="deepseek-v3">deepseek-v3 · ¢</option>
       <option value="fable">fable · ¢¢¢/fast</option>
@@ -287,6 +286,8 @@
       </div>
       <div class="helper-strip">
         <button class="surprise" id="surprise-btn" type="button" title="Try a random question from the eval set">🎲 Surprise me</button>
+        <button class="surprise" id="vsav-attach-btn" type="button" title="Attach a VASL .vsav save — its board state is parsed and given to the model">📎 .vsav</button>
+        <input type="file" id="vsav-file-input" accept=".vsav" style="display:none;">
         <span>random question from the eval set · enter to send · shift-enter for newline</span>
         <span class="status" id="connection-status"><span class="pip"></span>connecting…</span>
       </div>
@@ -544,17 +545,20 @@
     hideWelcome();
 
     const attachedImages = (typeof getPendingImages === 'function') ? getPendingImages() : [];
+    const attachedVsav = (typeof getPendingVsav === 'function') ? getPendingVsav() : null;
 
     lastUserQuestion = message;
-    createUserMessage(message, attachedImages);
+    createUserMessage(attachedVsav ? `${message}\n📎 ${attachedVsav.name}` : message, attachedImages);
     createSearchingBubble();
     input.value = '';
     input.style.height = 'auto';
     if (typeof clearPendingImages === 'function') clearPendingImages();
+    if (typeof clearPendingVsav === 'function') clearPendingVsav();
 
     const model = document.getElementById('model-selector').value;
     const payload = { type: 'chat', text: message, model: model };
     if (attachedImages.length > 0) payload.images = attachedImages;
+    if (attachedVsav) payload.vsav = attachedVsav.dataUrl;
     chatSocket.send(JSON.stringify(payload));
   }
 
@@ -577,9 +581,12 @@
     submitBtn.addEventListener('click', sendMessage);
 
     if (typeof bindImagePasteHandler === 'function') bindImagePasteHandler();
+    if (typeof bindVsavAttachHandler === 'function') bindVsavAttachHandler();
 
     // Experimental-notice dismiss (persists via localStorage)
-    const NOTICE_KEY = 'dismissed_experimental_notice_v2';
+    // v3: bumped when the notice content changed (screenshots → .vsav attach),
+    // so visitors who dismissed the old message see the new one once.
+    const NOTICE_KEY = 'dismissed_experimental_notice_v3';
     const notice = document.getElementById('experimental-notice');
     const noticeDismiss = document.getElementById('experimental-notice-dismiss');
     if (notice && localStorage.getItem(NOTICE_KEY) === '1') {

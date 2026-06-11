@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Tests for the agentic UI tools (ift_odds / thtk_odds) and the streaming
+Tests for the agentic UI tools (ift_odds / ift_attack) and the streaming
 agentic loop in ASLService.
 
 No network calls: the loop is driven by a fake Responses client. Runnable
@@ -12,8 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.asl import ift, thtk
-from app.asl.tools import TOOL_SCHEMAS, TOOL_FUNCTIONS, execute_tool, ift_odds, thtk_odds
+from app.asl import ift
+from app.asl.tools import TOOL_SCHEMAS, TOOL_FUNCTIONS, execute_tool, ift_odds
 from app.services.asl_service import (
     ASLService,
     _output_function_calls,
@@ -45,41 +45,14 @@ def test_ift_odds_invalid_column_raises():
     raise AssertionError("ift_odds(column=7) should have raised ValueError")
 
 
-def test_thtk_odds_valid():
-    opts = thtk.get_options()
-    r = thtk_odds(
-        target_type=opts["target_types"][0],
-        range=5,
-        weapon_type=opts["weapon_types"][0],
-        ammo=opts["ammo_types"][0],
-        mm=75,
-    )
-    assert 0.0 <= r["to_hit"]["hit_prob"] <= 1.0
-    assert r["to_kill"]["kill_prob"] is None or 0.0 <= r["to_kill"]["kill_prob"] <= 1.0
-
-
-def test_thtk_odds_invalid_target_raises():
-    try:
-        thtk_odds(target_type="dragon", range=5, weapon_type=thtk.get_options()["weapon_types"][0],
-                  ammo=thtk.get_options()["ammo_types"][0], mm=75)
-    except ValueError:
-        return
-    raise AssertionError("thtk_odds with bogus target_type should raise ValueError")
-
-
 def test_schemas_enums_match_engines():
     """Schema enums must mirror the engines so the model only sends valid values."""
     assert _schema("ift_odds")["parameters"]["properties"]["column"]["enum"] == ift.valid_columns()
     assert _schema("ift_odds")["parameters"]["properties"]["cowering"]["enum"] == list(ift.COWERING_SHIFT.keys())
-    opts = thtk.get_options()
-    thtk_props = _schema("thtk_odds")["parameters"]["properties"]
-    assert thtk_props["target_type"]["enum"] == opts["target_types"]
-    assert thtk_props["weapon_type"]["enum"] == opts["weapon_types"]
-    assert thtk_props["ammo"]["enum"] == opts["ammo_types"]
 
 
 def test_registry_only_ui_tools():
-    assert set(TOOL_FUNCTIONS) == {"ift_odds", "ift_attack", "thtk_odds"}, \
+    assert set(TOOL_FUNCTIONS) == {"ift_odds", "ift_attack", "resolve_attack"}, \
         "hand-rolled calculators should be retired"
 
 

@@ -1,18 +1,19 @@
 """
 ASL Agentic Tools
 
-Thin wrappers exposing the deterministic UI calculators — the Infantry Fire
-Table odds engine (`app.asl.ift`) and the To Hit / To Kill odds engine
-(`app.asl.thtk`) — as functions the LLM can call via OpenAI's function calling.
+Thin wrappers exposing the deterministic UI calculator — the Infantry Fire
+Table odds engine (`app.asl.ift`) — as functions the LLM can call via OpenAI's
+function calling.
 
-The same engines power the `/ift` and `/thtk` pages, so an agentic answer and
-the standalone tool always agree. Tool schemas pull their enums live from the
-engines, so they can never drift from the underlying tables.
+The same engine powers the `/ift` page, so an agentic answer and the
+standalone tool always agree. Tool schemas pull their enums live from the
+engine, so they can never drift from the underlying tables.
 """
 import logging
 from typing import Dict, Any, List, Optional
 
-from app.asl import ift, thtk
+from app.asl import ift
+from app.asl import attack_resolver
 
 
 # =============================================================================
@@ -104,44 +105,47 @@ def ift_attack(
     return result
 
 
-def thtk_odds(
-    target_type: str,
-    range: int,
-    weapon_type: str,
-    ammo: str,
-    mm: int,
-    nationality: str = "",
-    hit_drm: int = 0,
+def resolve_attack(
+    firing_hex: str,
+    target_hex: str,
+    phase: str = "prep",
+    firing_unit_filter: Optional[str] = None,
+    _context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    To Hit + To Kill numbers and probabilities for one ordnance attack (Chapter C).
+    Resolve a fire attack directly from the attached .vsav's parsed state.
 
-    Target Armor is NOT applied on the To Kill side — the raw TK# is returned, so
-    the caller subtracts armor themselves (each armor point = -1 to the TK#).
-
-    Args:
-        target_type: One of `thtk.get_options()["target_types"]`.
-        range: Range to target in hexes (>= 0).
-        weapon_type: Barrel class, one of `thtk.get_options()["weapon_types"]`.
-        ammo: Ammo type, one of `thtk.get_options()["ammo_types"]`.
-        mm: Gun caliber in millimeters (> 0).
-        nationality: One of `thtk.get_options()["nationalities"]`, or "" for none
-                     (German optics use a higher To Hit column).
-        hit_drm: Hit Determination DRM (positive = harder to hit).
+    Unlike ift_attack, this takes HEX IDs — not FP/TEM/DRM numbers — and
+    derives every input deterministically from the save (see
+    app.asl.attack_resolver). Requires the parsed vsav state, which is
+    threaded in server-side via `_context` (never exposed to the model);
+    without an attached save it returns a clear error directing the model
+    to ift_attack instead.
     """
-    result = thtk.compute(
-        target_type=target_type,
-        rng=range,
-        weapon_type=weapon_type,
-        ammo=ammo,
-        mm=mm,
-        nationality=nationality,
-        hit_drm=hit_drm,
-    )
+    state = (_context or {}).get("vsav_state")
+    if not state:
+        return {
+            "error": (
+                "No VASL .vsav save is attached to this message, so there is "
+                "no parsed board state to resolve against. Use the ift_attack "
+                "tool instead, supplying the firing units' FP and the "
+                "TEM/DRM explicitly (cite the rules for each value)."
+            )
+        }
+    try:
+        result = attack_resolver.resolve_attack(
+            state,
+            firing_hex=firing_hex,
+            target_hex=target_hex,
+            phase=phase,
+            firing_unit_filter=firing_unit_filter,
+        )
+    except ValueError as e:
+        return {"error": str(e)}
     logging.info(
-        "🎯 thtk_odds(target=%s, rng=%s, %s, %s, %smm) -> TH#%s / TK#%s",
-        target_type, range, weapon_type, ammo, mm,
-        result["to_hit"]["final_th"], result["to_kill"]["final_tk"],
+        "🎯 resolve_attack(%s -> %s, phase=%s) -> %s FP, col %s, drm %s",
+        firing_hex, target_hex, phase,
+        result.get("total_fp"), result.get("column"), result.get("drm"),
     )
     return result
 
@@ -149,8 +153,6 @@ def thtk_odds(
 # =============================================================================
 # Tool Schemas (OpenAI Responses API function calling) — enums pulled live
 # =============================================================================
-
-_thtk_opts = thtk.get_options()
 
 TOOL_SCHEMAS = [
     {
@@ -361,53 +363,54 @@ TOOL_SCHEMAS = [
     },
     {
         "type": "function",
-        "name": "thtk_odds",
+        "name": "resolve_attack",
         "description": (
-            "Compute To Hit and To Kill numbers and probabilities for an ordnance "
-            "(Gun) attack per ASL Chapter C. Use for any 'chance to hit / chance to "
-            "kill' question for a Gun firing at a target at a given range. Target Armor "
-            "is NOT applied — the raw To Kill number is returned for the caller to "
-            "adjust by armor (each armor point = -1 to the TK#)."
+            "Resolve an Infantry Fire Table attack DIRECTLY from the attached VASL "
+            ".vsav save's parsed board state. Takes hex IDs (use the '<board>-<hex>' "
+            "IDs from the BOARD STATE block, e.g. '57-H9') — NOT firepower or DRM "
+            "numbers — and deterministically derives the eligible firers, each unit's "
+            "printed FP (counter values + a SW table), per-squad Assault Fire "
+            "(A7.36, applied in the advancing phase from the counter's underscored "
+            "FP) and Spraying Fire capability (A7.34, noted only), the hex range "
+            "with PBF/TPBF doubling and long-range halving, an itemized rule-cited "
+            "DRM ledger "
+            "(entrenchment vs terrain TEM, leadership, CX), cowering, and the full "
+            "IFT odds, plus explicit assumptions (LOS assumed clear, intervening "
+            "hindrances not counted). ALWAYS prefer this over ift_attack when a .vsav "
+            "is attached and the question asks to resolve fire between hexes. If no "
+            "save is attached it returns an error — then fall back to ift_attack with "
+            "explicit inputs."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "target_type": {
+                "firing_hex": {
                     "type": "string",
-                    "enum": _thtk_opts["target_types"],
-                    "description": "Target type.",
+                    "description": "Hex the attack is fired FROM, e.g. '57-H9'.",
                 },
-                "range": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "description": "Range to target in hexes.",
-                },
-                "weapon_type": {
+                "target_hex": {
                     "type": "string",
-                    "enum": _thtk_opts["weapon_types"],
-                    "description": "Gun barrel class.",
+                    "description": "Hex being attacked, e.g. '57-H8'.",
                 },
-                "ammo": {
+                "phase": {
                     "type": "string",
-                    "enum": _thtk_opts["ammo_types"],
-                    "description": "Ammunition type.",
+                    "enum": list(attack_resolver.VALID_PHASES),
+                    "description": (
+                        "Fire phase: 'prep' (PFPh), 'advancing' (AFPh, FP halved; "
+                        "Assault Fire +1 auto-applied for capable squads), "
+                        "'defensive_first' (enemy MPh) or 'defensive_final' (DFPh)."
+                    ),
                 },
-                "mm": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Gun caliber in millimeters.",
-                },
-                "nationality": {
+                "firing_unit_filter": {
                     "type": "string",
-                    "enum": [""] + _thtk_opts["nationalities"],
-                    "description": "Firer nationality (German optics use a higher column). '' for none.",
-                },
-                "hit_drm": {
-                    "type": "integer",
-                    "description": "Hit Determination DRM (positive = harder to hit).",
+                    "description": (
+                        "Optional substring to restrict which units fire (e.g. "
+                        "'6-4-8' to fire only the squad, or 'LMG'). Leaders are "
+                        "always considered for direction."
+                    ),
                 },
             },
-            "required": ["target_type", "range", "weapon_type", "ammo", "mm"],
+            "required": ["firing_hex", "target_hex"],
             "additionalProperties": False,
         },
     },
@@ -421,16 +424,32 @@ TOOL_SCHEMAS = [
 TOOL_FUNCTIONS = {
     "ift_odds": ift_odds,
     "ift_attack": ift_attack,
-    "thtk_odds": thtk_odds,
+    "resolve_attack": resolve_attack,
 }
 
+# Tools that receive the server-side execution context (parsed .vsav state,
+# ...) as a hidden `_context` kwarg. The model never sees or supplies it.
+CONTEXT_TOOLS = {"resolve_attack"}
 
-def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+
+def execute_tool(
+    tool_name: str,
+    arguments: Dict[str, Any],
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Execute a tool by name with the given arguments.
+
+    Args:
+        tool_name: Registered tool name.
+        arguments: Model-supplied arguments (already JSON-decoded).
+        context: Optional server-side context (e.g. {"vsav_state": ...});
+            injected only into CONTEXT_TOOLS, never model-controlled.
 
     Raises:
         ValueError: If the tool name is not recognized.
     """
     if tool_name not in TOOL_FUNCTIONS:
         raise ValueError(f"Unknown tool: {tool_name}")
+    if tool_name in CONTEXT_TOOLS:
+        return TOOL_FUNCTIONS[tool_name](**arguments, _context=context)
     return TOOL_FUNCTIONS[tool_name](**arguments)

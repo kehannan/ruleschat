@@ -26,3 +26,7 @@ class DemoMessage(Base):
     # Optional image attachments (user messages only); JSON list of relative paths
     # under data/uploads/, e.g. ["demo/abc.jpg", "demo/def.jpg"]. None when no images.
     image_paths = Column(JSON)
+
+    # Optional VASL .vsav save attachments (user messages only); JSON list of
+    # relative paths under data/uploads/, e.g. ["demo/abc.vsav"]. None when none.
+    vsav_paths = Column(JSON)

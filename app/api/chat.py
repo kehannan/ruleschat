@@ -20,6 +20,9 @@ from app.services.asl_service import get_asl_service
 from app.services.chat_history_service import get_chat_history_service
 from app.services.chat_log_service import append_chat_log
 from app.services.image_storage import save_image_data_url, resolve_image_path, ImageValidationError
+from app.services.vsav_service import (
+    save_vsav_data_url, parse_vsav, render_board_state, VsavError,
+)
 from app.database import SessionLocal, get_db
 from app.models.user import User
 
@@ -248,6 +251,7 @@ async def get_conversation_messages(conversation_id: int, request: Request):
                 "created_at": m.created_at.isoformat(),
                 "rag_sources": m.rag_sources,
                 "image_paths": m.image_paths,
+                "vsav_paths": m.vsav_paths,
             }
             for m in messages
         ]
@@ -384,6 +388,8 @@ async def websocket_chat(websocket: WebSocket):
                         image_data_urls = cmd.get("images") or []
                         if not image_data_urls and cmd.get("image"):
                             image_data_urls = [cmd.get("image")]
+                        # Optional VASL .vsav save attachment (one per message)
+                        vsav_data_url = cmd.get("vsav")
                     else:
                         continue  # Unknown command
 
@@ -393,6 +399,7 @@ async def websocket_chat(websocket: WebSocket):
                     selected_model = None
                     agentic = False
                     image_data_urls = []
+                    vsav_data_url = None
                 
                 logging.info(f"✅ Received question: {message[:100]}...")
                 
@@ -438,7 +445,40 @@ async def websocket_chat(websocket: WebSocket):
                         continue
                     if image_paths:
                         logging.info(f"🖼️  Saved {len(image_paths)} image(s) for conv {conversation_id}: {image_paths}")
-                    
+
+                    # Persist + parse an attached VASL .vsav save, if any.
+                    # Parse errors are user-visible and never crash the socket.
+                    vsav_paths: list[str] = []
+                    board_state = None
+                    vsav_state = None  # parsed dict for the resolve_attack tool
+                    if vsav_data_url:
+                        try:
+                            vsav_rel_path = save_vsav_data_url(vsav_data_url, conversation_id)
+                            vsav_state = parse_vsav(vsav_rel_path)
+                            board_state = render_board_state(vsav_state)
+                            vsav_paths = [vsav_rel_path]
+                            val = vsav_state.get("validation", {})
+                            logging.info(
+                                f"🗺️  Parsed .vsav for conv {conversation_id}: "
+                                f"{len(vsav_state.get('hexes', {}))} occupied hexes, "
+                                f"breadcrumb check {val.get('n_matched')}/{val.get('n_breadcrumbs_checked')}"
+                            )
+                        except VsavError as ve:
+                            logging.warning(f".vsav rejected: {ve}")
+                            await websocket.send_text(json.dumps({
+                                "type": "error",
+                                "message": f"VASL save rejected: {ve}",
+                            }))
+                            continue
+                        except Exception as ve:
+                            logging.error(f".vsav processing failed: {ve}", exc_info=True)
+                            await websocket.send_text(json.dumps({
+                                "type": "error",
+                                "message": "Could not process the attached VASL save. "
+                                           "Please try again or ask without the attachment.",
+                            }))
+                            continue
+
                     # Build input with conversation history
                     history_prefix = chat_history_service.format_history_for_api(db, conversation_id)
                     if history_prefix:
@@ -485,6 +525,8 @@ async def websocket_chat(websocket: WebSocket):
                         return_timing=True,
                         model=model_override,
                         image_paths=image_paths or None,
+                        board_state=board_state,
+                        vsav_state=vsav_state,
                         use_agentic=agentic_enabled,
                     )
                     
@@ -512,12 +554,14 @@ async def websocket_chat(websocket: WebSocket):
                         chat_history_service.add_message(
                             db, conversation_id, "user", message,
                             image_paths=image_paths or None,
+                            vsav_paths=vsav_paths or None,
                         )
 
                         rag_sources = timing_data.get('rag_sources', [])
                         timing_without_sources = {k: v for k, v in timing_data.items() if k != 'rag_sources'}
                         timing_without_sources["model"] = model_override or DEFAULT_MODEL
                         timing_without_sources["image_attached"] = bool(image_paths)
+                        timing_without_sources["vsav_attached"] = bool(vsav_paths)
 
                         chat_history_service.add_message(
                             db, conversation_id, "assistant", full_response,
@@ -535,6 +579,7 @@ async def websocket_chat(websocket: WebSocket):
                             model=model_override or DEFAULT_MODEL,
                             timing_data=timing_without_sources,
                             image_paths=image_paths or None,
+                            vsav_paths=vsav_paths or None,
                         )
                         logging.info(f"📤 Sending {len(rag_sources)} RAG sources to frontend")
                         

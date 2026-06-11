@@ -51,6 +51,17 @@ Counters in VASL frequently appear ROTATED at angles (commonly 30-60 degrees) wh
 Then: describe what you see across the user's board view(s) (hexes visible, counters and their state - broken/CX/disrupted/pinned, apparent LOS lines, terrain identified via the legend). Call file_search for the rule sections that govern the situation depicted. Cite specific rule sections (e.g., A6.4) in your answer. Reason over both the image(s) and the retrieved rules. If a counter, hex, or detail is unreadable, say so explicitly rather than guessing. Never make a rule claim without a file_search citation."""
 
 
+VSAV_INSTRUCTIONS_ADDENDUM = """
+
+The user attached a VASL .vsav save file, and a BOARD STATE block parsed directly from it is appended to the question. Treat the BOARD STATE block as GROUND TRUTH for which units and counters exist and which hex each occupies - it is exact, machine-parsed data from the save file, not vision output, so prefer it over any screenshot when they disagree about unit identities or positions. Unit entries carry state flags in [..] (BROKEN, concealed, HIP, skis, label) and per-unit markers in {..} (DM, Melee, Pin, Prep Fire, etc.); board-level SSR transforms (e.g. Winter, NoGrain, GrainToBrush) change terrain effects and must be applied. VASL stacking order is meaningful and the parser applies it: a marker or entrenchment counter affects only the units BELOW it in the stack, so a unit whose {..} shows a marker (or 'Foxhole: in' / 'Trench: in') is under that counter and in/affected by it, while units in the same hex WITHOUT that annotation are not - e.g. a unit listed without 'Foxhole: in' is outside the foxhole even when another unit in its hex is in one. Anything on a hex's 'hex markers' list applies to no listed unit (the marker sits at the bottom of a stack or alone in the hex).
+
+When local board data is available, each OCCUPIED hex carries its terrain in [..] right after the hex ID (e.g. "57-H8 [Orchard, road]") - read from VASL's own per-board terrain grid with the save's SSR terrain transforms (NoGrain, GrainToBrush, ...) already applied, including elevation when non-zero. Treat these terrain annotations as reliable. They cover occupied hexes only, and the block still does NOT contain line-of-sight data: when your answer depends on LOS, hindrances, or the terrain of unoccupied intervening hexes, state those assumptions explicitly and invite the user to confirm them, ask about specific hexes, or attach a screenshot of the relevant area. If a hex has no [terrain] annotation (or the block says terrain is unavailable for a board), terrain data was missing for that board - fall back to stating assumptions. Hexes near map overlays may have modified terrain (noted in the block when detected).
+
+FIRE ATTACK RESOLUTION: when the question asks to resolve a fire attack between hexes of the attached save (who fires, final FP, DRM, IFT column, break/kill odds), and function tools are available, call the resolve_attack tool with the '<board>-<hex>' IDs from the BOARD STATE block (e.g. firing_hex "57-H9", target_hex "57-H8") and the fire phase. Do NOT derive firepower, range doubling, TEM, or DRM yourself - the tool computes them deterministically from the parsed save and returns an itemized derivation. Present its derivation faithfully: the per-unit FP breakdown, the range/PBF note, every DRM line item, and ALL of its listed assumptions and warnings (especially that LOS is assumed clear and intervening hindrances are not counted - invite the user to confirm those). Still call file_search for the governing rules it cites (e.g., A7.21 PBF, B27 entrenchments) and cite the sections in your explanation. Assault Fire (A7.36) is detected from the counter art and applied automatically in the advancing phase (a warning names any unit whose capability is unknown); Spraying Fire capability (A7.34) is surfaced as a note but never auto-applied. If resolve_attack returns an error, or the situation needs inputs it cannot know (moving target FFNAM/FFMO, hindrances the user described, a Spraying Fire two-Location attack), fall back to ift_attack with explicit inputs. For fire questions WITHOUT an attached save, keep using ift_attack.
+
+Never quote a TEM or DRM value from memory - look it up with file_search first, even for terrain and markers that seem familiar. This applies equally to values you pass INTO ift_attack (the tool trusts whatever TEM you give it). In particular, entrenchments shown as 'Foxhole: in' / 'Trench: in' in {..} have their own TEM rules (B27) distinct from the hex's terrain TEM - and they protect ONLY the units annotated as in them, and similar-sounding features differ (e.g., foxholes and shellholes have different TEMs); verify which applies and cite the section."""
+
+
 def _read_image_as_data_url(image_path: str) -> str:
     """Decode a stored image file into a base64 data URL for the Responses API."""
     p = Path(image_path)
@@ -171,6 +182,15 @@ class _CitationStripper:
         ws, self._pending_ws = self._pending_ws, ""
         return ws
 
+
+def _strip_citation_markers(text: str) -> str:
+    """One-shot citation-marker strip for non-streamed (complete) text."""
+    if not text:
+        return text
+    s = _CitationStripper()
+    return s.feed(text) + s.flush()
+
+
 class ASLService:
     """Service for getting ASL rule answers via Responses API."""
     
@@ -275,7 +295,7 @@ Your response:"""
                 }]
             )
             
-            verified_answer = extract_response_text(response)
+            verified_answer = _strip_citation_markers(extract_response_text(response))
             
             # Check if verification found issues
             if "VERIFIED:" in verified_answer and "correct and complete" in verified_answer.lower():
@@ -302,6 +322,8 @@ Your response:"""
         use_agentic: bool = False,
         max_chunks: Optional[int] = None,
         image_paths: Optional[List[str]] = None,
+        board_state: Optional[str] = None,
+        vsav_state: Optional[Dict[str, Any]] = None,
     ):
         """
         Get an answer to an ASL question.
@@ -314,9 +336,17 @@ Your response:"""
             return_timing: If True and stream=True, returns tuple (generator, timing_data)
             force_web_search: If True, emphasizes web search usage in instructions
             use_verification: If True, uses two-pass verification to check answer
-            use_agentic: If True, exposes the IFT / TH-TK function tools. Works in
+            use_agentic: If True, exposes the IFT function tools. Works in
                 both streaming and non-streaming modes (streaming resolves tool
                 calls, then streams the final answer).
+            board_state: Optional rendered BOARD STATE text block (from
+                vsav_service.render_board_state). Appended to the question
+                text and accompanied by VSAV_INSTRUCTIONS_ADDENDUM. Plain
+                text, so it works on every model path (incl. OpenRouter).
+            vsav_state: Optional PARSED .vsav state dict (from
+                vsav_service.parse_vsav). Never sent to the model; threaded
+                into agentic tool execution so the resolve_attack tool can
+                derive attacks from exact board state server-side.
 
         Returns:
             The answer as a string (or generator if stream=True)
@@ -334,7 +364,13 @@ Your response:"""
         
         model = model or self.config.model
         temperature = temperature if temperature is not None else self.config.temperature
-        
+
+        # Inject parsed .vsav board state as plain text. Folding it into the
+        # question (rather than a separate content block) means every path —
+        # OpenAI streaming/agentic, multimodal, and OpenRouter — sees it.
+        if board_state:
+            question = f"{question}\n\n{board_state}"
+
         # Build instructions
         instructions = build_instructions(
             self.config.system_instructions,
@@ -343,6 +379,8 @@ Your response:"""
         )
         if image_paths:
             instructions = instructions + VISION_INSTRUCTIONS_ADDENDUM
+        if board_state:
+            instructions = instructions + VSAV_INSTRUCTIONS_ADDENDUM
 
         # Build input — multimodal if image(s) attached, else plain string
         if image_paths:
@@ -399,9 +437,11 @@ Your response:"""
             ]
             
             # Add function tools if agentic mode is enabled
+            tool_context = {"vsav_state": vsav_state} if vsav_state else None
             if use_agentic:
                 tools.extend(TOOL_SCHEMAS)
-                logging.info(f"🤖 Agentic mode enabled - added {len(TOOL_SCHEMAS)} function tools")
+                logging.info(f"🤖 Agentic mode enabled - added {len(TOOL_SCHEMAS)} function tools"
+                             + (" (with parsed .vsav state in tool context)" if tool_context else ""))
             
             # Build common API kwargs — some models (e.g. gpt-5-mini) don't support temperature
             api_kwargs = {
@@ -427,6 +467,7 @@ Your response:"""
                         tools=tools,
                         api_call_start_time=api_call_start_time,
                         return_timing=return_timing,
+                        tool_context=tool_context,
                     )
                 # Use stream_response for true streaming with final response access
                 stream_manager = self.client.stream_response(**api_kwargs)
@@ -446,7 +487,8 @@ Your response:"""
                         temperature=temperature,
                         tools=tools,
                         api_call_start_time=api_call_start_time,
-                        use_verification=use_verification
+                        use_verification=use_verification,
+                        tool_context=tool_context,
                     )
                 else:
                     # Standard non-streaming
@@ -722,6 +764,7 @@ Your response:"""
         api_call_start_time: float,
         return_timing: bool,
         max_iterations: int = 5,
+        tool_context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Generator[str, None, None], Any]:
         """
         Agentic answer that preserves streaming: resolve any tool calls, then
@@ -746,6 +789,7 @@ Your response:"""
         def stream_generator():
             prev_id: Optional[str] = None
             current_input = input_data
+            stripper = _CitationStripper()
             first_delta_time: Optional[float] = None
             file_search_complete_time: Optional[float] = None
             total_input_tokens = 0
@@ -772,7 +816,9 @@ Your response:"""
                             if delta:
                                 if first_delta_time is None:
                                     first_delta_time = time.time()
-                                yield delta
+                                cleaned = stripper.feed(delta)
+                                if cleaned:
+                                    yield cleaned
                     final = stream.get_final_response()
 
                 prev_id = getattr(final, "id", None)
@@ -786,6 +832,9 @@ Your response:"""
                 calls = _output_function_calls(output)
                 if not calls:
                     logging.info("🤖 Agentic(stream) finished after %d iteration(s)", iteration + 1)
+                    tail = stripper.flush()
+                    if tail:
+                        yield tail
                     break
 
                 tools_called.extend(c["name"] for c in calls)
@@ -799,7 +848,9 @@ Your response:"""
                         raw = fc.get("arguments")
                         args = json_module.loads(raw) if isinstance(raw, str) else (raw or {})
                         logging.info("  📞 %s(%s)", fc["name"], args)
-                        output_json = json_module.dumps(execute_tool(fc["name"], args))
+                        output_json = json_module.dumps(
+                            execute_tool(fc["name"], args, context=tool_context)
+                        )
                     except Exception as e:
                         logging.error("  ❌ Tool error in %s: %s", fc.get("name"), e)
                         output_json = json_module.dumps({"error": str(e)})
@@ -842,7 +893,7 @@ Your response:"""
     ) -> str:
         """Handle non-streaming response."""
         response_start_time = time.time()
-        response_text = extract_response_text(response)
+        response_text = _strip_citation_markers(extract_response_text(response))
         response_end_time = time.time()
                 
         total_time_ms = (response_end_time - api_call_start_time) * 1000
@@ -864,7 +915,8 @@ Your response:"""
         tools: List[Dict[str, Any]],
         api_call_start_time: float,
         use_verification: bool,
-        max_iterations: int = 5
+        max_iterations: int = 5,
+        tool_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Handle agentic response with multi-turn tool execution loop.
@@ -941,8 +993,8 @@ Your response:"""
                 if use_verification:
                     logging.info("🔍 Verification enabled - running second pass...")
                     final_text = self._verify_answer(question, final_text, model, temperature)
-                
-                return final_text
+
+                return _strip_citation_markers(final_text)
             
             # 2. Execute function calls and build input for next iteration
             logging.info(f"🔧 Executing {len(function_calls)} function call(s)...")
@@ -957,7 +1009,7 @@ Your response:"""
                 try:
                     args = json_module.loads(args_raw) if isinstance(args_raw, str) else args_raw
                     logging.info(f"  📞 {name}({args})")
-                    result = execute_tool(name, args)
+                    result = execute_tool(name, args, context=tool_context)
                     result_json = json_module.dumps(result)
 
                     function_results.append({
@@ -978,7 +1030,7 @@ Your response:"""
             input_data = function_results
         
         logging.warning("⚠️ Max iterations reached")
-        return final_text or extract_response_text(response)
+        return _strip_citation_markers(final_text or extract_response_text(response))
 
 
 # Global service instance (lazy initialization)

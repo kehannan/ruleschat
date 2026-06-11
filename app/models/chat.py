@@ -44,7 +44,11 @@ class ChatMessage(Base):
     # Optional image attachments (user messages only); JSON list of relative paths
     # under data/uploads/, e.g. ["27/abc.jpg", "27/def.jpg"]. None when no images.
     image_paths = Column(JSON)
-    
+
+    # Optional VASL .vsav save attachments (user messages only); JSON list of
+    # relative paths under data/uploads/, e.g. ["27/abc.vsav"]. None when none.
+    vsav_paths = Column(JSON)
+
     # Relationship
     conversation = relationship("ChatConversation", back_populates="messages")
 

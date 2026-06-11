@@ -442,7 +442,7 @@ function removePendingImageAt(idx) {
 function renderPendingImages() {
     const preview = document.getElementById('image-preview');
     if (!preview) return;
-    if (pendingImages.length === 0) {
+    if (pendingImages.length === 0 && !pendingVsav) {
         preview.style.display = 'none';
         preview.innerHTML = '';
         return;
@@ -466,12 +466,33 @@ function renderPendingImages() {
         item.appendChild(btn);
         preview.appendChild(item);
     });
-    const label = document.createElement('span');
-    label.className = 'image-preview-label';
-    label.textContent = pendingImages.length === 1
-        ? '1 image attached'
-        : `${pendingImages.length} images attached`;
-    preview.appendChild(label);
+    if (pendingVsav) {
+        const chip = document.createElement('span');
+        chip.className = 'vsav-preview-chip';
+        chip.style.cssText =
+            'display:inline-flex;align-items:center;gap:6px;padding:2px 8px;' +
+            'border:1px solid currentColor;border-radius:12px;font-size:12px;opacity:.85;';
+        const name = document.createElement('span');
+        name.textContent = `🗺 ${pendingVsav.name}`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.title = 'Remove VASL save';
+        btn.textContent = '×';
+        btn.style.cssText =
+            'background:none;border:none;cursor:pointer;font:inherit;color:inherit;padding:0;';
+        btn.addEventListener('click', clearPendingVsav);
+        chip.appendChild(name);
+        chip.appendChild(btn);
+        preview.appendChild(chip);
+    }
+    if (pendingImages.length > 0) {
+        const label = document.createElement('span');
+        label.className = 'image-preview-label';
+        label.textContent = pendingImages.length === 1
+            ? '1 image attached'
+            : `${pendingImages.length} images attached`;
+        preview.appendChild(label);
+    }
 }
 
 function bindImagePasteHandler() {
@@ -480,6 +501,56 @@ function bindImagePasteHandler() {
     // Clear any stale state from the static markup; renderPendingImages takes over.
     pendingImages = [];
     renderPendingImages();
+}
+
+// ============================================================
+// VASL .vsav save attachment (file picker)
+// ============================================================
+
+let pendingVsav = null;                        // { name, dataUrl } or null
+const VSAV_MAX_BYTES = 2 * 1024 * 1024;        // mirrors server-side cap
+
+function getPendingVsav() { return pendingVsav; }
+
+function clearPendingVsav() {
+    pendingVsav = null;
+    renderPendingImages();
+}
+
+function bindVsavAttachHandler() {
+    const btn = document.getElementById('vsav-attach-btn');
+    const fileInput = document.getElementById('vsav-file-input');
+    if (!btn || !fileInput) return;
+    btn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files && fileInput.files[0];
+        fileInput.value = '';   // allow re-picking the same file later
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith('.vsav')) {
+            alert('Please choose a VASL .vsav save file.');
+            return;
+        }
+        if (file.size > VSAV_MAX_BYTES) {
+            alert('.vsav file exceeds the 2 MB limit.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            pendingVsav = { name: file.name, dataUrl: reader.result };
+            renderPendingImages();
+            // Board-state questions usually want the IFT calculator, so default
+            // Tools on — only the authed page has the toggle, and only gpt-5.4
+            // has function calling wired up. The user can still uncheck it.
+            const toolsCheckbox = document.getElementById('agentic-toggle');
+            const modelSel = document.getElementById('model-selector');
+            if (toolsCheckbox && modelSel && modelSel.value === 'gpt-5.4') {
+                toolsCheckbox.checked = true;
+            }
+        };
+        reader.onerror = () => console.error('Failed to read .vsav file');
+        reader.readAsDataURL(file);
+    });
+    pendingVsav = null;
 }
 
 // Back-compat shims for callers that still use the singular API.
