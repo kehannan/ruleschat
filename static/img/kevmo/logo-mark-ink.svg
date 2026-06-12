@@ -1,0 +1,6 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Kevmo chevron-bar mark</title>
+  <rect x="6" y="28.5" width="27" height="7" rx="2" fill="#0B0D12"></rect>
+  <rect x="5" y="21" width="8" height="22" rx="2.5" fill="#0B0D12"></rect>
+  <path d="M30 16 L50 32 L30 48" fill="none" stroke="#0B0D12" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>

@@ -33,17 +33,17 @@
   .site .image-preview-item .image-preview-remove {
     position: absolute; top: -6px; right: -6px;
     width: 18px; height: 18px;
-    background: var(--paper);
-    border: 1px solid var(--hair);
+    background: var(--surface-card);
+    border: 1px solid var(--border-hairline);
     border-radius: 50%;
     font-size: 13px; line-height: 13px;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     cursor: pointer; padding: 0;
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--sans);
+    font-family: var(--font-sans);
   }
   .site .image-preview-item .image-preview-remove:hover {
-    color: var(--ink); border-color: var(--ink-2);
+    color: var(--text-primary); border-color: var(--border-strong);
   }
 
   /* User-message attached image thumb (shown inline in the bubble) */
@@ -98,23 +98,23 @@
     transition: border-color .15s, color .15s, background .15s;
   }
   .site .feedback-row button:hover:not(:disabled) {
-    border-color: var(--ink-2); color: var(--ink);
+    border-color: var(--border-strong); color: var(--text-primary);
   }
   .site .feedback-row button.thumbs-up:hover:not(:disabled) {
-    border-color: var(--field); color: var(--field);
+    border-color: var(--positive); color: var(--positive);
   }
   .site .feedback-row button.thumbs-down:hover:not(:disabled) {
-    border-color: var(--accent); color: var(--accent);
+    border-color: var(--danger); color: var(--danger);
   }
-  .site .feedback-row button:disabled { opacity: .35; cursor: default; }
+  .site .feedback-row button:disabled { opacity: .4; cursor: default; }
   .site .feedback-row button svg { display: block; }
   .site .feedback-row .feedback-thankyou {
-    color: var(--field);
+    color: var(--positive);
     text-transform: uppercase;
     letter-spacing: .1em;
   }
 
-  /* PDF Viewer Modal — new tokens, warm dark backdrop. Same chrome as demo. */
+  /* PDF Viewer Modal — console overlay. Same chrome as demo. */
   .site .pdf-modal {
     position: fixed; inset: 0; z-index: 1000;
     display: flex; align-items: center; justify-content: center;
@@ -122,79 +122,82 @@
   }
   .site .pdf-modal-backdrop {
     position: absolute; inset: 0;
-    background: rgba(15, 12, 8, .62);
+    background: rgba(6, 7, 10, .72);
     cursor: pointer;
   }
   .site .pdf-modal-content {
     position: relative;
-    background: var(--paper);
-    border: 1px solid var(--hair);
-    border-radius: 4px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-xl);
     max-width: 1200px;
     width: 100%;
     max-height: 92vh;
     display: flex; flex-direction: column;
-    box-shadow: 0 24px 60px rgba(0,0,0,.4);
+    box-shadow: var(--shadow-xl);
     overflow: hidden;
   }
   .site .pdf-modal-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 20px;
-    background: var(--paper-2);
-    border-bottom: 1px solid var(--hair);
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-hairline);
   }
   .site .pdf-modal-header h3 {
-    font-family: var(--serif); font-weight: 500; font-size: 18px;
-    margin: 0; letter-spacing: -0.005em;
+    font-family: var(--font-sans); font-weight: 800; font-size: 16px;
+    margin: 0; letter-spacing: var(--tracking-tight);
   }
-  .site .pdf-modal-header h3 em { font-style: italic; color: var(--accent); }
+  .site .pdf-modal-header h3 em { font-style: normal; color: var(--accent); }
   .site .pdf-modal-close {
     width: 32px; height: 32px;
-    background: transparent; border: 1px solid var(--hair);
-    color: var(--ink-2); font-size: 18px; line-height: 1;
-    cursor: pointer; border-radius: 2px;
+    background: transparent; border: 1px solid var(--border-hairline);
+    color: var(--text-secondary); font-size: 18px; line-height: 1;
+    cursor: pointer; border-radius: var(--radius-sm);
     display: grid; place-items: center;
-    transition: all .15s;
+    transition: background var(--dur-fast) var(--ease-lock),
+                color var(--dur-fast) var(--ease-lock),
+                border-color var(--dur-fast) var(--ease-lock);
   }
   .site .pdf-modal-close:hover {
-    background: var(--ink); color: var(--paper); border-color: var(--ink);
+    background: var(--bg-subtle); color: var(--text-primary); border-color: var(--border-strong);
   }
   .site .pdf-modal-body {
     flex: 1;
     display: flex; flex-direction: column;
     min-height: 0;
-    background: var(--paper);
+    background: var(--surface-card);
   }
   .site .pdf-controls {
     display: flex; align-items: center; gap: 12px;
     padding: 10px 16px;
-    border-bottom: 1px solid var(--hair);
-    background: var(--paper-2);
-    font-family: var(--mono); font-size: 11px;
-    color: var(--ink-2);
+    border-bottom: 1px solid var(--border-hairline);
+    background: var(--bg-subtle);
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-secondary);
   }
   .site .pdf-controls button {
-    background: transparent; color: var(--ink);
-    border: 1px solid var(--ink); border-radius: 2px;
+    background: transparent; color: var(--text-primary);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
     padding: 4px 10px;
-    font-family: var(--mono); font-size: 11px;
+    font-family: var(--font-mono); font-size: 11px;
     letter-spacing: .04em; cursor: pointer;
-    transition: all .15s;
+    transition: background var(--dur-fast) var(--ease-lock),
+                border-color var(--dur-fast) var(--ease-lock);
   }
   .site .pdf-controls button:hover:not(:disabled) {
-    background: var(--ink); color: var(--paper);
+    background: var(--ink-800); border-color: var(--text-muted);
   }
   .site .pdf-controls button:disabled {
-    opacity: .35; cursor: not-allowed;
+    opacity: .4; cursor: not-allowed;
   }
   .site .pdf-container {
     flex: 1;
     overflow: auto;
     padding: 16px;
-    background: var(--paper-2);
+    background: var(--surface-sunken);
     display: flex; justify-content: center;
   }
-  .site .pdf-container canvas { box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+  .site .pdf-container canvas { box-shadow: var(--shadow-md); }
   .site .pdf-loading {
     padding: 24px;
     text-align: center;
@@ -260,7 +263,7 @@
       </div>
       <div class="helper-strip">
         <button id="vsav-attach-btn" type="button" title="Attach a VASL .vsav save — its board state is parsed and given to the model"
-                style="background:none;border:1px solid currentColor;border-radius:4px;cursor:pointer;font:inherit;color:inherit;opacity:.75;padding:0 6px;">📎 .vsav</button>
+                class="surprise">Attach .vsav</button>
         <input type="file" id="vsav-file-input" accept=".vsav" style="display:none;">
         <span>enter to send · shift-enter for newline</span>
         <span class="status" id="connection-status"><span class="pip"></span>connecting…</span>
@@ -537,7 +540,7 @@
     const attachedImages = (typeof getPendingImages === 'function') ? getPendingImages() : [];
     const attachedVsav = (typeof getPendingVsav === 'function') ? getPendingVsav() : null;
     lastUserQuestion = message;
-    createUserMessage(attachedVsav ? `${message}\n📎 ${attachedVsav.name}` : message, attachedImages);
+    createUserMessage(attachedVsav ? `${message}\nAttached: ${attachedVsav.name}` : message, attachedImages);
     createSearchingBubble();
     input.value = '';
     input.style.height = 'auto';

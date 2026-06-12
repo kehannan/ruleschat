@@ -1,0 +1,27 @@
+/* ============================================================
+   KEVMO INDUSTRIES — ELEVATION (shadows + glow)
+   ------------------------------------------------------------
+   Restrained, cool-tinted shadows. On dark surfaces, elevation
+   reads through borders + a faint blaze glow on active items.
+   ============================================================ */
+
+:root {
+  --shadow-xs: 0 1px 2px rgba(11, 13, 18, 0.06);
+  --shadow-sm: 0 1px 2px rgba(11, 13, 18, 0.08), 0 1px 1px rgba(11, 13, 18, 0.04);
+  --shadow-md: 0 4px 10px -2px rgba(11, 13, 18, 0.12), 0 2px 4px -2px rgba(11, 13, 18, 0.08);
+  --shadow-lg: 0 12px 28px -6px rgba(11, 13, 18, 0.18), 0 4px 8px -4px rgba(11, 13, 18, 0.10);
+  --shadow-xl: 0 28px 60px -12px rgba(11, 13, 18, 0.30), 0 8px 16px -8px rgba(11, 13, 18, 0.16);
+
+  /* accent emphasis */
+  --glow-blaze: 0 0 0 1px rgba(244, 84, 29, 0.45), 0 6px 22px -6px var(--blaze-glow);
+  --ring-focus: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--focus-ring);
+  --inset-hairline: inset 0 0 0 1px var(--border-hairline);
+}
+
+[data-theme="dark"] {
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.50);
+  --shadow-md: 0 6px 16px -4px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 16px 36px -8px rgba(0, 0, 0, 0.62);
+  --shadow-xl: 0 32px 70px -14px rgba(0, 0, 0, 0.72);
+}

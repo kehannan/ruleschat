@@ -1,0 +1,22 @@
+/* ============================================================
+   KEVMO INDUSTRIES — MOTION
+   ------------------------------------------------------------
+   Motion is precise and quick — like a system snapping to
+   readiness. Short durations, sharp-then-settle easing. No
+   bounce, no decorative loops on content.
+   ============================================================ */
+
+:root {
+  --dur-instant: 80ms;  /* @kind other */
+  --dur-fast:    140ms; /* @kind other */
+  --dur-base:    220ms; /* @kind other */
+  --dur-slow:    360ms; /* @kind other */
+  --dur-slower:  600ms; /* @kind other */
+
+  /* sharp departure, controlled settle — "lock on" */
+  --ease-lock:   cubic-bezier(0.2, 0.8, 0.2, 1);   /* @kind other */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);    /* @kind other */
+  --ease-in:     cubic-bezier(0.55, 0, 1, 0.45);   /* @kind other */
+  --ease-inout:  cubic-bezier(0.65, 0, 0.35, 1);   /* @kind other */
+  --ease-linear: linear;                           /* @kind other */
+}

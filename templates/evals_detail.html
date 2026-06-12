@@ -18,17 +18,17 @@
   /* MASTHEAD */
   .site .detail-masthead {
     padding: 48px 0 36px;
-    border-bottom: 2px solid var(--ink);
+    border-bottom: 2px solid var(--border-strong);
   }
   .site .detail-masthead .crumb {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: .04em;
-    color: var(--muted);
+    color: var(--text-muted);
     margin-bottom: 16px;
   }
-  .site .detail-masthead .crumb a { color: var(--ink-2); }
-  .site .detail-masthead .crumb a:hover { color: var(--ink); }
+  .site .detail-masthead .crumb a { color: var(--text-secondary); }
+  .site .detail-masthead .crumb a:hover { color: var(--text-primary); }
   .site .detail-masthead .crumb .current { color: var(--accent); }
   .site .detail-masthead .mast-grid {
     display: grid;
@@ -37,26 +37,27 @@
     align-items: end;
   }
   .site .detail-masthead h1 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(34px, 3.8vw, 52px);
-    line-height: 1.05;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(30px, 3.6vw, 46px);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
     margin: 0 0 14px;
   }
-  .site .detail-masthead h1 em { font-style: italic; color: var(--accent); }
+  .site .detail-masthead h1 em { font-style: normal; color: var(--accent); }
   .site .detail-masthead .desc {
     font-size: 16px;
     line-height: 1.55;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     max-width: 580px;
   }
 
-  /* Summary strip */
+  /* Summary strip — stat block, numbers are heroes */
   .site .summary-strip {
     padding: 32px 0;
-    border-bottom: 1px solid var(--hair);
-    background: var(--paper-2);
+    border-bottom: 1px solid var(--border-hairline);
+    background: var(--bg-subtle);
   }
   .site .summary-grid {
     display: grid;
@@ -64,29 +65,30 @@
     gap: 28px;
   }
   .site .summary-item .lbl {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
     margin-bottom: 6px;
   }
   .site .summary-item .num {
-    font-family: var(--serif);
-    font-size: 30px;
-    font-weight: 500;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: 400;
+    letter-spacing: var(--tracking-tight);
     line-height: 1;
-    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
   }
-  .site .summary-item.tone-pass .num { color: var(--pass); }
-  .site .summary-item.tone-review .num { color: var(--review); }
-  .site .summary-item.tone-fail .num { color: var(--fail); }
+  .site .summary-item.tone-pass .num { color: var(--positive); }
+  .site .summary-item.tone-review .num { color: var(--warning); }
+  .site .summary-item.tone-fail .num { color: var(--danger); }
 
   /* Filter bar */
   .site .filter-bar {
     padding: 20px 0;
-    border-bottom: 1px solid var(--hair);
+    border-bottom: 1px solid var(--border-hairline);
   }
   .site .filter-bar .inner {
     display: flex; gap: 12px;
@@ -94,47 +96,50 @@
     flex-wrap: wrap;
   }
   .site .filter-bar .lbl {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
-    letter-spacing: .14em;
+    color: var(--text-muted);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
   }
   .site .filter-pill {
     padding: 6px 12px;
     background: transparent;
-    color: var(--ink-2);
-    border: 1px solid var(--hair);
-    border-radius: 2px;
-    font-family: var(--mono);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: .06em;
     cursor: pointer;
-    transition: all .15s;
+    transition: background var(--dur-fast) var(--ease-lock),
+                border-color var(--dur-fast) var(--ease-lock),
+                color var(--dur-fast) var(--ease-lock);
   }
-  .site .filter-pill:hover { border-color: var(--ink-2); }
+  .site .filter-pill:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .site .filter-pill:focus-visible { outline: none; box-shadow: var(--ring-focus); }
   .site .filter-pill.active {
-    background: var(--ink);
-    color: var(--paper);
-    border-color: var(--ink);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border-color: transparent;
   }
   .site .sort-control {
     margin-left: auto;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
     display: inline-flex;
     align-items: center;
     gap: 8px;
   }
   .site .sort-control select {
-    background: transparent;
-    border: 1px solid var(--hair);
-    border-radius: 2px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-sm);
     padding: 4px 8px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     cursor: pointer;
   }
 
@@ -142,14 +147,14 @@
   .site .items { padding: 40px 0; }
   .site .item-card {
     margin-bottom: 20px;
-    background: var(--paper);
-    border: 1px solid var(--hair);
-    border-radius: 2px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-lg);
     padding: 24px 28px;
   }
   .site .item-card.override {
-    background: color-mix(in oklch, var(--review) 6%, var(--paper));
-    border-color: var(--review);
+    background: var(--warning-soft);
+    border-color: var(--warning);
   }
   .site .item-card .item-header {
     display: flex; align-items: center; gap: 10px;
@@ -157,32 +162,33 @@
     flex-wrap: wrap;
   }
   .site .item-card .override-badge {
-    color: var(--review);
-    border: 1px solid var(--review);
-    background: color-mix(in oklch, var(--review) 10%, var(--paper));
-    padding: 2px 8px;
-    font-family: var(--mono);
+    color: var(--warning);
+    border: 1px solid transparent;
+    background: var(--warning-soft);
+    padding: 3px 8px;
+    font-family: var(--font-mono);
     font-size: 10px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    border-radius: 2px;
-    font-weight: 600;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
   }
   .site .item-card .conf {
     margin-left: auto;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
   }
-  .site .item-card .conf b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .site .item-card .conf b { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
   .site .item-card .q-text {
-    font-family: var(--serif);
-    font-style: italic;
-    font-size: 19px;
-    color: var(--ink);
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-weight: 600;
+    font-size: 17px;
+    color: var(--text-primary);
     margin-bottom: 18px;
     line-height: 1.4;
-    letter-spacing: -0.005em;
+    letter-spacing: var(--tracking-tight);
   }
   .site .item-card .ea-cols {
     display: grid;
@@ -191,66 +197,66 @@
     margin-bottom: 18px;
   }
   .site .item-card .col-label {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
     margin-bottom: 6px;
-    font-weight: 600;
+    font-weight: 500;
   }
-  .site .item-card .col-label.expected { color: var(--field); }
+  .site .item-card .col-label.expected { color: var(--positive); }
   .site .item-card .col-label.got { color: var(--accent); }
   .site .item-card .col-body {
     font-size: 14px;
     line-height: 1.6;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     white-space: pre-wrap;
   }
   .site .item-card .reasoning {
-    background: var(--paper-2);
+    background: var(--bg-subtle);
     border-left: 3px solid var(--accent);
     padding: 14px 18px;
     font-size: 13.5px;
     line-height: 1.6;
-    color: var(--ink-2);
+    color: var(--text-secondary);
   }
   .site .item-card .reasoning .reasoning-label {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
     color: var(--accent);
     margin-bottom: 6px;
-    font-weight: 600;
+    font-weight: 500;
   }
   .site .item-card .notes {
     margin-top: 12px;
-    background: color-mix(in oklch, var(--review) 8%, var(--paper));
-    border-left: 3px solid var(--review);
+    background: var(--warning-soft);
+    border-left: 3px solid var(--warning);
     padding: 14px 18px;
     font-size: 13.5px;
     line-height: 1.6;
-    color: var(--ink-2);
+    color: var(--text-secondary);
   }
   .site .item-card .notes .notes-label {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    color: var(--review);
+    color: var(--warning);
     margin-bottom: 6px;
-    font-weight: 600;
+    font-weight: 500;
   }
   .site .empty-msg {
     text-align: center;
     padding: 56px 0;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--muted);
+    color: var(--text-muted);
   }
 
   /* Page-local footer */
-  .site footer.site-footer { padding: 56px 0 80px; border-top: 1px solid var(--hair); }
+  .site footer.site-footer { padding: 56px 0 80px; border-top: 1px solid var(--border-hairline); }
 
   /* RESPONSIVE */
   @media (max-width: 880px) {
@@ -299,7 +305,7 @@
 
 {% if error %}
 <div class="wrap" style="margin: 24px auto;">
-  <div style="padding: 14px 18px; border-left: 3px solid var(--fail); background: color-mix(in oklch, var(--fail) 8%, var(--paper)); font-family: var(--mono); font-size: 12px; color: var(--ink);">{{ error }}</div>
+  <div style="padding: 14px 18px; border-left: 3px solid var(--danger); background: var(--danger-soft); font-family: var(--font-mono); font-size: 12px; color: var(--text-primary);">{{ error }}</div>
 </div>
 {% endif %}
 
@@ -374,7 +380,7 @@
         <header class="item-header">
           {% if result.section %}<span class="cite">{{ result.section }}</span>{% endif %}
           {% if result.question_type %}<span class="qtype-badge">{{ result.question_type }}</span>{% endif %}
-          <span class="ev-badge {{ status }}"><span class="glyph">{% if status == 'pass' %}✓{% elif status == 'review' %}⚠{% else %}✕{% endif %}</span>{{ verdict|upper }}</span>
+          <span class="ev-badge {{ status }}"><span class="glyph">{% if status == 'pass' %}✓{% elif status == 'review' %}△{% else %}✕{% endif %}</span>{{ verdict|upper }}</span>
           {% if result.human_override %}<span class="override-badge">HUMAN OVERRIDE</span>{% endif %}
           {% if result.confidence %}<span class="conf">judge confidence <b>{{ '%.2f'|format(result.confidence) }}</b></span>{% endif %}
         </header>

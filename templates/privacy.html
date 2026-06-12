@@ -14,25 +14,27 @@
     padding: 0 32px;
   }
   .site .privacy-col h1 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(30px, 3.4vw, 42px);
-    line-height: 1.05;
-    letter-spacing: -0.015em;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(28px, 3.2vw, 38px);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
     margin: 0 0 14px;
     text-wrap: balance;
   }
-  .site .privacy-col h1 em { font-style: italic; color: var(--accent); }
+  .site .privacy-col h1 em { font-style: normal; color: var(--accent); }
   .site .privacy-col h2 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: 22px;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: var(--tracking-tight);
     margin: 36px 0 10px;
   }
   .site .privacy-col .lede {
     font-size: 17px;
     line-height: 1.6;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     margin: 0 0 28px;
     text-wrap: pretty;
   }
@@ -40,16 +42,16 @@
   .site .privacy-col li {
     font-size: 16px;
     line-height: 1.65;
-    color: var(--ink);
+    color: var(--text-secondary);
   }
   .site .privacy-col p { margin: 0 0 14px; }
   .site .privacy-col ul { padding-left: 22px; margin: 0 0 14px; }
   .site .privacy-col .meta {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 12px;
     letter-spacing: .08em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
     margin: 32px 0 0;
   }
   .site { min-height: 100vh; display: flex; flex-direction: column; }

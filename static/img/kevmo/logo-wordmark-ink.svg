@@ -1,0 +1,8 @@
+<svg width="232" height="56" viewBox="0 0 232 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(0,-4)">
+    <rect x="6" y="28.5" width="27" height="7" rx="2" fill="#0B0D12"></rect>
+    <rect x="5" y="21" width="8" height="22" rx="2.5" fill="#0B0D12"></rect>
+    <path d="M30 16 L50 32 L30 48" fill="none" stroke="#0B0D12" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path>
+  </g>
+  <text x="66" y="40" font-family="Anton, &#39;Arial Narrow&#39;, Archivo, sans-serif" font-weight="700" font-size="38" letter-spacing="1" fill="#0B0D12">KEVMO</text>
+</svg>

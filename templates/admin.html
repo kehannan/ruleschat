@@ -14,65 +14,67 @@
     gap: 32px; flex-wrap: wrap;
     margin-bottom: 40px;
     padding-bottom: 24px;
-    border-bottom: 1px solid var(--hair);
+    border-bottom: 1px solid var(--border-hairline);
   }
   .site .admin-header h1 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(32px, 3.5vw, 44px);
-    line-height: 1.05;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(30px, 3.4vw, 40px);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
     margin: 12px 0 0;
   }
-  .site .admin-header h1 em { font-style: italic; color: var(--accent); }
+  .site .admin-header h1 em { font-style: normal; color: var(--accent); }
   .site .admin-controls {
     display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
   }
   .site .admin-controls .control-label {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
   }
 
-  /* Toggle switch */
+  /* Toggle switch — kv Switch recipe */
   .site .switch { display: inline-flex; align-items: center; gap: 10px; }
   .site .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
   .site .switch .track {
     width: 36px; height: 20px;
-    background: var(--hair);
-    border-radius: 999px;
+    background: var(--steel-700);
+    border-radius: var(--radius-pill);
     position: relative;
     cursor: pointer;
-    transition: background .15s;
+    transition: background var(--dur-fast) var(--ease-lock);
   }
   .site .switch .track::after {
     content: ""; position: absolute; top: 2px; left: 2px;
     width: 16px; height: 16px;
-    background: var(--paper);
+    background: var(--steel-50);
     border-radius: 50%;
-    transition: transform .15s;
-    box-shadow: 0 1px 2px rgba(0,0,0,.15);
+    transition: transform var(--dur-fast) var(--ease-lock);
+    box-shadow: 0 1px 2px rgba(0,0,0,.35);
   }
-  .site .switch input:checked + .track { background: var(--field); }
+  .site .switch input:checked + .track { background: var(--accent); }
   .site .switch input:checked + .track::after { transform: translateX(16px); }
+  .site .switch input:focus-visible + .track { box-shadow: var(--ring-focus); }
 
   /* Alerts */
   .site .admin-alert {
     margin-bottom: 24px;
     padding: 12px 16px;
-    border-left: 3px solid var(--field);
-    background: color-mix(in oklch, var(--field) 8%, var(--paper));
+    border-left: 3px solid var(--positive);
+    background: var(--positive-soft);
     font-size: 14px;
-    color: var(--ink);
+    color: var(--text-primary);
   }
   .site .admin-alert.danger, .site .admin-alert.error {
-    border-left-color: var(--fail);
-    background: color-mix(in oklch, var(--fail) 8%, var(--paper));
+    border-left-color: var(--danger);
+    background: var(--danger-soft);
   }
 
-  /* 4-card stats grid */
+  /* 4-card stats grid — StatBlock recipe, numbers are heroes */
   .site .stat-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -81,29 +83,30 @@
   }
   .site .stat-card {
     padding: 18px 20px;
-    background: var(--paper-2);
-    border: 1px solid var(--hair);
-    border-radius: 2px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-lg);
   }
   .site .stat-card .stat-lbl {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
     margin-bottom: 6px;
   }
   .site .stat-card .stat-num {
-    font-family: var(--serif);
-    font-size: 28px;
-    font-weight: 500;
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 400;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
     margin-bottom: 6px;
   }
   .site .stat-card .stat-cap {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10.5px;
-    color: var(--muted);
+    color: var(--text-muted);
   }
 
   /* Section block */
@@ -113,15 +116,16 @@
     margin-bottom: 16px;
   }
   .site .admin-block h2 {
-    font-family: var(--serif);
-    font-size: 22px;
-    font-weight: 500;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: var(--tracking-tight);
     margin: 0;
   }
   .site .admin-block .block-meta {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
     letter-spacing: .04em;
   }
   .site .two-col-blocks {
@@ -132,50 +136,49 @@
 
   /* List frame */
   .site .list-frame {
-    border: 1px solid var(--hair);
-    border-radius: 2px;
-    background: var(--paper);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
     overflow: hidden;
   }
   .site .list-row {
     display: flex; align-items: center; gap: 12px;
     padding: 12px 16px;
-    border-top: 1px solid var(--hair);
+    border-top: 1px solid var(--border-hairline);
     font-size: 14px;
   }
   .site .list-row:first-child { border-top: 0; }
-  .site .list-row:nth-child(even) { background: var(--paper-2); }
+  .site .list-row:nth-child(even) { background: var(--bg-subtle); }
   .site .list-row .avatar {
     width: 24px; height: 24px;
     border-radius: 50%;
-    background: color-mix(in oklch, var(--accent) 18%, var(--paper));
+    background: var(--accent-soft);
     color: var(--accent);
-    font-family: var(--serif);
-    font-style: italic;
-    font-size: 13px;
+    font-family: var(--font-mono);
+    font-size: 12px;
     font-weight: 500;
     display: grid; place-items: center;
     flex-shrink: 0;
   }
-  .site .list-row .email { color: var(--ink); flex: 1; min-width: 0; word-break: break-all; }
+  .site .list-row .email { color: var(--text-primary); flex: 1; min-width: 0; word-break: break-all; }
   .site .list-row .actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .site .row-tag {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10px;
-    letter-spacing: .14em;
-    color: var(--muted);
+    letter-spacing: var(--tracking-label);
+    color: var(--text-muted);
     padding: 2px 6px;
-    border: 1px solid var(--hair);
-    border-radius: 2px;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-sm);
   }
   .site .row-tag.admin-tag {
     color: var(--accent);
     border-color: color-mix(in oklch, var(--accent) 35%, transparent);
   }
   .site .row-meta {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
     margin-left: 36px;
     margin-top: -8px;
     padding-bottom: 10px;
@@ -185,36 +188,36 @@
     background: transparent;
     border: 0;
     padding: 4px 8px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: .08em;
-    color: var(--fail);
+    color: var(--danger);
     cursor: pointer;
     text-transform: uppercase;
-    transition: background .15s;
-    border-radius: 2px;
+    transition: background var(--dur-fast) var(--ease-lock);
+    border-radius: var(--radius-sm);
   }
-  .site .btn-link-danger:hover { background: color-mix(in oklch, var(--fail) 10%, var(--paper)); }
+  .site .btn-link-danger:hover { background: var(--danger-soft); }
   .site .btn-link-ghost {
     background: transparent;
-    border: 1px solid var(--hair);
+    border: 1px solid var(--border-hairline);
     padding: 4px 10px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: .08em;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     cursor: pointer;
     text-transform: uppercase;
-    border-radius: 2px;
-    transition: all .15s;
+    border-radius: var(--radius-sm);
+    transition: border-color var(--dur-fast) var(--ease-lock), color var(--dur-fast) var(--ease-lock);
   }
-  .site .btn-link-ghost:hover { border-color: var(--ink-2); color: var(--ink); }
+  .site .btn-link-ghost:hover { border-color: var(--border-strong); color: var(--text-primary); }
 
   /* Send invite card */
   .site .invite-card {
-    background: var(--paper-2);
-    border: 1px solid var(--hair);
-    border-radius: 2px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-lg);
     padding: 20px 22px;
   }
   .site .invite-card .invite-row {
@@ -229,10 +232,10 @@
   .site .admin-footer {
     margin-top: 56px;
     padding-top: 20px;
-    border-top: 1px solid var(--hair);
-    font-family: var(--mono);
+    border-top: 1px solid var(--border-hairline);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
     letter-spacing: .04em;
   }
   .site .admin-footer .accent { color: var(--accent); font-weight: 600; }
@@ -335,7 +338,7 @@
           </div>
           {% endfor %}
           {% if not users %}
-          <div class="list-row" style="color: var(--muted);">No users yet.</div>
+          <div class="list-row" style="color: var(--text-muted);">No users yet.</div>
           {% endif %}
         </div>
       </div>
@@ -351,7 +354,7 @@
           <div class="list-row" style="display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start;">
             <div>
               <div class="email" style="margin-bottom: 4px;">{{ invite.email }}</div>
-              <div style="font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .02em;">
+              <div style="font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); letter-spacing: .02em;">
                 created {{ invite.created_at.strftime('%b %d') }} · expires {{ invite.expires_at.strftime('%b %d') }}
               </div>
             </div>
@@ -359,7 +362,7 @@
               {% if invite.used %}
                 <span class="ev-badge pass"><span class="glyph">✓</span>USED</span>
               {% else %}
-                <span class="ev-badge review"><span class="glyph">⚠</span>PENDING</span>
+                <span class="ev-badge review"><span class="glyph">△</span>PENDING</span>
                 <button class="btn-link-ghost" onclick="resendInvitation({{ invite.id }})">Resend</button>
                 <button class="btn-link-danger" onclick="deleteInvitation({{ invite.id }})">Delete</button>
               {% endif %}
@@ -367,7 +370,7 @@
           </div>
           {% endfor %}
           {% if not invitations %}
-          <div class="list-row" style="color: var(--muted);">No invitations.</div>
+          <div class="list-row" style="color: var(--text-muted);">No invitations.</div>
           {% endif %}
         </div>
       </div>
@@ -380,8 +383,8 @@
       <div class="list-frame" style="max-width: 360px;">
         {% for row in demo_recent %}
         <div class="list-row" style="justify-content: space-between;">
-          <span style="font-family: var(--mono); font-size: 12px; color: var(--ink-2);">{{ row.date }}</span>
-          <span style="font-family: var(--mono); font-size: 12px; color: var(--ink); font-weight: 600;">{{ row.total }}</span>
+          <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);">{{ row.date }}</span>
+          <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums;">{{ row.total }}</span>
         </div>
         {% endfor %}
       </div>

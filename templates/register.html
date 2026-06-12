@@ -6,46 +6,47 @@
 <style>
   .site .auth-wrap { padding: 64px 0 96px; }
   .site .auth-col { max-width: 460px; margin: 0 auto; padding: 0 32px; }
+  /* h1 holds a dynamic email address — Archivo, not Anton poster caps. */
   .site .auth-col h1 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(24px, 2.6vw, 32px);
+    font-family: var(--font-sans);
+    font-weight: 800;
+    font-size: clamp(22px, 2.4vw, 28px);
     line-height: 1.15;
-    letter-spacing: -0.01em;
+    letter-spacing: var(--tracking-tight);
     margin: 12px 0 16px;
     text-wrap: balance;
   }
-  .site .auth-col h1 em { font-style: italic; color: var(--accent); word-break: break-all; }
+  .site .auth-col h1 em { font-style: normal; color: var(--accent); word-break: break-all; }
   .site .auth-col .lede {
     font-size: 15px;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     line-height: 1.5;
     margin-bottom: 24px;
   }
   .site .auth-error {
     margin-bottom: 18px;
     padding: 12px 14px;
-    border-left: 3px solid var(--fail);
-    background: color-mix(in oklch, var(--fail) 8%, var(--paper));
-    color: var(--ink);
+    border-left: 3px solid var(--danger);
+    background: var(--danger-soft);
+    color: var(--text-primary);
     font-size: 14px;
   }
   .site .input[readonly] {
-    background: var(--paper-2);
-    color: var(--muted);
+    background: var(--bg-subtle);
+    color: var(--text-muted);
     cursor: not-allowed;
   }
   .site .pw-strength {
     margin-top: 8px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
     letter-spacing: .04em;
     display: flex; gap: 14px; flex-wrap: wrap;
   }
   .site .pw-strength .pw-rule { display: inline-flex; align-items: center; gap: 4px; }
   .site .pw-strength .pw-rule .glyph { font-weight: 600; }
-  .site .pw-strength .pw-rule.met { color: var(--field); }
+  .site .pw-strength .pw-rule.met { color: var(--positive); }
   .site .pw-strength .pw-rule.met .glyph::before { content: "✓"; }
   .site .pw-strength .pw-rule:not(.met) .glyph::before { content: "○"; }
 </style>

@@ -1,0 +1,61 @@
+/* ============================================================
+   KEVMO INDUSTRIES — TYPOGRAPHY
+   ------------------------------------------------------------
+   Anton (display/poster), Archivo (UI/body), JetBrains Mono
+   (tactical labels & data). Uppercase mono micro-labels with
+   wide tracking are a core brand signature.
+   ============================================================ */
+
+:root {
+  /* ---- FAMILIES ---- */
+  --font-display: 'Anton', 'Archivo', system-ui, sans-serif;
+  --font-sans:    'Archivo', system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+
+  /* ---- WEIGHTS (Archivo) ---- */
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+  --weight-extra:    800;
+  --weight-black:    900;
+
+  /* ---- TYPE SCALE (1.250 major-third-ish, tuned) ---- */
+  --text-3xs: 0.6875rem;  /* 11px — mono micro labels        */
+  --text-2xs: 0.75rem;    /* 12px                            */
+  --text-xs:  0.8125rem;  /* 13px                            */
+  --text-sm:  0.875rem;   /* 14px                            */
+  --text-base: 1rem;      /* 16px                            */
+  --text-md:  1.125rem;   /* 18px                            */
+  --text-lg:  1.375rem;   /* 22px                            */
+  --text-xl:  1.75rem;    /* 28px                            */
+  --text-2xl: 2.25rem;    /* 36px                            */
+  --text-3xl: 3rem;       /* 48px                            */
+  --text-4xl: 4rem;       /* 64px                            */
+  --text-5xl: 5.5rem;     /* 88px — hero poster numerals     */
+  --text-6xl: 7.5rem;     /* 120px                           */
+
+  /* ---- LINE HEIGHTS ---- */
+  --leading-none:  1;
+  --leading-tight: 1.1;
+  --leading-snug:  1.28;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* ---- TRACKING (letter-spacing) ---- */
+  --tracking-tighter: -0.03em;  /* big display                */
+  --tracking-tight:   -0.01em;  /* headlines                  */
+  --tracking-normal:  0em;
+  --tracking-wide:    0.04em;
+  --tracking-label:   0.14em;   /* uppercase mono labels      */
+  --tracking-wider:   0.22em;   /* eyebrow / registration     */
+
+  /* ---- SEMANTIC TEXT ROLES ---- */
+  --text-hero-size:   var(--text-5xl);
+  --text-display-size: var(--text-3xl);
+  --text-title-size:  var(--text-xl);
+  --text-heading-size: var(--text-lg);
+  --text-body-size:   var(--text-base);
+  --text-small-size:  var(--text-sm);
+  --text-label-size:  var(--text-3xs);
+}

@@ -20,41 +20,42 @@
     padding: 0 32px;
   }
   .site .auth-col h1 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(30px, 3.4vw, 42px);
-    line-height: 1.05;
-    letter-spacing: -0.015em;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(28px, 3.2vw, 38px);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
     margin: 0 0 14px;
     text-wrap: balance;
   }
-  .site .auth-col h1 em { font-style: italic; color: var(--accent); }
+  .site .auth-col h1 em { font-style: normal; color: var(--accent); }
   .site .auth-col .lede {
     font-size: 16px;
     line-height: 1.55;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     margin: 0 0 28px;
     text-wrap: pretty;
   }
   .site .auth-error {
     margin-bottom: 18px;
     padding: 12px 14px;
-    border-left: 3px solid var(--fail);
-    background: color-mix(in oklch, var(--fail) 8%, var(--paper));
-    color: var(--ink);
+    border-left: 3px solid var(--danger);
+    background: var(--danger-soft);
+    color: var(--text-primary);
     font-size: 14px;
   }
   .site .forgot-row {
     display: flex; justify-content: flex-end;
     margin: -10px 0 18px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--muted);
+    color: var(--text-muted);
   }
   .site .forgot-row a {
-    color: var(--muted);
-    border-bottom: 1px solid color-mix(in oklch, var(--muted) 40%, transparent);
-    transition: color .15s, border-color .15s;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-strong);
+    transition: color var(--dur-fast) var(--ease-lock), border-color var(--dur-fast) var(--ease-lock);
   }
   .site .forgot-row a:hover { color: var(--accent); border-bottom-color: var(--accent); }
   .site .or-divider {
@@ -66,20 +67,20 @@
   }
   .site .or-divider::before,
   .site .or-divider::after {
-    content: ""; height: 1px; background: var(--hair);
+    content: ""; height: 1px; background: var(--border-hairline);
   }
   .site .or-divider span {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    letter-spacing: .14em;
-    color: var(--muted);
+    letter-spacing: var(--tracking-label);
+    color: var(--text-muted);
   }
   /* Page wrapper makes the auth column vertically center between nav + footer */
   .site { min-height: 100vh; display: flex; flex-direction: column; }
 
   @media (max-width: 620px) {
     .site .auth-col { padding: 0 20px; }
-    .site .card-panel { padding: 22px; box-shadow: 0 1px 0 var(--hair), 8px 8px 0 -1px var(--hair-2); }
+    .site .card-panel { padding: 22px; }
   }
 </style>
 {% endblock %}

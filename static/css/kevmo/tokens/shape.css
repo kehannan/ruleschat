@@ -1,0 +1,24 @@
+/* ============================================================
+   KEVMO INDUSTRIES — SHAPE (radii + borders)
+   ------------------------------------------------------------
+   Tactical = restrained radii, hairline borders. Sharp by
+   default; pill only for tags/avatars/toggles.
+   ============================================================ */
+
+:root {
+  --radius-none: 0;
+  --radius-xs: 2px;
+  --radius-sm: 4px;   /* default control radius              */
+  --radius-md: 6px;
+  --radius-lg: 8px;   /* cards                               */
+  --radius-xl: 12px;  /* large panels / modals               */
+  --radius-2xl: 16px;
+  --radius-pill: 999px;
+
+  --border-width: 1px;
+  --border-width-strong: 1.5px;
+  --border-width-heavy: 2px;
+
+  /* registration / crosshair accent thickness */
+  --rule-thick: 3px;
+}

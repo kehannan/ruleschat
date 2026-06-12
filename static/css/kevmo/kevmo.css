@@ -1,0 +1,14 @@
+/* ============================================================
+   KEVMO INDUSTRIES — DESIGN SYSTEM ENTRY (ruleschat copy)
+   ------------------------------------------------------------
+   @import manifest only; no rules live here. Webfonts (Anton,
+   Archivo, JetBrains Mono) load via <link> in base.html, not
+   here. Dark console theme is set with <html data-theme="dark">.
+   ============================================================ */
+
+@import url('tokens/colors.css');
+@import url('tokens/typography.css');
+@import url('tokens/spacing.css');
+@import url('tokens/shape.css');
+@import url('tokens/elevation.css');
+@import url('tokens/motion.css');

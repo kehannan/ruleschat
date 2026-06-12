@@ -1,0 +1,128 @@
+/* ============================================================
+   KEVMO INDUSTRIES — COLOR SYSTEM
+   ------------------------------------------------------------
+   Cool steel/graphite neutrals + a single BLAZE signal accent.
+   Raw palette first, then semantic aliases. A dark theme
+   ([data-theme="dark"]) is the brand's signature surface for
+   product consoles; light is default for marketing/docs.
+   ============================================================ */
+
+:root {
+  /* ---- INK / STEEL NEUTRAL RAMP (cool, slightly blue) ---- */
+  --ink-999: #06070A;   /* deepest console black            */
+  --ink-950: #0B0D12;   /* app background (dark)            */
+  --ink-900: #11141B;   /* raised surface (dark)            */
+  --ink-850: #161A23;   /* card (dark)                      */
+  --ink-800: #1D222D;   /* hairline-strong / hover (dark)   */
+  --steel-700: #2A313F;
+  --steel-600: #3A4354;
+  --steel-500: #586277; /* muted text on dark               */
+  --steel-400: #7A859B;
+  --steel-300: #A2ACBF;
+  --steel-200: #C7CEDB;
+  --steel-100: #E2E6EE;
+  --steel-50:  #F2F4F8; /* app background (light)           */
+  --paper:     #FBFCFE; /* card (light)                     */
+  --white:     #FFFFFF;
+
+  /* ---- BLAZE — primary signal (strength + alert) ---- */
+  --blaze-700: #B23410;
+  --blaze-600: #DB4517;
+  --blaze-500: #F4541D;  /* PRIMARY                          */
+  --blaze-400: #FF7038;
+  --blaze-300: #FF9466;
+  --blaze-100: #FFE2D5;
+  --blaze-glow: rgba(244, 84, 29, 0.35);
+
+  /* ---- TACTICAL GREEN — go / positive / "general good" ---- */
+  --green-600: #1F8F52;
+  --green-500: #2FB36A;
+  --green-400: #46D183;
+  --green-100: #D6F4E3;
+
+  /* ---- SEMANTIC SIGNAL HUES ---- */
+  --amber-500: #F2A416;   /* caution                         */
+  --amber-100: #FCEBC6;
+  --red-500:   #E5443F;   /* danger / hostile force          */
+  --red-100:   #FBD9D7;
+  --blue-500:  #3F84F2;   /* info / friendly intel           */
+  --blue-100:  #D6E4FC;
+
+  /* ============================================================
+     SEMANTIC ALIASES — LIGHT (default)
+     ============================================================ */
+  --bg-base:        var(--steel-50);
+  --bg-subtle:      var(--steel-100);
+  --surface-card:   var(--paper);
+  --surface-raised: var(--white);
+  --surface-sunken: var(--steel-100);
+  --surface-inverse: var(--ink-950);
+
+  --border-hairline: #DBE0EA;
+  --border-strong:   #C2CAD8;
+  --border-inverse:  var(--steel-700);
+
+  --text-primary:   var(--ink-950);
+  --text-secondary: var(--steel-600);
+  --text-muted:     var(--steel-500);
+  --text-inverse:   var(--steel-50);
+  --text-on-accent: var(--white);
+
+  --accent:         var(--blaze-500);
+  --accent-hover:   var(--blaze-600);
+  --accent-press:   var(--blaze-700);
+  --accent-soft:    var(--blaze-100);
+  --accent-contrast: var(--white);
+
+  --positive: var(--green-500);
+  --positive-soft: var(--green-100);
+  --warning:  var(--amber-500);
+  --warning-soft: var(--amber-100);
+  --danger:   var(--red-500);
+  --danger-soft: var(--red-100);
+  --info:     var(--blue-500);
+  --info-soft: var(--blue-100);
+
+  --focus-ring: var(--blaze-500);
+  --grid-line:  rgba(58, 67, 84, 0.10); /* tactical grid overlay */
+}
+
+/* ============================================================
+   SEMANTIC ALIASES — DARK (brand signature console)
+   ============================================================ */
+[data-theme="dark"] {
+  --bg-base:        var(--ink-950);
+  --bg-subtle:      var(--ink-900);
+  --surface-card:   var(--ink-850);
+  --surface-raised: var(--ink-900);
+  --surface-sunken: var(--ink-999);
+  --surface-inverse: var(--steel-50);
+
+  --border-hairline: #232936;
+  --border-strong:   #333B4B;
+  --border-inverse:  var(--steel-200);
+
+  --text-primary:   var(--steel-50);
+  --text-secondary: var(--steel-300);
+  --text-muted:     var(--steel-500);
+  --text-inverse:   var(--ink-950);
+  --text-on-accent: var(--white);
+
+  --accent:         var(--blaze-500);
+  --accent-hover:   var(--blaze-400);
+  --accent-press:   var(--blaze-600);
+  --accent-soft:    rgba(244, 84, 29, 0.16);
+  --accent-contrast: var(--white);
+
+  --positive: var(--green-400);
+  --positive-soft: rgba(47, 179, 106, 0.16);
+  --warning:  var(--amber-500);
+  --warning-soft: rgba(242, 164, 22, 0.16);
+  --danger:   var(--red-500);
+  --danger-soft: rgba(229, 68, 63, 0.18);
+  --info:     var(--blue-500);
+  --info-soft: rgba(63, 132, 242, 0.18);
+
+  --focus-ring: var(--blaze-400);
+  --grid-line:  rgba(122, 133, 155, 0.08);
+}

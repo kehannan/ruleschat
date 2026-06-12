@@ -9,11 +9,15 @@
   /* Page-specific CSS for the home page. Selectors not already in
      site-design-system.css. Scoped to .site so tokens apply. */
 
-  /* HERO */
+  /* HERO — console poster over a faint tactical grid */
   .site .hero {
     padding: 96px 0 88px;
-    border-bottom: 1px solid var(--hair);
+    border-bottom: 1px solid var(--border-hairline);
     position: relative;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 34px 34px;
   }
   .site .hero-grid {
     display: grid;
@@ -22,20 +26,21 @@
     align-items: start;
   }
   .site .hero-head {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(40px, 5.4vw, 76px);
-    line-height: 1.02;
-    letter-spacing: -0.02em;
-    color: var(--ink);
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(38px, 5vw, 68px);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
+    color: var(--text-primary);
     margin: 14px 0 28px;
     text-wrap: balance;
   }
-  .site .hero-head em { font-style: italic; font-weight: 500; color: var(--accent); }
+  .site .hero-head em { font-style: normal; font-weight: 400; color: var(--accent); }
   .site .hero-lede {
     font-size: 19px;
     line-height: 1.55;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     max-width: 580px;
     margin-bottom: 32px;
     text-wrap: pretty;
@@ -45,65 +50,73 @@
     position: absolute;
     right: -40px; top: 40px;
     width: 220px; height: 220px;
-    opacity: .07;
+    opacity: .08;
     pointer-events: none;
-    color: var(--ink);
+    color: var(--steel-400);
   }
 
-  /* SPECIMEN (sample Q&A card) */
+  /* SPECIMEN (sample Q&A card) — the hero's featured artifact. Lifted a
+     surface step above the page with a blaze left rule (the kevmo
+     "selected" emphasis) so it doesn't sink into the dark hero. */
   .site .specimen {
     position: relative;
-    background: color-mix(in oklch, var(--paper) 50%, white 50%);
-    border: 1px solid var(--hair);
-    border-radius: 4px;
-    box-shadow: 0 1px 0 var(--hair), 14px 14px 0 -1px var(--hair-2);
+    background: var(--ink-800);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
     padding: 24px 24px 22px;
     font-size: 14px;
+  }
+  .site .specimen::after {
+    content: ""; position: absolute;
+    left: 0; top: 14px; bottom: 14px; width: 3px;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
   }
   .site .specimen::before {
     content: "EXAMPLE ANSWER";
     position: absolute;
     top: -10px; left: 18px;
-    background: var(--paper);
+    background: var(--bg-base);
     padding: 2px 10px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10px;
     font-weight: 500;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     color: var(--accent);
   }
   .site .spec-q {
     display: flex; gap: 12px;
     padding-bottom: 16px;
-    border-bottom: 1px dashed var(--hair);
+    border-bottom: 1px solid var(--steel-700);
   }
   .site .spec-q .label {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
+    color: var(--steel-400);
     margin-top: 2px;
     letter-spacing: .08em;
   }
   .site .spec-q .text {
-    color: var(--ink);
+    color: var(--text-primary);
     line-height: 1.5;
-    font-style: italic;
-    font-family: var(--serif);
+    font-weight: 500;
     font-size: 15px;
   }
   .site .spec-a { display: flex; gap: 12px; padding-top: 16px; }
   .site .spec-a .label {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
     color: var(--accent);
     margin-top: 2px;
     letter-spacing: .08em;
   }
   .site .spec-a .text {
-    color: var(--ink-2);
+    color: var(--steel-200);
     line-height: 1.55;
     font-size: 14px;
   }
+  .site .spec-a .text strong { color: var(--text-primary); }
 
   /* DOMAIN + general two-col layout */
   .site .two-col {
@@ -113,30 +126,22 @@
     align-items: start;
   }
   .site .col-head {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(28px, 3vw, 40px);
-    line-height: 1.1;
-    letter-spacing: -0.015em;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 38px);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
     margin: 0 0 24px;
     text-wrap: balance;
   }
-  .site .col-head em { font-style: italic; color: var(--accent); }
-  .site .prose .drop::first-letter {
-    font-family: var(--serif);
-    font-size: 3.4em;
-    line-height: .85;
-    float: left;
-    padding: 6px 10px 0 0;
-    color: var(--accent);
-    font-weight: 500;
-  }
+  .site .col-head em { font-style: normal; color: var(--accent); }
 
   .site .board-figure {
     position: relative;
-    border: 1px solid var(--hair);
-    background: var(--paper-2);
-    border-radius: 2px;
+    border: 1px solid var(--border-hairline);
+    background: var(--bg-subtle);
+    border-radius: var(--radius-lg);
     overflow: hidden;
     margin: 32px 0 0;
   }
@@ -148,12 +153,14 @@
     position: absolute;
     left: 14px; bottom: 14px;
     padding: 6px 10px;
-    background: var(--paper);
-    border: 1px solid var(--hair);
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: .08em;
-    color: var(--ink-2);
+    background: rgba(6, 7, 10, .72);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
   }
   .site .board-caption .acc { color: var(--accent); }
 
@@ -176,7 +183,7 @@
   .site .pipe-node {
     position: relative;
     padding: 0 18px 8px;
-    border-left: 1px solid var(--hair);
+    border-left: 1px solid var(--border-hairline);
   }
   .site .pipe-node:first-child { border-left: 0; padding-left: 0; }
   .site .pipe-node:last-child { padding-right: 0; }
@@ -192,57 +199,58 @@
   }
   .site .pipe-node .hex-wrap .num {
     position: relative;
-    font-family: var(--serif);
-    font-style: italic;
-    font-weight: 500;
-    font-size: 28px;
-    color: var(--ink);
+    font-family: var(--font-display);
+    font-style: normal;
+    font-weight: 400;
+    font-size: 26px;
+    text-transform: uppercase;
+    color: var(--text-primary);
     z-index: 1;
   }
   .site .pipe-node .step-label {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
     color: var(--accent);
     margin-bottom: 6px;
-    font-weight: 600;
+    font-weight: 500;
   }
   .site .pipe-node h3 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: 22px;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 19px;
     line-height: 1.2;
-    letter-spacing: -0.005em;
+    letter-spacing: var(--tracking-tight);
     margin: 0 0 10px;
-    color: var(--ink);
+    color: var(--text-primary);
   }
-  .site .pipe-node h3 em { font-style: italic; color: var(--accent); }
+  .site .pipe-node h3 em { font-style: normal; color: var(--accent); }
   .site .pipe-node p {
     font-size: 14px;
     line-height: 1.55;
-    color: var(--ink-2);
+    color: var(--text-secondary);
     margin: 0 0 12px;
   }
   .site .pipe-node .tech {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--muted);
+    color: var(--text-muted);
     letter-spacing: .02em;
     display: flex; gap: 6px; flex-wrap: wrap;
   }
   .site .pipe-node .tech span {
-    padding: 1px 6px;
-    background: var(--paper-2);
-    border: 1px solid var(--hair);
-    border-radius: 2px;
+    padding: 2px 7px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-sm);
   }
   .site .pipe-flow::before {
     content: "";
     position: absolute;
     top: 50px; left: 88px; right: 0;
     height: 1px;
-    background: repeating-linear-gradient(to right, var(--hair) 0 4px, transparent 4px 8px);
+    background: repeating-linear-gradient(to right, var(--border-strong) 0 4px, transparent 4px 8px);
     z-index: 0;
   }
 
@@ -258,8 +266,7 @@
   @media (max-width: 620px) {
     .site .hero { padding: 56px 0 48px; }
     .site .hex-deco { display: none; }
-    .site .hero-head { font-size: clamp(34px, 9vw, 48px); }
-    .site .specimen { box-shadow: 0 1px 0 var(--hair), 8px 8px 0 -1px var(--hair-2); }
+    .site .hero-head { font-size: clamp(32px, 9vw, 44px); }
     .site .pipe-flow { grid-template-columns: 1fr; gap: 24px; }
   }
 </style>
@@ -332,7 +339,7 @@
         <div class="eyebrow"><span class="dot"></span><span>The domain</span></div>
         <h2 class="col-head">Advanced Squad Leader has<br />a <em>700-page rulebook</em>.</h2>
         <div class="prose">
-          <p class="drop">
+          <p>
             <a class="inline-link" href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">Advanced Squad Leader</a>
             is a tactical WWII wargame that was historically played on hex maps with cardboard
             counters and dice. Most play has moved online through
@@ -367,7 +374,7 @@
           <div class="hex-wrap">
             <svg viewBox="0 0 88 100">
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
+                       fill="var(--surface-card)" stroke="var(--border-strong)" stroke-width="1.2"/>
             </svg>
             <span class="num">i</span>
           </div>
@@ -385,7 +392,7 @@
           <div class="hex-wrap">
             <svg viewBox="0 0 88 100">
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
+                       fill="var(--surface-card)" stroke="var(--border-strong)" stroke-width="1.2"/>
             </svg>
             <span class="num">ii</span>
           </div>
@@ -402,7 +409,7 @@
           <div class="hex-wrap">
             <svg viewBox="0 0 88 100">
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
+                       fill="var(--surface-card)" stroke="var(--border-strong)" stroke-width="1.2"/>
             </svg>
             <span class="num">iii</span>
           </div>
@@ -419,7 +426,7 @@
           <div class="hex-wrap">
             <svg viewBox="0 0 88 100">
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
+                       fill="var(--surface-card)" stroke="var(--border-strong)" stroke-width="1.2"/>
             </svg>
             <span class="num">iv</span>
           </div>
@@ -442,9 +449,11 @@
       <div class="footer-brand">
         <a class="brand" href="{{ url_for('home') }}">
           <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 32 32" fill="none">
-              <polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="var(--ink)" />
-              <text x="16" y="22" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="16" font-weight="500" fill="var(--paper)">a</text>
+            <!-- Kevmo chevron-bar mark (static/img/kevmo/logo-mark.svg, inlined for currentColor) -->
+            <svg viewBox="0 0 64 64" fill="none">
+              <rect x="6" y="28.5" width="27" height="7" rx="2" fill="currentColor"></rect>
+              <rect x="5" y="21" width="8" height="22" rx="2.5" fill="currentColor"></rect>
+              <path d="M30 16 L50 32 L30 48" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path>
             </svg>
           </span>
           <span class="brand-name">ASL <em>Ruleschat</em></span>

@@ -6,11 +6,15 @@
 
 {% block extra_css %}
 <style>
-  /* MASTHEAD — heavy 2px ink rule signals "editorial header" */
+  /* MASTHEAD — heavy 2px steel rule signals "report header" */
   .site .evals-masthead {
     padding: 64px 0 48px;
-    border-bottom: 2px solid var(--ink);
+    border-bottom: 2px solid var(--border-strong);
     position: relative;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 34px 34px;
   }
   .site .evals-masthead .mast-grid {
     display: grid;
@@ -19,18 +23,19 @@
     align-items: end;
   }
   .site .evals-masthead h1 {
-    font-family: var(--serif);
-    font-weight: 500;
-    font-size: clamp(36px, 4.2vw, 58px);
-    line-height: 1.05;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(32px, 4vw, 52px);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-transform: uppercase;
     margin: 0 0 18px;
     text-wrap: balance;
   }
-  .site .evals-masthead h1 em { font-style: italic; color: var(--accent); }
+  .site .evals-masthead h1 em { font-style: normal; color: var(--accent); }
   .site .evals-masthead .lede {
     font-size: 19px; line-height: 1.55;
-    color: var(--ink-2); max-width: 620px;
+    color: var(--text-secondary); max-width: 620px;
     margin: 0;
     text-wrap: pretty;
   }
@@ -44,11 +49,11 @@
   }
   .site .ev-grid .ev-label .eyebrow { margin-bottom: 0; }
   .site .ev-grid .ev-label .ev-title {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
     margin-top: 4px;
   }
   .site .ev-grid .ev-body h2 { margin: 0 0 18px; }
@@ -76,137 +81,142 @@
     grid-template-columns: 40px 1fr;
     gap: 16px;
     padding: 18px 0;
-    border-top: 1px solid var(--hair);
+    border-top: 1px solid var(--border-hairline);
   }
-  .site .findings li:first-child { border-top: 1px solid var(--ink); }
-  .site .findings li:last-child { border-bottom: 1px solid var(--hair); }
+  .site .findings li:first-child { border-top: 1px solid var(--border-strong); }
+  .site .findings li:last-child { border-bottom: 1px solid var(--border-hairline); }
   .site .findings .num {
-    font-family: var(--serif);
-    font-style: italic;
+    font-family: var(--font-display);
+    font-style: normal;
     font-size: 22px;
-    font-weight: 500;
+    font-weight: 400;
+    text-transform: uppercase;
     color: var(--accent);
     line-height: 1;
   }
   .site .findings .fnd-title {
-    font-family: var(--serif);
-    font-size: 19px;
-    font-weight: 500;
+    font-family: var(--font-sans);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: var(--tracking-tight);
     margin-bottom: 6px;
   }
   .site .findings .fnd-body {
     font-size: 14.5px;
     line-height: 1.6;
-    color: var(--ink-2);
+    color: var(--text-secondary);
   }
 
-  /* Comparison table */
+  /* Comparison table — instrument panel */
   .site .compare-table {
     width: 100%;
     border-collapse: collapse;
-    background: var(--paper);
-    border: 1px solid var(--ink);
-    font-family: var(--sans);
+    background: var(--surface-card);
+    border: 1px solid var(--border-strong);
+    font-family: var(--font-sans);
   }
-  .site .compare-table thead tr { border-bottom: 1px solid var(--ink); }
+  .site .compare-table thead tr { border-bottom: 1px solid var(--border-strong); }
   .site .compare-table th {
     padding: 14px 12px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10.5px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text-muted);
     font-weight: 500;
-    background: var(--paper-2);
+    background: var(--bg-subtle);
     text-align: center;
   }
   .site .compare-table th.col-model { text-align: left; padding: 14px 16px; }
   .site .compare-table th.col-action { text-align: right; padding: 14px 16px; }
-  .site .compare-table tbody tr { border-top: 1px solid var(--hair); }
+  .site .compare-table tbody tr { border-top: 1px solid var(--border-hairline); }
   .site .compare-table td {
     padding: 14px 12px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 13px;
-    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
     text-align: center;
     vertical-align: top;
   }
   .site .compare-table td.col-model {
     text-align: left;
     padding: 14px 16px;
-    color: var(--ink);
+    color: var(--text-primary);
     vertical-align: top;
   }
   .site .compare-table td.col-model .frontier {
-    font-family: var(--serif);
-    font-style: italic;
-    font-size: 10.5px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
     color: var(--accent);
     margin-top: 2px;
     font-weight: 500;
   }
   .site .compare-table td.col-model .model-sub {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10.5px;
-    color: var(--muted);
+    color: var(--text-muted);
     margin-top: 2px;
     letter-spacing: .04em;
   }
   .site .compare-table td.col-action { text-align: right; padding: 14px 16px; }
   .site .compare-table td.acc { font-weight: 600; }
   .site .compare-table td.cell-good {
-    color: var(--pass);
-    background: color-mix(in oklch, var(--pass) 16%, var(--paper));
+    color: var(--positive);
+    background: var(--positive-soft);
   }
   .site .compare-table td.cell-mid {
-    color: var(--review);
-    background: color-mix(in oklch, var(--review) 16%, var(--paper));
+    color: var(--warning);
+    background: var(--warning-soft);
   }
   .site .compare-table td.cell-bad {
-    color: var(--fail);
-    background: color-mix(in oklch, var(--fail) 16%, var(--paper));
+    color: var(--danger);
+    background: var(--danger-soft);
   }
   .site .compare-table td.col-date {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--muted);
+    color: var(--text-muted);
   }
   .site .compare-table .view-link {
     display: inline-flex; align-items: center; gap: 4px;
     padding: 5px 12px;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: .08em;
-    color: var(--ink);
-    border: 1px solid var(--ink);
-    border-radius: 2px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
     text-transform: uppercase;
-    transition: all .15s;
+    transition: background var(--dur-fast) var(--ease-lock),
+                border-color var(--dur-fast) var(--ease-lock);
   }
   .site .compare-table .view-link:hover {
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--ink-800);
+    border-color: var(--text-muted);
   }
 
-  /* Production usage charts — paper card. Two Chart.js line charts stacked
-     vertically; mono accent titles match the rest of the editorial chrome. */
+  /* Production usage charts — console card. Two Chart.js line charts stacked
+     vertically; mono accent titles match the rest of the console chrome. */
   .site .chart-card {
-    background: var(--paper);
+    background: var(--surface-card);
     padding: 24px;
-    border: 1px solid var(--hair);
-    border-radius: 2px;
+    border: 1px solid var(--border-hairline);
+    border-radius: var(--radius-lg);
     display: grid;
     grid-template-columns: 1fr;
     gap: 36px;
   }
   .site .chart-card .chart-block .chart-title {
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 10.5px;
-    letter-spacing: .14em;
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
     color: var(--accent);
     margin-bottom: 12px;
-    font-weight: 600;
+    font-weight: 500;
   }
   /* Chart.js with `maintainAspectRatio: false` fills the parent's height, so
      the canvas needs a relative-positioned wrapper with a fixed height —
@@ -215,7 +225,7 @@
     position: relative;
     height: 340px;
   }
-  .site .chart-card .chart-block canvas { background: var(--paper); }
+  .site .chart-card .chart-block canvas { background: transparent; }
 
   /* RESPONSIVE */
   @media (max-width: 880px) {
@@ -393,7 +403,7 @@
         {% endif %}
 
         {% if error %}
-        <div style="margin-top: 24px; padding: 14px 18px; border-left: 3px solid var(--fail); background: color-mix(in oklch, var(--fail) 8%, var(--paper)); font-family: var(--mono); font-size: 12px;">{{ error }}</div>
+        <div style="margin-top: 24px; padding: 14px 18px; border-left: 3px solid var(--danger); background: var(--danger-soft); font-family: var(--font-mono); font-size: 12px;">{{ error }}</div>
         {% endif %}
       </div>
     </div>
@@ -446,18 +456,17 @@
 // Section 04 below. Keeping it in a single .then() avoids a second round-trip.
 const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2' };
 
-// Six maximally-separable hues spread around the wheel (red / green / gold /
-// blue / violet / ink). The previous muted palette put mercury-2 (plum) right
-// next to gpt-5.4 (oxblood); mercury-2 is now a clear violet and deepseek a
-// clear blue so no two lines read alike.
-const DS_PALETTE = ['#8B2E2E', '#3E7D44', '#D2A02A', '#2F6FB2', '#8A3FA6', '#3B3833'];
+// Six maximally-separable hues from the Kevmo signal palette, tuned for the
+// dark console. Blaze is reserved for the frontier baseline (the hero line);
+// the rest are functional hues + a neutral steel for the legacy model.
+const DS_PALETTE = ['#F4541D', '#2FB36A', '#F2A416', '#3F84F2', '#E5443F', '#7A859B'];
 const MODEL_COLORS = {
-  'gpt-5.4':       '#8B2E2E',  // oxblood — frontier
-  'gpt-5-mini':    '#3E7D44',  // green
-  'gpt-5.4-mini':  '#D2A02A',  // gold
-  'deepseek-v3':   '#2F6FB2',  // blue
-  'mercury-2':     '#8A3FA6',  // violet
-  'gpt-4.1-mini':  '#3B3833',  // dark ink — legacy
+  'gpt-5.4':       '#F4541D',  // blaze — frontier
+  'gpt-5-mini':    '#2FB36A',  // tactical green
+  'gpt-5.4-mini':  '#F2A416',  // amber
+  'deepseek-v3':   '#3F84F2',  // blue
+  'mercury-2':     '#E5443F',  // red
+  'gpt-4.1-mini':  '#7A859B',  // steel — legacy
 };
 function colorFor(model, idx) { return MODEL_COLORS[model] || DS_PALETTE[idx % DS_PALETTE.length]; }
 const IMAGE_DASH = [4, 3];                                  // image variants render dashed
@@ -469,7 +478,8 @@ const CHART_EXCLUDED = new Set([
   'gpt-5.4-mini',
 ]);
 
-// Shared Chart.js options — muted gridlines, mono tick fonts, no fills, no curve tension.
+// Shared Chart.js options — muted gridlines, mono tick fonts, no fills, no
+// curve tension. Colors come from the Kevmo steel ramp (dark console).
 const SHARED_OPTS = {
   responsive: true,
   maintainAspectRatio: false,
@@ -479,7 +489,7 @@ const SHARED_OPTS = {
       grid: { display: false },
       ticks: {
         font: { family: 'JetBrains Mono, monospace', size: 10 },
-        color: '#6B6660',
+        color: '#7A859B',
         // Strip the year — API returns YYYY-MM-DD; we want "May 25".
         callback: function(value) {
           const label = this.getLabelForValue(value);
@@ -492,8 +502,8 @@ const SHARED_OPTS = {
     },
     y: {
       beginAtZero: true,
-      grid: { color: '#E8E1D2', drawBorder: false },
-      ticks: { font: { family: 'JetBrains Mono, monospace', size: 10 }, color: '#6B6660' },
+      grid: { color: 'rgba(122, 133, 155, 0.14)', drawBorder: false },
+      ticks: { font: { family: 'JetBrains Mono, monospace', size: 10 }, color: '#7A859B' },
     },
   },
   plugins: {
@@ -502,7 +512,7 @@ const SHARED_OPTS = {
       labels: {
         boxWidth: 10, boxHeight: 2,
         font: { family: 'JetBrains Mono, monospace', size: 10 },
-        color: '#3B3833',
+        color: '#A2ACBF',
       },
     },
   },
