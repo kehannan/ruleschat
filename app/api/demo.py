@@ -320,11 +320,10 @@ async def websocket_demo(websocket: WebSocket):
                     OPENROUTER_SLUG = {
                         "deepseek-v3": "deepseek/deepseek-v3.2",
                         "mercury-2": "inception/mercury-2",
-                        "fable": "anthropic/claude-fable-5",
                     }
                     allowed_models = {
                         "gpt-5.4",
-                        "deepseek-v3", "mercury-2", "fable",
+                        "deepseek-v3", "mercury-2",
                     }
                     if selected_model in allowed_models:
                         model = OPENROUTER_SLUG.get(selected_model, selected_model)
