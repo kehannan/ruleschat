@@ -100,6 +100,33 @@ def test_hazmo_h9_prep_fires_at_h8():
     mtr = [e for e in r["excluded"] if "MTR" in e["name"]]
     assert mtr and "enemy" in mtr[0]["reason"].lower(), r["excluded"]
 
+    # The H9 Skis counter shows the "OFF Skis" face — skis CARRIED (1 PP,
+    # E4.21): the firers are normal Infantry (assumption), with no worn-
+    # Skier E4.6 fire-restriction warning.
+    assert any("OFF Skis" in a and "E4.21" in a for a in r["assumptions"]), \
+        r["assumptions"]
+    assert not any("E4.6" in w for w in r["warnings"]), r["warnings"]
+
+
+def test_worn_skier_firer_gets_e46_warning():
+    # Synthetic: a worn-skis squad prep-firing — E4.6 forbids a Skier from
+    # firing any Gun, ordnance SW, or MMG/HMG; the resolver warns (it does
+    # not enforce).
+    state = {
+        "hexes": {
+            "57-B2": {"units": [
+                {"name": "6-4-8 1sq", "side": "Finnish", "skis": "worn"}],
+                "markers": []},
+            "57-B3": {"units": [
+                {"name": "4-4-7 1sq", "side": "Russian"}], "markers": []},
+        },
+        "boards": [],
+    }
+    r = resolve_attack(state, "57-B2", "57-B3", phase="prep")
+    assert any("WORN" in w and "E4.6" in w for w in r["warnings"]), \
+        r["warnings"]
+    assert not any("E4.21" in a for a in r["assumptions"]), r["assumptions"]
+
     # Finns do not cower (A7.9).
     assert r["cowering"] == "none", r["cowering"]
 
@@ -146,6 +173,23 @@ def test_fp_parsing_from_names():
     # Ordnance: mortars and Guns are not IFT firers.
     assert classify_unit({"name": "50* MTR", "side": "Russian"})["kind"] == "ordnance"
     assert classify_unit({"name": "37L AT PTP obr. 30", "side": "Russian"})["kind"] == "ordnance"
+
+
+def test_hs_reduced_g9_unit_classifies_from_active_identity():
+    """Regression: the 57-G9 Finnish piece prints '6-4-8 1sq' but its SQ/HS
+    Layer is active — the parser must surface it as a 2-4-8 1hs (art
+    fi/fi248H.svg, VASL-verified), and the resolver must classify the
+    ACTIVE identity: FP 2 / range 4 / morale 8, with the HS capability row
+    (fi248H: no Assault Fire, no Spraying Fire) — not the squad's 6 FP."""
+    g9 = _state()["hexes"]["57-G9"]["units"]
+    fin = next(u for u in g9 if u.get("side") == "Finnish"
+               and u.get("counter") == "6-4-8 1sq")
+    assert fin["name"] == "2-4-8 1hs" and fin["art"] == "fi/fi248H.svg", fin
+    c = classify_unit(fin)
+    assert (c["kind"], c["fp"], c["normal_range"], c["morale"]) == \
+        ("personnel", 2, 4, 8), c
+    assert c["assault_fire"] is False and c["spraying_fire"] is False, c
+    assert "fi248H" in (c["cap_source"] or ""), c
 
 
 # --------------------------------------------------------------------------- #

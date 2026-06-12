@@ -80,12 +80,10 @@ class VsavParseError(VsavError):
 _DATA_URL_RE = re.compile(r"^data:[^,;]*;base64,(.+)$", re.IGNORECASE | re.DOTALL)
 
 
-def save_vsav_data_url(data_url: str, conversation_id) -> str:
-    """Decode + validate + write an uploaded .vsav to disk.
+def decode_vsav_data_url(data_url: str) -> bytes:
+    """Decode + validate a base64 .vsav data URL; returns the raw save bytes.
 
-    Accepts a base64 data URL (any/no mime — browsers report .vsav as
-    application/octet-stream or nothing). Returns the relative path under
-    UPLOADS_DIR, e.g. ``"27/abcd.vsav"`` or ``"demo/abcd.vsav"``.
+    Raises VsavValidationError on bad input (same checks as the upload path).
     """
     m = _DATA_URL_RE.match(data_url.strip())
     if not m:
@@ -95,6 +93,17 @@ def save_vsav_data_url(data_url: str, conversation_id) -> str:
     except Exception as e:
         raise VsavValidationError(f"Invalid base64 .vsav data: {e}")
     validate_vsav_bytes(raw)
+    return raw
+
+
+def save_vsav_data_url(data_url: str, conversation_id) -> str:
+    """Decode + validate + write an uploaded .vsav to disk.
+
+    Accepts a base64 data URL (any/no mime — browsers report .vsav as
+    application/octet-stream or nothing). Returns the relative path under
+    UPLOADS_DIR, e.g. ``"27/abcd.vsav"`` or ``"demo/abcd.vsav"``.
+    """
+    raw = decode_vsav_data_url(data_url)
     conv_dir = UPLOADS_DIR / str(conversation_id)
     conv_dir.mkdir(parents=True, exist_ok=True)
     fname = f"{uuid.uuid4().hex}.vsav"
@@ -189,6 +198,83 @@ def split_unescaped(s: str, sep: str = "/", maxsplit: int = 0) -> list:
 
 def unescape(s: str) -> str:
     return s.replace("\\/", "/").replace("\\;", ";").replace("\\,", ",")
+
+
+# --------------------------------------------------------------------------
+# AddPiece type/state trait decoding
+# --------------------------------------------------------------------------
+# A VASSAL GamePiece is a chain of Decorator traits around a basic 'piece;'
+# trait. Decorator.getType()/getState() serialize as PARALLEL NESTED
+# 2-element sequences (VASSAL SequenceEncoder, delimiter TAB): each level is
+# "<this trait's own type>TAB<inner chain, TAB-escaped>", where escaping
+# prefixes ONE backslash to every TAB of the inner string (and a token that
+# ends in a backslash is wrapped in single quotes). Decoding therefore has
+# to peel one level at a time — a flat split on TAB miscounts whenever a
+# trait carries TABs of its own: placemark/placeDM ("Add Hero") traits embed
+# a complete piece definition inside their type, and multi-line HTML labels
+# embed literal TABs in their state. Pairing the flat lists from the end
+# then reads neighbouring traits' states (e.g. an HTML fragment as a hide
+# state, or the wrong emb2 layer level).
+#
+# Decode logic ported from pywargame's WithTraits.decodeAdd / decodeAdd2
+# (https://gitlab.com/wargames_tex/pywargame, pywargame/vassal/withtraits.py)
+# but reimplemented as a structural level-by-level descent instead of the
+# flat split + placemark special-case, so type and state stay paired by
+# construction.
+
+def _seq_untab(tok: str) -> str:
+    """Remove one level of SequenceEncoder TAB escaping from a token."""
+    if len(tok) > 1 and tok.startswith("'") and tok.endswith("'"):
+        tok = tok[1:-1]   # encoder quote-wraps tokens ending in a backslash
+    return tok.replace("\\\t", "\t")
+
+
+def _seq_split2(s: str):
+    """Split one nesting level into (head, rest); rest is None at chain end.
+
+    The level delimiter is the first TAB not preceded by a backslash;
+    deeper levels' TABs carry one extra escape backslash each.
+    """
+    i = 0
+    while True:
+        j = s.find("\t", i)
+        if j < 0:
+            return _seq_untab(s), None
+        if j > 0 and s[j - 1] == "\\":   # escaped: belongs to a deeper level
+            i = j + 1
+            continue
+        return _seq_untab(s[:j]), _seq_untab(s[j + 1:])
+
+
+def decode_trait_pairs(typ: str, sta: str):
+    """Pair each trait's type with its state by parallel structural descent.
+
+    Returns (pairs, suspect): pairs is [(trait_type, trait_state), ...] in
+    trait order (outermost decorator first, the basic 'piece;' trait last);
+    suspect is None, or a short reason string when the two structures do not
+    line up — the caller should flag the piece rather than trust its
+    dynamic state.
+    """
+    pairs = []
+    t, s = typ, sta
+    suspect = None
+    while t is not None:
+        t_head, t = _seq_split2(t)
+        if s is None:
+            s_head = ""
+            suspect = suspect or "piece state has fewer traits than its type"
+        else:
+            s_head, s = _seq_split2(s)
+        pairs.append((t_head, s_head))
+    if s is not None:
+        suspect = suspect or "piece state has more traits than its type"
+    if pairs:
+        # The save line carries a stray trailing backslash after the basic
+        # state (escape for the line separator); strip it from the last pair.
+        pairs[-1] = (pairs[-1][0].rstrip("\\"), pairs[-1][1].rstrip("\\"))
+        if not pairs[-1][0].startswith("piece;"):
+            suspect = suspect or "last trait is not the basic 'piece' trait"
+    return pairs, suspect
 
 
 # --------------------------------------------------------------------------
@@ -309,6 +395,10 @@ SIDE_NAMES = {"fi": "Finnish", "ru": "Russian", "ge": "German",
 _CRUMB_KEYS = ("OldLocationName", "OldX", "OldY", "OldBoard", "OldMap",
                "UniqueID", "ClickedX", "ClickedY")
 
+# emb2 Layer level names that ARE counter identities: an FP-Range-Morale
+# strength string ("2-4-8 1hs", "6-4-8 1sq", "2-2-8 Icr", "2.5-3-7 ...").
+IDENTITY_NAME_RE = re.compile(r"^\d+(?:\.5)?-\d+-\d+\b")
+
 
 def parse_add_piece(line: str):
     """Parse one '+/id/type/state' AddPiece command -> piece or stack dict."""
@@ -324,17 +414,21 @@ def parse_add_piece(line: str):
         return dict(kind="stack", id=pid, map=f[0],
                     x=int(f[1]), y=int(f[2]), members=f[3:])
 
-    m = PIECE_NAME_RE.search(typ)
+    if typ.startswith("deck;"):
+        return None  # card draw pile definition — not a board piece
+
+    # trait/state pairing: structural descent of VASSAL's nested encoding
+    # (see decode_trait_pairs) — the basic 'piece' trait is always last.
+    pairs, pairing_suspect = decode_trait_pairs(typ, sta)
+    if pairing_suspect:
+        logging.warning("vsav: piece %s: unreliable trait/state pairing (%s)",
+                        pid, pairing_suspect)
+
+    # Identity comes from the basic trait, NOT a regex over the whole type
+    # blob (which could hit a piece definition embedded in a placeDM trait).
+    m = PIECE_NAME_RE.search(pairs[-1][0] if pairs else typ)
     name = unescape(m.group(2)) if m else "<unknown>"
     base_art = unescape(m.group(1)).strip() if m else ""
-
-    # trait/state pairing: tab-separated, aligned from the END
-    # (the basic 'piece' trait and its 'Map;x;y;...' state are always last)
-    ttraits = typ.split("\t")
-    tstates = sta.split("\t")
-    n = min(len(ttraits), len(tstates))
-    pairs = list(zip([t.strip("\\") for t in ttraits[-n:]],
-                     [s.strip("\\") for s in tstates[-n:]]))
 
     # basic piece state: MAP;x;y;... plus key;value breadcrumbs
     basic = pairs[-1][1] if pairs else ""
@@ -358,7 +452,8 @@ def parse_add_piece(line: str):
 
     return dict(kind="piece", id=pid, name=name, base_art=base_art or None,
                 map=pmap, x=px, y=py,
-                crumbs=crumbs, nationality=nat, pairs=pairs, type=typ)
+                crumbs=crumbs, nationality=nat, pairs=pairs, type=typ,
+                pairing_suspect=pairing_suspect)
 
 
 def piece_dynamic_state(p):
@@ -405,15 +500,38 @@ def piece_dynamic_state(p):
             if "broken" in lnames or "broken" in images:
                 if val > 0:
                     flags["broken"] = True
-            elif "Skis" in t and val > 1:
-                flags["skis"] = True
+            elif "skison" in images:
+                # A unit's own "Activate Skis" Layer (squads/SMC): level 1
+                # draws skison.svg = the "Skis" face = ski mode (E4.2:
+                # "Skiers are identified by placing the possessed ski
+                # counter with the 'Skis' up"); level 2 draws skisoff.svg =
+                # carried (E4.21: "When not in ski mode, skis are carried
+                # atop a unit with the 'OFF Skis' side up at a cost of one
+                # PP"). val <= 0 = layer off (unit has no skis shown).
+                if val == 1:
+                    flags["skis"] = "worn"
+                elif val >= 2:
+                    flags["skis"] = "carried"
+            elif "skis off" in images:
+                # The separate "Skis" marker counter (base art sh/skis.png =
+                # the "Skis" face): its always-active 2-level flip Layer has
+                # an EMPTY level-1 image (base face shows = worn, E4.2) and
+                # overlays "sh/skis off.png" at level 2 (the "OFF Skis"
+                # face = carried at 1 PP, E4.21).
+                flags["skis"] = "carried" if val >= 2 else "worn"
             elif "Bicycle" in t and val > 1:
                 flags["bicycle"] = True
-            # unit-identity layer: level names look like unit names and the
-            # base piece name is one of them -> active level = display name,
-            # and the level's image is the counter art actually shown
-            # (e.g. 'fi\\/fi648S.svg,fi\\/fi538S.svg' / '6-4-8 1sq,5-3-8 Gsq')
-            elif p["name"] in lname_list and 0 < val <= len(lname_list):
+            # unit-identity layer: the ACTIVE level's name is a counter
+            # identity — either the base piece name is among the level names
+            # (ELR flip: '6-4-8 1sq,5-3-8 Gsq') or the active level name is
+            # an FP-Range-Morale string in its own right (SQ/HS reduction:
+            # '2-4-8 1hs,2-3-8 Ghs', where the base squad name never
+            # appears). Trait order runs OUTERMOST -> innermost and outer
+            # Layers draw ON TOP, so the FIRST active identity layer is the
+            # counter actually visible; its image is the displayed art.
+            elif 0 < val <= len(lname_list) and effective_name is None and \
+                    (p["name"] in lname_list
+                     or IDENTITY_NAME_RE.match(lname_list[val - 1])):
                 effective_name = lname_list[val - 1]
                 imgs = [unescape(v).strip() for v in images.split(",")]
                 if val <= len(imgs) and imgs[val - 1]:
@@ -423,6 +541,40 @@ def piece_dynamic_state(p):
             if v and v != "null":
                 flags["label"] = unescape(v)
     return flags, owner, effective_name, effective_art
+
+
+def piece_art_layers(p) -> list:
+    """All counter-art image paths VASL composites for this piece, bottom->top.
+
+    A VASSAL piece draws its basic-trait image first, then each active Layer
+    (emb2) trait's current-level image on top. Trait order in the serialized
+    type string runs OUTERMOST -> innermost (the basic ``piece`` trait is
+    last), and outer decorators draw last — so the visual stacking is the
+    REVERSE of trait order. A Layer state of n > 0 means level n is active
+    (n <= 0 = layer off). Used by the render manifest only; the single
+    ``art`` field (identity-layer/basic image) is unchanged.
+    """
+    layers = []
+    for t, s in p["pairs"]:
+        tf = split_unescaped(t, ";")
+        if tf[0] != "emb2":
+            continue
+        try:
+            images = [unescape(v).strip() for v in tf[16].split(",")]
+        except IndexError:
+            continue
+        try:
+            val = int(s.split(";")[0])
+        except (ValueError, IndexError):
+            continue
+        if 0 < val <= len(images) and images[val - 1]:
+            layers.append(images[val - 1])
+    layers.reverse()
+    if p.get("base_art"):
+        layers.insert(0, p["base_art"])
+    # dedupe while preserving order (identity layer often repeats base art)
+    seen = set()
+    return [a for a in layers if not (a in seen or seen.add(a))]
 
 
 # --------------------------------------------------------------------------
@@ -449,8 +601,10 @@ def is_marker(p) -> bool:
     n = name.lower()
     if any(k in n for k in ("concealment", "turn", "attitude", "acq", "radius")):
         return True
-    # non-stackable play aids (2-hex radius circles, info chits, ...)
-    return bool(re.search(r"(?:^|\t)immob;", p["type"]))
+    # non-stackable play aids (2-hex radius circles, info chits, ...) —
+    # checked against decoded trait heads, not the raw type blob (which can
+    # contain whole piece definitions embedded in placeDM/placemark traits)
+    return any(t.startswith("immob;") for t, _ in p["pairs"])
 
 
 def _parse_raw(path):
@@ -637,6 +791,12 @@ def parse_vsav(path) -> dict:
                 entry["side"] = SIDE_NAMES.get(p_["nationality"], p_["nationality"])
             if p_["owner"]:
                 entry["owner"] = p_["owner"]
+            # map pixel coords (VASL map space, 400px edge margin included)
+            entry["px"], entry["py"] = p_["x"], p_["y"]
+            if p_.get("pairing_suspect"):
+                # trait/state decode didn't line up — dynamic state (flags,
+                # active layers) for this piece is best-effort only
+                entry["pairing_suspect"] = p_["pairing_suspect"]
             entry.update(p_["flags"])
             entry["_stack"] = p_.get("stack_id")
             entry["_pos"] = p_.get("stack_pos", 0)
@@ -660,6 +820,15 @@ def parse_vsav(path) -> dict:
             ent = [m for m in applies if m["name"] in ENTRENCHMENT_NAMES]
             if ent:
                 u["entrenched_by"] = min(ent, key=lambda m: m["_pos"])["name"]
+            # A Skis counter above the unit: per-unit ski state from the
+            # marker's decoded face — "worn" (ski mode, E4.2) or "carried"
+            # (1 PP, E4.21). The unit's OWN ski Layer (rare) wins if set;
+            # an undecodable marker face defaults to "worn", the counter's
+            # base face. "Skis" also stays in the markers list.
+            ski = [m for m in applies if m["name"] == "Skis"]
+            if ski and not u.get("skis"):
+                u["skis"] = min(ski, key=lambda m: m["_pos"]).get("skis") \
+                    or "worn"
             mk = [m["name"] for m in applies
                   if m["name"] not in ENTRENCHMENT_NAMES]
             if mk:
@@ -694,6 +863,8 @@ def parse_vsav(path) -> dict:
                   for p_ in raw_state["offmap"] if not is_marker(p_)],
         validation=dict(n_breadcrumbs_checked=n, n_matched=ok,
                         mismatches=bad[:20]),
+        # flat per-counter list in draw order, for the visual board viewer
+        render_pieces=_build_render_pieces(raw_state),
     )
 
     # Per-hex terrain from local VASL board archives (best-effort: boards
@@ -707,16 +878,117 @@ def parse_vsav(path) -> dict:
     return state
 
 
-_FLAG_LABELS = (("broken", "BROKEN"), ("skis", "skis"), ("bicycle", "bicycle"))
+def _build_render_pieces(raw_state) -> list:
+    """Flat per-counter list for the visual board viewer, in DRAW order.
+
+    Includes every Main-Map piece (units AND markers — Foxholes, "?", DM ...
+    are visible counters), with raw VASL map-pixel coords. Order: stacks are
+    painted lower-on-screen-last (painter's algorithm for the top-down view),
+    and within a stack bottom -> top, so the topmost counter of a stack is
+    emitted last and naturally hides those below it.
+    """
+    groups = defaultdict(list)
+    for p in raw_state["pieces"]:
+        if p["map"] != "Main Map" or p["x"] is None:
+            continue
+        groups[p.get("stack_id") or f"solo-{p['id']}"].append(p)
+
+    out = []
+    for stack_no, (_key, members) in enumerate(sorted(
+            groups.items(),
+            key=lambda kv: (min(p["y"] for p in kv[1]),
+                            min(p["x"] for p in kv[1]), kv[0]))):
+        members.sort(key=lambda p: p.get("stack_pos", 0))
+        for idx, p in enumerate(members):
+            entry = dict(
+                name=p["effective_name"],
+                px=p["x"], py=p["y"],
+                hex=p.get("hex"),
+                stack=stack_no,
+                stack_index=idx,
+                stack_size=len(members),
+                is_marker=is_marker(p),
+                art=piece_art_layers(p),
+            )
+            if p["name"] != p["effective_name"]:
+                entry["counter"] = p["name"]
+            if p["nationality"]:
+                entry["side"] = SIDE_NAMES.get(p["nationality"], p["nationality"])
+            if p.get("pairing_suspect"):
+                entry["pairing_suspect"] = p["pairing_suspect"]
+            flags = {k: v for k, v in p["flags"].items() if k != "label"}
+            if flags:
+                entry["flags"] = flags
+            if p["flags"].get("label"):
+                entry["label"] = p["flags"]["label"]
+            out.append(entry)
+    return out
+
+
+def render_manifest(state: dict, background: dict = None) -> dict:
+    """Build the board-viewer render manifest from a parse_vsav() state.
+
+    ALL coordinates are raw VASL map pixels — the same space the parser
+    validates against — including the 400px edge margin (EDGE) on every
+    side. The background PNG (built by app/services/board_render.py) covers
+    only the union of the board boxes and carries its own placement offset
+    in ``background.x/.y``; pieces staged in the margin simply render
+    outside it.
+
+    Shape:
+      map:        {width, height, background_url}
+      background: {url, cache_key, x, y, width, height, missing_boards}|None
+      geometry:   hex/board constants for client-side pixel->hex math
+      boards:     [{name, base, reversed, slot, crop, x, y, width, height}]
+      pieces:     draw-order list from state["render_pieces"]
+    """
+    boards = []
+    for b in state.get("boards", []):
+        crop = b["crop"]
+        dw = crop["w"] if crop["w"] > 0 else BOARD_W
+        dh = crop["h"] if crop["h"] > 0 else BOARD_H
+        c, r = b["slot"]
+        boards.append(dict(
+            name=b["name"], base=b["base"], reversed=b["reversed"],
+            slot=b["slot"], crop=crop,
+            x=EDGE + c * dw, y=EDGE + r * dh, width=dw, height=dh,
+        ))
+    if boards:
+        map_w = max(bb["x"] + bb["width"] for bb in boards) + EDGE
+        map_h = max(bb["y"] + bb["height"] for bb in boards) + EDGE
+    else:
+        map_w = map_h = 2 * EDGE
+    return dict(
+        map=dict(width=map_w, height=map_h,
+                 background_url=(background or {}).get("url")),
+        background=background,
+        geometry=dict(dx=DX, dy=DY, edge=EDGE,
+                      board_w=BOARD_W, board_h=BOARD_H),
+        boards=boards,
+        pieces=state.get("render_pieces", []),
+    )
+
+
+_FLAG_LABELS = (("broken", "BROKEN"), ("bicycle", "bicycle"))
 
 
 def _unit_braces(u) -> str:
     """' {Foxhole: in, DM, ...}' — the markers that apply to THIS unit
-    (counters above it in its VASL stack), or '' if none."""
+    (counters above it in its VASL stack), or '' if none. A Skis marker
+    renders with its decoded face: '{Skis: worn}' (ski mode, E4.2) vs
+    '{Skis: carried}' (1 PP, E4.21)."""
     items = []
     if u.get("entrenched_by"):
         items.append(f"{u['entrenched_by']}: in")
-    items += u.get("markers") or []
+    ski_done = False
+    for m in u.get("markers") or []:
+        if m == "Skis" and u.get("skis") and not ski_done:
+            # only the FIRST (nearest-above — the one that set the unit's
+            # ski state) gets the face annotation; further Skis counters
+            # higher in the stack keep their own faces
+            m = f"Skis: {u['skis']}"
+            ski_done = True
+        items.append(m)
     return " {" + ", ".join(items) + "}" if items else ""
 
 
@@ -740,10 +1012,16 @@ def _render_unit(u, perspective_side=None):
     if u.get("counter"):
         s += f" (counter: {u['counter']})"
     flags = [label for key, label in _FLAG_LABELS if u.get(key)]
+    if u.get("skis") and "Skis" not in (u.get("markers") or []):
+        # ski state from the unit's OWN ski Layer (no Skis marker above it
+        # to carry the annotation in the braces)
+        flags.append(f"skis {u['skis']}")
     if "concealed_by" in u:
         flags.append("concealed")
     if "hip_by" in u:
         flags.append("HIP")
+    if u.get("pairing_suspect"):
+        flags.append("state unreliable (trait decode mismatch)")
     if u.get("label"):
         flags.append(f"label: {u['label']}")
     if flags:
@@ -808,7 +1086,11 @@ def render_board_state(state: dict, perspective_side: str = None) -> str:
                  "counters stacked ABOVE it in VASL — 'Foxhole: in' / "
                  "'Trench: in' means the unit is beneath that counter and IN "
                  "the entrenchment; a unit in the same hex without the "
-                 "annotation is NOT. 'hex markers' after | sit at the bottom "
+                 "annotation is NOT. 'Skis: worn' = ski counter 'Skis' face "
+                 "up, the unit is a Skier in ski mode (E4.2); 'Skis: "
+                 "carried' = 'OFF Skis' face up, skis merely carried at 1 PP "
+                 "(E4.21) — NOT a Skier, no E4 Skier effects. 'hex markers' "
+                 "after | sit at the bottom "
                  "of a stack or alone and apply to no listed unit):")
     for hx, v in sorted(state.get("hexes", {}).items()):
         rendered = [r for u in v["units"]

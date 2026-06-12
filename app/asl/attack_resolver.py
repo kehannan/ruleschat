@@ -443,6 +443,25 @@ def _all_hex_markers(entry: Dict[str, Any]) -> set:
     return mk
 
 
+def ski_state(u: Dict[str, Any]) -> Optional[str]:
+    """'worn' | 'carried' | None for one parsed unit.
+
+    parse_vsav decodes the VASL ski counter's face into a per-unit `skis`
+    field: "worn" = the "Skis" face is up, the unit is a Skier in ski mode
+    (E4.2: "Units on skis are in ski mode and are referred to as Skiers.
+    Skiers are identified by placing the possessed ski counter with the
+    'Skis' up."); "carried" = the "OFF Skis" face is up (E4.21: "When not
+    in ski mode, skis are carried atop a unit with the 'OFF Skis' side up
+    at a cost of one PP."). Fallback for hand-built state dicts / a marker
+    whose face could not be decoded: a bare "Skis" marker counts as worn
+    (the counter's base face).
+    """
+    s = u.get("skis")
+    if s in ("worn", "carried"):
+        return s
+    return "worn" if "Skis" in (u.get("markers") or []) else None
+
+
 def _unit_entrenchment(u: Dict[str, Any]) -> Optional[str]:
     """'Foxhole'/'Trench' if THIS unit is in one, else None.
 
@@ -627,7 +646,8 @@ def resolve_attack(
     firers: List[Dict[str, Any]] = []
     excluded: List[Dict[str, Any]] = []
     leaders: List[Dict[str, Any]] = []
-    skis_seen = False
+    skis_worn = False
+    skis_carried = False
 
     def _exclude(u, reason):
         excluded.append({"name": u.get("name"), "side": u.get("side"),
@@ -639,8 +659,11 @@ def resolve_attack(
     for u in units:
         cls = classify_unit(u)
         markers = u.get("markers") or []
-        if "Skis" in markers:
-            skis_seen = True
+        st = ski_state(u)
+        if st == "worn":
+            skis_worn = True
+        elif st == "carried":
+            skis_carried = True
         if filt and filt not in (u.get("name") or "").lower() \
                 and cls["kind"] != "leader":
             _exclude(u, f"excluded by firing_unit_filter {firing_unit_filter!r}")
@@ -1060,9 +1083,22 @@ def resolve_attack(
             "break/pin odds omitted (use ift_attack with an explicit target)."
         )
 
-    if skis_seen:
+    if skis_worn:
+        # E4.2: a unit with its ski counter "Skis" face up is a Skier (ski
+        # mode). E4.6 (verified verbatim): "A Skier may not fire any Gun,
+        # ordnance SW, or MMG/HMG; he must change to foot mode first."
+        warnings.append(
+            "Firing unit(s) have skis WORN (ski mode, E4.2 — they are "
+            "Skiers): E4.6 forbids a Skier from firing any Gun, ordnance "
+            "SW, or MMG/HMG (he must change to foot mode first) — NOT "
+            "enforced here; other Chapter E4 Skier effects are not modeled."
+        )
+    if skis_carried:
         assumptions.append(
-            "Skis counters present: ski effects (Chapter E4) are not modeled."
+            "Ski counter(s) with the 'OFF Skis' face up in the firing hex: "
+            "the skis are merely carried at a cost of one PP (E4.21) — the "
+            "units are normal Infantry for this attack, no E4 Skier "
+            "effects apply (the 1 PP portage load is not modeled)."
         )
 
     # ---- run the IFT engine (once per distinct target TEM) ----

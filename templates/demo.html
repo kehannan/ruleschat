@@ -439,6 +439,7 @@
   function finalizeMessage(contentEl) {
     const raw = contentEl.getAttribute('data-content') || '';
     contentEl.innerHTML = marked.parse(raw);
+    applyAnswerLayout(contentEl);
     makeSectionReferencesClickable(contentEl);
     lastAssistantAnswer = raw;
     const msgEl = contentEl.closest('.msg.assistant');
@@ -528,6 +529,7 @@
       const updated = current + e.data;
       contentEl.setAttribute('data-content', updated);
       contentEl.innerHTML = marked.parse(updated);
+      applyAnswerLayout(contentEl);
       scrollChatBottom();
       lastAssistantAnswer = updated;
     };

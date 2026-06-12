@@ -476,6 +476,21 @@
 .site .msg.assistant .msg-content ol { margin: 0 0 14px 18px; padding: 0; }
 .site .msg.assistant .msg-content li { margin-bottom: 6px; }
 
+/* Answer layout: the lead "**Answer:** ..." paragraph stays at full
+   prominence; everything after the model's --- rule (steps, references)
+   is wrapped in .msg-details by applyAnswerLayout() and de-emphasized. */
+.site .msg.assistant .msg-content .msg-details {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+  border-left: 2px solid var(--hair);
+  padding-left: 12px;
+  margin-top: 10px;
+}
+.site .msg.assistant .msg-content .msg-details strong { color: var(--muted); }
+.site .msg.assistant .msg-content .msg-details p { margin: 0 0 8px; }
+.site .msg.assistant .msg-content .msg-details li { margin-bottom: 4px; }
+
 .site .latency-row {
   display: flex; flex-wrap: wrap; gap: 18px;
   margin-top: 14px;

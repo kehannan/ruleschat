@@ -206,6 +206,93 @@
   .site #connection-status.disconnected { color: var(--fail); }
   .site #connection-status.disconnected .pip { background: var(--fail); }
 
+  /* ---- Visual board viewer (shown when a .vsav is attached) ---- */
+  .site .board-viewer {
+    border-top: 1px solid var(--hair);
+    background: var(--paper-2);
+  }
+  .site .board-viewer .bv-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 12px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted); letter-spacing: .04em;
+    border-bottom: 1px solid var(--hair);
+  }
+  .site .board-viewer .bv-title { text-transform: uppercase; }
+  .site .board-viewer .bv-hex-badge {
+    min-width: 64px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .site .board-viewer .bv-spacer { margin-left: auto; }
+  .site .board-viewer .bv-btn {
+    background: transparent; border: 1px solid var(--hair);
+    border-radius: 2px; color: var(--ink-2);
+    width: 22px; height: 22px; padding: 0;
+    cursor: pointer; font-size: 12px; line-height: 1;
+  }
+  .site .board-viewer .bv-btn:hover { color: var(--ink); border-color: var(--ink-2); }
+  .site .board-viewer .bv-viewport {
+    position: relative;
+    height: 340px;
+    overflow: hidden;
+    background: #d9d4c7;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  .site .board-viewer .bv-viewport:active { cursor: grabbing; }
+  .site .board-viewer .bv-world {
+    position: absolute; left: 0; top: 0;
+    transform-origin: 0 0;
+  }
+  .site .board-viewer .bv-bg {
+    position: absolute;
+    image-rendering: auto;
+    pointer-events: none;
+  }
+  .site .board-viewer .bv-piece {
+    position: absolute;
+    width: 0; height: 0;
+    cursor: pointer;
+    transition: left .12s ease, top .12s ease;
+  }
+  .site .board-viewer .bv-piece .bv-art {
+    position: absolute; left: 0; top: 0;
+    transform: translate(-50%, -50%);
+    /* art IS the clickable surface (the piece div itself is 0x0) */
+    pointer-events: auto;
+  }
+  .site .board-viewer .bv-piece .bv-fallback {
+    position: absolute; left: 0; top: 0;
+    transform: translate(-50%, -50%);
+    width: 46px; height: 46px;
+    border: 1px solid #222;
+    border-radius: 2px;
+    color: #fff;
+    font-family: var(--mono); font-size: 9px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    pointer-events: auto;
+  }
+  .site .board-viewer .bv-piece.bv-fanned .bv-art,
+  .site .board-viewer .bv-piece.bv-fanned .bv-fallback {
+    outline: 1px solid rgba(180, 60, 30, .8);
+  }
+  .site .board-viewer .bv-tooltip {
+    position: absolute; z-index: 2000;
+    max-width: 260px;
+    background: var(--paper);
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    padding: 8px 10px;
+    font-family: var(--mono); font-size: 11px;
+    line-height: 1.5;
+    color: var(--ink);
+    pointer-events: none;
+  }
+
   @media (max-width: 620px) {
     .site .chat-toolbar h4 { font-size: 16px; }
     .site .msg.user .msg-bubble { max-width: 92%; }
@@ -222,7 +309,6 @@
 <div class="chat-toolbar">
   <div class="wrap">
     <select class="model-pill" id="model-selector" title="Select model">
-      <option value="gpt-5-mini">gpt-5-mini · ¢/slow</option>
       <option value="gpt-5.4">gpt-5.4 · ¢¢¢/fast</option>
       <option value="deepseek-v3">deepseek-v3 · ¢</option>
       <option value="fable">fable · anthropic</option>
@@ -319,6 +405,7 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 </script>
 <script src="{{ url_for('static', path='/js/chat-shared.js') }}"></script>
+<script src="{{ url_for('static', path='/js/board-viewer.js') }}"></script>
 <script>
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsBaseUrl = protocol + '//' + window.location.host + '/ws/chat/';
@@ -413,6 +500,7 @@
   function finalizeMessage(contentEl) {
     const raw = contentEl.getAttribute('data-content') || '';
     contentEl.innerHTML = marked.parse(raw);
+    applyAnswerLayout(contentEl);
     makeSectionReferencesClickable(contentEl);
     lastAssistantAnswer = raw;
     const msgEl = contentEl.closest('.msg.assistant');
@@ -513,6 +601,7 @@
       const updated = current + e.data;
       contentEl.setAttribute('data-content', updated);
       contentEl.innerHTML = marked.parse(updated);
+      applyAnswerLayout(contentEl);
       scrollChatBottom();
       lastAssistantAnswer = updated;
     };
@@ -616,6 +705,9 @@
     if (submitBtn) submitBtn.onclick = sendMessage;
 
     if (typeof bindImagePasteHandler === 'function') bindImagePasteHandler();
+    // Board viewer first: its change listener must grab the File before
+    // the shared attach handler clears the input value.
+    if (typeof initBoardViewer === 'function') initBoardViewer();
     if (typeof bindVsavAttachHandler === 'function') bindVsavAttachHandler();
 
     document.addEventListener('visibilitychange', function () {

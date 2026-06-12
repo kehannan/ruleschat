@@ -205,6 +205,10 @@ data/uploads/
 # Local cache of VASL board archives (MMP/VASL copyrighted content — never commit)
 data/boards/
 
+# Derived board-viewer renders + counter art extracted from the VASL vmod
+# (MMP/VASL copyrighted content — never commit)
+data/render_cache/
+
 # Local Claude context (contains deployment info)
 CLAUDE.md
 

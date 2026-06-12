@@ -89,6 +89,50 @@ def test_unit_counter_art_exposed():
     assert h8["4-4-7 1sq"].get("art") == "ru/ru447S.svg", h8["4-4-7 1sq"]
 
 
+def test_active_identity_layer_overrides_printed_counter():
+    """Unit identity follows the ACTIVE unit-identity Layer, not the printed
+    counter. Ground truth (verified on the VASL screen): in 57-G9 the piece
+    whose basic name is '6-4-8 1sq' has its SQ\\/HS Layer active at level 1 —
+    on board it is a Finnish 2-4-8 half-squad. Name, counter, and art (which
+    keys the capability lookup) must all follow the active layer. The
+    SQ\\/HS level names ('2-4-8 1hs,2-3-8 Ghs') never contain the base
+    squad name, which is what the old name-in-level-names test missed.
+    """
+    s = _state()
+    g9 = {u.get("counter") or u["name"]: u for u in s["hexes"]["57-G9"]["units"]}
+    fin = g9["6-4-8 1sq"]
+    assert fin["name"] == "2-4-8 1hs", fin
+    assert fin["counter"] == "6-4-8 1sq", fin
+    assert fin["art"] == "fi/fi248H.svg", fin
+    assert fin["side"] == "Finnish", fin
+    # The Russian piece in the same Melee is ELR-flipped AND HS-reduced:
+    # printed 4-5-8 Esq, SQ/HS layer active at level 1 = 2-3-7 1hs (art
+    # ru/ru237H.svg, which the save composites on top of ru447S).
+    rus = g9["4-5-8 Esq"]
+    assert rus["name"] == "2-3-7 1hs", rus
+    assert rus["art"] == "ru/ru237H.svg", rus
+
+    # The ELR-flip mechanism must keep working where SQ/HS is NOT active:
+    # the 57-G3 / 57-H8 Russians stay 4-4-7 1sq over counter 4-5-8 Esq.
+    g3 = {u["name"]: u for u in s["hexes"]["57-G3"]["units"]}
+    assert g3["4-4-7 1sq"]["counter"] == "4-5-8 Esq", g3["4-4-7 1sq"]
+    assert g3["4-4-7 1sq"]["art"] == "ru/ru447S.svg", g3["4-4-7 1sq"]
+
+
+def test_trait_state_pairing_is_structural():
+    """Trait states with literal TABs (multi-line HTML labels) and traits
+    embedding whole piece definitions (placeDM) must not shift the pairing.
+    Before the structural decode, one User-Labeled marker read an HTML
+    fragment as its hide state and was reported HIP by '</tbody>'."""
+    s = _state()
+    labels = [p for p in s["render_pieces"] if p["name"] == "User-Labeled"]
+    assert labels, "fixture lost its User-Labeled markers"
+    for p in labels:
+        flags = p.get("flags") or {}
+        assert "hip_by" not in flags, p
+        assert not (p.get("label") or "").startswith("</"), p
+
+
 def test_stack_order_is_bottom_to_top():
     """Direction proof for the +/id/stack member list: it runs BOTTOM -> TOP.
 
@@ -102,7 +146,11 @@ def test_stack_order_is_bottom_to_top():
     """
     s = _state()
     e8 = s["hexes"]["57-E8"]
-    broken = next(u for u in e8["units"] if u["name"].startswith("6-2-8"))
+    # the 6-2-8 Esq counter is HS-reduced in the save (active SQ/HS layer ->
+    # 3-2-8 Ehs); whatever its identity, it must stay BROKEN under DM
+    broken = next(u for u in e8["units"]
+                  if u.get("counter", u["name"]).startswith("6-2-8"))
+    assert broken["name"] == "3-2-8 Ehs", broken
     assert broken.get("broken") is True, broken
     assert "DM" in broken["markers"], broken
     lmg = next(u for u in e8["units"] if u["name"] == "LMG")
@@ -131,6 +179,59 @@ def test_per_unit_marker_attribution_by_stack_position():
     h10 = {u["name"]: u for u in s["hexes"]["57-H10"]["units"]}
     assert "Skis" in h10["6-4-8 1sq"]["markers"], h10["6-4-8 1sq"]
     assert h10["8-3-8 Esq"].get("markers") is None, h10["8-3-8 Esq"]
+
+
+def test_ski_worn_vs_carried_decoded_from_marker_face():
+    """The VASL Skis counter's flip Layer mirrors E4.2/E4.21: base art
+    sh/skis.png is the "Skis" face (worn = ski mode); level 2 overlays
+    "sh/skis off.png" (the "OFF Skis" face = carried at 1 PP). Each unit
+    below a Skis marker gets `skis: "worn"|"carried"` from that face.
+
+    Ground truth (Kevin, verified on the VASL screen): the 57-G9 Melee
+    units' skis are OFF — carried, not worn. Spot checks across the
+    fixture: 57-H9 / 57-H10 / 69-H5 carried; 69-J6 / 69-E1 / 57-E8 /
+    69-I7 / 69-H7 worn."""
+    s = _state()
+    def ski(hx, name):
+        u = next(u for u in s["hexes"][hx]["units"] if u["name"] == name)
+        assert "Skis" in u["markers"], u
+        return u["skis"]
+    # The headline ground truth: G9 = carried (both sides).
+    assert ski("57-G9", "2-4-8 1hs") == "carried"   # Finnish HS
+    assert ski("57-G9", "2-3-7 1hs") == "carried"   # Russian HS
+    assert ski("57-G9", "ruCOM") == "carried"
+    # More carried units.
+    assert ski("57-H9", "6-4-8 1sq") == "carried"
+    assert ski("57-H10", "6-4-8 1sq") == "carried"
+    assert ski("69-H5", "2-4-8 1hs") == "carried"
+    # Worn (ski mode) units — the marker's face stayed on its base side.
+    assert ski("69-J6", "6-4-8 1sq") == "worn"
+    assert ski("69-E1", "6-2-8 Esq") == "worn"
+    assert ski("57-E8", "3-2-8 Ehs") == "worn"
+    assert ski("69-I7", "6-4-8 1sq") == "worn"
+    assert ski("69-H7", "6-4-8 1sq") == "worn"
+    # 69-K7 interleaves both: sniper/crew sit under the WORN marker, the
+    # fiLDR/DC under the CARRIED one higher up (nearest-above wins).
+    assert ski("69-K7", "2-2-8 Icr") == "worn"
+    assert ski("69-K7", "fiLDR") == "carried"
+
+
+def test_ski_state_from_units_own_activate_skis_layer():
+    """A unit's OWN 'Activate Skis' Layer (skison.svg = worn / skisoff.svg
+    = carried) also decodes — no fixture unit has it active (every squad's
+    layer state is -1 = off), so drive piece_dynamic_state directly."""
+    layer_t = ("emb2;Activate Skis;128;A;Toggle ON\\/1pp;128;;;128;;;;1;"
+               "false;1;4;dyo\\/MS\\/skison.svg,dyo\\/MS\\/skisoff.svg;,;"
+               "true;Skis;;;false;;1;1;false;83,195;90,650;;;1.0;;true")
+    def flags_for(state):
+        p = {"name": "6-4-8 1sq",
+             "pairs": [(layer_t, state), ("piece;;;;6-4-8 1sq", "Main Map;0;0")]}
+        flags, _, _, _ = vsav_service.piece_dynamic_state(p)
+        return flags
+    assert flags_for("1").get("skis") == "worn"      # level 1 = skison.svg
+    assert flags_for("2").get("skis") == "carried"   # level 2 = skisoff.svg
+    assert "skis" not in flags_for("-1")             # layer off: no skis
+    assert "skis" not in flags_for("0")
 
 
 def test_entrenched_by_from_stack_order():
@@ -166,6 +267,21 @@ def test_render_foxhole_in_notation():
     assert "2-2-8 Icr {" not in line, line
     # legend explains the convention
     assert "ABOVE" in text and "Foxhole: in" in text
+
+
+def test_render_ski_face_in_braces():
+    """Rendering: the Skis marker shows its decoded face — '{Skis: worn}'
+    (ski mode, E4.2) vs '{Skis: carried}' (1 PP, E4.21) — and the legend
+    explains both. G9 (the CC regression hex) must read 'carried'."""
+    text = render_board_state(_state())
+    g9 = _hex_line(text, "57-G9")
+    assert "Skis: carried" in g9, g9
+    assert "Skis: worn" not in g9, g9
+    j6 = _hex_line(text, "69-J6")
+    assert "Skis: worn" in j6, j6
+    assert "'Skis: worn'" in text and "'Skis: carried'" in text, \
+        "legend must explain the ski faces"
+    assert "E4.21" in text, "legend cites the carried-skis rule"
 
 
 def test_player_sides_mapping():

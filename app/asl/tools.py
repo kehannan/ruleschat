@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 
 from app.asl import ift
 from app.asl import attack_resolver
+from app.asl import cc_resolver
 
 
 # =============================================================================
@@ -146,6 +147,57 @@ def resolve_attack(
         "🎯 resolve_attack(%s -> %s, phase=%s) -> %s FP, col %s, drm %s",
         firing_hex, target_hex, phase,
         result.get("total_fp"), result.get("column"), result.get("drm"),
+    )
+    return result
+
+
+def resolve_cc(
+    hex_id: str,
+    attacker_side: Optional[str] = None,
+    attacker_filter: Optional[str] = None,
+    defender_filter: Optional[str] = None,
+    _context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Resolve the Close Combat in one hex directly from the attached .vsav's
+    parsed state.
+
+    Takes a HEX ID — not FP/odds/DRM numbers — and derives the full A11
+    derivation deterministically (see app.asl.cc_resolver), including BOTH
+    directions since CC is simultaneous. Requires the parsed vsav state,
+    threaded in server-side via `_context` (never exposed to the model);
+    without an attached save it returns a clear error: there is no
+    no-save CC tool, so the model must derive carefully with citations.
+    """
+    state = (_context or {}).get("vsav_state")
+    if not state:
+        return {
+            "error": (
+                "No VASL .vsav save is attached to this message, so there is "
+                "no parsed board state to resolve against. There is no "
+                "non-save Close Combat tool: derive the CC carefully by "
+                "hand, citing every value via file_search (A11.11 CCT odds "
+                "rounded DOWN + Kill Numbers; SMC CC FP = 1, A11.14; "
+                "SW/ordnance NA in CC, A11.13; broken units never attack, "
+                "A11.16), and tell the user that attaching the .vsav save "
+                "would give exact, deterministic numbers."
+            )
+        }
+    try:
+        result = cc_resolver.resolve_cc(
+            state,
+            hex_id=hex_id,
+            attacker_side=attacker_side,
+            attacker_filter=attacker_filter,
+            defender_filter=defender_filter,
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+    fwd = result["attacks"][0]
+    logging.info(
+        "⚔️ resolve_cc(%s, attacker=%s) -> %s (KN %s, drm %s)",
+        hex_id, attacker_side, fwd.get("odds"), fwd.get("kill_number"),
+        fwd.get("drm"),
     )
     return result
 
@@ -414,6 +466,61 @@ TOOL_SCHEMAS = [
             "additionalProperties": False,
         },
     },
+    {
+        "type": "function",
+        "name": "resolve_cc",
+        "description": (
+            "Resolve the CLOSE COMBAT (A11) in one hex DIRECTLY from the attached "
+            "VASL .vsav save's parsed board state. Takes the '<board>-<hex>' ID from "
+            "the BOARD STATE block (e.g. '57-G9') — NOT firepower/odds/DRM numbers — "
+            "and deterministically derives, for BOTH directions (CC is simultaneous, "
+            "A11.1): each unit's CC FP with cites (printed FP for MMC; inherent FP 1 "
+            "for SMC per A11.14; SW/ordnance never used, A11.13; broken attackers "
+            "excluded, A11.16), the odds ratio rounded down to the CCT column with "
+            "its black Kill Number (eliminate on Final DR < KN, Casualty Reduction "
+            "on = KN — and CR ELIMINATES a HS/crew per A7.302), an itemized CC DRM "
+            "ledger (leadership A11.141, CX A4.51, skiers E4.5, broken defenders "
+            "A11.16), 2d6 probabilities, Melee-marker notes (Ambush NA in Melee), "
+            "and explicit assumptions (no Ambush dr, no Hand-to-Hand, withdrawal not "
+            "modeled). ALWAYS use this instead of hand-deriving CC math when a .vsav "
+            "is attached and the question concerns CC/Melee in a hex. If no save is "
+            "attached it returns an error — there is no non-save CC tool; then derive "
+            "by hand with file_search citations."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "hex_id": {
+                    "type": "string",
+                    "description": "The CC Location, e.g. '57-G9'.",
+                },
+                "attacker_side": {
+                    "type": "string",
+                    "description": (
+                        "Side whose attack to list first (e.g. 'Russian'). "
+                        "Optional: both directions are always resolved."
+                    ),
+                },
+                "attacker_filter": {
+                    "type": "string",
+                    "description": (
+                        "Optional comma-separated name substrings restricting which "
+                        "attacker-side units take part (e.g. '2-3-7,COM'). Default: "
+                        "all units of that side in the hex."
+                    ),
+                },
+                "defender_filter": {
+                    "type": "string",
+                    "description": (
+                        "Optional comma-separated name substrings restricting which "
+                        "defender-side units are attacked. Default: all."
+                    ),
+                },
+            },
+            "required": ["hex_id"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -425,11 +532,12 @@ TOOL_FUNCTIONS = {
     "ift_odds": ift_odds,
     "ift_attack": ift_attack,
     "resolve_attack": resolve_attack,
+    "resolve_cc": resolve_cc,
 }
 
 # Tools that receive the server-side execution context (parsed .vsav state,
 # ...) as a hidden `_context` kwarg. The model never sees or supplies it.
-CONTEXT_TOOLS = {"resolve_attack"}
+CONTEXT_TOOLS = {"resolve_attack", "resolve_cc"}
 
 
 def execute_tool(

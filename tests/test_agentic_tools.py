@@ -52,7 +52,8 @@ def test_schemas_enums_match_engines():
 
 
 def test_registry_only_ui_tools():
-    assert set(TOOL_FUNCTIONS) == {"ift_odds", "ift_attack", "resolve_attack"}, \
+    assert set(TOOL_FUNCTIONS) == {"ift_odds", "ift_attack", "resolve_attack",
+                                   "resolve_cc"}, \
         "hand-rolled calculators should be retired"
 
 

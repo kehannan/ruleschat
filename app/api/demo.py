@@ -61,7 +61,7 @@ templates = Jinja2Templates(directory="templates")
 DEMO_PER_IP_LIMIT = 5
 DEMO_GLOBAL_LIMIT = 250
 DEMO_MAX_CHUNKS = 20
-DEMO_MODEL = "gpt-5.4-mini"
+DEMO_MODEL = "gpt-5.4"
 WEBSOCKET_PING_INTERVAL = 30
 
 
@@ -323,7 +323,7 @@ async def websocket_demo(websocket: WebSocket):
                         "fable": "anthropic/claude-fable-5",
                     }
                     allowed_models = {
-                        "gpt-5.4-mini", "gpt-5.4",
+                        "gpt-5.4",
                         "deepseek-v3", "mercury-2", "fable",
                     }
                     if selected_model in allowed_models:

@@ -560,3 +560,38 @@ function setPendingImage(dataUrl) {
     pendingImages = [];
     addPendingImage(dataUrl);
 }
+
+// ============================================================
+// Answer layout: prominent answer up top, de-emphasized details
+// ============================================================
+// The model is instructed to lead with "**Answer:** ..." and separate the
+// supporting detail (steps, references) with a horizontal rule (---), which
+// marked renders as <hr>. Split there: everything before the first <hr>
+// stays prominent; everything after is wrapped in .msg-details (smaller,
+// muted — styled in site-design-system.css). Fallback for answers without
+// the rule (older messages, off-format models): if the first element is a
+// paragraph starting with "Answer", de-emphasize what follows it.
+function applyAnswerLayout(contentEl) {
+    if (!contentEl || contentEl.querySelector('.msg-details')) return;
+    const children = Array.from(contentEl.children);
+    if (!children.length) return;
+
+    let splitAt = children.findIndex(el => el.tagName === 'HR');
+    let removeSplitEl = true;
+    if (splitAt === -1) {
+        const first = children[0];
+        const lead = (first.textContent || '').trim();
+        if (first.tagName === 'P' && /^answer\b/i.test(lead) && children.length > 1) {
+            splitAt = 1;
+            removeSplitEl = false;
+        }
+    }
+    if (splitAt === -1 || splitAt >= children.length - (removeSplitEl ? 1 : 0)) return;
+
+    const details = document.createElement('div');
+    details.className = 'msg-details';
+    const rest = children.slice(splitAt + (removeSplitEl ? 1 : 0));
+    if (removeSplitEl) children[splitAt].remove();
+    rest.forEach(el => details.appendChild(el));
+    contentEl.appendChild(details);
+}

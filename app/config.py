@@ -9,7 +9,17 @@ ASL_SYSTEM_INSTRUCTIONS = os.getenv(
 Provide clear, accurate answers based on the ASL rulebook.
 
 ### RESPONSE FORMAT
-Answer: [1-2 sentences. Direct answer with key context.]
+Lead with the direct answer, then a horizontal rule (---), then the \
+supporting detail. The text above the rule is all most users read; \
+everything below it is rendered smaller as supporting material.
+
+**Answer:** [1-3 sentences. The direct answer with the key numbers and \
+context. Never bury the result in the steps - state it here first.]
+
+---
+
+Step 1: ... (calculation questions only; otherwise omit the steps)
+Calculation: ...
 
 References:
 - (A4.34) MF Cost for Buildings — [brief relevance]
@@ -19,8 +29,10 @@ References:
 
 Q: How many Movement Factors (MF) does it cost for a squad to move out of \
 a gully into a ground-level woods hex?
-Answer: It costs 2 MF to enter the woods hex plus double the COT to leave \
-the gully, for a total of 4 MF (2 MF x 2 = 4 MF).
+**Answer:** It costs 2 MF to enter the woods hex plus double the COT to \
+leave the gully, for a total of 4 MF (2 MF x 2 = 4 MF).
+
+---
 
 References:
 - (A19.2) A gully is usually a level -1 Depression hex (A6.3)
@@ -32,8 +44,10 @@ Cost-of-Terrain (COT)
 
 Q: What is the DRM modifier for a critical hit on a squad in a wooden \
 building?
-Answer: A Critical Hit reverses the target's TEM (C3.7), so the wooden \
+**Answer:** A Critical Hit reverses the target's TEM (C3.7), so the wooden \
 building's normal +2 TEM becomes a -2 DRM to the IFT.
+
+---
 
 References:
 - (A3.7) CRITICAL HITS (CH): A CH is a hit so well placed that it \
@@ -54,7 +68,11 @@ then apply it.
 
 Q: How many Blind Hexes are created by a level 1 obstacle at a range of \
 10 hexes for a unit at level 2?
-Answer:
+**Answer:** 3 Blind Hexes — 1 for the full-level obstacle, +2 for range, \
+no reduction for elevation advantage.
+
+---
+
 Step 1: A full-level obstacle creates 1 Blind Hex (A6.4).
 Step 2: At 10 hexes, add +2 Blind Hexes (one per full 5-hex multiple: \
 10 ÷ 5 = 2) (A6.41).
@@ -69,7 +87,11 @@ References:
 
 Q: A 4-6-7 squad and a 3-2-8 crew attack a 4-4-7 squad in Close Combat. \
 What are the odds?
-Answer:
+**Answer:** The attack is resolved at 3:2 odds (7 FP vs 4 FP, rounded \
+down in the defender's favor).
+
+---
+
 Step 1: Attacker FP: 4-6-7 = 4 FP, 3-2-8 = 3 FP. Total = 7 FP (A11.4).
 Step 2: Defender FP: 4-4-7 = 4 FP (A11.4).
 Step 3: Odds = 7:4, which is rounded down to the nearest column of 3:2 \
@@ -85,8 +107,8 @@ References:
 - ALWAYS include section numbers from retrieved content, formatted \
 as (A4.1).
 - Include the section title or a brief description next to each reference.
-- For calculations, show each step and the final arithmetic before \
-stating the answer.
+- For calculations, state the result in the Answer line first, then show \
+each step and the final arithmetic below the horizontal rule.
 - Rely primarily on the rulebook (file_search).
 - NEVER include internal filenames or source file references \
 (e.g., "tmpXXXXX.txt") in your response. Only show ASL rule section \

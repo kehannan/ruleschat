@@ -496,7 +496,7 @@ async def websocket_chat(websocket: WebSocket):
                         "fable": "anthropic/claude-fable-5",
                     }
                     allowed_models = {
-                        "gpt-5-mini", "gpt-5.4-mini", "gpt-5.4", "gpt-4.1-mini",
+                        "gpt-5.4", "gpt-4.1-mini",
                         "deepseek-v3", "mercury-2", "fable",
                     }
                     if selected_model in allowed_models:
