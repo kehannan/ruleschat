@@ -38,6 +38,7 @@
 
   let panel = null, viewport = null, world = null, badge = null,
       tooltip = null, titleEl = null;
+  let tooltipFor = null;   // piece currently shown, for click-to-toggle
   let manifest = null;
   let tx = 0, ty = 0, scale = 1;
   let fannedStack = null;
@@ -105,6 +106,11 @@
     badge = panel.querySelector('.bv-hex-badge');
     tooltip = panel.querySelector('.bv-tooltip');
     titleEl = panel.querySelector('.bv-title');
+    // the whole tooltip dismisses on click/tap (the × is a visual hint)
+    tooltip.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      hideTooltip();
+    });
 
     panel.querySelector('.bv-close').addEventListener('click', () => {
       panel.style.display = 'none';
@@ -259,7 +265,10 @@
   }
 
   function showTooltip(p, el) {
-    tooltip.innerHTML = pieceTooltipHtml(p);
+    tooltipFor = p;
+    tooltip.innerHTML =
+      '<span class="bv-tt-close" title="Dismiss">×</span>' +
+      pieceTooltipHtml(p);
     tooltip.style.display = '';
     const vr = viewport.getBoundingClientRect();
     const er = el.getBoundingClientRect();
@@ -273,7 +282,10 @@
     tooltip.style.top = y + 'px';
   }
 
-  function hideTooltip() { tooltip.style.display = 'none'; }
+  function hideTooltip() {
+    tooltip.style.display = 'none';
+    tooltipFor = null;
+  }
 
   function handleClick(target) {
     const pieceEl = target.closest ? target.closest('.bv-piece') : null;
@@ -284,6 +296,8 @@
       fannedStack = p.stack;
       setStackFanned(p.stack, true);
       showTooltip(p, pieceEl);
+    } else if (tooltipFor === p) {
+      hideTooltip();           // second click on the same counter toggles off
     } else {
       showTooltip(p, pieceEl);
     }
@@ -332,6 +346,7 @@
           pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
           tx += dx; ty += dy;
           moved += Math.abs(dx) + Math.abs(dy);
+          if (moved >= 5) hideTooltip();   // panning — get out of the way
           applyTransform();
         }
       }
@@ -358,6 +373,7 @@
 
     viewport.addEventListener('wheel', (e) => {
       e.preventDefault();
+      hideTooltip();                       // zooming — get out of the way
       const vr = viewport.getBoundingClientRect();
       zoomAt(e.clientX - vr.left, e.clientY - vr.top,
              Math.exp(-e.deltaY * 0.0015));

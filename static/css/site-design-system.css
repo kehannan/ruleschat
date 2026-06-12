@@ -752,9 +752,17 @@ html, body { overflow-x: hidden; }
   border: 1px solid var(--hair);
   border-radius: 2px;
   box-shadow: 0 4px 16px rgba(0,0,0,.18);
-  padding: 8px 10px;
+  padding: 8px 24px 8px 10px;
   font-family: var(--mono); font-size: 11px;
   line-height: 1.5;
   color: var(--ink);
-  pointer-events: none;
+  /* clickable: any click/tap on the tooltip dismisses it */
+  pointer-events: auto;
+  cursor: pointer;
 }
+.site .board-viewer .bv-tooltip .bv-tt-close {
+  position: absolute; top: 2px; right: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.site .board-viewer .bv-tooltip:hover .bv-tt-close { color: var(--ink); }
