@@ -334,6 +334,7 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 </script>
 <script src="{{ url_for('static', path='/js/chat-shared.js') }}"></script>
+<script src="{{ url_for('static', path='/js/board-viewer.js') }}"></script>
 <script>
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = protocol + '//' + window.location.host + '/ws/demo/';
@@ -583,6 +584,9 @@
     submitBtn.addEventListener('click', sendMessage);
 
     if (typeof bindImagePasteHandler === 'function') bindImagePasteHandler();
+    // Board viewer listener must bind BEFORE the shared attach handler:
+    // the shared handler clears the file input synchronously on change.
+    if (typeof initBoardViewer === 'function') initBoardViewer();
     if (typeof bindVsavAttachHandler === 'function') bindVsavAttachHandler();
 
     // Experimental-notice dismiss (persists via localStorage)

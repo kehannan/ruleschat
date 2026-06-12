@@ -284,7 +284,7 @@ class _FakeUser:
 
 
 def _requires_auth(handler):
-    """The route handler must declare a Depends(require_user) parameter."""
+    """True if the route handler declares a Depends(require_user) parameter."""
     for p in inspect.signature(handler).parameters.values():
         d = p.default
         if isinstance(d, DependsParam) and d.dependency is require_user:
@@ -292,10 +292,14 @@ def _requires_auth(handler):
     return False
 
 
-def test_endpoints_declare_auth_dependency():
-    assert _requires_auth(board_viewer.vsav_preview)
-    assert _requires_auth(board_viewer.get_board_background)
-    assert _requires_auth(board_viewer.get_counter_art)
+def test_endpoints_are_public_by_design():
+    """The board viewer runs on the public /demo page too, so these
+    endpoints are deliberately unauthenticated (decided 2026-06-12).
+    Safety relies on input validation instead: size caps + zip checks on
+    preview, strict hex keys on board-bg, the allowlist on counter-art."""
+    assert not _requires_auth(board_viewer.vsav_preview)
+    assert not _requires_auth(board_viewer.get_board_background)
+    assert not _requires_auth(board_viewer.get_counter_art)
 
 
 def test_preview_endpoint_happy_path():
@@ -303,7 +307,7 @@ def test_preview_endpoint_happy_path():
     data_url = ("data:application/octet-stream;base64,"
                 + base64.b64encode(raw).decode())
     man = asyncio.run(
-        board_viewer.vsav_preview({"vsav": data_url}, user=_FakeUser()))
+        board_viewer.vsav_preview({"vsav": data_url}))
     assert man["map"]["width"] == 1644
     assert len(man["pieces"]) > 100, len(man["pieces"])
     assert any(p["hex"] == "57-H9" for p in man["pieces"])
@@ -318,7 +322,7 @@ def test_preview_endpoint_rejects_bad_input():
                 ""):
         try:
             asyncio.run(
-                board_viewer.vsav_preview({"vsav": bad}, user=_FakeUser()))
+                board_viewer.vsav_preview({"vsav": bad}))
         except HTTPException as e:
             assert e.status_code == 400, e
             continue
@@ -329,7 +333,7 @@ def test_board_bg_endpoint_validates_key():
     for bad in ("nope", "0123456789abcdef", "../../x.png",
                 "ABCDEF0123456789.png", "0123456789abcdef.gif"):
         try:
-            board_viewer.get_board_background(bad, user=_FakeUser())
+            board_viewer.get_board_background(bad)
         except HTTPException as e:
             assert e.status_code == 404, e
             continue
@@ -337,7 +341,7 @@ def test_board_bg_endpoint_validates_key():
     if _boards_available():
         bg = board_render.build_background(_state())
         resp = board_viewer.get_board_background(
-            f"{bg['cache_key']}.png", user=_FakeUser())
+            f"{bg['cache_key']}.png")
         assert resp.media_type == "image/png"
 
 
@@ -345,13 +349,13 @@ def test_counter_art_endpoint_sanitizes():
     for bad in ("../x.svg", "a/../b.svg", "%2e%2e/x.svg", "x.jpg",
                 ".hidden", "fi/..%2f..%2fsecret.svg"):
         try:
-            board_viewer.get_counter_art(bad, user=_FakeUser())
+            board_viewer.get_counter_art(bad)
         except HTTPException as e:
             assert e.status_code == 404, e
             continue
         raise AssertionError(f"{bad!r} should 404")
     if board_render.find_vmod() is not None:
-        resp = board_viewer.get_counter_art("fi/fi648S.svg", user=_FakeUser())
+        resp = board_viewer.get_counter_art("fi/fi648S.svg")
         assert resp.media_type == "image/svg+xml"
 
 

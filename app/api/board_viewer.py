@@ -18,11 +18,9 @@ import logging
 import os
 import tempfile
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import FileResponse
 
-from app.core.auth import require_user
-from app.models.user import User
 from app.services import board_render
 from app.services.board_render import BoardRenderError
 from app.services.vsav_service import (
@@ -35,9 +33,12 @@ router = APIRouter()
 @router.post("/api/vsav/preview")
 async def vsav_preview(
     payload: dict = Body(...),
-    user: User = Depends(require_user),
 ):
-    """Parse an attached .vsav (base64 data URL) into a render manifest."""
+    """Parse an attached .vsav (base64 data URL) into a render manifest.
+
+    Public (no auth): the board viewer also runs on the /demo page. Input
+    is bounded by decode_vsav_data_url's size cap and zip validation.
+    """
     data_url = payload.get("vsav") or ""
     try:
         raw = decode_vsav_data_url(data_url)
@@ -69,10 +70,7 @@ async def vsav_preview(
 
 
 @router.get("/api/board-bg/{filename}")
-def get_board_background(
-    filename: str,
-    user: User = Depends(require_user),
-):
+def get_board_background(filename: str):
     """Serve a cached board background PNG. Key is a strict hex hash."""
     if not filename.endswith(".png"):
         raise HTTPException(status_code=404, detail="Not found")
@@ -83,18 +81,15 @@ def get_board_background(
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(path, media_type="image/png",
-                        headers={"Cache-Control": "private, max-age=86400"})
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get("/api/counter-art/{art_path:path}")
-def get_counter_art(
-    art_path: str,
-    user: User = Depends(require_user),
-):
+def get_counter_art(art_path: str):
     """Serve one counter image, extracted on demand from the local vmod."""
     try:
         path, media = board_render.extract_counter_art(art_path)
     except BoardRenderError:
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(path, media_type=media,
-                        headers={"Cache-Control": "private, max-age=604800"})
+                        headers={"Cache-Control": "public, max-age=604800"})

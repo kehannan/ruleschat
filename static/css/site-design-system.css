@@ -671,3 +671,90 @@ html, body { overflow-x: hidden; }
   .site .footer-grid { grid-template-columns: 1fr; gap: 32px; }
   .site .legal { flex-direction: column; gap: 12px; }
 }
+
+/* ---- Visual board viewer (shown when a .vsav is attached) ---- */
+.site .board-viewer {
+  border-top: 1px solid var(--hair);
+  background: var(--paper-2);
+}
+.site .board-viewer .bv-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 12px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--muted); letter-spacing: .04em;
+  border-bottom: 1px solid var(--hair);
+}
+.site .board-viewer .bv-title { text-transform: uppercase; }
+.site .board-viewer .bv-hex-badge {
+  min-width: 64px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.site .board-viewer .bv-spacer { margin-left: auto; }
+.site .board-viewer .bv-btn {
+  background: transparent; border: 1px solid var(--hair);
+  border-radius: 2px; color: var(--ink-2);
+  width: 22px; height: 22px; padding: 0;
+  cursor: pointer; font-size: 12px; line-height: 1;
+}
+.site .board-viewer .bv-btn:hover { color: var(--ink); border-color: var(--ink-2); }
+.site .board-viewer .bv-viewport {
+  position: relative;
+  height: 340px;
+  overflow: hidden;
+  background: #d9d4c7;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.site .board-viewer .bv-viewport:active { cursor: grabbing; }
+.site .board-viewer .bv-world {
+  position: absolute; left: 0; top: 0;
+  transform-origin: 0 0;
+}
+.site .board-viewer .bv-bg {
+  position: absolute;
+  image-rendering: auto;
+  pointer-events: none;
+}
+.site .board-viewer .bv-piece {
+  position: absolute;
+  width: 0; height: 0;
+  cursor: pointer;
+  transition: left .12s ease, top .12s ease;
+}
+.site .board-viewer .bv-piece .bv-art {
+  position: absolute; left: 0; top: 0;
+  transform: translate(-50%, -50%);
+  /* art IS the clickable surface (the piece div itself is 0x0) */
+  pointer-events: auto;
+}
+.site .board-viewer .bv-piece .bv-fallback {
+  position: absolute; left: 0; top: 0;
+  transform: translate(-50%, -50%);
+  width: 46px; height: 46px;
+  border: 1px solid #222;
+  border-radius: 2px;
+  color: #fff;
+  font-family: var(--mono); font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  pointer-events: auto;
+}
+.site .board-viewer .bv-piece.bv-fanned .bv-art,
+.site .board-viewer .bv-piece.bv-fanned .bv-fallback {
+  outline: 1px solid rgba(180, 60, 30, .8);
+}
+.site .board-viewer .bv-tooltip {
+  position: absolute; z-index: 2000;
+  max-width: 260px;
+  background: var(--paper);
+  border: 1px solid var(--hair);
+  border-radius: 2px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  padding: 8px 10px;
+  font-family: var(--mono); font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink);
+  pointer-events: none;
+}
