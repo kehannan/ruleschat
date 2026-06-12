@@ -302,12 +302,19 @@ def test_endpoints_are_public_by_design():
     assert not _requires_auth(board_viewer.get_counter_art)
 
 
+class _StubRequest:
+    """Just enough of fastapi.Request for direct handler calls."""
+    def __init__(self, ip="203.0.113.1", forwarded=None):
+        self.headers = ({"x-forwarded-for": forwarded} if forwarded else {})
+        self.client = type("_C", (), {"host": ip})()
+
+
 def test_preview_endpoint_happy_path():
     raw = FIXTURE.read_bytes()
     data_url = ("data:application/octet-stream;base64,"
                 + base64.b64encode(raw).decode())
     man = asyncio.run(
-        board_viewer.vsav_preview({"vsav": data_url}))
+        board_viewer.vsav_preview(_StubRequest(), {"vsav": data_url}))
     assert man["map"]["width"] == 1644
     assert len(man["pieces"]) > 100, len(man["pieces"])
     assert any(p["hex"] == "57-H9" for p in man["pieces"])
@@ -322,11 +329,30 @@ def test_preview_endpoint_rejects_bad_input():
                 ""):
         try:
             asyncio.run(
-                board_viewer.vsav_preview({"vsav": bad}))
+                board_viewer.vsav_preview(_StubRequest(), {"vsav": bad}))
         except HTTPException as e:
             assert e.status_code == 400, e
             continue
         raise AssertionError(f"payload {bad!r} should 400")
+
+
+def test_preview_rate_limit_per_ip():
+    """31st preview within the window from one IP gets a 429 with
+    Retry-After; other IPs are unaffected; X-Forwarded-For is honored."""
+    ip = "198.51.100.7"  # unique to this test; state is module-global
+    for _ in range(board_viewer.PREVIEW_RATE_LIMIT):
+        board_viewer._check_preview_rate(ip)
+    try:
+        board_viewer._check_preview_rate(ip)
+    except HTTPException as e:
+        assert e.status_code == 429, e
+        assert "Retry-After" in (e.headers or {}), e.headers
+    else:
+        raise AssertionError("expected 429 after limit")
+    board_viewer._check_preview_rate("198.51.100.8")  # other IP still fine
+    # X-Forwarded-For wins over the socket peer (nginx proxying)
+    req = _StubRequest(ip="127.0.0.1", forwarded="198.51.100.9, 10.0.0.1")
+    assert board_viewer._client_ip(req) == "198.51.100.9"
 
 
 def test_board_bg_endpoint_validates_key():

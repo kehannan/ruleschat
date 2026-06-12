@@ -17,8 +17,10 @@ decision):
 import logging
 import os
 import tempfile
+import time
+from collections import deque
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from app.services import board_render
@@ -29,16 +31,55 @@ from app.services.vsav_service import (
 
 router = APIRouter()
 
+# Per-IP rate limit for the preview endpoint — the only expensive one
+# (save parsing + Pillow compositing). The board-bg/counter-art endpoints
+# are deliberately NOT limited: a single board render legitimately fetches
+# 100+ art files in one burst, and they are cheap cached FileResponses
+# with public cache headers. In-memory is fine: single uvicorn process.
+PREVIEW_RATE_LIMIT = 30          # requests ...
+PREVIEW_RATE_WINDOW = 3600       # ... per hour per IP
+_preview_hits: dict = {}         # ip -> deque[timestamps]
+
+
+def _client_ip(request: Request) -> str:
+    """Extract real IP, respecting X-Forwarded-For from nginx."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return (request.client.host if request.client else None) or "unknown"
+
+
+def _check_preview_rate(ip: str) -> None:
+    now = time.monotonic()
+    hits = _preview_hits.setdefault(ip, deque())
+    while hits and now - hits[0] > PREVIEW_RATE_WINDOW:
+        hits.popleft()
+    if len(hits) >= PREVIEW_RATE_LIMIT:
+        retry = int(PREVIEW_RATE_WINDOW - (now - hits[0])) + 1
+        raise HTTPException(
+            status_code=429,
+            detail="Too many board previews from this address - try again later.",
+            headers={"Retry-After": str(retry)},
+        )
+    hits.append(now)
+    # opportunistic cleanup so the map can't grow unbounded
+    if len(_preview_hits) > 10000:
+        for k in [k for k, v in _preview_hits.items() if not v]:
+            _preview_hits.pop(k, None)
+
 
 @router.post("/api/vsav/preview")
 async def vsav_preview(
+    request: Request,
     payload: dict = Body(...),
 ):
     """Parse an attached .vsav (base64 data URL) into a render manifest.
 
     Public (no auth): the board viewer also runs on the /demo page. Input
-    is bounded by decode_vsav_data_url's size cap and zip validation.
+    is bounded by decode_vsav_data_url's size cap and zip validation, and
+    the endpoint is rate-limited per IP.
     """
+    _check_preview_rate(_client_ip(request))
     data_url = payload.get("vsav") or ""
     try:
         raw = decode_vsav_data_url(data_url)
