@@ -745,6 +745,11 @@ html, body { overflow-x: hidden; }
 .site .board-viewer .bv-piece.bv-fanned .bv-fallback {
   outline: 1px solid rgba(180, 60, 30, .8);
 }
+/* Area templates (2-hex radius, acquisition rings): background overlays —
+   click-through, no pointer cursor, kept under real counters. */
+.site .board-viewer .bv-piece.bv-area { z-index: 5 !important; cursor: default; }
+.site .board-viewer .bv-piece.bv-area .bv-art,
+.site .board-viewer .bv-piece.bv-area .bv-fallback { pointer-events: none; }
 .site .board-viewer .bv-tooltip {
   position: absolute; z-index: 2000;
   max-width: 260px;

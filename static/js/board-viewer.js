@@ -186,6 +186,13 @@
           img.style.height = img.naturalHeight + 'px';
           img.style.display = '';
           fb.style.display = 'none';
+          // Area templates (2-hex radius, acquisition rings, ...) draw far
+          // larger than a counter (~48-60px). They are background overlays:
+          // make them click-through so they never block selecting the
+          // units beneath/around them, and keep them under real counters.
+          if (Math.max(img.naturalWidth, img.naturalHeight) >= 100) {
+            el.classList.add('bv-area');
+          }
         });
         img.addEventListener('error', () => { img.remove(); });
         img.style.display = 'none';
