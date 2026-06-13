@@ -186,6 +186,15 @@ async def privacy_page(request: Request):
     return templates.TemplateResponse("privacy.html", context)
 
 
+@app.get("/about", name="about")
+async def about_page(request: Request):
+    """Display the about page."""
+    from app.api.chat import get_base_context, get_current_user_from_request
+    user = get_current_user_from_request(request)
+    context = get_base_context(request, user)
+    return templates.TemplateResponse("about.html", context)
+
+
 # Registration routes
 @app.get("/register", name="register")
 async def register_page(request: Request, code: str = None):

@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+
+{% set active_page = 'about' %}
+
+{% block title %}About — ASL Ruleschat{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* About page — numbered editorial column pattern.
+     180px label rail on the left, content on the right. */
+
+  .site .about-header {
+    padding: 72px 0 56px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .site .about-header h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(36px, 4.2vw, 56px);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    margin: 14px 0 20px;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .site .about-header h1 em { font-style: italic; color: var(--accent); }
+  .site .about-header .lede {
+    font-size: 17.5px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    max-width: 640px;
+    text-wrap: pretty;
+  }
+
+  .site .about-section { padding: 64px 0; }
+  .site .about-section.alt { background: var(--paper-2); }
+  .site .about-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 48px;
+    align-items: baseline;
+  }
+  .site .about-rail .num-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .site .about-rail .num-eyebrow .num {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .site .about-rail .rail-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .site .about-h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(26px, 3vw, 38px);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    margin: 0 0 20px;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .site .about-h2 em { font-style: italic; color: var(--accent); }
+
+  .site .about-prose p {
+    font-size: 15.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    margin: 0 0 14px;
+  }
+  .site .about-prose p.drop::first-letter {
+    font-family: var(--serif);
+    font-size: 3.4em;
+    line-height: .85;
+    float: left;
+    padding: 6px 10px 0 0;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .site .about-prose .mono {
+    font-family: var(--mono);
+    font-size: .92em;
+    color: var(--ink-2);
+  }
+
+  /* Roman-numeral ordered list for the four-stage pipeline. */
+  .site .stage-list {
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0;
+  }
+  .site .stage-list li {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 16px;
+    padding: 18px 0;
+    border-top: 1px solid var(--hair);
+  }
+  .site .stage-list li:first-child { border-top: 1px solid var(--ink); }
+  .site .stage-list .roman {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 22px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .site .stage-list .stage-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .site .stage-list .stage-body {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink-2);
+  }
+  .site .stage-list .stage-body .mono {
+    font-family: var(--mono);
+    font-size: .9em;
+    color: var(--ink);
+    background: var(--paper-2);
+    padding: 1px 5px;
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+  }
+  .site .about-section.alt .stage-list .stage-body .mono { background: var(--paper); }
+
+  /* Definition-list style hardness items. */
+  .site .hard-list {
+    display: grid;
+    gap: 0;
+    margin-top: 18px;
+  }
+  .site .hard-list .row {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 24px;
+    padding: 14px 0;
+    border-top: 1px solid var(--hair);
+  }
+  .site .hard-list .term {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 17px;
+    color: var(--accent);
+  }
+  .site .hard-list .body {
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+
+  .site .about-links {
+    list-style: none;
+    padding: 0;
+    margin: 18px 0 0;
+    display: grid;
+    gap: 8px;
+  }
+  .site .about-links li {
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+
+  @media (max-width: 720px) {
+    .site .about-row { grid-template-columns: 1fr; gap: 18px; }
+    .site .about-rail { display: flex; align-items: baseline; gap: 12px; }
+    .site .about-rail .rail-title { margin-top: 0; }
+    .site .hard-list .row { grid-template-columns: 1fr; gap: 4px; }
+  }
+</style>
+{% endblock %}
+
+{% block main %}
+<header class="about-header">
+  <div class="wrap-narrow">
+    <div class="eyebrow"><span class="dot"></span><span>About the project</span></div>
+    <h1>How it was built,<br />and <em>why</em>.</h1>
+    <p class="lede">
+      A personal experiment in retrieval and tool use over a notoriously dense
+      rulebook. Not a polished product — answers can be wrong, citations can
+      drift, and the system struggles with questions that chain several lookups.
+      The goal is to find out how close a cheaper model with the right scaffolding
+      can get to a frontier model on this task, and to publish where it falls short.
+    </p>
+  </div>
+</header>
+
+<!-- 01 · Motivation -->
+<section class="about-section">
+  <div class="wrap-narrow">
+    <div class="about-row">
+      <div class="about-rail">
+        <div class="num-eyebrow"><span class="num">01</span></div>
+        <div class="rail-title">Motivation</div>
+      </div>
+      <div>
+        <h2 class="about-h2">A 1M-token rulebook and<br />a <em>cost question</em>.</h2>
+        <div class="about-prose">
+          <p class="drop">
+            Advanced Squad Leader has one of the most complex rulebooks of any
+            game ever published — over a million tokens, densely cross-referenced,
+            with dozens of tables, exceptions, and numerical calculations. Looking
+            up rules mid-game is slow and error-prone even for experienced players.
+          </p>
+          <p>
+            A frontier model like <span class="mono">gpt-5.4</span> answers most
+            rules questions well, but at a price point that is hard to justify for
+            a hobby tool. Mini-class models cost a small fraction of that. The
+            experiment is whether the right retrieval and tool scaffolding can
+            close enough of the gap to make a cheap model practically useful at
+            the table.
+          </p>
+          <p>
+            This is a personal project I built for my own use while learning the
+            game. The eval results, including the failures, are published on the
+            <a class="inline-link" href="{{ url_for('evals') }}">evals page</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 · Architecture -->
+<section class="about-section alt">
+  <div class="wrap-narrow">
+    <div class="about-row">
+      <div class="about-rail">
+        <div class="num-eyebrow"><span class="num">02</span></div>
+        <div class="rail-title">Architecture</div>
+      </div>
+      <div>
+        <h2 class="about-h2">FastAPI, the OpenAI<br />Responses API, and a <em>WebSocket</em>.</h2>
+        <div class="about-prose">
+          <p>
+            The backend is FastAPI behind nginx on Digital Ocean. Chat streams
+            over a persistent WebSocket so the user sees tokens as they arrive
+            and can interrupt mid-answer. Each query travels the same four-stage
+            pipeline:
+          </p>
+        </div>
+        <ol class="stage-list">
+          <li>
+            <span class="roman">i</span>
+            <div>
+              <div class="stage-title">Retrieve &amp; generate</div>
+              <div class="stage-body">
+                The question is sent to the OpenAI Responses API with a
+                <span class="mono">file_search</span> tool over a vector store
+                of the rulebook. Up to 20 chunks are pulled into a structured
+                system prompt that tells the model to cite section numbers.
+                Tokens stream back over the WebSocket along with TTFT, RAG
+                latency, total time, token counts, and per-query cost.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="roman">ii</span>
+            <div>
+              <div class="stage-title">Ground in the source</div>
+              <div class="stage-body">
+                Citations in the response are rendered as clickable links that
+                open an in-browser PDF viewer at the exact rulebook page, using
+                a pre-built section-to-page index
+                (<span class="mono">section_pages.json</span>). The user can
+                check every claim against the source without leaving the chat.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="roman">iii</span>
+            <div>
+              <div class="stage-title">Evaluate</div>
+              <div class="stage-body">
+                A growing eval set of 200+ rules questions runs against the
+                current model. A zero-shot LLM judge scores each response Pass
+                / Fail / Needs Review against an expected answer; flagged rows
+                are reviewed manually. Results are broken down by question type
+                and published on the
+                <a class="inline-link" href="{{ url_for('evals') }}">evals page</a>.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="roman">iv</span>
+            <div>
+              <div class="stage-title">Curate &amp; retrain</div>
+              <div class="stage-body">
+                Every chat is logged. Promising Q&amp;A pairs are triaged through
+                a review UI into eval sets or SFT training data. Strong examples
+                feed the next iteration; mistakes become regression tests.
+              </div>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 · Attach a .vsav save -->
+<section class="about-section">
+  <div class="wrap-narrow">
+    <div class="about-row">
+      <div class="about-rail">
+        <div class="num-eyebrow"><span class="num">03</span></div>
+        <div class="rail-title">Attach a .vsav</div>
+      </div>
+      <div>
+        <h2 class="about-h2">Pasting in your<br /><em>board state</em>.</h2>
+        <div class="about-prose">
+          <p>
+            VASL is the dominant online client for ASL. Every game on VASL can be
+            written to a <span class="mono">.vsav</span> save file — a complete,
+            machine-readable snapshot of the board: which boards are in play,
+            their orientation, every counter, its hex, its stacking order, the
+            face it shows, and any SSR-level terrain transforms.
+          </p>
+          <p>
+            The chat has a <span class="mono">📎&nbsp;.vsav</span> button on both
+            the authenticated chat and the public demo. Drop a save file in and
+            the server parses it directly — no screenshot involved — and appends
+            a plain-text <span class="mono">BOARD STATE</span> block to your
+            question. Hex IDs, units, state flags
+            (<span class="mono">BROKEN</span>,
+            <span class="mono">concealed</span>,
+            <span class="mono">HIP</span>), per-unit markers
+            (<span class="mono">DM</span>, <span class="mono">Prep&nbsp;Fire</span>,
+            <span class="mono">Melee</span>, <span class="mono">Foxhole:&nbsp;in</span>),
+            and the terrain of every occupied hex are all included.
+          </p>
+          <p>
+            The model is told to treat that block as ground truth: it is exact,
+            machine-parsed data from the save file, so it wins over any
+            screenshot if the two disagree about a unit's identity or position.
+            That removes a whole class of vision errors — misread counter labels,
+            wrong stacking, mistaken terrain — from the answer.
+          </p>
+          <p>
+            One file picker, no manual setup, no schema to learn. Open the
+            <a class="inline-link" href="{{ url_for('demo') }}">demo</a> and
+            try it with one of your own saves.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 · Deterministic answers -->
+<section class="about-section alt">
+  <div class="wrap-narrow">
+    <div class="about-row">
+      <div class="about-rail">
+        <div class="num-eyebrow"><span class="num">04</span></div>
+        <div class="rail-title">Deterministic</div>
+      </div>
+      <div>
+        <h2 class="about-h2">Where rules end and<br /><em>arithmetic</em> begins.</h2>
+        <div class="about-prose">
+          <p>
+            Many ASL questions split cleanly in two: a retrieval question
+            (<em>which rule applies here?</em>) and an arithmetic question
+            (<em>what does that rule compute to?</em>). LLMs are good at the
+            first and unreliable at the second. The same model that correctly
+            cites A7.21 PBF and B27 entrenchment TEM will, on the same turn,
+            quietly drop a +1 DRM or round an IFT column the wrong way.
+          </p>
+          <p>
+            The fix is to take the math out of the model and put it in code.
+            The assistant ships four deterministic function-calling tools that
+            the LLM is required to invoke whenever a question reduces to
+            arithmetic, and to never derive by hand:
+          </p>
+        </div>
+        <ol class="stage-list">
+          <li>
+            <span class="roman">i</span>
+            <div>
+              <div class="stage-title"><span class="mono">ift_odds</span> · IFT lookup</div>
+              <div class="stage-body">
+                Column + DRM in, break / pin / casualty odds out, read from the
+                Infantry Fire Table. Also available as the
+                <a class="inline-link" href="{{ url_for('ift') }}">/ift</a>
+                page for direct use.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="roman">ii</span>
+            <div>
+              <div class="stage-title"><span class="mono">ift_attack</span> · Full attack builder</div>
+              <div class="stage-body">
+                The whole A7.2–.36 pipeline: per-unit FP, range halving and
+                doubling, FP column, itemized DRM, auto cowering, break / pin /
+                casualty odds against a target morale or a vehicle's
+                <span class="mono">★</span> line. Used whenever the user
+                describes a situation in text.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="roman">iii</span>
+            <div>
+              <div class="stage-title"><span class="mono">resolve_attack</span> · Save-driven fire</div>
+              <div class="stage-body">
+                Given an attached <span class="mono">.vsav</span> and a firing
+                and target hex, the server computes the entire fire attack from
+                the parsed save: which units fire, final FP, range / PBF, every
+                DRM line item, and the IFT result. No values from memory; every
+                modifier is derived from the file and an itemized ledger is
+                returned to the model verbatim.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="roman">iv</span>
+            <div>
+              <div class="stage-title"><span class="mono">resolve_cc</span> · Save-driven Close Combat</div>
+              <div class="stage-body">
+                Given a hex and an attacker side, the server computes both sides
+                of a simultaneous CC: the per-unit FP ledger, DRMs, CCT column
+                after odds, the DR thresholds for elimination and Casualty
+                Reduction, and Melee state. A11 is exactly where hand derivation
+                breaks; this removes the chance to.
+              </div>
+            </div>
+          </li>
+        </ol>
+        <div class="about-prose" style="margin-top: 24px;">
+          <p>
+            The model still reads the rules, picks the right tool, and writes the
+            explanation; the tool supplies the numbers and the per-line
+            derivation, which the model is instructed to surface to the user
+            verbatim — along with its assumptions and warnings (LOS not modeled,
+            no Ambush dr, etc.). The result is an answer where the prose can be
+            judged on rules interpretation, and the arithmetic is auditable line
+            by line.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 · What makes this hard -->
+<section class="about-section">
+  <div class="wrap-narrow">
+    <div class="about-row">
+      <div class="about-rail">
+        <div class="num-eyebrow"><span class="num">05</span></div>
+        <div class="rail-title">Hardness</div>
+      </div>
+      <div>
+        <h2 class="about-h2">Where this domain bites the<br /><em>standard RAG playbook</em>.</h2>
+        <div class="hard-list">
+          <div class="row">
+            <div class="term">Scale</div>
+            <div class="body">At over a million tokens, the rulebook is far longer than any context window can hold. Naive "stuff it in the prompt" approaches don't apply.</div>
+          </div>
+          <div class="row">
+            <div class="term">Cross-references</div>
+            <div class="body">Rules routinely reference other rules by section. A complete answer often requires retrieving from several non-adjacent sections in one query.</div>
+          </div>
+          <div class="row">
+            <div class="term">Multimodal content</div>
+            <div class="body">The book carries hex maps, counter diagrams, and fire tables. Pure text retrieval loses visual context some rules depend on; vision input and a fixed terrain legend partially compensate.</div>
+          </div>
+          <div class="row">
+            <div class="term">Precision</div>
+            <div class="body">A "mostly right" answer that misses one exception or DRM produces incorrect gameplay. Vague answers have no value at the table.</div>
+          </div>
+          <div class="row">
+            <div class="term">Calculation</div>
+            <div class="body">Many questions chain lookups across multiple tables (terrain, unit stats, IFT columns) that retrieval alone cannot resolve — the deterministic tools above exist for this reason.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 · About ASL -->
+<section class="about-section alt">
+  <div class="wrap-narrow">
+    <div class="about-row">
+      <div class="about-rail">
+        <div class="num-eyebrow"><span class="num">06</span></div>
+        <div class="rail-title">About ASL</div>
+      </div>
+      <div>
+        <h2 class="about-h2">A 1985 hex-and-counter<br /><em>tactical wargame</em>.</h2>
+        <div class="about-prose">
+          <p>
+            Advanced Squad Leader is a tactical-level hex-and-counter wargame
+            covering WW2 and the Korean War, originally published by Avalon Hill
+            in 1985 and now by Multi-Man Publishing. It is widely regarded as
+            the most comprehensive squad-level wargame ever published, and most
+            play today happens online over
+            <a class="inline-link" href="https://vassalengine.org/" target="_blank" rel="noopener noreferrer">VASSAL</a>
+            and <a class="inline-link" href="https://vasl.info/" target="_blank" rel="noopener noreferrer">VASL</a>.
+          </p>
+        </div>
+        <ul class="about-links">
+          <li>
+            <a class="inline-link" href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">Wikipedia entry</a>
+            — background and history
+          </li>
+          <li>
+            <a class="inline-link" href="https://vasl.info/" target="_blank" rel="noopener noreferrer">VASL</a>
+            — the online client that produces the <span class="mono">.vsav</span> saves this app reads
+          </li>
+          <li>
+            <a class="inline-link" href="https://www.multimanpublishing.com/" target="_blank" rel="noopener noreferrer">Multi-Man Publishing</a>
+            — current publisher of ASL
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid" style="grid-template-columns: 2fr 1fr;">
+      <div class="footer-brand">
+        <a class="brand" href="{{ url_for('home') }}">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="var(--ink)" />
+              <text x="16" y="22" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="16" font-weight="500" fill="var(--paper)">a</text>
+            </svg>
+          </span>
+          <span class="brand-name">ASL <em>Ruleschat</em></span>
+        </a>
+        <p>
+          Built on OpenRouter and OpenAI with multiple models. Hosted at
+          <a class="inline-link" href="https://ruleschat.com">ruleschat.com</a>.
+        </p>
+      </div>
+      <div class="footer-col">
+        <h5>Product</h5>
+        <ul>
+          <li><a href="{{ url_for('demo') }}">Try the demo</a></li>
+          <li><a href="{{ url_for('login') }}">Full chat (login)</a></li>
+          <li><a href="{{ url_for('evals') }}">Eval results</a></li>
+          <li><a href="{{ url_for('privacy') }}">Privacy policy</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legal">
+      <span>
+        Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
+        This is a personal, non-commercial project with no affiliation with
+        Hasbro, Avalon Hill, or Multi-Man Publishing.
+      </span>
+      <span class="right">© 2026 · MIT License · <a href="{{ url_for('privacy') }}">Privacy</a></span>
+    </div>
+  </div>
+</footer>
+{% endblock %}
