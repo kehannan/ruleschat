@@ -126,7 +126,8 @@ fetch('/static/rulebook/section_pages.json')
 function makeSectionReferencesClickable(element) {
     const sectionWithPage = /\{([A-Z]?\d+\.\d+(?:\.\d+)?)\|(\d+)\}/g;
     const sectionPattern  = /\b([A-Z]?\d+\.\d+(?:\.\d+)?)\b/g;
-    const perrySezPattern = /\bPerry\s+Sez\b/gi;
+    // The ASL Q&A errata doc supersedes Perry Sez; either phrase opens the new doc.
+    const qaPattern       = /\b(?:Perry\s+Sez|ASL\s+Q&A)\b/gi;
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
 
     const textNodes = [];
@@ -140,8 +141,8 @@ function makeSectionReferencesClickable(element) {
         for (const m of text.matchAll(sectionWithPage)) {
             all.push({ type: 'sectionPage', start: m.index, end: m.index + m[0].length, section: m[1], page: parseInt(m[2]) });
         }
-        for (const m of text.matchAll(perrySezPattern)) {
-            all.push({ type: 'perrySez', start: m.index, end: m.index + m[0].length });
+        for (const m of text.matchAll(qaPattern)) {
+            all.push({ type: 'qa', start: m.index, end: m.index + m[0].length });
         }
         for (const m of text.matchAll(sectionPattern)) {
             all.push({ type: 'section', start: m.index, end: m.index + m[0].length, section: m[0] });
@@ -175,10 +176,10 @@ function makeSectionReferencesClickable(element) {
             } else if (m.type === 'section') {
                 link.textContent = m.section;
                 link.onclick = (e) => { e.preventDefault(); openPdfModal(m.section); };
-            } else if (m.type === 'perrySez') {
-                link.textContent = 'PS';
-                link.title = 'Perry Sez';
-                link.onclick = (e) => { e.preventDefault(); openPerrySezModal(); };
+            } else if (m.type === 'qa') {
+                link.textContent = 'Q&A';
+                link.title = 'ASL Q&A';
+                link.onclick = (e) => { e.preventDefault(); openAslQaModal(); };
             }
 
             fragment.appendChild(link);
@@ -201,9 +202,9 @@ const PDF_SOURCES = {
         doc: null,
         preloadPromise: null,
     },
-    perrySez: {
-        url: '/static/rulebook/Perry-Sez-v34.pdf',
-        title: 'Perry Sez (v34)',
+    aslqa: {
+        url: '/static/rulebook/ASL-QA-v31.pdf',
+        title: 'ASL Q&A (v31)',
         doc: null,
         preloadPromise: null,
     },
@@ -263,20 +264,20 @@ async function openPdfModal(section, pageNum = null) {
     }
 }
 
-async function openPerrySezModal() {
+async function openAslQaModal() {
     const modal   = document.getElementById('pdf-modal');
     const loading = document.getElementById('pdf-loading');
     modal.style.display = 'flex';
     loading.classList.add('show');
 
     try {
-        await switchPdfSource('perrySez');
+        await switchPdfSource('aslqa');
         currentPage = 1;
         await renderPage(currentPage);
         loading.classList.remove('show');
         updateControls();
     } catch (err) {
-        console.error('Error loading Perry Sez PDF:', err);
+        console.error('Error loading ASL Q&A PDF:', err);
         loading.textContent = 'Error loading PDF. Please try again.';
     }
 }

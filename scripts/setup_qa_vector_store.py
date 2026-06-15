@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-Setup script for Perry Sez vector store.
+Setup script for the ASL Q&A vector store.
 
-Perry Sez is a flat Q&A errata document. Each entry has the structure:
+The ASL Q&A (Scott Romanowski's "Questions & Answers, Clarifications, & Errata")
+is a flat, two-column Q&A errata document that supersedes the older Perry Sez.
+Each entry has the structure:
     <rule refs>          e.g. "A1.23 & A25.222"
     <question text>      (may span multiple lines, often ends with "?")
-    A.<answer text>      (may span multiple lines, may include {source} markers)
+    A.<answer text>      (may span multiple lines, often ends with source tags
+                          like "[An97]", "[J1]")
 
 Chunks are one-or-more complete Q&A entries, never splitting mid-entry.
 Entries are packed up to MAX_CHUNK_SIZE chars. Each entry's rule refs and
@@ -13,7 +16,11 @@ starting page are embedded as metadata: {A1.23|A25.222|p17} <body>
 
 Creates a separate vector store from the rulebook so both can be queried
 together (file_search accepts multiple vector_store_ids). Config is tracked
-under a new top-level "perry_sez_versions" key parallel to "versions".
+under a top-level "qa_versions" key parallel to "versions".
+
+This document is two-column, so we reuse extract_text_two_column() from
+setup_responses_api.py. Each page carries a running header on its first line
+(e.g. "Chapter A Official Q&A:") and a "page N" footer line; both are stripped.
 """
 
 import os
@@ -29,10 +36,13 @@ from datetime import datetime
 from typing import List, Tuple, Dict, Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 
 import pdfplumber
 from dotenv import load_dotenv
 from openai import OpenAI
+
+from setup_responses_api import extract_text_two_column
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,52 +54,68 @@ MAX_CHUNK_SIZE = 4000
 # plus optional single-letter subsection suffixes (A1.23a, FB17.6194b).
 RULE_REF = r'\b[A-Z]{1,2}\d*\.\d+(?:\.\d+)?[a-z]?\b'
 CHAPTER_MARKER = re.compile(r'^\s*Chapter\s+[A-Z]{1,2}\s*$')
-PAGE_FOOTER = re.compile(r'^\s*Ver\.\s*\d+\s*$')
+PAGE_FOOTER = re.compile(r'^\s*page\s+\d+\s*$', re.IGNORECASE)
+
+# In this document each Q&A entry begins with a leading run of rule refs
+# *inline* with the question text, e.g. "A4.132 & B3.4 Can moving units...".
+# A new entry starts at a line that opens with such a ref-run followed by the
+# question (a capital letter / quote / paren) or end-of-line. Requiring the
+# question text after the refs avoids false-splitting answer lines that merely
+# wrap onto a rule citation (e.g. "B26.44; G9.4]. Is this...").
+ENTRY_HEADER = re.compile(
+    r'^\s*(' + RULE_REF + r'(?:\s*(?:,|&|and)\s*' + RULE_REF + r')*)'
+    r'(?=\s+[A-Z(“"\'‘]|\s*$)'
+)
 
 
-def is_rule_ref_header(line: str) -> bool:
-    """A header line contains only rule refs + connectors (&, ,, EX)."""
-    s = line.strip()
-    if not s or len(s) > 200:
-        return False
-    if '?' in s:
-        return False
-    if s.endswith('.'):  # answers like "A.2." end in period
-        return False
-    if re.match(r'^A\.[A-Za-z]', s):  # answer lines starting "A.<letter>"
-        return False
-    if not re.search(RULE_REF, s):
-        return False
-    remaining = re.sub(RULE_REF, '', s)
-    remaining = re.sub(r'\bEX\b', '', remaining, flags=re.IGNORECASE)
-    remaining = re.sub(r'[,&\s]', '', remaining)
-    return len(remaining) == 0
-
-
-def parse_refs(header_line: str) -> List[str]:
-    return re.findall(RULE_REF, header_line)
-
-
-def clean_body_line(line: str) -> str | None:
-    """Drop page-footer artifacts; preserve everything else."""
-    if PAGE_FOOTER.match(line):
+def entry_header_refs(line: str) -> List[str] | None:
+    """If `line` begins a new Q&A entry, return its leading rule refs; else None."""
+    m = ENTRY_HEADER.match(line)
+    if not m:
         return None
-    return line
+    return re.findall(RULE_REF, m.group(1))
+
+
+def strip_header_footer(page_text: str) -> List[str]:
+    """
+    Return the page's content lines with the running header and footer removed.
+
+    The two-column reconstruction places the page's running header (e.g.
+    "Chapter A Official Q&A:") on the first line — drop it. The footer is a
+    standalone "page N" line — drop any such line.
+    """
+    lines = page_text.split('\n')
+    # Drop the leading running header (first non-empty line).
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if lines:
+        lines = lines[1:]
+    return [ln for ln in lines if not PAGE_FOOTER.match(ln)]
 
 
 def extract_qa_entries(pdf_path: str) -> List[Tuple[List[str], str, int]]:
     """
     Walk every line of the PDF and split into Q&A entries at each rule-ref
-    header. Content before the first header (version history, cover) is
-    skipped. Returns list of (rule_refs, body, page_num).
+    header. Content before the first header (TOC, cover, intro) is skipped.
+    Returns list of (rule_refs, body, page_num).
     """
     logging.info(f"Extracting Q&A entries from {pdf_path}")
 
     entries: List[Tuple[List[str], str, int]] = []
-    current_refs: str | None = None
+    current_refs: List[str] | None = None
     current_body: List[str] = []
     current_page: int | None = None
-    started = False
+    started = False  # becomes True at the first "Chapter X" divider, skipping
+                     # the cover/TOC/intro prose that precedes the real Q&A.
+
+    def flush():
+        nonlocal current_refs, current_body
+        if current_refs is not None:
+            body = '\n'.join(current_body).strip()
+            if body:
+                entries.append((current_refs, body, current_page))
+        current_refs = None
+        current_body = []
 
     with pdfplumber.open(pdf_path) as pdf:
         total_pages = len(pdf.pages)
@@ -99,35 +125,27 @@ def extract_qa_entries(pdf_path: str) -> List[Tuple[List[str], str, int]]:
             page_num = i + 1
             if page_num % 25 == 0:
                 logging.info(f"  {page_num}/{total_pages} pages")
-            text = page.extract_text() or ''
+            text = extract_text_two_column(page) or ''
 
-            for line in text.split('\n'):
-                if is_rule_ref_header(line):
+            for line in strip_header_footer(text):
+                if CHAPTER_MARKER.match(line):
+                    # Chapter boundary flushes the in-progress entry. The first
+                    # one also marks the end of the cover/TOC/intro prose.
+                    flush()
                     started = True
-                    if current_refs is not None:
-                        body = '\n'.join(current_body).strip()
-                        if body:
-                            entries.append((parse_refs(current_refs), body, current_page))
-                    current_refs = line.strip()
-                    current_body = []
+                    continue
+                if not started:
+                    continue
+                refs = entry_header_refs(line)
+                if refs is not None:
+                    flush()
+                    current_refs = refs
+                    current_body = [line.strip()]
                     current_page = page_num
-                elif CHAPTER_MARKER.match(line):
-                    # Chapter boundary flushes the in-progress entry.
-                    if current_refs is not None:
-                        body = '\n'.join(current_body).strip()
-                        if body:
-                            entries.append((parse_refs(current_refs), body, current_page))
-                    current_refs = None
-                    current_body = []
-                elif started:
-                    cleaned = clean_body_line(line)
-                    if cleaned is not None:
-                        current_body.append(cleaned)
+                elif current_refs is not None:
+                    current_body.append(line)
 
-    if current_refs is not None:
-        body = '\n'.join(current_body).strip()
-        if body:
-            entries.append((parse_refs(current_refs), body, current_page))
+    flush()
 
     logging.info(f"✅ Extracted {len(entries)} Q&A entries")
     return entries
@@ -259,9 +277,9 @@ def load_config(path: Path) -> Dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Set up Perry Sez vector store")
-    parser.add_argument("--version", "-v", default="perry_v1",
-                        help="Version label (default: perry_v1)")
+    parser = argparse.ArgumentParser(description="Set up ASL Q&A vector store")
+    parser.add_argument("--version", "-v", default="qa_v1",
+                        help="Version label (default: qa_v1)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Extract and chunk without uploading")
     parser.add_argument("--output", "-o", default=None,
@@ -272,7 +290,7 @@ def main() -> None:
 
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    pdf_path = (project_root.parent / "ruleschat-evals" / "rulebook" / "Perry-Sez-v34.pdf").resolve()
+    pdf_path = (project_root.parent / "ruleschat-evals" / "rulebook" / "ASL-QA-v31.pdf").resolve()
 
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
@@ -309,7 +327,7 @@ def main() -> None:
         tmp_path = tmp.name
     try:
         write_chunks_file(chunks, tmp_path)
-        vs_id = create_vector_store(client, f"Perry Sez Vector Store {args.version}")
+        vs_id = create_vector_store(client, f"ASL Q&A Vector Store {args.version}")
         file_id = upload_and_wait(client, tmp_path, vs_id)
     finally:
         try:
@@ -319,8 +337,8 @@ def main() -> None:
 
     config_path = Path("responses_api_config.json")
     config = load_config(config_path)
-    config.setdefault("perry_sez_versions", {})
-    config["perry_sez_versions"][args.version] = {
+    config.setdefault("qa_versions", {})
+    config["qa_versions"][args.version] = {
         "vector_store_id": vs_id,
         "file_id": file_id,
         "pdf_path": str(pdf_path),
@@ -330,12 +348,12 @@ def main() -> None:
         "total_chunks": len(chunks),
         "created_at": datetime.now().isoformat(),
     }
-    config["active_perry_sez_version"] = args.version
+    config["active_qa_version"] = args.version
 
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=4)
 
-    logging.info(f"Config updated: active_perry_sez_version={args.version}")
+    logging.info(f"Config updated: active_qa_version={args.version}")
 
 
 if __name__ == "__main__":

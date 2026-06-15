@@ -16,17 +16,17 @@ class ASLConfig:
     org_id: Optional[str]
     project_id: Optional[str]
     vector_store_id: str
-    perry_sez_vector_store_id: Optional[str]
+    qa_vector_store_id: Optional[str]
     model: str
     temperature: float
     system_instructions: str
 
     @property
     def all_vector_store_ids(self) -> list[str]:
-        """Vector stores to pass to file_search (rulebook + optional Perry Sez)."""
+        """Vector stores to pass to file_search (rulebook + optional Q&A errata)."""
         ids = [self.vector_store_id]
-        if self.perry_sez_vector_store_id:
-            ids.append(self.perry_sez_vector_store_id)
+        if self.qa_vector_store_id:
+            ids.append(self.qa_vector_store_id)
         return ids
 
 
@@ -68,18 +68,18 @@ def _load_vector_store_id(config_file: Optional[str] = None) -> Optional[str]:
     return None
 
 
-def _load_perry_sez_vector_store_id(config_file: Optional[str] = None) -> Optional[str]:
-    """Load the active Perry Sez vector store ID from config. Optional — None if not present."""
+def _load_qa_vector_store_id(config_file: Optional[str] = None) -> Optional[str]:
+    """Load the active Q&A errata vector store ID from config. Optional — None if not present."""
     config = _read_config_json(config_file)
     if config is None:
         return None
 
-    versions = config.get("perry_sez_versions") or {}
-    active = config.get("active_perry_sez_version")
+    versions = config.get("qa_versions") or {}
+    active = config.get("active_qa_version")
     if active and active in versions:
         vs_id = versions[active].get("vector_store_id")
         if vs_id:
-            logging.info(f"✅ Loaded Perry Sez vector store ID: {active}")
+            logging.info(f"✅ Loaded Q&A vector store ID: {active}")
             return vs_id
 
     return None
@@ -117,8 +117,8 @@ def load_asl_config(
         if not vector_store_id:
             raise ValueError("vector_store_id not found in config file or environment")
 
-    # Load Perry Sez vector store ID (optional)
-    perry_sez_vector_store_id = _load_perry_sez_vector_store_id(config_file)
+    # Load Q&A errata vector store ID (optional)
+    qa_vector_store_id = _load_qa_vector_store_id(config_file)
 
     # Load model and temperature
     model = os.getenv("DEFAULT_MODEL", DEFAULT_MODEL)
@@ -132,7 +132,7 @@ def load_asl_config(
         org_id=org_id,
         project_id=project_id,
         vector_store_id=vector_store_id,
-        perry_sez_vector_store_id=perry_sez_vector_store_id,
+        qa_vector_store_id=qa_vector_store_id,
         model=model,
         temperature=temperature,
         system_instructions=system_instructions
