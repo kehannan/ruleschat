@@ -70,7 +70,7 @@ Frontend displays answer
 | Config | `app/config.py` | System instructions (Answer + References format) |
 | Policy | `app/asl/policy.py` | Instruction building |
 | History | `app/services/chat_history_service.py` | Conversation persistence |
-| Vector Store | `responses_api_config.json` | Store ID, versioned config |
+| Vector Stores | `responses_api_config.json` | Store IDs (rulebook + Q&A errata), versioned config |
 
 ## System Instructions Format
 
@@ -101,6 +101,6 @@ Two few-shot examples anchor the format. See `app/config.py` for full prompt.
 
 ## Configuration
 
-- **Vector store**: set up via `scripts/setup_responses_api.py`, config in `responses_api_config.json`
+- **Vector stores**: rulebook set up via `scripts/setup_responses_api.py`; ASL Q&A errata via `scripts/setup_qa_vector_store.py`; both configured in `responses_api_config.json` and concatenated by `ASLConfig.all_vector_store_ids`
 - **Model whitelist**: `{"gpt-5-mini", "gpt-4.1-mini"}` in `app/api/chat.py`
 - **GPT-5 family**: does not support `temperature` parameter — omitted automatically

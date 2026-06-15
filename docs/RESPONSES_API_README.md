@@ -4,11 +4,16 @@ How the site uses the OpenAI Responses API with a Vector Store for the ASL Rules
 
 ## Overview
 
-The ASL rulebook is indexed into an OpenAI Vector Store and queried via the Responses API using native streaming:
+The ASL rulebook is indexed into an OpenAI Vector Store and queried via the Responses API using native streaming. `file_search` actually queries **two** vector stores concatenated together (see `ASLConfig.all_vector_store_ids` in `app/asl/config.py`):
+
+1. the **rulebook** store (`versions` / `active_version`), and
+2. an **ASL Q&A errata** store (`qa_versions` / `active_qa_version`) — Scott Romanowski's "ASL Q&A v31" Q&A/clarifications/errata compilation.
+
+The flow:
 
 1. Create a vector store (one-time)
-2. Upload the rulebook PDF to the vector store (one-time)
-3. Query via Responses API with `file_search` tool pointing at the vector store
+2. Upload the source PDF to the vector store (one-time)
+3. Query via Responses API with `file_search` tool pointing at both vector stores
 4. Stream deltas over WebSocket to the browser
 
 ## Benefits
@@ -58,6 +63,19 @@ This will:
 - Upload the PDF to that store
 - Save configuration to `responses_api_config.json`
 
+### Q&A errata vector store (second store)
+
+The Q&A errata store is built separately from `ASL-QA-v31.pdf` (a two-column Q&A/errata
+compilation). Each chunk is one-or-more whole `{refs|pN}`-tagged Q&A entries:
+
+```bash
+python scripts/setup_qa_vector_store.py            # creates the store, writes qa_versions config
+python scripts/setup_qa_vector_store.py --dry-run --output /tmp/qa.txt   # preview chunks first
+```
+
+This writes `qa_versions` / `active_qa_version` to `responses_api_config.json`. (This store
+replaced the older "Perry Sez" store in 2026-06; the new doc subsumes that content.)
+
 ### Test
 
 ```bash
@@ -68,21 +86,21 @@ python test_responses_api.py
 
 ### responses_api_config.json
 
-The config supports versioned vector stores:
+The config supports versioned vector stores, with a parallel set of keys for the Q&A errata store:
 ```json
 {
-  "active_version": "v5",
+  "active_version": "v6",
   "versions": {
-    "v5": {
-      "vector_store_id": "vs_...",
-      "file_id": "file-...",
-      "description": "..."
-    }
+    "v6": { "vector_store_id": "vs_...", "file_id": "file-...", "description": "..." }
+  },
+  "active_qa_version": "qa_v1",
+  "qa_versions": {
+    "qa_v1": { "vector_store_id": "vs_...", "file_id": "file-...", "total_chunks": 296 }
   }
 }
 ```
 
-The active version's `vector_store_id` is used at runtime.
+At runtime the active `versions` store and the active `qa_versions` store are both passed to `file_search` (`qa_versions` is optional — omit it and only the rulebook is searched).
 
 ## How It Works (Runtime)
 
@@ -95,7 +113,7 @@ stream = client.responses.stream(
     instructions=system_instructions,
     tools=[{
         "type": "file_search",
-        "vector_store_ids": [vector_store_id],
+        "vector_store_ids": config.all_vector_store_ids,  # [rulebook, qa_errata]
         "max_num_results": 20,
     }],
     include=["file_search_call.results"],

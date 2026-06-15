@@ -8,7 +8,7 @@ It's a FastAPI web application that lets players ask Advanced Squad Leader (ASL)
 
 ## Features
 
-- **RAG pipeline** — OpenAI Responses API with `file_search` against a vector store of the rulebook (up to 20 chunks per query)
+- **RAG pipeline** — OpenAI Responses API with `file_search` against two vector stores (the rulebook and an ASL Q&A/errata compilation), up to 20 chunks per query
 - **Streaming WebSocket** — responses stream token-by-token; TTFT, cost, and token counts surfaced per query
 - **In-browser PDF viewer** — rule citations (e.g. A4.34) open the rulebook PDF at the exact page
 - **Image attachment (multimodal)** — paste up to 3 VASL board screenshots into the chat (wide view + zoomed detail, etc.); a fixed terrain legend is sent alongside so the model visually matches board hexes, then it answers about board state with rulebook citations. Auto-routes to `gpt-5.4` when any image is attached. Available on both the authed chat and the public demo. See [docs/multimodal_plan.md](docs/multimodal_plan.md) for design and known limitations.
@@ -24,8 +24,8 @@ Browser ──WebSocket──▶ FastAPI ──▶ OpenAI Responses API
                                         │
                                    file_search
                                         │
-                                   Vector Store
-                                   (rulebook chunks)
+                                   Vector Stores
+                                (rulebook + Q&A errata)
 ```
 
 **Key files:**
@@ -91,9 +91,9 @@ Required variables:
 | `ADMIN_EMAIL` | Admin account email |
 | `DEFAULT_MODEL` | Default model (e.g. `gpt-4.1-mini`) |
 
-### 3. Set up the vector store
+### 3. Set up the vector stores
 
-You need to upload the ASL rulebook PDF to OpenAI and create a vector store. See [docs/RESPONSES_API_README.md](docs/RESPONSES_API_README.md) for details.
+You need to upload the ASL rulebook PDF to OpenAI and create a vector store (and, optionally, a second store for the ASL Q&A/errata compilation). See [docs/RESPONSES_API_README.md](docs/RESPONSES_API_README.md) for details.
 
 ```bash
 # After uploading, copy the example config and fill in your IDs
