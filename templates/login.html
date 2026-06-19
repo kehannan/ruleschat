@@ -4,97 +4,17 @@
 
 {% block title %}Log in — ASL Ruleschat{% endblock %}
 
-{% block extra_css %}
-<style>
-  /* Auth column: 460px centered, vertically centered in the viewport */
-  .site .auth-wrap {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    padding: 56px 0 80px;
-  }
-  .site .auth-col {
-    max-width: 460px;
-    width: 100%;
-    margin: 0 auto;
-    padding: 0 32px;
-  }
-  .site .auth-col h1 {
-    font-family: var(--font-display);
-    font-weight: 400;
-    font-size: clamp(28px, 3.2vw, 38px);
-    line-height: var(--leading-tight);
-    letter-spacing: var(--tracking-tight);
-    text-transform: uppercase;
-    margin: 0 0 14px;
-    text-wrap: balance;
-  }
-  .site .auth-col h1 em { font-style: normal; color: var(--accent); }
-  .site .auth-col .lede {
-    font-size: 16px;
-    line-height: 1.55;
-    color: var(--text-secondary);
-    margin: 0 0 28px;
-    text-wrap: pretty;
-  }
-  .site .auth-error {
-    margin-bottom: 18px;
-    padding: 12px 14px;
-    border-left: 3px solid var(--danger);
-    background: var(--danger-soft);
-    color: var(--text-primary);
-    font-size: 14px;
-  }
-  .site .forgot-row {
-    display: flex; justify-content: flex-end;
-    margin: -10px 0 18px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-  .site .forgot-row a {
-    color: var(--text-muted);
-    border-bottom: 1px solid var(--border-strong);
-    transition: color var(--dur-fast) var(--ease-lock), border-color var(--dur-fast) var(--ease-lock);
-  }
-  .site .forgot-row a:hover { color: var(--accent); border-bottom-color: var(--accent); }
-  .site .or-divider {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 14px;
-    align-items: center;
-    margin: 24px 0;
-  }
-  .site .or-divider::before,
-  .site .or-divider::after {
-    content: ""; height: 1px; background: var(--border-hairline);
-  }
-  .site .or-divider span {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: var(--tracking-label);
-    color: var(--text-muted);
-  }
-  /* Page wrapper makes the auth column vertically center between nav + footer */
-  .site { min-height: 100vh; display: flex; flex-direction: column; }
-
-  @media (max-width: 620px) {
-    .site .auth-col { padding: 0 20px; }
-    .site .card-panel { padding: 22px; }
-  }
-</style>
-{% endblock %}
-
 {% block main %}
 <div class="auth-wrap">
   <div class="auth-col">
     <div class="eyebrow"><span class="dot"></span><span>Account access</span></div>
     <h1>Log in to <em>Ruleschat</em>.</h1>
     <p class="lede">
-      Full chat is invite-only. If you have an account, sign in below. 
+      Full chat is invite-only. If you have an account, sign in below.
+      Otherwise the demo gives five free questions per day, no signup.
     </p>
 
-    <div class="card-panel card-shadow">
+    <div class="card-panel">
       {% if error %}
       <div class="auth-error">{{ error }}</div>
       {% endif %}
@@ -118,12 +38,14 @@
         Try the demo (5 questions/day) <span class="arrow">→</span>
       </a>
     </div>
+
+    <div class="auth-footnote">No invite yet? <a href="mailto:kevin.hannan@gmail.com">Request access</a></div>
   </div>
 </div>
 
 <footer class="site-footer">
   <div class="wrap">
-    <div class="legal">
+    <div class="legal-center">
       Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
       Personal, non-commercial project — no affiliation.
       · <a href="{{ url_for('privacy') }}">Privacy</a>

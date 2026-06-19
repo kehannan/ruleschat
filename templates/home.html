@@ -4,274 +4,6 @@
 
 {% block title %}ASL Ruleschat — AI for Advanced Squad Leader rules{% endblock %}
 
-{% block extra_css %}
-<style>
-  /* Page-specific CSS for the home page. Selectors not already in
-     site-design-system.css. Scoped to .site so tokens apply. */
-
-  /* HERO — console poster over a faint tactical grid */
-  .site .hero {
-    padding: 96px 0 88px;
-    border-bottom: 1px solid var(--border-hairline);
-    position: relative;
-    background-image:
-      linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 34px 34px;
-  }
-  .site .hero-grid {
-    display: grid;
-    grid-template-columns: 1.35fr 1fr;
-    gap: 72px;
-    align-items: start;
-  }
-  .site .hero-head {
-    font-family: var(--font-display);
-    font-weight: 400;
-    font-size: clamp(38px, 5vw, 68px);
-    line-height: var(--leading-tight);
-    letter-spacing: var(--tracking-tight);
-    text-transform: uppercase;
-    color: var(--text-primary);
-    margin: 14px 0 28px;
-    text-wrap: balance;
-  }
-  .site .hero-head em { font-style: normal; font-weight: 400; color: var(--accent); }
-  .site .hero-lede {
-    font-size: 19px;
-    line-height: 1.55;
-    color: var(--text-secondary);
-    max-width: 580px;
-    margin-bottom: 32px;
-    text-wrap: pretty;
-  }
-  .site .ctas { display: flex; gap: 12px; flex-wrap: wrap; }
-  .site .hex-deco {
-    position: absolute;
-    right: -40px; top: 40px;
-    width: 220px; height: 220px;
-    opacity: .08;
-    pointer-events: none;
-    color: var(--steel-400);
-  }
-
-  /* SPECIMEN (sample Q&A card) — the hero's featured artifact. Lifted a
-     surface step above the page with a blaze left rule (the kevmo
-     "selected" emphasis) so it doesn't sink into the dark hero. */
-  .site .specimen {
-    position: relative;
-    background: var(--ink-800);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    padding: 24px 24px 22px;
-    font-size: 14px;
-  }
-  .site .specimen::after {
-    content: ""; position: absolute;
-    left: 0; top: 14px; bottom: 14px; width: 3px;
-    background: var(--accent);
-    border-radius: 0 2px 2px 0;
-  }
-  .site .specimen::before {
-    content: "EXAMPLE ANSWER";
-    position: absolute;
-    top: -10px; left: 18px;
-    background: var(--bg-base);
-    padding: 2px 10px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: var(--tracking-label);
-    color: var(--accent);
-  }
-  .site .spec-q {
-    display: flex; gap: 12px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--steel-700);
-  }
-  .site .spec-q .label {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--steel-400);
-    margin-top: 2px;
-    letter-spacing: .08em;
-  }
-  .site .spec-q .text {
-    color: var(--text-primary);
-    line-height: 1.5;
-    font-weight: 500;
-    font-size: 15px;
-  }
-  .site .spec-a { display: flex; gap: 12px; padding-top: 16px; }
-  .site .spec-a .label {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--accent);
-    margin-top: 2px;
-    letter-spacing: .08em;
-  }
-  .site .spec-a .text {
-    color: var(--steel-200);
-    line-height: 1.55;
-    font-size: 14px;
-  }
-  .site .spec-a .text strong { color: var(--text-primary); }
-
-  /* DOMAIN + general two-col layout */
-  .site .two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 64px;
-    align-items: start;
-  }
-  .site .col-head {
-    font-family: var(--font-display);
-    font-weight: 400;
-    font-size: clamp(26px, 3vw, 38px);
-    line-height: var(--leading-tight);
-    letter-spacing: var(--tracking-tight);
-    text-transform: uppercase;
-    margin: 0 0 24px;
-    text-wrap: balance;
-  }
-  .site .col-head em { font-style: normal; color: var(--accent); }
-
-  .site .board-figure {
-    position: relative;
-    border: 1px solid var(--border-hairline);
-    background: var(--bg-subtle);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    margin: 32px 0 0;
-  }
-  .site .board-figure img {
-    display: block; width: 100%; height: auto;
-    filter: saturate(.85) contrast(1.02);
-  }
-  .site .board-caption {
-    position: absolute;
-    left: 14px; bottom: 14px;
-    padding: 6px 10px;
-    background: rgba(6, 7, 10, .72);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-xs);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-  }
-  .site .board-caption .acc { color: var(--accent); }
-
-  /* PIPELINE */
-  .site .pipeline-head {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 64px;
-    align-items: end;
-    margin-bottom: 56px;
-  }
-  .site .pipeline-head .col-head { margin-bottom: 0; }
-  .site .pipeline { position: relative; padding: 8px 0 0; }
-  .site .pipe-flow {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0;
-    position: relative;
-  }
-  .site .pipe-node {
-    position: relative;
-    padding: 0 18px 8px;
-    border-left: 1px solid var(--border-hairline);
-  }
-  .site .pipe-node:first-child { border-left: 0; padding-left: 0; }
-  .site .pipe-node:last-child { padding-right: 0; }
-  .site .pipe-node .hex-wrap {
-    position: relative;
-    width: 88px; height: 100px;
-    display: grid; place-items: center;
-    margin-bottom: 18px;
-  }
-  .site .pipe-node .hex-wrap svg {
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
-  }
-  .site .pipe-node .hex-wrap .num {
-    position: relative;
-    font-family: var(--font-display);
-    font-style: normal;
-    font-weight: 400;
-    font-size: 26px;
-    text-transform: uppercase;
-    color: var(--text-primary);
-    z-index: 1;
-  }
-  .site .pipe-node .step-label {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 6px;
-    font-weight: 500;
-  }
-  .site .pipe-node h3 {
-    font-family: var(--font-sans);
-    font-weight: 700;
-    font-size: 19px;
-    line-height: 1.2;
-    letter-spacing: var(--tracking-tight);
-    margin: 0 0 10px;
-    color: var(--text-primary);
-  }
-  .site .pipe-node h3 em { font-style: normal; color: var(--accent); }
-  .site .pipe-node p {
-    font-size: 14px;
-    line-height: 1.55;
-    color: var(--text-secondary);
-    margin: 0 0 12px;
-  }
-  .site .pipe-node .tech {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--text-muted);
-    letter-spacing: .02em;
-    display: flex; gap: 6px; flex-wrap: wrap;
-  }
-  .site .pipe-node .tech span {
-    padding: 2px 7px;
-    background: var(--bg-subtle);
-    border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-sm);
-  }
-  .site .pipe-flow::before {
-    content: "";
-    position: absolute;
-    top: 50px; left: 88px; right: 0;
-    height: 1px;
-    background: repeating-linear-gradient(to right, var(--border-strong) 0 4px, transparent 4px 8px);
-    z-index: 0;
-  }
-
-  /* RESPONSIVE */
-  @media (max-width: 880px) {
-    .site .hero-grid,
-    .site .two-col,
-    .site .pipeline-head { grid-template-columns: 1fr; gap: 56px; }
-    .site .pipe-flow { grid-template-columns: repeat(2, 1fr); gap: 32px 0; }
-    .site .pipe-flow::before { display: none; }
-    .site .pipe-node { border-left: 0; padding-left: 0; }
-  }
-  @media (max-width: 620px) {
-    .site .hero { padding: 56px 0 48px; }
-    .site .hex-deco { display: none; }
-    .site .hero-head { font-size: clamp(32px, 9vw, 44px); }
-    .site .pipe-flow { grid-template-columns: 1fr; gap: 24px; }
-  }
-</style>
-{% endblock %}
-
 {% block main %}
 <!-- ─── HERO ─── -->
 <header class="hero">
@@ -294,7 +26,7 @@
           Ruleschat for the wargame<br />
           <em>Advanced Squad Leader</em>.
         </h1>
-        <p class="hero-lede">An AI for answering questions over the rulebook.</p>
+        <p class="hero-lede">An AI for answering questions over the 700-page rulebook.</p>
         <div class="ctas">
           {% if user_email is defined and user_email %}
             <a class="btn btn-primary" href="{{ url_for('ruleschat') }}">
@@ -312,18 +44,16 @@
         <div class="spec-q">
           <div class="label">Q.</div>
           <div class="text">
-            What is the movement cost for an infantry squad to enter a woods hex
-            from open ground?
+            How many additional MF does Double Time provide to Infantry?
           </div>
         </div>
         <div class="spec-a">
           <div class="label">A.</div>
           <div class="text">
-            Entering a Woods hex costs <strong>2&nbsp;MF</strong> for non-Cavalry
-            infantry, regardless of the hexside crossed
-            (<span class="cite">B13.4</span>). If the move begins or ends on a
-            road, the road rate <span class="cite">B3.4</span> does not apply
-            because Woods overrides road effects.
+            Double Time increases an Infantry unit's MF allotment by
+            <strong>+2&nbsp;MF</strong> (<span class="cite">A4.5</span>). If
+            declared after the unit has already expended MF, the bonus drops
+            to +1 while the same penalties still apply.
           </div>
         </div>
       </aside>
@@ -339,18 +69,20 @@
         <div class="eyebrow"><span class="dot"></span><span>The domain</span></div>
         <h2 class="col-head">Advanced Squad Leader has<br />a <em>700-page rulebook</em>.</h2>
         <div class="prose">
-          <p>
+          <p class="drop">
             <a class="inline-link" href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">Advanced Squad Leader</a>
-            is a tactical WWII wargame that was historically played on hex maps with cardboard
-            counters and dice. Most play has moved online through
+            is a tactical WWII wargame that was historically played on hex
+            maps with cardboard counters and dice. Most play has moved online
+            through
             <a class="inline-link" href="https://vassalengine.org/" target="_blank" rel="noopener noreferrer">VASSAL</a> and
             <a class="inline-link" href="https://vasl.info/" target="_blank" rel="noopener noreferrer">VASL</a> —
             but those platforms only move counters and roll dice. Every rule
-            interpretation, modifier, and edge case still falls on the players.
+            interpretation, modifier, and edge case still falls on the
+            players.
           </p>
         </div>
       </div>
-      <figure class="board-figure">
+      <figure class="board-figure" style="margin: 32px 0 0;">
         <img src="{{ url_for('static', path='img/ASL_board.png') }}" alt="ASL board with counters" />
         <figcaption class="board-caption">Gameplay on VASL</figcaption>
       </figure>
@@ -374,25 +106,25 @@
           <div class="hex-wrap">
             <svg viewBox="0 0 88 100">
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--surface-card)" stroke="var(--border-strong)" stroke-width="1.2"/>
+                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
             </svg>
             <span class="num">i</span>
           </div>
           <div class="step-label">Stage 01 · Retrieval</div>
           <h3><em>RAG</em> over the rulebook</h3>
           <p>
-            Each question goes through OpenAI's Responses API, which calls
-            <span class="mono">file_search</span> against a vector store of the
-            700-page rulebook and pulls 20 chunks into the model's context.
+            Each question is routed through OpenRouter to one of several
+            models, which pulls relevant chunks from a vector store of the
+            rulebook.
           </p>
-          <div class="tech"><span>Responses API</span><span>file_search</span><span>20 chunks/q</span></div>
+          <div class="tech"><span>OpenRouter</span><span>file_search</span><span>multi-model</span></div>
         </article>
 
         <article class="pipe-node">
           <div class="hex-wrap">
             <svg viewBox="0 0 88 100">
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--surface-card)" stroke="var(--border-strong)" stroke-width="1.2"/>
+                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
             </svg>
             <span class="num">ii</span>
           </div>
@@ -400,42 +132,45 @@
           <h3><em>Cited</em> answers</h3>
           <p>
             Every claim links to a rule section, and clicking a citation like
-            <span class="cite">A4.34</span> opens the rulebook PDF to that page in-browser.
+            <span class="cite">A4.34</span> opens the rulebook PDF to that
+            page in-browser.
           </p>
-          <div class="tech"><span>section_pages.json</span><span>pdf.js</span><span>eASLRB v3.14</span></div>
+          <div class="tech"><span>section_pages.json</span><span>pdf.js</span></div>
         </article>
 
         <article class="pipe-node">
           <div class="hex-wrap">
             <svg viewBox="0 0 88 100">
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--surface-card)" stroke="var(--border-strong)" stroke-width="1.2"/>
+                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
             </svg>
             <span class="num">iii</span>
           </div>
           <div class="step-label">Stage 03 · Evaluation</div>
           <h3>LLM-as-a-<em>judge</em></h3>
           <p>
-            A zero-shot AI judge scores each response Pass / Fail / Needs Review against
-            expected answers, with manual review before results are published.
+            A zero-shot AI judge scores each response Pass / Fail / Needs
+            Review against expected answers, with manual review before
+            results are published.
           </p>
-          <div class="tech"><span>gpt-4.1-mini judge</span><span>JSON mode</span><span>human override</span></div>
+          <div class="tech"><span>structured output</span><span>eval rubric</span></div>
         </article>
 
         <article class="pipe-node">
           <div class="hex-wrap">
             <svg viewBox="0 0 88 100">
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--surface-card)" stroke="var(--border-strong)" stroke-width="1.2"/>
+                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
             </svg>
             <span class="num">iv</span>
           </div>
           <div class="step-label">Stage 04 · Improvement</div>
           <h3>Curate &amp; <em>retrain</em></h3>
           <p>
-            Strong Q&amp;A pairs feed eval datasets and fine-tuning corpora.
+            Strong Q&amp;A pairs feed eval datasets and fine-tuning corpora;
+            weak ones become test cases.
           </p>
-          <div class="tech"><span>SFT JSONL</span><span>OpenAI fine-tune</span><span>eval JSONL</span></div>
+          <div class="tech"><span>SFT corpus</span><span>eval set</span></div>
         </article>
       </div>
     </div>
@@ -449,18 +184,17 @@
       <div class="footer-brand">
         <a class="brand" href="{{ url_for('home') }}">
           <span class="brand-mark" aria-hidden="true">
-            <!-- Kevmo chevron-bar mark (static/img/kevmo/logo-mark.svg, inlined for currentColor) -->
-            <svg viewBox="0 0 64 64" fill="none">
-              <rect x="6" y="28.5" width="27" height="7" rx="2" fill="currentColor"></rect>
-              <rect x="5" y="21" width="8" height="22" rx="2.5" fill="currentColor"></rect>
-              <path d="M30 16 L50 32 L30 48" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path>
+            <svg viewBox="0 0 32 32" fill="none">
+              <polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="var(--ink)" />
+              <text x="16" y="22" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="16" font-weight="500" fill="var(--paper)">a</text>
             </svg>
           </span>
           <span class="brand-name">ASL <em>Ruleschat</em></span>
         </a>
         <p>
-          Built on OpenRouter and OpenAI with multiple
-          models. Hosted at <a class="inline-link" href="https://ruleschat.com">ruleschat.com</a>.
+          A personal project by Kevin Hannan. Built on OpenRouter with
+          multiple models. Hosted at
+          <a class="inline-link" href="https://ruleschat.com">ruleschat.com</a>.
         </p>
       </div>
       <div class="footer-col">
@@ -476,8 +210,8 @@
     <div class="legal">
       <span>
         Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
-        This is a personal, non-commercial project with no affiliation with
-        Hasbro, Avalon Hill, or Multi-Man Publishing.
+        Personal, non-commercial project — no affiliation with Hasbro,
+        Avalon Hill, or Multi-Man Publishing.
       </span>
       <span class="right">© 2026 · MIT License · <a href="{{ url_for('privacy') }}">Privacy</a></span>
     </div>

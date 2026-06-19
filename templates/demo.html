@@ -4,232 +4,6 @@
 
 {% block title %}Try the demo — ASL Ruleschat{% endblock %}
 
-{% block extra_css %}
-<style>
-  /* Demo page is a full-viewport chat surface — make .site a flex column so
-     <main class="demo-main"> fills the space between nav+banners and bottom. */
-  .site { min-height: 100vh; display: flex; flex-direction: column; }
-  .site .demo-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-
-  /* Image preview tray (between toolbar and input-dock) — styled with new tokens. */
-  .site .image-preview {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-    padding: 8px 12px;
-    margin: 0;
-    background: var(--paper-2);
-    border-bottom: 1px solid var(--hair);
-    font-family: var(--mono); font-size: 11px;
-    color: var(--muted); letter-spacing: .02em;
-  }
-  .site .image-preview .image-preview-label { margin-left: auto; }
-  .site .image-preview-item { position: relative; display: inline-block; }
-  .site .image-preview-item img {
-    max-height: 48px; max-width: 64px;
-    object-fit: cover;
-    border-radius: 2px;
-    border: 1px solid var(--hair);
-    display: block;
-  }
-  .site .image-preview-item .image-preview-remove {
-    position: absolute; top: -6px; right: -6px;
-    width: 18px; height: 18px;
-    background: var(--surface-card);
-    border: 1px solid var(--border-hairline);
-    border-radius: 50%;
-    font-size: 13px; line-height: 13px;
-    color: var(--text-secondary);
-    cursor: pointer; padding: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-sans);
-  }
-  .site .image-preview-item .image-preview-remove:hover {
-    color: var(--text-primary); border-color: var(--border-strong);
-  }
-
-  /* User-message attached image thumb (shown inline in the bubble) */
-  .site .msg.user .msg-bubble .message-image {
-    display: inline-block;
-    max-width: 280px; max-height: 200px;
-    margin: 8px 6px 0 0;
-    border-radius: 2px;
-    border: 1px solid var(--hair);
-    cursor: zoom-in;
-    vertical-align: top;
-  }
-
-  /* Searching bubble — small dots while we wait for stream */
-  .site .searching-bubble {
-    font-family: var(--mono); font-size: 11px;
-    letter-spacing: .1em; text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 26px;
-    display: flex; align-items: baseline; gap: 8px;
-  }
-  .site .searching-bubble .searching-dots {
-    display: inline-flex; gap: 3px;
-  }
-  .site .searching-bubble .searching-dots span {
-    width: 4px; height: 4px; border-radius: 50%;
-    background: var(--accent);
-    animation: dot-pulse 1.2s infinite ease-in-out;
-  }
-  .site .searching-bubble .searching-dots span:nth-child(2) { animation-delay: .2s; }
-  .site .searching-bubble .searching-dots span:nth-child(3) { animation-delay: .4s; }
-  @keyframes dot-pulse {
-    0%, 80%, 100% { opacity: .25; }
-    40% { opacity: 1; }
-  }
-
-  /* Rate-limit message: warning callout in the scroll area */
-  .site .rate-limit-message {
-    margin: 12px 0 26px;
-    padding: 14px 18px;
-    border-left: 3px solid var(--warning);
-    background: var(--warning-soft);
-    color: var(--text-primary);
-    font-size: 14px;
-    line-height: 1.55;
-  }
-  .site .rate-limit-message a {
-    color: var(--accent);
-    border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
-  }
-  .site .rate-limit-message a:hover { border-bottom-color: var(--accent); }
-
-  /* PDF Viewer Modal — console overlay */
-  .site .pdf-modal {
-    position: fixed; inset: 0; z-index: 1000;
-    display: flex; align-items: center; justify-content: center;
-    padding: 32px;
-  }
-  .site .pdf-modal-backdrop {
-    position: absolute; inset: 0;
-    background: rgba(6, 7, 10, .72);
-    cursor: pointer;
-  }
-  .site .pdf-modal-content {
-    position: relative;
-    background: var(--surface-card);
-    border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-xl);
-    max-width: 1200px;
-    width: 100%;
-    max-height: 92vh;
-    display: flex; flex-direction: column;
-    box-shadow: var(--shadow-xl);
-    overflow: hidden;
-  }
-  .site .pdf-modal-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 20px;
-    background: var(--bg-subtle);
-    border-bottom: 1px solid var(--border-hairline);
-  }
-  .site .pdf-modal-header h3 {
-    font-family: var(--font-sans); font-weight: 800; font-size: 16px;
-    margin: 0; letter-spacing: var(--tracking-tight);
-  }
-  .site .pdf-modal-header h3 em { font-style: normal; color: var(--accent); }
-  .site .pdf-modal-close {
-    width: 32px; height: 32px;
-    background: transparent; border: 1px solid var(--border-hairline);
-    color: var(--text-secondary); font-size: 18px; line-height: 1;
-    cursor: pointer; border-radius: var(--radius-sm);
-    display: grid; place-items: center;
-    transition: background var(--dur-fast) var(--ease-lock),
-                color var(--dur-fast) var(--ease-lock),
-                border-color var(--dur-fast) var(--ease-lock);
-  }
-  .site .pdf-modal-close:hover {
-    background: var(--bg-subtle); color: var(--text-primary); border-color: var(--border-strong);
-  }
-  .site .pdf-modal-body {
-    flex: 1;
-    display: flex; flex-direction: column;
-    min-height: 0;
-    background: var(--surface-card);
-  }
-  .site .pdf-controls {
-    display: flex; align-items: center; gap: 12px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border-hairline);
-    background: var(--bg-subtle);
-    font-family: var(--font-mono); font-size: 11px;
-    color: var(--text-secondary);
-  }
-  .site .pdf-controls button {
-    background: transparent; color: var(--text-primary);
-    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-    padding: 4px 10px;
-    font-family: var(--font-mono); font-size: 11px;
-    letter-spacing: .04em; cursor: pointer;
-    transition: background var(--dur-fast) var(--ease-lock),
-                border-color var(--dur-fast) var(--ease-lock);
-  }
-  .site .pdf-controls button:hover:not(:disabled) {
-    background: var(--ink-800); border-color: var(--text-muted);
-  }
-  .site .pdf-controls button:disabled {
-    opacity: .4; cursor: not-allowed;
-  }
-  .site .pdf-container {
-    flex: 1;
-    overflow: auto;
-    padding: 16px;
-    background: var(--surface-sunken);
-    display: flex; justify-content: center;
-  }
-  .site .pdf-container canvas { box-shadow: var(--shadow-md); }
-  .site .pdf-loading {
-    padding: 24px;
-    text-align: center;
-    font-family: var(--mono); font-size: 12px;
-    color: var(--muted);
-  }
-
-  /* Image lightbox */
-  .site .image-lightbox {
-    position: fixed; inset: 0;
-    background: rgba(6, 7, 10, .85);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 1001;
-    padding: 32px;
-  }
-  .site .image-lightbox img {
-    max-width: 95%; max-height: 90vh;
-    object-fit: contain;
-    border-radius: 2px;
-    box-shadow: 0 24px 60px rgba(0,0,0,.5);
-  }
-  .site .image-lightbox .lightbox-close {
-    position: absolute; top: 16px; right: 20px;
-    background: transparent;
-    border: 1px solid rgba(255,255,255,.3);
-    color: var(--text-primary); font-size: 22px;
-    line-height: 1; cursor: pointer;
-    width: 36px; height: 36px;
-    display: grid; place-items: center;
-    border-radius: 2px;
-    transition: all .15s;
-  }
-  .site .image-lightbox .lightbox-close:hover {
-    background: var(--accent); border-color: var(--accent);
-  }
-
-  /* Connection status text variants (replaces old chat.css color rules) */
-  .site #connection-status.disconnected { color: var(--fail); }
-  .site #connection-status.disconnected .pip { background: var(--fail); }
-
-  @media (max-width: 620px) {
-    .site .chat-toolbar h4 { font-size: 16px; }
-    .site .msg.user .msg-bubble { max-width: 92%; }
-    .site .latency-row { gap: 12px; }
-    .site .welcome .prompt-list { grid-template-columns: 1fr; }
-    .site .pdf-modal { padding: 12px; }
-  }
-</style>
-{% endblock %}
-
 {% block navbar %}
 {{ super() }}
 
@@ -242,6 +16,7 @@
       <span>·</span>
       <span class="counter">you have <b id="remaining-count">5</b> of 5 questions remaining today</span>
     </div>
+    <a class="login-cta" href="{{ url_for('login') }}">Log in for unlimited →</a>
   </div>
 </div>
 
@@ -257,6 +32,7 @@
 <!-- TOOLBAR -->
 <div class="chat-toolbar">
   <div class="wrap">
+    <h4>Ask the <em>rulebook</em>.</h4>
     <select class="model-pill" id="model-selector" title="Select model">
       <option value="gpt-5.4">gpt-5.4 · ¢¢/fast</option>
       <option value="deepseek-v3">deepseek-v3 · ¢</option>
@@ -271,7 +47,29 @@
   <div class="chat-scroll" id="chat-container">
     <div class="wrap">
       <div class="welcome" id="welcome-state">
-        <div class="h2">Ask a <em>rules question</em>.</div>
+        <div class="h2">Try a <em>rules question</em>.</div>
+        <p class="desc">
+          Five questions a day, no signup. Citations open the actual
+          rulebook PDF to the cited page so you can verify.
+        </p>
+        <div class="prompt-list">
+          <button type="button" class="prompt">
+            <div class="prompt-meta">Recall · most-asked</div>
+            <div class="prompt-q">What's the MF cost to enter a woods hex from open ground?</div>
+          </button>
+          <button type="button" class="prompt">
+            <div class="prompt-meta">Recall · turn-end</div>
+            <div class="prompt-q">Can a Good Order leader rally a broken squad in his own hex?</div>
+          </button>
+          <button type="button" class="prompt">
+            <div class="prompt-meta">Calc · firefight</div>
+            <div class="prompt-q">4-6-7 fires at unconcealed 4-4-7 in stone building, range 4 — FP column &amp; DRM?</div>
+          </button>
+          <button type="button" class="prompt">
+            <div class="prompt-meta">Recall · defensive fire</div>
+            <div class="prompt-q">When does Fire Lane residual FP affect units passing through?</div>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -287,7 +85,7 @@
         <button class="send-btn" id="chat-message-submit" type="button">Send</button>
       </div>
       <div class="helper-strip">
-        <button class="surprise" id="surprise-btn" type="button" title="Try a random question from the eval set">Surprise me</button>
+        <button class="surprise" id="surprise-btn" type="button" title="Try a random question from the eval set">🎲 Surprise me</button>
         <button class="surprise" id="vsav-attach-btn" type="button" title="Attach a VASL .vsav save — its board state is parsed and given to the model">Attach .vsav</button>
         <input type="file" id="vsav-file-input" accept=".vsav" style="display:none;">
         <span>random question from the eval set · enter to send · shift-enter for newline</span>
@@ -302,7 +100,10 @@
   <div class="pdf-modal-backdrop" onclick="closePdfModal()"></div>
   <div class="pdf-modal-content">
     <div class="pdf-modal-header">
-      <h3>ASL <em>Rulebook</em> (eASLRB v3.14)</h3>
+      <div>
+        <div class="kicker">RULEBOOK</div>
+        <h3>ASL <em>Rulebook</em> (eASLRB v3.14)</h3>
+      </div>
       <button class="pdf-modal-close" onclick="closePdfModal()" title="Close" aria-label="Close">×</button>
     </div>
     <div class="pdf-modal-body">
@@ -467,7 +268,6 @@
     if (!s) return;
     s.classList.remove('connected', 'disconnected');
     if (state) s.classList.add(state);
-    // Preserve the pip span; replace only the trailing text node.
     s.innerHTML = `<span class="pip"></span>${label}`;
   }
 
@@ -591,9 +391,18 @@
     if (typeof initBoardViewer === 'function') initBoardViewer();
     if (typeof bindVsavAttachHandler === 'function') bindVsavAttachHandler();
 
+    // Welcome prompt cards — click sets the input value and sends.
+    document.querySelectorAll('.welcome .prompt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const q = btn.querySelector('.prompt-q').textContent.trim();
+        input.value = q;
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+        sendMessage();
+      });
+    });
+
     // Experimental-notice dismiss (persists via localStorage)
-    // v3: bumped when the notice content changed (screenshots → .vsav attach),
-    // so visitors who dismissed the old message see the new one once.
     const NOTICE_KEY = 'dismissed_experimental_notice_v3';
     const notice = document.getElementById('experimental-notice');
     const noticeDismiss = document.getElementById('experimental-notice-dismiss');
