@@ -252,7 +252,12 @@ def _resolve_unit_fp(
     # A7.22: long range halves FP.
     if unit.get("long_range"):
         val /= 2
-        steps.append(f"÷2 long range = {_fnum(val)}")
+        nr = unit.get("normal_range")
+        rg = unit.get("_range_to_target")
+        if nr is not None and rg is not None:
+            steps.append(f"÷2 long range (range {rg} > normal range {nr}) = {_fnum(val)}")
+        else:
+            steps.append(f"÷2 long range = {_fnum(val)}")
     # A7.24: Advancing Fire halves FP — unless Opportunity Fire (A7.25).
     if afph and not opportunity_fire:
         val /= 2
@@ -529,6 +534,7 @@ def compute_attack(
     firer_cowering_exempt: bool = False,
     san: Optional[int] = None,
     target: Optional[Dict[str, Any]] = None,
+    range_to_target: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Build and resolve a full IFT attack from the situation. Pure and
@@ -541,8 +547,13 @@ def compute_attack(
 
     Args:
         units: Firing units, each {"fp": number, "pbf": "none"|"pbf"|"tpbf",
-               "long_range": bool, "pinned": bool, "assault_fire": bool}.
-               A squad firing a SW it mans is two entries.
+               "long_range": bool, "pinned": bool, "assault_fire": bool,
+               "normal_range": int}. A squad firing a SW it mans is two entries.
+               When range_to_target and a unit's normal_range are both given,
+               long_range is DERIVED (range_to_target > normal_range) and any
+               hand-set long_range flag is overridden.
+        range_to_target: Range in hexes to the target. Lets the tool derive
+               Long Range Fire (A7.22) per unit instead of trusting a flag.
         afph: Advancing Fire Phase — every unit's FP halved (A7.24) unless
               opportunity_fire (A7.25).
         opportunity_fire: Negates the AFPh halving; also makes assault fire NA.
@@ -577,6 +588,31 @@ def compute_attack(
         raise ValueError(f"Invalid target kind {target.get('kind')!r}.")
 
     warnings: List[str] = []
+
+    # Derive Long Range Fire deterministically when the geometry is supplied
+    # (A7.22): a unit fires at long range when range_to_target exceeds its
+    # Normal Range. Preferred over a hand-set "long_range" flag — the model is
+    # error-prone at this comparison, so let the tool own the arithmetic.
+    if range_to_target is not None:
+        if range_to_target < 0:
+            raise ValueError(f"range_to_target must be >= 0, got {range_to_target!r}.")
+        for u in units:
+            nr = u.get("normal_range")
+            if nr is None:
+                warnings.append(
+                    f"Cannot derive long range for the {u.get('fp')} FP unit: no "
+                    "normal_range supplied; using the long_range flag as given (A7.22)."
+                )
+                continue
+            derived = range_to_target > nr
+            if u.get("long_range") is not None and bool(u.get("long_range")) != derived:
+                warnings.append(
+                    f"long_range flag ({u.get('long_range')}) for the {u.get('fp')} FP "
+                    f"unit overridden: range {range_to_target} vs normal range {nr} "
+                    f"→ {derived} (A7.22)."
+                )
+            u["long_range"] = derived
+            u["_range_to_target"] = range_to_target  # audit-trail context only
 
     # ---- Layer 1: per-unit firepower, summed exactly, mapped to a column ----
     fp_breakdown = [

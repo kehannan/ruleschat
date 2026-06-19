@@ -66,6 +66,7 @@ def ift_attack(
     firer_cowering_exempt: bool = False,
     san: Optional[int] = None,
     target: Optional[Dict[str, Any]] = None,
+    range_to_target: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Build and resolve a full IFT attack from the situation (A7.2–.36).
@@ -95,6 +96,7 @@ def ift_attack(
         firer_cowering_exempt=firer_cowering_exempt,
         san=san,
         target=target,
+        range_to_target=range_to_target,
     )
     result.pop("cells", None)  # UI-only heatmap data; not useful to the model
     logging.info(
@@ -202,6 +204,38 @@ def resolve_cc(
     return result
 
 
+def cc_attack(
+    attack_fp: float,
+    defense_fp: float,
+    drm: int = 0,
+    hth: bool = False,
+    defender_types: Optional[List[str]] = None,
+    other_drm: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """
+    No-save Close Combat calculator (A11.11) — from already-summed CC
+    firepowers, with no .vsav.
+
+    Returns the CCT odds column, Kill Number, an itemized DRM ledger, the
+    Original DR needed to eliminate / cause Casualty Reduction, and 2d6
+    probabilities. Shares the engine with `resolve_cc`, so both always agree.
+    """
+    result = cc_resolver.compute_cc(
+        attack_fp=attack_fp,
+        defense_fp=defense_fp,
+        drm=drm,
+        hth=hth,
+        defender_types=defender_types,
+        drm_breakdown=other_drm,
+    )
+    logging.info(
+        "⚔️ cc_attack(%s vs %s, drm=%s, hth=%s) -> %s, KN %s, p_elim %s",
+        attack_fp, defense_fp, result.get("drm"), hth,
+        result.get("odds"), result.get("kill_number"), result.get("p_eliminate"),
+    )
+    return result
+
+
 # =============================================================================
 # Tool Schemas (OpenAI Responses API function calling) — enums pulled live
 # =============================================================================
@@ -289,7 +323,20 @@ TOOL_SCHEMAS = [
                             },
                             "long_range": {
                                 "type": "boolean",
-                                "description": "Firing at long range — FP halved (A7.22).",
+                                "description": (
+                                    "Firing at long range — FP halved (A7.22). PREFER supplying "
+                                    "normal_range + the top-level range_to_target instead and let "
+                                    "the tool derive this; a derived value overrides this flag."
+                                ),
+                            },
+                            "normal_range": {
+                                "type": "integer",
+                                "description": (
+                                    "The firer's Normal Range — the MIDDLE factor of an MMC "
+                                    "(a 5-4-8 is 4; a 6-6-6 is 6; a 4-6-7 is 6), or a SW's range "
+                                    "factor. With the top-level range_to_target, the tool derives "
+                                    "Long Range Fire itself (range_to_target > normal_range)."
+                                ),
                             },
                             "pinned": {
                                 "type": "boolean",
@@ -307,6 +354,16 @@ TOOL_SCHEMAS = [
                         "required": ["fp"],
                         "additionalProperties": False,
                     },
+                },
+                "range_to_target": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": (
+                        "Range in hexes from firer to target. Supply this together with each "
+                        "unit's normal_range and the tool derives Long Range Fire per A7.22 "
+                        "(range_to_target > normal_range → FP halved) — do NOT hand-judge "
+                        "long_range yourself, that is exactly where derivation goes wrong."
+                    ),
                 },
                 "afph": {
                     "type": "boolean",
@@ -468,6 +525,76 @@ TOOL_SCHEMAS = [
     },
     {
         "type": "function",
+        "name": "cc_attack",
+        "description": (
+            "Compute a CLOSE COMBAT (A11.11) resolution WITHOUT a .vsav save: from "
+            "the attackers' total CC firepower and the defenders' CC firepower, returns "
+            "the odds ratio rounded DOWN to the CCT column, its Kill Number, an itemized "
+            "DRM ledger, the Original DR needed to eliminate / cause Casualty Reduction, "
+            "and 2d6 probabilities. Use for any CC odds or 'what must I roll to "
+            "eliminate/capture' question when NO save is attached (with a .vsav, use "
+            "resolve_cc instead). CC FP = sum of printed FP for each MMC, 1 per SMC "
+            "(A11.14); broken units never attack (A11.16); SW/ordnance NA (A11.13); halve "
+            "vs a concealed target (A11.19) — fold these into the FP you supply. Supply CC "
+            "DRMs (leadership A11.141 = negative; broken defender -2 A11.16; CX +1 A4.51; "
+            "Hero -1 A15.24; capture attempt +1 A20.21) via drm or other_drm."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "attack_fp": {
+                    "type": "number",
+                    "description": "Total CC FP of the attacker(s), already summed (SMC = 1).",
+                },
+                "defense_fp": {
+                    "type": "number",
+                    "description": "Total CC FP of the defender(s).",
+                },
+                "drm": {
+                    "type": "integer",
+                    "description": (
+                        "Net CC DR modifier (negative favors the attacker). Ignored "
+                        "if other_drm is supplied."
+                    ),
+                },
+                "other_drm": {
+                    "type": "array",
+                    "description": "Itemized CC DRMs; their drm values are summed.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "drm": {"type": "integer"},
+                        },
+                        "required": ["drm"],
+                        "additionalProperties": False,
+                    },
+                },
+                "hth": {
+                    "type": "boolean",
+                    "description": (
+                        "Hand-to-Hand CC in effect — use the red Kill Number (J2.31). "
+                        "Default uses the black KN."
+                    ),
+                },
+                "defender_types": {
+                    "type": "array",
+                    "description": (
+                        "Defender unit type(s) for A7.302 Casualty-Reduction-eliminates "
+                        "semantics."
+                    ),
+                    "items": {
+                        "type": "string",
+                        "enum": ["squad", "hs", "crew", "smc"],
+                    },
+                },
+            },
+            "required": ["attack_fp", "defense_fp"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
         "name": "resolve_cc",
         "description": (
             "Resolve the CLOSE COMBAT (A11) in one hex DIRECTLY from the attached "
@@ -484,8 +611,8 @@ TOOL_SCHEMAS = [
             "and explicit assumptions (no Ambush dr, no Hand-to-Hand, withdrawal not "
             "modeled). ALWAYS use this instead of hand-deriving CC math when a .vsav "
             "is attached and the question concerns CC/Melee in a hex. If no save is "
-            "attached it returns an error — there is no non-save CC tool; then derive "
-            "by hand with file_search citations."
+            "attached it returns an error; for CC questions without a save use the "
+            "cc_attack tool instead (supply the CC firepowers and DRMs yourself)."
         ),
         "parameters": {
             "type": "object",
@@ -531,6 +658,7 @@ TOOL_SCHEMAS = [
 TOOL_FUNCTIONS = {
     "ift_odds": ift_odds,
     "ift_attack": ift_attack,
+    "cc_attack": cc_attack,
     "resolve_attack": resolve_attack,
     "resolve_cc": resolve_cc,
 }

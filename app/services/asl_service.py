@@ -59,7 +59,9 @@ When local board data is available, each OCCUPIED hex carries its terrain in [..
 
 FIRE ATTACK RESOLUTION: when the question asks to resolve a fire attack between hexes of the attached save (who fires, final FP, DRM, IFT column, break/kill odds), and function tools are available, call the resolve_attack tool with the '<board>-<hex>' IDs from the BOARD STATE block (e.g. firing_hex "57-H9", target_hex "57-H8") and the fire phase. Do NOT derive firepower, range doubling, TEM, or DRM yourself - the tool computes them deterministically from the parsed save and returns an itemized derivation. Present its derivation faithfully: the per-unit FP breakdown, the range/PBF note, every DRM line item, and ALL of its listed assumptions and warnings (especially that LOS is assumed clear and intervening hindrances are not counted - invite the user to confirm those). Still call file_search for the governing rules it cites (e.g., A7.21 PBF, B27 entrenchments) and cite the sections in your explanation. Assault Fire (A7.36) is detected from the counter art and applied automatically in the advancing phase (a warning names any unit whose capability is unknown); Spraying Fire capability (A7.34) is surfaced as a note but never auto-applied. If resolve_attack returns an error, or the situation needs inputs it cannot know (moving target FFNAM/FFMO, hindrances the user described, a Spraying Fire two-Location attack), fall back to ift_attack with explicit inputs. For fire questions WITHOUT an attached save, keep using ift_attack.
 
-CLOSE COMBAT / MELEE RESOLUTION: when the question asks about Close Combat or Melee in a hex of the attached save (CC odds, kill numbers, the DR needed to eliminate/reduce a unit, who can attack whom in a Melee), and function tools are available, call the resolve_cc tool with the '<board>-<hex>' ID from the BOARD STATE block (e.g. hex_id "57-G9"), plus attacker_side and optional unit filters if the user singled units out. NEVER hand-derive CC firepower, odds ratios, CCT kill numbers, or CC DRM - A11 arithmetic (SMC inherent FP = 1, SW/ordnance excluded, odds rounded DOWN to the printed CCT column, Final DR < KN vs = KN semantics) is exactly where hand derivation goes wrong. Present the tool's derivation faithfully: the per-unit CC FP ledger for each side, BOTH directions (CC is simultaneous - always show the defender's counter-attack too), every DRM line item, the eliminate/Casualty-Reduction thresholds (and that CR eliminates a HS/crew outright per A7.302 when the tool says so), its Melee note (Ambush NA in an existing Melee), and ALL of its assumptions and warnings (no Ambush dr derived, Hand-to-Hand not applied, withdrawal not modeled, either side may split its attacks differently). Still call file_search for the governing rules it cites (A11.11, A11.13, A11.14, A11.16, A11.19) and cite them in your explanation. If resolve_cc returns an error or no save is attached, there is NO fallback CC calculator: derive the answer carefully with file_search citations for every value, and tell the user that attaching the .vsav save would give exact, deterministic numbers.
+CLOSE COMBAT / MELEE RESOLUTION: when the question asks about Close Combat or Melee in a hex of the attached save (CC odds, kill numbers, the DR needed to eliminate/reduce a unit, who can attack whom in a Melee), and function tools are available, call the resolve_cc tool with the '<board>-<hex>' ID from the BOARD STATE block (e.g. hex_id "57-G9"), plus attacker_side and optional unit filters if the user singled units out. NEVER hand-derive CC firepower, odds ratios, CCT kill numbers, or CC DRM - A11 arithmetic (SMC inherent FP = 1, SW/ordnance excluded, odds rounded DOWN to the printed CCT column, Final DR < KN vs = KN semantics) is exactly where hand derivation goes wrong. Present the tool's derivation faithfully: the per-unit CC FP ledger for each side, BOTH directions (CC is simultaneous - always show the defender's counter-attack too), every DRM line item, the eliminate/Casualty-Reduction thresholds (and that CR eliminates a HS/crew outright per A7.302 when the tool says so), its Melee note (Ambush NA in an existing Melee), and ALL of its assumptions and warnings (no Ambush dr derived, Hand-to-Hand not applied, withdrawal not modeled, either side may split its attacks differently). Still call file_search for the governing rules it cites (A11.11, A11.13, A11.14, A11.16, A11.19) and cite them in your explanation. If resolve_cc returns an error or no save is attached, fall back to the cc_attack tool, supplying the attackers' total CC FP, the defenders' CC FP, and the CC DRMs (it returns the same odds / Kill-Number / eliminate-vs-Casualty-Reduction math). Still call file_search for the governing rules and cite them, and note that attaching the .vsav save would let resolve_cc derive the firepower and DRMs for you. For CC questions WITHOUT an attached save, use cc_attack.
+
+MANDATORY CALCULATOR USE: Any question that requires computing an Infantry Fire Table result MUST be answered by calling ift_attack, and any Close Combat result by calling cc_attack - even when it looks simple, and even with no save attached. Trigger cases include: final/adjusted FP, the FP column, a net DRM total, Residual FP, break/pin/Casualty or kill odds; and for CC: the odds ratio, the Kill Number, or the DR needed to eliminate/Casualty-Reduce a unit. Do NOT hand-derive this arithmetic - it is exactly where hand derivation goes wrong. Instead use file_search to confirm which DRMs/TEM apply, then pass the situation to the tool (FP plus pbf/pinned/assault_fire/afph flags, and the range_to_target plus each firer's normal_range so the tool derives Long Range itself rather than you hand-judging it, TEM, hindrance, FFMO/FFNAM, leadership for ift_attack; attacker_fp, defense_fp and the CC DRMs for cc_attack) and report the tool's numbers verbatim. These two tools cover ONLY IFT and CC math: for movement-point costs, LOS/blind-hex geometry, Morale/Task-Check thresholds, rally/self-rally, concealment dr, sniper checks, To-Hit, and the like there is no calculator - derive those by hand with file_search citations.
 
 Never quote a TEM or DRM value from memory - look it up with file_search first, even for terrain and markers that seem familiar. This applies equally to values you pass INTO ift_attack (the tool trusts whatever TEM you give it). In particular, entrenchments shown as 'Foxhole: in' / 'Trench: in' in {..} have their own TEM rules (B27) distinct from the hex's terrain TEM - and they protect ONLY the units annotated as in them, and similar-sounding features differ (e.g., foxholes and shellholes have different TEMs); verify which applies and cite the section."""
 
@@ -326,6 +328,9 @@ Your response:"""
         image_paths: Optional[List[str]] = None,
         board_state: Optional[str] = None,
         vsav_state: Optional[Dict[str, Any]] = None,
+        force_tool: Optional[str] = None,
+        auto_route_tools: bool = False,
+        route_model: str = "gpt-4.1-mini",
     ):
         """
         Get an answer to an ASL question.
@@ -444,6 +449,13 @@ Your response:"""
                 tools.extend(TOOL_SCHEMAS)
                 logging.info(f"🤖 Agentic mode enabled - added {len(TOOL_SCHEMAS)} function tools"
                              + (" (with parsed .vsav state in tool context)" if tool_context else ""))
+                # Auto-route calc questions to the right calculator (force it on
+                # the first turn). gpt-5.4 rarely calls these tools on its own.
+                if auto_route_tools and not force_tool:
+                    from app.asl.tool_router import classify_tool
+                    force_tool = classify_tool(question, model=route_model)
+                    if force_tool:
+                        logging.info(f"🧭 Auto-routed to tool: {force_tool}")
             
             # Build common API kwargs — some models (e.g. gpt-5-mini) don't support temperature
             api_kwargs = {
@@ -452,10 +464,14 @@ Your response:"""
                 "instructions": instructions,
                 "tools": tools,
             }
-            # Only include temperature for models that support it
+            # Only include temperature for models that support it. The whole
+            # GPT-5 family only supports the default temperature; sending the
+            # param errors (create_response/agentic both omit a None temp).
             _no_temp_models = {"gpt-5-mini", "gpt-5-mini-2025-08-07", "gpt-5.4-mini"}
-            if model not in _no_temp_models:
-                api_kwargs["temperature"] = temperature
+            supports_temp = not str(model).startswith("gpt-5") and model not in _no_temp_models
+            effective_temp = temperature if supports_temp else None
+            if effective_temp is not None:
+                api_kwargs["temperature"] = effective_temp
 
             if stream:
                 if use_agentic:
@@ -486,11 +502,13 @@ Your response:"""
                         question=question,
                         instructions=instructions,
                         model=model,
-                        temperature=temperature,
+                        temperature=effective_temp,
                         tools=tools,
                         api_call_start_time=api_call_start_time,
                         use_verification=use_verification,
                         tool_context=tool_context,
+                        return_timing=return_timing,
+                        force_tool=force_tool,
                     )
                 else:
                     # Standard non-streaming
@@ -919,20 +937,53 @@ Your response:"""
         use_verification: bool,
         max_iterations: int = 5,
         tool_context: Optional[Dict[str, Any]] = None,
-    ) -> str:
+        return_timing: bool = False,
+        force_tool: Optional[str] = None,
+    ):
         """
         Handle agentic response with multi-turn tool execution loop.
+
+        force_tool: when set to a function name (e.g. "ift_attack"), the model
+        is required to call that function on the first turn (tool_choice); later
+        turns revert to 'auto'. Used to measure tool-assisted accuracy.
+
+        Returns the answer string, or — when return_timing=True — a
+        (text, timing_data) tuple (token totals across the loop, wall-clock
+        time, and the tools called), mirroring the streaming timing contract.
         """
         import json as json_module
-        
+
         logging.info("🤖 Starting agentic response loop...")
 
         # Track previous response ID for context
         previous_response_id = None
         input_data = question
+        total_input_tokens = 0
+        total_output_tokens = 0
+        tools_called: List[str] = []
+
+        def _result(text):
+            text = _strip_citation_markers(text)
+            if not return_timing:
+                return text
+            elapsed = (time.time() - api_call_start_time) * 1000
+            return text, {
+                "response_time_ms": elapsed,
+                "retrieval_ms": None,      # server-side file_search; not separable
+                "inference_ms": elapsed,
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+                "tools_called": tools_called,
+                "iterations": iteration + 1,
+            }
 
         for iteration in range(max_iterations):
             logging.info(f"🔄 Agentic iteration {iteration + 1}/{max_iterations}")
+
+            # Force the named function on the FIRST turn only; later turns use
+            # 'auto' so the model can stop calling tools and emit the answer.
+            tc = ({"type": "function", "name": force_tool}
+                  if force_tool and iteration == 0 else None)
 
             # Make API call (use previous_response_id if available)
             if previous_response_id:
@@ -943,7 +994,8 @@ Your response:"""
                     instructions=instructions,
                     temperature=temperature,
                     stream=False,
-                    tools=tools
+                    tools=tools,
+                    tool_choice=tc,
                 )
             else:
                 response = self.client.create_response(
@@ -952,11 +1004,18 @@ Your response:"""
                     instructions=instructions,
                     temperature=temperature,
                     stream=False,
-                    tools=tools
+                    tools=tools,
+                    tool_choice=tc,
                 )
             
             # Store response ID for next iteration
             previous_response_id = getattr(response, "id", None)
+
+            # Accumulate token usage across the loop
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                total_input_tokens += getattr(usage, "input_tokens", 0) or 0
+                total_output_tokens += getattr(usage, "output_tokens", 0) or 0
 
             # Extract output blocks
             output_blocks = getattr(response, "output", [])
@@ -982,21 +1041,23 @@ Your response:"""
                         if item_type == "output_text":
                             final_text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
             
+            tools_called.extend(fc["name"] for fc in function_calls if fc.get("name"))
+
             # If no function calls, we have our final answer
             if not function_calls:
                 logging.info(f"✅ Agentic loop completed after {iteration + 1} iterations")
                 if final_text is None:
                     final_text = extract_response_text(response)
-                
+
                 response_end_time = time.time()
                 total_time_ms = (response_end_time - api_call_start_time) * 1000
                 logging.info(f"[RAG Latency] Total agentic response time: {total_time_ms:.1f}ms")
-                
+
                 if use_verification:
                     logging.info("🔍 Verification enabled - running second pass...")
                     final_text = self._verify_answer(question, final_text, model, temperature)
 
-                return _strip_citation_markers(final_text)
+                return _result(final_text)
             
             # 2. Execute function calls and build input for next iteration
             logging.info(f"🔧 Executing {len(function_calls)} function call(s)...")
@@ -1032,7 +1093,7 @@ Your response:"""
             input_data = function_results
         
         logging.warning("⚠️ Max iterations reached")
-        return _strip_citation_markers(final_text or extract_response_text(response))
+        return _result(final_text or extract_response_text(response))
 
 
 # Global service instance (lazy initialization)

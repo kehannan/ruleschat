@@ -57,6 +57,42 @@ def test_a734_ex_long_range_fraction_retained():
     assert r["total_fp"] == 1.5 and r["column"] == 1
 
 
+def test_long_range_derived_from_range_and_normal_range():
+    """A7.22: range_to_target > normal_range derives long range and halves FP."""
+    r = compute_attack(units=[{"fp": 6, "normal_range": 6}], range_to_target=7)
+    assert r["total_fp"] == 3
+    assert r["fp_breakdown"][0]["steps"] == ["÷2 long range (range 7 > normal range 6) = 3"]
+
+
+def test_within_normal_range_not_long_range():
+    """range_to_target <= normal_range derives normal fire — no halving."""
+    r = compute_attack(units=[{"fp": 6, "normal_range": 6}], range_to_target=6)
+    assert r["total_fp"] == 6
+    assert not any("long range" in s for s in r["fp_breakdown"][0]["steps"])
+
+
+def test_derived_long_range_overrides_flag_with_warning():
+    """A hand-set long_range flag that contradicts the geometry is overridden."""
+    r = compute_attack(units=[{"fp": 6, "normal_range": 6, "long_range": False}],
+                       range_to_target=10)
+    assert r["total_fp"] == 3
+    assert any("overridden" in w for w in r["warnings"])
+
+
+def test_range_given_but_no_normal_range_warns_and_keeps_flag():
+    """Without normal_range the tool can't derive — it warns and honors the flag."""
+    r = compute_attack(units=[{"fp": 6, "long_range": True}], range_to_target=10)
+    assert r["total_fp"] == 3  # flag still applied
+    assert any("Cannot derive long range" in w for w in r["warnings"])
+
+
+def test_range_to_target_in_schema():
+    """The tool schema exposes range_to_target and per-unit normal_range."""
+    schema = _schema("ift_attack")["parameters"]["properties"]
+    assert "range_to_target" in schema
+    assert "normal_range" in schema["units"]["items"]["properties"]
+
+
 def test_fractions_summed_across_units_before_column():
     """A7.2: fractions are kept per unit and only the TOTAL picks the column."""
     # Two 3 FP units at long range: 1.5 + 1.5 = 3 → 2 column (not 1+1).
