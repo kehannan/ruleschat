@@ -1,16 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}ASL Ruleschat — AI for Advanced Squad Leader rules{% endblock %}</title>
-    <!-- Kevmo Industries design system fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap">
-    <!-- Kevmo design tokens (colors, type, spacing, shape, elevation, motion) -->
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/kevmo/kevmo.css') }}">
-    <!-- Site design system (components, consumes kevmo tokens) -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="{{ url_for('static', path='/css/site-design-system.css') }}">
     {% block extra_css %}{% endblock %}
   </head>
@@ -21,21 +17,17 @@
         <div class="wrap nav-inner">
           <a class="brand" href="{{ url_for('home') }}">
             <span class="brand-mark" aria-hidden="true">
-              <!-- Kevmo chevron-bar mark (static/img/kevmo/logo-mark.svg, inlined for currentColor) -->
-              <svg viewBox="0 0 64 64" fill="none">
-                <rect x="6" y="28.5" width="27" height="7" rx="2" fill="currentColor"></rect>
-                <rect x="5" y="21" width="8" height="22" rx="2.5" fill="currentColor"></rect>
-                <path d="M30 16 L50 32 L30 48" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path>
+              <svg viewBox="0 0 32 32" fill="none">
+                <polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="var(--ink)" />
+                <text x="16" y="22" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="16" font-weight="500" fill="var(--paper)">a</text>
               </svg>
             </span>
             <span class="brand-name">ASL <em>Ruleschat</em></span>
           </a>
           <div class="nav-links">
             <a href="{{ url_for('home') }}" {% if active_page == 'home' %}class="active"{% endif %}>Home</a>
-            <a href="{{ url_for('ruleschat') }}" data-require-login="true" class="nav-chat {% if active_page == 'chat' %}active{% endif %}">Chat</a>
             <a href="{{ url_for('evals') }}" {% if active_page == 'evals' %}class="active"{% endif %}>Evals</a>
-            <a href="{{ url_for('ift') }}" {% if active_page == 'ift' %}class="active"{% endif %}>Tools</a>
-            <a href="{{ url_for('about') }}" {% if active_page == 'about' %}class="active"{% endif %}>About</a>
+            <a href="{{ url_for('ruleschat') }}" data-require-login="true" class="nav-chat {% if active_page == 'chat' %}active{% endif %}">Chat</a>
             <a href="{{ url_for('profile_page') }}" data-require-login="true" class="nav-profile {% if active_page == 'profile' %}active{% endif %}">Profile</a>
             <a href="{{ url_for('admin_dashboard') }}" data-require-admin="true" class="nav-admin {% if active_page == 'admin' %}active{% endif %}">Admin</a>
             <a href="{{ url_for('logout') }}" data-require-login="true" class="nav-logout">Logout</a>

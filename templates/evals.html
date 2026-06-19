@@ -4,240 +4,6 @@
 
 {% block title %}Evaluation Report — ASL Ruleschat{% endblock %}
 
-{% block extra_css %}
-<style>
-  /* MASTHEAD — heavy 2px steel rule signals "report header" */
-  .site .evals-masthead {
-    padding: 64px 0 48px;
-    border-bottom: 2px solid var(--border-strong);
-    position: relative;
-    background-image:
-      linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 34px 34px;
-  }
-  .site .evals-masthead .mast-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 48px;
-    align-items: end;
-  }
-  .site .evals-masthead h1 {
-    font-family: var(--font-display);
-    font-weight: 400;
-    font-size: clamp(32px, 4vw, 52px);
-    line-height: var(--leading-tight);
-    letter-spacing: var(--tracking-tight);
-    text-transform: uppercase;
-    margin: 0 0 18px;
-    text-wrap: balance;
-  }
-  .site .evals-masthead h1 em { font-style: normal; color: var(--accent); }
-  .site .evals-masthead .lede {
-    font-size: 19px; line-height: 1.55;
-    color: var(--text-secondary); max-width: 620px;
-    margin: 0;
-    text-wrap: pretty;
-  }
-
-  /* Editorial column layout: 220px rail | 1fr body */
-  .site .ev-grid {
-    display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 56px;
-    align-items: baseline;
-  }
-  .site .ev-grid .ev-label .eyebrow { margin-bottom: 0; }
-  .site .ev-grid .ev-label .ev-title {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-top: 4px;
-  }
-  .site .ev-grid .ev-body h2 { margin: 0 0 18px; }
-  .site .ev-grid .ev-body .table-caption {
-    font-size: 14px;
-    color: var(--muted);
-    font-family: var(--mono);
-    margin-bottom: 22px;
-    letter-spacing: .02em;
-  }
-  .site .ev-grid .ev-body .table-footnote {
-    margin-top: 14px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: .02em;
-    line-height: 1.6;
-  }
-  .site .ev-grid .ev-body .table-footnote sup { color: var(--accent); }
-
-  /* Findings list */
-  .site .findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 0; }
-  .site .findings li {
-    display: grid;
-    grid-template-columns: 40px 1fr;
-    gap: 16px;
-    padding: 18px 0;
-    border-top: 1px solid var(--border-hairline);
-  }
-  .site .findings li:first-child { border-top: 1px solid var(--border-strong); }
-  .site .findings li:last-child { border-bottom: 1px solid var(--border-hairline); }
-  .site .findings .num {
-    font-family: var(--font-display);
-    font-style: normal;
-    font-size: 22px;
-    font-weight: 400;
-    text-transform: uppercase;
-    color: var(--accent);
-    line-height: 1;
-  }
-  .site .findings .fnd-title {
-    font-family: var(--font-sans);
-    font-size: 17px;
-    font-weight: 700;
-    letter-spacing: var(--tracking-tight);
-    margin-bottom: 6px;
-  }
-  .site .findings .fnd-body {
-    font-size: 14.5px;
-    line-height: 1.6;
-    color: var(--text-secondary);
-  }
-
-  /* Comparison table — instrument panel */
-  .site .compare-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: var(--surface-card);
-    border: 1px solid var(--border-strong);
-    font-family: var(--font-sans);
-  }
-  .site .compare-table thead tr { border-bottom: 1px solid var(--border-strong); }
-  .site .compare-table th {
-    padding: 14px 12px;
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    color: var(--text-muted);
-    font-weight: 500;
-    background: var(--bg-subtle);
-    text-align: center;
-  }
-  .site .compare-table th.col-model { text-align: left; padding: 14px 16px; }
-  .site .compare-table th.col-action { text-align: right; padding: 14px 16px; }
-  .site .compare-table tbody tr { border-top: 1px solid var(--border-hairline); }
-  .site .compare-table td {
-    padding: 14px 12px;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-    color: var(--text-secondary);
-    text-align: center;
-    vertical-align: top;
-  }
-  .site .compare-table td.col-model {
-    text-align: left;
-    padding: 14px 16px;
-    color: var(--text-primary);
-    vertical-align: top;
-  }
-  .site .compare-table td.col-model .frontier {
-    font-family: var(--font-mono);
-    font-size: 9.5px;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-top: 2px;
-    font-weight: 500;
-  }
-  .site .compare-table td.col-model .model-sub {
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    color: var(--text-muted);
-    margin-top: 2px;
-    letter-spacing: .04em;
-  }
-  .site .compare-table td.col-action { text-align: right; padding: 14px 16px; }
-  .site .compare-table td.acc { font-weight: 600; }
-  .site .compare-table td.cell-good {
-    color: var(--positive);
-    background: var(--positive-soft);
-  }
-  .site .compare-table td.cell-mid {
-    color: var(--warning);
-    background: var(--warning-soft);
-  }
-  .site .compare-table td.cell-bad {
-    color: var(--danger);
-    background: var(--danger-soft);
-  }
-  .site .compare-table td.col-date {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-  .site .compare-table .view-link {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 5px 12px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: .08em;
-    color: var(--text-primary);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    text-transform: uppercase;
-    transition: background var(--dur-fast) var(--ease-lock),
-                border-color var(--dur-fast) var(--ease-lock);
-  }
-  .site .compare-table .view-link:hover {
-    background: var(--ink-800);
-    border-color: var(--text-muted);
-  }
-
-  /* Production usage charts — console card. Two Chart.js line charts stacked
-     vertically; mono accent titles match the rest of the console chrome. */
-  .site .chart-card {
-    background: var(--surface-card);
-    padding: 24px;
-    border: 1px solid var(--border-hairline);
-    border-radius: var(--radius-lg);
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 36px;
-  }
-  .site .chart-card .chart-block .chart-title {
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 12px;
-    font-weight: 500;
-  }
-  /* Chart.js with `maintainAspectRatio: false` fills the parent's height, so
-     the canvas needs a relative-positioned wrapper with a fixed height —
-     otherwise it grows unbounded. */
-  .site .chart-card .chart-block .chart-canvas-wrap {
-    position: relative;
-    height: 340px;
-  }
-  .site .chart-card .chart-block canvas { background: transparent; }
-
-  /* RESPONSIVE */
-  @media (max-width: 880px) {
-    .site .ev-grid { grid-template-columns: 1fr; gap: 24px; }
-    .site .chart-card .chart-block .chart-canvas-wrap { height: 260px; }
-  }
-  @media (max-width: 620px) {
-    .site .compare-table th, .site .compare-table td { padding: 10px 6px; font-size: 11px; }
-  }
-</style>
-{% endblock %}
-
 {% block main %}
 <!-- ─── MASTHEAD ─── -->
 <header class="evals-masthead">
@@ -251,8 +17,8 @@
           <span>MAY 2026</span>
         </div>
         <h1>
-          Can LLMs answer ASL rules questions<br />
-          for less than <em>1 cent</em> per query?
+          Can LLMs <em>cost-effectively</em><br />
+          answer ASL rules questions?
         </h1>
         <p class="lede">
           A human-verified comparison across models on a 200+ question eval
@@ -273,41 +39,28 @@
         <div class="ev-title">Findings</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Three <em>findings</em>.</h2>
+        <h2 class="h-section">Two clear results, two<br />open <em>questions</em>.</h2>
         <ol class="findings">
           <li>
             <span class="num">i</span>
             <div>
-              <div class="fnd-title">Recall is solved on this simple eval.</div>
+              <div class="fnd-title">The latest models answer recall reliably.</div>
               <div class="fnd-body">
-                gpt-5.4 and gpt-5-mini both hit 99% on pure rule lookup for
-                this simple eval. The gap shows up in latency: gpt-5-mini
-                runs about 2× as slow as gpt-5.4. Next step: a harder eval —
-                currently being built — to find where they actually start to
-                break.
+                On this 213-question eval, the top two models clear 95% on
+                pure rule lookups. Next step: a harder eval — currently being
+                built — to find where they actually start to break.
               </div>
             </div>
           </li>
           <li>
             <span class="num">ii</span>
             <div>
-              <div class="fnd-title">gpt-5.4 wins on accuracy-and-latency — at 10× the cost.</div>
+              <div class="fnd-title">Calculations are where the cheap models fail.</div>
               <div class="fnd-body">
-                On the combined axes of accuracy and latency, gpt-5.4 is
-                ahead, but gpt-5.4 costs 6 cents per query vs. 0.7 cents for gpt-5-mini.
-              </div>
-            </div>
-          </li>
-          <li>
-            <span class="num">iii</span>
-            <div>
-              <div class="fnd-title">All models struggle with calculations.</div>
-              <div class="fnd-body">
-                Calc accuracy spreads 50–86% across the lineup. The top two
-                on recall are also the top two here — gpt-5.4 and gpt-5-mini —
-                but neither clears 90%. Next step: failure-mode analysis on
-                calc errors to see whether the wall is retrieval, reasoning,
-                or arithmetic.
+                Calc accuracy spreads 38–86% across the lineup. Next step:
+                failure-mode analysis on calc errors to see whether the wall
+                is retrieval, reasoning, or arithmetic — then target the
+                weakest link.
               </div>
             </div>
           </li>
@@ -403,32 +156,103 @@
         {% endif %}
 
         {% if error %}
-        <div style="margin-top: 24px; padding: 14px 18px; border-left: 3px solid var(--danger); background: var(--danger-soft); font-family: var(--font-mono); font-size: 12px;">{{ error }}</div>
+        <div style="margin-top: 24px; padding: 14px 18px; border-left: 3px solid var(--fail); background: color-mix(in oklch, var(--fail) 8%, var(--paper)); font-family: var(--mono); font-size: 12px;">{{ error }}</div>
         {% endif %}
       </div>
     </div>
   </div>
 </section>
 
-<!-- ─── 03 · PRODUCTION USAGE (charts) ─── -->
+<!-- ─── 03 · SAMPLE QUERIES ─── -->
 <section class="section no-border">
   <div class="wrap">
     <div class="ev-grid">
       <div class="ev-label">
         <div class="eyebrow"><span class="num">03</span></div>
-        <div class="ev-title">Production usage</div>
+        <div class="ev-title">Sample queries</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Cost and latency,<br /><em>in flight</em>.</h2>
-        <p class="table-caption">Daily averages from live chat · text-only baselines, image variants dashed, agentic (tool-using) variants dotted</p>
-        <div class="chart-card">
-          <div class="chart-block">
-            <div class="chart-title">Cost / question ($)</div>
-            <div class="chart-canvas-wrap"><canvas id="costChart"></canvas></div>
+        <h2 class="h-section">What the eval set<br /><em>looks like</em>.</h2>
+        <p class="table-caption">Three representative items — one pass, one needs-review, one fail.</p>
+
+        <div class="sample-item">
+          <div class="sample-header">
+            <span class="cite">A4.5</span>
+            <span class="qtype-badge">recall</span>
+            <span class="ev-badge pass"><span>✓</span>PASS</span>
+            <span class="sample-conf">judge confidence <b>0.95</b></span>
           </div>
-          <div class="chart-block">
-            <div class="chart-title">Response time (s)</div>
-            <div class="chart-canvas-wrap"><canvas id="timeChart"></canvas></div>
+          <div class="sample-q">How many additional MF does Double Time provide to Infantry?</div>
+          <div class="sample-cols">
+            <div>
+              <div class="col-label expected">EXPECTED</div>
+              <div class="col-body">
+                Double Time increases the MF allotment of Infantry by two. If
+                announced after a unit has expended MF, it increases the
+                unit's MF by only one while incurring the same penalties.
+              </div>
+            </div>
+            <div>
+              <div class="col-label got">MODEL RESPONSE</div>
+              <div class="col-body">
+                Double Time provides Infantry with +2 MF, increasing the
+                normal allotment by two; if declared after some MF have
+                already been expended, it provides only +1 MF.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sample-item">
+          <div class="sample-header">
+            <span class="cite">A12.1</span>
+            <span class="qtype-badge">recall</span>
+            <span class="ev-badge review"><span>⚠</span>NEEDS REVIEW</span>
+            <span class="sample-conf">judge confidence <b>0.61</b></span>
+          </div>
+          <div class="sample-q">When a Concealment counter is removed, does the unit also lose Hidden Initiative status?</div>
+          <div class="sample-cols">
+            <div>
+              <div class="col-label expected">EXPECTED</div>
+              <div class="col-body">
+                No. Concealment loss does not alter Hidden Initiative; the
+                two are tracked independently (A12.1).
+              </div>
+            </div>
+            <div>
+              <div class="col-label got">MODEL RESPONSE</div>
+              <div class="col-body">
+                Yes — when a Concealment counter is lost, the unit also
+                loses Hidden Initiative because they share the same trigger.
+                (A4.34)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sample-item">
+          <div class="sample-header">
+            <span class="cite">C8.31</span>
+            <span class="qtype-badge">calc</span>
+            <span class="ev-badge fail"><span>✕</span>FAIL</span>
+            <span class="sample-conf">judge confidence <b>0.84</b></span>
+          </div>
+          <div class="sample-q">A 4-6-7 fires at an unconcealed 4-4-7 in a Stone Building, range 4, no other DRM. What FP column and DRM?</div>
+          <div class="sample-cols">
+            <div>
+              <div class="col-label expected">EXPECTED</div>
+              <div class="col-body">
+                4 FP column, +3 TEM (Stone Building), +1 long-range = +4 net
+                DRM; 4 (1) column on IFT.
+              </div>
+            </div>
+            <div>
+              <div class="col-label got">MODEL RESPONSE</div>
+              <div class="col-body">
+                4 FP column, +3 TEM, no range DRM. Net +3 DRM on 4 (1)
+                column.
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -439,7 +263,7 @@
 <!-- ─── FOOTER ─── -->
 <footer class="site-footer">
   <div class="wrap">
-    <div class="legal">
+    <div class="legal-center">
       Advanced Squad Leader™ is a trademark of Avalon Hill Games, Inc.
       Personal, non-commercial project — no affiliation with Hasbro, Avalon Hill,
       or Multi-Man Publishing.
@@ -449,86 +273,14 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
-// One fetch against /api/usage/daily powers two things: (a) the cost/time cells
-// in the comparison table above, and (b) the three Chart.js line charts in
-// Section 04 below. Keeping it in a single .then() avoids a second round-trip.
+// /api/usage/daily powers the cost/time cells in the comparison table.
 const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2' };
-
-// Six maximally-separable hues from the Kevmo signal palette, tuned for the
-// dark console. Blaze is reserved for the frontier baseline (the hero line);
-// the rest are functional hues + a neutral steel for the legacy model.
-const DS_PALETTE = ['#F4541D', '#2FB36A', '#F2A416', '#3F84F2', '#E5443F', '#7A859B'];
-const MODEL_COLORS = {
-  'gpt-5.4':       '#F4541D',  // blaze — frontier
-  'gpt-5-mini':    '#2FB36A',  // tactical green
-  'gpt-5.4-mini':  '#F2A416',  // amber
-  'deepseek-v3':   '#3F84F2',  // blue
-  'mercury-2':     '#E5443F',  // red
-  'gpt-4.1-mini':  '#7A859B',  // steel — legacy
-};
-function colorFor(model, idx) { return MODEL_COLORS[model] || DS_PALETTE[idx % DS_PALETTE.length]; }
-const IMAGE_DASH = [4, 3];                                  // image variants render dashed
-const AGENTIC_DASH = [2, 2];                                // agentic variants render dotted
-const CHART_EXCLUDED = new Set([
-  'gpt-4.1-mini',
-  'gpt-5-mini (image)',
-  'gpt-5.4 (image)',
-  'gpt-5.4-mini',
-]);
-
-// Shared Chart.js options — muted gridlines, mono tick fonts, no fills, no
-// curve tension. Colors come from the Kevmo steel ramp (dark console).
-const SHARED_OPTS = {
-  responsive: true,
-  maintainAspectRatio: false,
-  scales: {
-    x: {
-      type: 'category',
-      grid: { display: false },
-      ticks: {
-        font: { family: 'JetBrains Mono, monospace', size: 10 },
-        color: '#7A859B',
-        // Strip the year — API returns YYYY-MM-DD; we want "May 25".
-        callback: function(value) {
-          const label = this.getLabelForValue(value);
-          const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(label);
-          if (!m) return label;
-          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-          return `${months[parseInt(m[1], 10) - 1]} ${parseInt(m[2], 10)}`;
-        },
-      },
-    },
-    y: {
-      beginAtZero: true,
-      grid: { color: 'rgba(122, 133, 155, 0.14)', drawBorder: false },
-      ticks: { font: { family: 'JetBrains Mono, monospace', size: 10 }, color: '#7A859B' },
-    },
-  },
-  plugins: {
-    legend: {
-      position: 'bottom',
-      labels: {
-        boxWidth: 10, boxHeight: 2,
-        font: { family: 'JetBrains Mono, monospace', size: 10 },
-        color: '#A2ACBF',
-      },
-    },
-  },
-  elements: {
-    line: { tension: 0, borderWidth: 2 },
-    point: { radius: 3, hoverRadius: 5 },
-  },
-};
 
 fetch('/api/usage/daily')
   .then(r => r.json())
   .then(data => {
     if (!data.models || data.models.length === 0) return;
-
-    // (a) Table cells. Agentic + image variants are split into their own
-    // chart series; the table row reflects baseline (text, non-agentic) cost.
     data.models.forEach(variant => {
       const s = data.series[variant];
       if (s.is_image || s.is_agentic) return;
@@ -549,37 +301,6 @@ fetch('/api/usage/daily')
         timeEl.textContent = avgTime.toFixed(1) + 's';
         timeEl.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
       }
-    });
-
-    // (b) Charts.
-    function buildDatasets(extractFn) {
-      const ds = [];
-      data.models.forEach((variant, i) => {
-        if (CHART_EXCLUDED.has(variant)) return;
-        const s = data.series[variant];
-        const color = colorFor(s.base_model, i);
-        ds.push({
-          label: variant,
-          data: s.dates.map((d, j) => ({ x: d, y: extractFn(s, j) })),
-          borderColor: color,
-          backgroundColor: color,
-          borderDash: s.is_image ? IMAGE_DASH : (s.is_agentic ? AGENTIC_DASH : []),
-          spanGaps: false,
-          fill: false,
-        });
-      });
-      return ds;
-    }
-
-    new Chart(document.getElementById('costChart'), {
-      type: 'line',
-      data: { datasets: buildDatasets((s, j) => s.cost[j]) },
-      options: SHARED_OPTS,
-    });
-    new Chart(document.getElementById('timeChart'), {
-      type: 'line',
-      data: { datasets: buildDatasets((s, j) => s.total_time_s[j]) },
-      options: SHARED_OPTS,
     });
   })
   .catch(e => console.warn('Could not load usage data:', e));
