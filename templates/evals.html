@@ -4,6 +4,41 @@
 
 {% block title %}Evaluation Report — ASL Ruleschat{% endblock %}
 
+{% block extra_css %}
+<style>
+  /* Production usage charts — two Chart.js line charts stacked vertically.
+     Flat editorial styling to match the rest of the report (hairline rule,
+     mono accent titles); no card chrome. */
+  .chart-card {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 36px;
+    margin-top: 8px;
+  }
+  .chart-block .chart-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  /* Chart.js with `maintainAspectRatio: false` fills the parent's height, so
+     the canvas needs a relative-positioned wrapper with a fixed height —
+     otherwise it grows unbounded. */
+  .chart-block .chart-canvas-wrap {
+    position: relative;
+    height: 340px;
+  }
+  .chart-block canvas { background: transparent; }
+
+  @media (max-width: 880px) {
+    .chart-block .chart-canvas-wrap { height: 260px; }
+  }
+</style>
+{% endblock %}
+
 {% block main %}
 <!-- ─── MASTHEAD ─── -->
 <header class="evals-masthead">
@@ -17,8 +52,8 @@
           <span>MAY 2026</span>
         </div>
         <h1>
-          Can LLMs <em>cost-effectively</em><br />
-          answer ASL rules questions?
+          Can LLMs answer ASL rules questions<br />
+          for less than <em>1 cent</em> per query?
         </h1>
         <p class="lede">
           A human-verified comparison across models on a 200+ question eval
@@ -39,28 +74,41 @@
         <div class="ev-title">Findings</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Two clear results, two<br />open <em>questions</em>.</h2>
+        <h2 class="h-section">Three <em>findings</em>.</h2>
         <ol class="findings">
           <li>
             <span class="num">i</span>
             <div>
-              <div class="fnd-title">The latest models answer recall reliably.</div>
+              <div class="fnd-title">Recall is solved on this simple eval.</div>
               <div class="fnd-body">
-                On this 213-question eval, the top two models clear 95% on
-                pure rule lookups. Next step: a harder eval — currently being
-                built — to find where they actually start to break.
+                gpt-5.4 and gpt-5-mini both hit 99% on pure rule lookup for
+                this simple eval. The gap shows up in latency: gpt-5-mini
+                runs about 2× as slow as gpt-5.4. Next step: a harder eval —
+                currently being built — to find where they actually start to
+                break.
               </div>
             </div>
           </li>
           <li>
             <span class="num">ii</span>
             <div>
-              <div class="fnd-title">Calculations are where the cheap models fail.</div>
+              <div class="fnd-title">gpt-5.4 wins on accuracy-and-latency — at 10× the cost.</div>
               <div class="fnd-body">
-                Calc accuracy spreads 38–86% across the lineup. Next step:
-                failure-mode analysis on calc errors to see whether the wall
-                is retrieval, reasoning, or arithmetic — then target the
-                weakest link.
+                On the combined axes of accuracy and latency, gpt-5.4 is
+                ahead, but gpt-5.4 costs 6 cents per query vs. 0.7 cents for gpt-5-mini.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="num">iii</span>
+            <div>
+              <div class="fnd-title">All models struggle with calculations.</div>
+              <div class="fnd-body">
+                Calc accuracy spreads 50–86% across the lineup. The top two
+                on recall are also the top two here — gpt-5.4 and gpt-5-mini —
+                but neither clears 90%. Next step: failure-mode analysis on
+                calc errors to see whether the wall is retrieval, reasoning,
+                or arithmetic.
               </div>
             </div>
           </li>
@@ -163,96 +211,25 @@
   </div>
 </section>
 
-<!-- ─── 03 · SAMPLE QUERIES ─── -->
+<!-- ─── 03 · PRODUCTION USAGE (charts) ─── -->
 <section class="section no-border">
   <div class="wrap">
     <div class="ev-grid">
       <div class="ev-label">
         <div class="eyebrow"><span class="num">03</span></div>
-        <div class="ev-title">Sample queries</div>
+        <div class="ev-title">Production usage</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">What the eval set<br /><em>looks like</em>.</h2>
-        <p class="table-caption">Three representative items — one pass, one needs-review, one fail.</p>
-
-        <div class="sample-item">
-          <div class="sample-header">
-            <span class="cite">A4.5</span>
-            <span class="qtype-badge">recall</span>
-            <span class="ev-badge pass"><span>✓</span>PASS</span>
-            <span class="sample-conf">judge confidence <b>0.95</b></span>
+        <h2 class="h-section">Cost and latency,<br /><em>in flight</em>.</h2>
+        <p class="table-caption">Daily averages from live chat · text-only baselines, image variants dashed, agentic (tool-using) variants dotted</p>
+        <div class="chart-card">
+          <div class="chart-block">
+            <div class="chart-title">Cost / question ($)</div>
+            <div class="chart-canvas-wrap"><canvas id="costChart"></canvas></div>
           </div>
-          <div class="sample-q">How many additional MF does Double Time provide to Infantry?</div>
-          <div class="sample-cols">
-            <div>
-              <div class="col-label expected">EXPECTED</div>
-              <div class="col-body">
-                Double Time increases the MF allotment of Infantry by two. If
-                announced after a unit has expended MF, it increases the
-                unit's MF by only one while incurring the same penalties.
-              </div>
-            </div>
-            <div>
-              <div class="col-label got">MODEL RESPONSE</div>
-              <div class="col-body">
-                Double Time provides Infantry with +2 MF, increasing the
-                normal allotment by two; if declared after some MF have
-                already been expended, it provides only +1 MF.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="sample-item">
-          <div class="sample-header">
-            <span class="cite">A12.1</span>
-            <span class="qtype-badge">recall</span>
-            <span class="ev-badge review"><span>⚠</span>NEEDS REVIEW</span>
-            <span class="sample-conf">judge confidence <b>0.61</b></span>
-          </div>
-          <div class="sample-q">When a Concealment counter is removed, does the unit also lose Hidden Initiative status?</div>
-          <div class="sample-cols">
-            <div>
-              <div class="col-label expected">EXPECTED</div>
-              <div class="col-body">
-                No. Concealment loss does not alter Hidden Initiative; the
-                two are tracked independently (A12.1).
-              </div>
-            </div>
-            <div>
-              <div class="col-label got">MODEL RESPONSE</div>
-              <div class="col-body">
-                Yes — when a Concealment counter is lost, the unit also
-                loses Hidden Initiative because they share the same trigger.
-                (A4.34)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="sample-item">
-          <div class="sample-header">
-            <span class="cite">C8.31</span>
-            <span class="qtype-badge">calc</span>
-            <span class="ev-badge fail"><span>✕</span>FAIL</span>
-            <span class="sample-conf">judge confidence <b>0.84</b></span>
-          </div>
-          <div class="sample-q">A 4-6-7 fires at an unconcealed 4-4-7 in a Stone Building, range 4, no other DRM. What FP column and DRM?</div>
-          <div class="sample-cols">
-            <div>
-              <div class="col-label expected">EXPECTED</div>
-              <div class="col-body">
-                4 FP column, +3 TEM (Stone Building), +1 long-range = +4 net
-                DRM; 4 (1) column on IFT.
-              </div>
-            </div>
-            <div>
-              <div class="col-label got">MODEL RESPONSE</div>
-              <div class="col-body">
-                4 FP column, +3 TEM, no range DRM. Net +3 DRM on 4 (1)
-                column.
-              </div>
-            </div>
+          <div class="chart-block">
+            <div class="chart-title">Response time (s)</div>
+            <div class="chart-canvas-wrap"><canvas id="timeChart"></canvas></div>
           </div>
         </div>
       </div>
@@ -273,14 +250,86 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
-// /api/usage/daily powers the cost/time cells in the comparison table.
+// One fetch against /api/usage/daily powers two things: (a) the cost/time cells
+// in the comparison table above, and (b) the two Chart.js line charts in
+// Section 03 below. Keeping it in a single .then() avoids a second round-trip.
 const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2' };
+
+// Maximally-separable hues for the line series. Blaze is reserved for the
+// frontier baseline (the hero line); the rest are functional hues + a neutral
+// for the legacy model. Tuned to read on the light paper background.
+const DS_PALETTE = ['#F4541D', '#2FB36A', '#F2A416', '#3F84F2', '#E5443F', '#7A859B'];
+const MODEL_COLORS = {
+  'gpt-5.4':       '#F4541D',  // blaze — frontier
+  'gpt-5-mini':    '#2FB36A',  // tactical green
+  'gpt-5.4-mini':  '#F2A416',  // amber
+  'deepseek-v3':   '#3F84F2',  // blue
+  'mercury-2':     '#E5443F',  // red
+  'gpt-4.1-mini':  '#7A859B',  // steel — legacy
+};
+function colorFor(model, idx) { return MODEL_COLORS[model] || DS_PALETTE[idx % DS_PALETTE.length]; }
+const IMAGE_DASH = [4, 3];                                  // image variants render dashed
+const AGENTIC_DASH = [2, 2];                                // agentic variants render dotted
+const CHART_EXCLUDED = new Set([
+  'gpt-4.1-mini',
+  'gpt-5-mini (image)',
+  'gpt-5.4 (image)',
+  'gpt-5.4-mini',
+]);
+
+// Shared Chart.js options — muted gridlines, mono tick fonts, no fills, no
+// curve tension. Axis/legend colors tuned for the light paper theme.
+const SHARED_OPTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    x: {
+      type: 'category',
+      grid: { display: false },
+      ticks: {
+        font: { family: 'JetBrains Mono, monospace', size: 10 },
+        color: '#6B6660',
+        // Strip the year — API returns YYYY-MM-DD; we want "May 25".
+        callback: function(value) {
+          const label = this.getLabelForValue(value);
+          const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(label);
+          if (!m) return label;
+          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          return `${months[parseInt(m[1], 10) - 1]} ${parseInt(m[2], 10)}`;
+        },
+      },
+    },
+    y: {
+      beginAtZero: true,
+      grid: { color: 'rgba(26, 24, 21, 0.08)', drawBorder: false },
+      ticks: { font: { family: 'JetBrains Mono, monospace', size: 10 }, color: '#6B6660' },
+    },
+  },
+  plugins: {
+    legend: {
+      position: 'bottom',
+      labels: {
+        boxWidth: 10, boxHeight: 2,
+        font: { family: 'JetBrains Mono, monospace', size: 10 },
+        color: '#3B3833',
+      },
+    },
+  },
+  elements: {
+    line: { tension: 0, borderWidth: 2 },
+    point: { radius: 3, hoverRadius: 5 },
+  },
+};
 
 fetch('/api/usage/daily')
   .then(r => r.json())
   .then(data => {
     if (!data.models || data.models.length === 0) return;
+
+    // (a) Table cells. Agentic + image variants are split into their own
+    // chart series; the table row reflects baseline (text, non-agentic) cost.
     data.models.forEach(variant => {
       const s = data.series[variant];
       if (s.is_image || s.is_agentic) return;
@@ -301,6 +350,37 @@ fetch('/api/usage/daily')
         timeEl.textContent = avgTime.toFixed(1) + 's';
         timeEl.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
       }
+    });
+
+    // (b) Charts.
+    function buildDatasets(extractFn) {
+      const ds = [];
+      data.models.forEach((variant, i) => {
+        if (CHART_EXCLUDED.has(variant)) return;
+        const s = data.series[variant];
+        const color = colorFor(s.base_model, i);
+        ds.push({
+          label: variant,
+          data: s.dates.map((d, j) => ({ x: d, y: extractFn(s, j) })),
+          borderColor: color,
+          backgroundColor: color,
+          borderDash: s.is_image ? IMAGE_DASH : (s.is_agentic ? AGENTIC_DASH : []),
+          spanGaps: false,
+          fill: false,
+        });
+      });
+      return ds;
+    }
+
+    new Chart(document.getElementById('costChart'), {
+      type: 'line',
+      data: { datasets: buildDatasets((s, j) => s.cost[j]) },
+      options: SHARED_OPTS,
+    });
+    new Chart(document.getElementById('timeChart'), {
+      type: 'line',
+      data: { datasets: buildDatasets((s, j) => s.total_time_s[j]) },
+      options: SHARED_OPTS,
     });
   })
   .catch(e => console.warn('Could not load usage data:', e));
