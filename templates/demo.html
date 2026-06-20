@@ -47,29 +47,7 @@
   <div class="chat-scroll" id="chat-container">
     <div class="wrap">
       <div class="welcome" id="welcome-state">
-        <div class="h2">Try a <em>rules question</em>.</div>
-        <p class="desc">
-          Five questions a day, no signup. Citations open the actual
-          rulebook PDF to the cited page so you can verify.
-        </p>
-        <div class="prompt-list">
-          <button type="button" class="prompt">
-            <div class="prompt-meta">Recall · most-asked</div>
-            <div class="prompt-q">What's the MF cost to enter a woods hex from open ground?</div>
-          </button>
-          <button type="button" class="prompt">
-            <div class="prompt-meta">Recall · turn-end</div>
-            <div class="prompt-q">Can a Good Order leader rally a broken squad in his own hex?</div>
-          </button>
-          <button type="button" class="prompt">
-            <div class="prompt-meta">Calc · firefight</div>
-            <div class="prompt-q">4-6-7 fires at unconcealed 4-4-7 in stone building, range 4 — FP column &amp; DRM?</div>
-          </button>
-          <button type="button" class="prompt">
-            <div class="prompt-meta">Recall · defensive fire</div>
-            <div class="prompt-q">When does Fire Lane residual FP affect units passing through?</div>
-          </button>
-        </div>
+        <div class="h2">Ask a <em>rules question</em>.</div>
       </div>
     </div>
   </div>
@@ -390,17 +368,6 @@
     // the shared handler clears the file input synchronously on change.
     if (typeof initBoardViewer === 'function') initBoardViewer();
     if (typeof bindVsavAttachHandler === 'function') bindVsavAttachHandler();
-
-    // Welcome prompt cards — click sets the input value and sends.
-    document.querySelectorAll('.welcome .prompt').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const q = btn.querySelector('.prompt-q').textContent.trim();
-        input.value = q;
-        input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, 200) + 'px';
-        sendMessage();
-      });
-    });
 
     // Experimental-notice dismiss (persists via localStorage)
     const NOTICE_KEY = 'dismissed_experimental_notice_v3';
