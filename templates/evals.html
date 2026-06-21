@@ -52,16 +52,7 @@
           <span>EVALUATION REPORT</span><span>·</span>
           <span>ARCHIVE · MAY 2026</span>
         </div>
-        <h1>
-          Can LLMs answer ASL rules questions<br />
-          for less than <em>1 cent</em> per query?
-        </h1>
         <p class="lede">
-          A human-verified comparison across models on a 200+ question eval
-          set, split between pure rule lookup (Recall) and rule-plus-computation
-          (Calc). Production cost and latency from live chat included.
-        </p>
-        <p class="lede" style="margin-top: 12px;">
           <a href="{{ url_for('evals') }}" class="view-link">← Back to latest results</a>
         </p>
       </div>
@@ -74,8 +65,8 @@
           <span>JUN 2026</span>
         </div>
         <h1>
-          gpt-5.4 on ASL rules:<br />
-          <em>86%</em> human-verified accuracy.
+          Can LLMs answer ASL rules questions<br />
+          for less than <em>1 cent</em> per query?
         </h1>
         <p class="lede">
           A single human-reviewed gpt-5.4 run on an 85-question eval set, split
@@ -92,7 +83,8 @@
   </div>
 </header>
 
-<!-- ─── 01 · FINDINGS ─── -->
+<!-- ─── 01 · FINDINGS (latest page only) ─── -->
+{% if not is_archive %}
 <section class="section">
   <div class="wrap">
     <div class="ev-grid">
@@ -101,90 +93,41 @@
         <div class="ev-title">Findings</div>
       </div>
       <div class="ev-body">
-        {% if is_archive %}
-        <h2 class="h-section">Three <em>findings</em>.</h2>
+        <h2 class="h-section">Two <em>findings</em>.</h2>
         <ol class="findings">
           <li>
             <span class="num">i</span>
             <div>
-              <div class="fnd-title">Recall is solved on this simple eval.</div>
+              <div class="fnd-title">Even the best models aren't reliable enough for this yet.</div>
               <div class="fnd-body">
-                gpt-5.4 and gpt-5-mini both hit 99% on pure rule lookup for
-                this simple eval. The gap shows up in latency: gpt-5-mini
-                runs about 2× as slow as gpt-5.4. Next step: a harder eval —
-                currently being built — to find where they actually start to
-                break.
+                gpt-5.4 — the strongest model we tested — tops out at 86%
+                overall after human review (90% recall, 80% calc). For a rules
+                assistant that's roughly one wrong answer in seven, and one in
+                five on anything requiring computation. A confidently wrong
+                ruling misleads play, so this isn't dependable enough to trust
+                unsupervised — and calculation is where it breaks down.
               </div>
             </div>
           </li>
           <li>
             <span class="num">ii</span>
             <div>
-              <div class="fnd-title">gpt-5.4 wins on accuracy-and-latency — at 10× the cost.</div>
+              <div class="fnd-title">And the accuracy you do get is too expensive.</div>
               <div class="fnd-body">
-                On the combined axes of accuracy and latency, gpt-5.4 is
-                ahead, but gpt-5.4 costs 6 cents per query vs. 0.7 cents for gpt-5-mini.
-              </div>
-            </div>
-          </li>
-          <li>
-            <span class="num">iii</span>
-            <div>
-              <div class="fnd-title">All models struggle with calculations.</div>
-              <div class="fnd-body">
-                Calc accuracy spreads 50–86% across the lineup. The top two
-                on recall are also the top two here — gpt-5.4 and gpt-5-mini —
-                but neither clears 90%. Next step: failure-mode analysis on
-                calc errors to see whether the wall is retrieval, reasoning,
-                or arithmetic.
+                gpt-5.4 runs about 6¢ per query — well above the 1-cent bar in
+                the question above — at ~8.5s latency. So the most accurate
+                option is also the slowest and priciest, and the reliability it
+                buys still falls short. Cheaper models only widen the accuracy
+                gap.
               </div>
             </div>
           </li>
         </ol>
-        {% else %}
-        <h2 class="h-section">Three <em>findings</em>.</h2>
-        <ol class="findings">
-          <li>
-            <span class="num">i</span>
-            <div>
-              <div class="fnd-title">Recall holds up: 90% on a harder set.</div>
-              <div class="fnd-body">
-                On this tougher v1.1 eval, gpt-5.4 answered 45 of 50 pure
-                rule-lookup (Recall) questions correctly after human review —
-                90%. Down from the near-saturation of the easy v1.0 set, but
-                still the strongest axis.
-              </div>
-            </div>
-          </li>
-          <li>
-            <span class="num">ii</span>
-            <div>
-              <div class="fnd-title">Calc remains the wall: 80%.</div>
-              <div class="fnd-body">
-                Rule-plus-computation (Calc) lands at 28 of 35 = 80%. Still the
-                weaker axis, and still where most of the verified failures
-                concentrate. Failure-mode analysis on the 7 calc misses is the
-                next step.
-              </div>
-            </div>
-          </li>
-          <li>
-            <span class="num">iii</span>
-            <div>
-              <div class="fnd-title">86% overall, at ~6¢ and ~8.5s per query.</div>
-              <div class="fnd-body">
-                Across all 85 questions, gpt-5.4 scored 73 correct (85.9%) under
-                human review. Cost runs about 6 cents per query at roughly 8.5s
-                average latency — the price of frontier accuracy on this set.
-              </div>
-            </div>
-          </li>
-        </ol>
-        {% endif %}
       </div>
     </div>
   </div>
 </section>
+{% endif %}
 
 <!-- ─── 02 · MODEL COMPARISON ─── -->
 <section class="section alt">
