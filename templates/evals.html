@@ -69,10 +69,8 @@
           for less than <em>1 cent</em> per query?
         </h1>
         <p class="lede">
-          A single human-reviewed gpt-5.4 run on an 85-question eval set, split
-          between pure rule lookup (Recall, 45/50 = 90%) and
-          rule-plus-computation (Calc, 28/35 = 80%) — 73/85 overall. About
-          6¢ per query at ~8.5s average latency.
+          A human-reviewed evaluation of whether today's best LLMs can reliably
+          — and cheaply — answer Advanced Squad Leader rules questions.
         </p>
         <p class="lede" style="margin-top: 12px;">
           <a href="{{ url_for('evals_v1') }}" class="view-link">Older results (v1.0) — multi-model comparison →</a>
@@ -83,41 +81,30 @@
   </div>
 </header>
 
-<!-- ─── 01 · FINDINGS (latest page only) ─── -->
+<!-- ─── 01 · THE ANSWER (latest page only) ─── -->
 {% if not is_archive %}
 <section class="section">
   <div class="wrap">
     <div class="ev-grid">
       <div class="ev-label">
         <div class="eyebrow"><span class="num">01</span></div>
-        <div class="ev-title">Findings</div>
+        <div class="ev-title">The answer</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Two <em>findings</em>.</h2>
-        <ol class="findings">
-          <li>
-            <span class="num">i</span>
-            <div>
-              <div class="fnd-title">Even the best models aren't reliable enough for this yet.</div>
-              <div class="fnd-body">
-                gpt-5.4, the strongest model we tested, tops out at 86% overall
-                after human review — about one wrong answer in seven, and one in
-                five on calculations — not dependable enough to trust unsupervised.
-              </div>
-            </div>
-          </li>
-          <li>
-            <span class="num">ii</span>
-            <div>
-              <div class="fnd-title">And the accuracy you do get is too expensive.</div>
-              <div class="fnd-body">
-                At about 6¢ per query and ~8.5s latency, the most accurate option
-                costs well above the 1-cent bar — and cheaper models only widen
-                the accuracy gap.
-              </div>
-            </div>
-          </li>
-        </ol>
+        <h2 class="h-section">Not <em>yet</em>.</h2>
+        <p class="lede">
+          State-of-the-art models aren't reliable enough yet. On a simple Q&amp;A
+          eval, GPT-5.4 was <strong>90% accurate</strong> on straight recall
+          questions and <strong>80% accurate</strong> on recall plus calculation
+          (i.e., reasoning), and each query costs about <strong>6¢</strong>. There
+          are <a href="{{ url_for('evals_v1') }}">cheaper and slower models</a>
+          with slightly worse performance.
+        </p>
+        <p class="lede">
+          That said, the models are improving on this task at a rapid rate —
+          limited testing with <strong>Fable</strong> showed a step change over
+          GPT-5.4.
+        </p>
       </div>
     </div>
   </div>
