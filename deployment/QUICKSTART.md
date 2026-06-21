@@ -48,14 +48,38 @@ systemctl status uvicorn
 curl -I https://your-domain.com
 ```
 
-## Update Production
+## Update Production (deploy latest `main`)
+
+There is no CI/CD — deploying is: get `main` pushed, then on the server pull and
+restart the app.
 
 ```bash
-# Push from local
+# 1. From local: make sure main is pushed
 git push origin main
 
-# Pull and restart on server
-ssh your-server "cd /your/app/directory && git pull origin main && systemctl restart uvicorn"
+# 2. On the server: pull and restart
+ssh <your-server> "cd /var/www/mysite2 && git pull origin main && sudo systemctl restart <service>"
+```
+
+- **App directory:** `/var/www/mysite2` (the systemd unit's `WorkingDirectory`).
+- **Service name:** confirm which unit is enabled before restarting —
+  `ssh <your-server> "systemctl list-units --type=service | grep -iE 'uvicorn|aslrules'"`
+  (the unit file is `aslrules.service`; older notes say `uvicorn`).
+- **Most changes are pull + restart only** (content, templates, eval JSON under
+  `data/evals/`). Extra steps only when:
+  - `requirements.txt` changed → add `&& pip3 install -r requirements.txt` before the restart.
+  - DB schema changed → run the relevant migration / `python3 scripts/init_db.py` step.
+
+### Verify
+```bash
+curl -I https://<your-domain>/evals          # expect 200 (or 302 to login)
+# eyeball: /evals (one gpt-5.4 row + "Not yet." answer) and /evals/v1.0 (6-model archive)
+```
+
+### If it doesn't come back up
+```bash
+ssh <your-server> "sudo journalctl -u <service> -n 50"   # last 50 log lines
+ssh <your-server> "sudo systemctl restart <service>"      # a 502 is usually a stale restart
 ```
 
 ## Common Commands
