@@ -92,9 +92,11 @@
       </div>
       <div class="ev-body">
         <h2 class="h-section">Not <em>yet</em>.</h2>
+        {% set gpt54_fid = (model_latest_file.get('gpt-5.4') if model_latest_file is defined else None) %}
         <p class="lede">
-          State-of-the-art models aren't reliable enough yet. On a simple Q&amp;A
-          eval, GPT-5.4 was <strong>90% accurate</strong> on straight recall
+          State-of-the-art models aren't reliable enough yet. On a
+          {% if gpt54_fid %}<a href="{{ url_for('evals_detail', file_id=gpt54_fid) }}?judge=human">simple Q&amp;A eval</a>{% else %}simple Q&amp;A eval{% endif %},
+          GPT-5.4 was <strong>90% accurate</strong> on straight recall
           questions and <strong>80% accurate</strong> on recall plus calculation
           (i.e., reasoning), and each query costs about <strong>6¢</strong>. There
           are <a href="{{ url_for('evals_v1') }}">cheaper and slower models</a>
