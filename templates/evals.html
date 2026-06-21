@@ -44,28 +44,47 @@
 <header class="evals-masthead">
   <div class="wrap">
     <div class="mast-grid">
+      {% if is_archive %}
       <div>
         <div class="eyebrow">
           <span class="dot"></span>
           <span>VOL. 01</span><span>·</span>
           <span>EVALUATION REPORT</span><span>·</span>
-          <span>MAY 2026</span>
+          <span>ARCHIVE · MAY 2026</span>
+        </div>
+        <p class="lede">
+          <a href="{{ url_for('evals') }}" class="view-link">← Back to latest results</a>
+        </p>
+      </div>
+      {% else %}
+      <div>
+        <div class="eyebrow">
+          <span class="dot"></span>
+          <span>VOL. 02</span><span>·</span>
+          <span>EVALUATION REPORT</span><span>·</span>
+          <span>JUN 2026</span>
         </div>
         <h1>
           Can LLMs answer ASL rules questions<br />
           for less than <em>1 cent</em> per query?
         </h1>
         <p class="lede">
-          A human-verified comparison across models on a 200+ question eval
-          set, split between pure rule lookup (Recall) and rule-plus-computation
-          (Calc). Production cost and latency from live chat included.
+          A single human-reviewed gpt-5.4 run on an 85-question eval set, split
+          between pure rule lookup (Recall, 45/50 = 90%) and
+          rule-plus-computation (Calc, 28/35 = 80%) — 73/85 overall. About
+          6¢ per query at ~8.5s average latency.
+        </p>
+        <p class="lede" style="margin-top: 12px;">
+          <a href="{{ url_for('evals_v1') }}" class="view-link">Older results (v1.0) — multi-model comparison →</a>
         </p>
       </div>
+      {% endif %}
     </div>
   </div>
 </header>
 
-<!-- ─── 01 · FINDINGS ─── -->
+<!-- ─── 01 · FINDINGS (latest page only) ─── -->
+{% if not is_archive %}
 <section class="section">
   <div class="wrap">
     <div class="ev-grid">
@@ -74,41 +93,27 @@
         <div class="ev-title">Findings</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Three <em>findings</em>.</h2>
+        <h2 class="h-section">Two <em>findings</em>.</h2>
         <ol class="findings">
           <li>
             <span class="num">i</span>
             <div>
-              <div class="fnd-title">Recall is solved on this simple eval.</div>
+              <div class="fnd-title">Even the best models aren't reliable enough for this yet.</div>
               <div class="fnd-body">
-                gpt-5.4 and gpt-5-mini both hit 99% on pure rule lookup for
-                this simple eval. The gap shows up in latency: gpt-5-mini
-                runs about 2× as slow as gpt-5.4. Next step: a harder eval —
-                currently being built — to find where they actually start to
-                break.
+                gpt-5.4, the strongest model we tested, tops out at 86% overall
+                after human review — about one wrong answer in seven, and one in
+                five on calculations — not dependable enough to trust unsupervised.
               </div>
             </div>
           </li>
           <li>
             <span class="num">ii</span>
             <div>
-              <div class="fnd-title">gpt-5.4 wins on accuracy-and-latency — at 10× the cost.</div>
+              <div class="fnd-title">And the accuracy you do get is too expensive.</div>
               <div class="fnd-body">
-                On the combined axes of accuracy and latency, gpt-5.4 is
-                ahead, but gpt-5.4 costs 6 cents per query vs. 0.7 cents for gpt-5-mini.
-              </div>
-            </div>
-          </li>
-          <li>
-            <span class="num">iii</span>
-            <div>
-              <div class="fnd-title">All models struggle with calculations.</div>
-              <div class="fnd-body">
-                Calc accuracy spreads 50–86% across the lineup. The top two
-                on recall are also the top two here — gpt-5.4 and gpt-5-mini —
-                but neither clears 90%. Next step: failure-mode analysis on
-                calc errors to see whether the wall is retrieval, reasoning,
-                or arithmetic.
+                At about 6¢ per query and ~8.5s latency, the most accurate option
+                costs well above the 1-cent bar — and cheaper models only widen
+                the accuracy gap.
               </div>
             </div>
           </li>
@@ -117,6 +122,7 @@
     </div>
   </div>
 </section>
+{% endif %}
 
 <!-- ─── 02 · MODEL COMPARISON ─── -->
 <section class="section alt">
@@ -128,7 +134,11 @@
       </div>
       <div class="ev-body">
         <h2 class="h-section">Accuracy, cost, latency<br /><em>side by side</em>.</h2>
+        {% if is_archive %}
         <p class="table-caption">TABLE 01 — 200+ questions, human-verified · cost &amp; timing from live production chat</p>
+        {% else %}
+        <p class="table-caption">TABLE 01 — 85 questions, human-reviewed · Recall 45/50, Calc 28/35, Overall 73/85 (85.9%) · cost &amp; timing from the eval run</p>
+        {% endif %}
 
         {% if model_order is defined %}
         {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2'} %}
@@ -188,6 +198,7 @@
           ~20k token RAG input per question, 20 chunks retrieved per query from
           a vector store of the 700-page rulebook.
         </p>
+        {% if is_archive %}
         <p class="table-footnote">
           <strong>Caveat —</strong> deepseek-v3 and mercury-2 make two API
           calls per query — one to OpenAI's vector store for retrieval, then
@@ -196,6 +207,7 @@
           those models actually are at inference; the extra round-trip is
           baked in.
         </p>
+        {% endif %}
         {% if model_estimated %}
         <p class="table-footnote">
           <sup>*</sup> Estimated: gpt-5.4 run on 24 questions where gpt-5.4-mini failed; remaining 190 assumed correct.
@@ -340,6 +352,8 @@ fetch('/api/usage/daily')
       s.total_time_s.forEach(v => { if (v != null && v > 0) { totalTime += v; timeCount++; } });
       const costEl = document.getElementById('tbl-cost-' + id);
       const timeEl = document.getElementById('tbl-time-' + id);
+      // Cost/latency are sourced from live production usage on both the main
+      // and /evals/v1.0 pages — always populate from /api/usage/daily.
       if (costEl && costCount > 0) {
         const avgCostCents = (totalCost / costCount) * 100;
         costEl.textContent = avgCostCents.toFixed(2) + '¢';
