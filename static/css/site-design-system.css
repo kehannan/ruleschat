@@ -282,7 +282,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   margin: 14px 0 28px;
   text-wrap: balance;
 }
-.hero-head em { font-style: italic; font-weight: 500; color: var(--accent); }
+.hero-head em { font-style: italic; font-weight: 500; }
 .hero-lede {
   font-size: 19px;
   line-height: 1.55;
@@ -362,7 +362,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   color: var(--ink);
   text-wrap: balance;
 }
-.col-head em { font-style: italic; color: var(--accent); }
+.col-head em { font-style: italic; }
 .prose p {
   font-size: 16px;
   line-height: 1.65;
@@ -468,7 +468,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   margin: 0 0 10px;
   color: var(--ink);
 }
-.pipe-node h3 em { font-style: italic; color: var(--accent); }
+.pipe-node h3 em { font-style: italic; }
 .pipe-node p {
   font-size: 14px;
   line-height: 1.55;
@@ -515,7 +515,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   color: var(--ink);
   text-wrap: balance;
 }
-.auth-col h1 em { font-style: italic; color: var(--accent); }
+.auth-col h1 em { font-style: italic; }
 .auth-col .lede {
   font-size: 16px;
   line-height: 1.55;
@@ -671,7 +671,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   letter-spacing: -0.005em;
   color: var(--ink);
 }
-.chat-toolbar h4 em { font-style: italic; color: var(--accent); }
+.chat-toolbar h4 em { font-style: italic; }
 .model-pill {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 5px 10px;
@@ -702,7 +702,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   color: var(--ink);
   text-wrap: balance;
 }
-.welcome .h2 em { font-style: italic; color: var(--accent); }
+.welcome .h2 em { font-style: italic; }
 .welcome .desc {
   color: var(--ink-2);
   font-size: 16px;
@@ -1002,7 +1002,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   letter-spacing: -0.005em;
   color: var(--ink);
 }
-.pdf-modal-header h3 em { font-style: italic; color: var(--accent); }
+.pdf-modal-header h3 em { font-style: italic; }
 .pdf-modal-close {
   width: 32px; height: 32px;
   background: transparent;
@@ -1123,7 +1123,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   color: var(--ink);
   text-wrap: balance;
 }
-.evals-masthead h1 em { font-style: italic; color: var(--accent); }
+.evals-masthead h1 em { font-style: italic; }
 .evals-masthead .lede {
   font-size: 19px;
   line-height: 1.55;
@@ -1159,7 +1159,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   color: var(--ink);
   text-wrap: balance;
 }
-.ev-body .h-section em { font-style: italic; color: var(--accent); }
+.ev-body .h-section em { font-style: italic; }
 .ev-body .table-caption {
   font-size: 14px;
   color: var(--muted);
