@@ -56,7 +56,25 @@ async def evals_page(request: Request, user = Depends(get_current_user)):
 
     eval_data = load_eval_runs()
     context.update(eval_data)
-        
+    context["is_archive"] = False
+
+    return templates.TemplateResponse("evals.html", context)
+
+
+@router.get("/evals/v1.0", name="evals_v1", response_class=HTMLResponse)
+async def evals_v1_page(request: Request, user = Depends(get_current_user)):
+    """Display the archived v1.0 multi-model comparison page."""
+    from app.api.demo import is_demo_enabled
+    context = {"request": request, "demo_enabled": is_demo_enabled()}
+    if user:
+        context["user_email"] = user.email
+        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+
+    v1_dir = _get_evals_dir() / "v1.0"
+    eval_data = load_eval_runs(evals_dir=v1_dir, filter_to_present=False)
+    context.update(eval_data)
+    context["is_archive"] = True
+
     return templates.TemplateResponse("evals.html", context)
 
 @router.get("/evals/detail", name="evals_detail_default", response_class=HTMLResponse)
@@ -219,15 +237,30 @@ async def usage_daily(db: Session = Depends(get_db)):
 
 # --- Public Logic ---
 
-def load_eval_runs():
-    """Load all evaluation runs and return a list of runs with metadata."""
-    evals_dir = _get_evals_dir()
+def load_eval_runs(evals_dir=None, filter_to_present=True):
+    """Load all evaluation runs and return a list of runs with metadata.
+
+    Args:
+        evals_dir: directory to read result JSONs from. Defaults to the
+            configured evals dir (``data/evals`` or ``$EVALS_DIR``).
+        filter_to_present: when True (the main ``/evals`` page) the returned
+            ``model_order`` is filtered to only models that actually have data,
+            so the comparison table renders one row per real result instead of
+            a fixed 6-row grid with blanks. The archived ``/evals/v1.0`` page
+            sets this False to keep the full fixed ordering.
+    """
+    if evals_dir is None:
+        evals_dir = _get_evals_dir()
     eval_runs = []
-    
+    # model -> metadata.performance block from its newest eval file. Used to
+    # render server-side cost/latency cells for models whose numbers come from
+    # the eval run itself rather than live production chat.
+    model_performance = {}
+
     try:
         if not evals_dir.exists():
             return {"error": f"Directory not found: {evals_dir}"}
-        
+
         for file_path in sorted(evals_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
@@ -267,6 +300,13 @@ def load_eval_runs():
                     eval_file = Path(eval_file).stem
 
                     is_estimated = metadata.get("estimated", False)
+
+                    # Capture this run's performance block (cost/latency) keyed
+                    # by display model. Files are iterated newest-first, so the
+                    # first one wins (matches model_latest_file semantics).
+                    perf = metadata.get("performance")
+                    if perf and model_display not in model_performance:
+                        model_performance[model_display] = perf
 
                     # Create rows for each question type (Human Review only)
                     if by_question_type:
@@ -389,10 +429,35 @@ def load_eval_runs():
                 except (ValueError, TypeError):
                     pass
 
+        # Optionally restrict the rendered order to models that actually have
+        # data, preserving the canonical frontier→cheap ordering. The main
+        # /evals page uses this so a single-model result renders one row.
+        model_order = MODEL_ORDER
+        if filter_to_present:
+            model_order = [m for m in MODEL_ORDER if m in model_accuracy]
+
+        # Pre-format server-side cost/latency cells from each model's eval
+        # performance block. The template renders these directly; the live
+        # production-chat JS (/api/usage/daily) only overwrites table cells
+        # for models that have production data, so eval-sourced numbers stand
+        # for one-off runs without production traffic.
+        model_perf = {}
+        for m, perf in model_performance.items():
+            cell = {}
+            cost = perf.get("cost_per_q_usd")
+            if cost is not None:
+                cell["cost"] = f"{cost * 100:.2f}¢"
+            avg_ms = perf.get("avg_response_time_ms")
+            if avg_ms is not None:
+                cell["time"] = f"{avg_ms / 1000:.1f}s"
+            if cell:
+                model_perf[m] = cell
+
         return {"eval_runs": eval_runs, "model_accuracy": model_accuracy,
-                "model_order": MODEL_ORDER, "model_latest_file": model_latest_file,
+                "model_order": model_order, "model_latest_file": model_latest_file,
                 "model_estimated": model_estimated,
                 "model_last_run_date": model_last_run_date,
+                "model_perf": model_perf,
                 "model_via_openrouter": MODEL_VIA_OPENROUTER, "error": None}
     except Exception as e:
         return {"error": str(e)}
