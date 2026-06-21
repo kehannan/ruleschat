@@ -237,13 +237,12 @@
                 {% set cc = acc['calc'] %}
                 <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
               {% else %}<td>—</td>{% endif %}
-              {% set perf = model_perf.get(model, {}) if model_perf is defined else {} %}
               {% if model in mid %}
-                <td id="tbl-cost-{{ mid[model] }}">{{ perf.get('cost', '—') }}</td>
-                <td id="tbl-time-{{ mid[model] }}">{{ perf.get('time', '—') }}</td>
+                <td id="tbl-cost-{{ mid[model] }}">—</td>
+                <td id="tbl-time-{{ mid[model] }}">—</td>
               {% else %}
-                <td>{{ perf.get('cost', '—') }}</td>
-                <td>{{ perf.get('time', '—') }}</td>
+                <td>—</td>
+                <td>—</td>
               {% endif %}
               <td class="col-date">{{ last_run or '—' }}</td>
               <td class="col-action">
@@ -415,15 +414,14 @@ fetch('/api/usage/daily')
       s.total_time_s.forEach(v => { if (v != null && v > 0) { totalTime += v; timeCount++; } });
       const costEl = document.getElementById('tbl-cost-' + id);
       const timeEl = document.getElementById('tbl-time-' + id);
-      // Don't clobber cells already populated server-side from an eval run's
-      // performance block (those render a value, not the "—" placeholder).
-      const isPlaceholder = (el) => el && el.textContent.trim() === '—';
-      if (costEl && costCount > 0 && isPlaceholder(costEl)) {
+      // Cost/latency are sourced from live production usage on both the main
+      // and /evals/v1.0 pages — always populate from /api/usage/daily.
+      if (costEl && costCount > 0) {
         const avgCostCents = (totalCost / costCount) * 100;
         costEl.textContent = avgCostCents.toFixed(2) + '¢';
         costEl.className = 'acc ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
       }
-      if (timeEl && timeCount > 0 && isPlaceholder(timeEl)) {
+      if (timeEl && timeCount > 0) {
         const avgTime = totalTime / timeCount;
         timeEl.textContent = avgTime.toFixed(1) + 's';
         timeEl.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');

@@ -253,10 +253,6 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         evals_dir = _get_evals_dir()
     eval_runs = []
     # model -> metadata.performance block from its newest eval file. Used to
-    # render server-side cost/latency cells for models whose numbers come from
-    # the eval run itself rather than live production chat.
-    model_performance = {}
-
     try:
         if not evals_dir.exists():
             return {"error": f"Directory not found: {evals_dir}"}
@@ -300,13 +296,6 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     eval_file = Path(eval_file).stem
 
                     is_estimated = metadata.get("estimated", False)
-
-                    # Capture this run's performance block (cost/latency) keyed
-                    # by display model. Files are iterated newest-first, so the
-                    # first one wins (matches model_latest_file semantics).
-                    perf = metadata.get("performance")
-                    if perf and model_display not in model_performance:
-                        model_performance[model_display] = perf
 
                     # Create rows for each question type (Human Review only)
                     if by_question_type:
@@ -436,28 +425,10 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         if filter_to_present:
             model_order = [m for m in MODEL_ORDER if m in model_accuracy]
 
-        # Pre-format server-side cost/latency cells from each model's eval
-        # performance block. The template renders these directly; the live
-        # production-chat JS (/api/usage/daily) only overwrites table cells
-        # for models that have production data, so eval-sourced numbers stand
-        # for one-off runs without production traffic.
-        model_perf = {}
-        for m, perf in model_performance.items():
-            cell = {}
-            cost = perf.get("cost_per_q_usd")
-            if cost is not None:
-                cell["cost"] = f"{cost * 100:.2f}¢"
-            avg_ms = perf.get("avg_response_time_ms")
-            if avg_ms is not None:
-                cell["time"] = f"{avg_ms / 1000:.1f}s"
-            if cell:
-                model_perf[m] = cell
-
         return {"eval_runs": eval_runs, "model_accuracy": model_accuracy,
                 "model_order": model_order, "model_latest_file": model_latest_file,
                 "model_estimated": model_estimated,
                 "model_last_run_date": model_last_run_date,
-                "model_perf": model_perf,
                 "model_via_openrouter": MODEL_VIA_OPENROUTER, "error": None}
     except Exception as e:
         return {"error": str(e)}
