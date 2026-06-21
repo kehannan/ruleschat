@@ -72,9 +72,6 @@
           A human-reviewed evaluation of whether today's best LLMs can reliably
           — and cheaply — answer Advanced Squad Leader rules questions.
         </p>
-        <p class="lede" style="margin-top: 12px;">
-          <a href="{{ url_for('evals_v1') }}" class="view-link">Older results (v1.0) — multi-model comparison →</a>
-        </p>
       </div>
       {% endif %}
     </div>
@@ -95,11 +92,11 @@
         {% set gpt54_fid = (model_latest_file.get('gpt-5.4') if model_latest_file is defined else None) %}
         <p class="lede">
           State-of-the-art models aren't reliable enough yet. On a
-          {% if gpt54_fid %}<a href="{{ url_for('evals_detail', file_id=gpt54_fid) }}?judge=human">simple Q&amp;A eval</a>{% else %}simple Q&amp;A eval{% endif %},
+          {% if gpt54_fid %}<a href="{{ url_for('evals_detail', file_id=gpt54_fid) }}?judge=human" class="inline-link">simple Q&amp;A eval</a>{% else %}simple Q&amp;A eval{% endif %},
           GPT-5.4 was <strong>90% accurate</strong> on straight recall
           questions and <strong>80% accurate</strong> on recall plus calculation
           (i.e., reasoning), and each query costs about <strong>6¢</strong>. There
-          are <a href="{{ url_for('evals_v1') }}">cheaper and slower models</a>
+          are <a href="{{ url_for('evals_v1') }}" class="inline-link">cheaper and slower models</a>
           with slightly worse performance.
         </p>
         <p class="lede">
