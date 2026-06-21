@@ -50,36 +50,50 @@ curl -I https://your-domain.com
 
 ## Update Production (deploy latest `main`)
 
-There is no CI/CD — deploying is: get `main` pushed, then on the server pull and
-restart the app.
+No CI/CD — deploying is: push `main`, then on the server pull + restart.
+Use the deploy script (preferred):
 
 ```bash
 # 1. From local: make sure main is pushed
 git push origin main
 
-# 2. On the server: pull and restart
-ssh <your-server> "cd /var/www/mysite2 && git pull origin main && sudo systemctl restart <service>"
+# 2. On the server: pull + restart via the script
+ssh <your-server>
+cd /root/fastapi_app/mysite2
+./deployment/deploy.sh
 ```
 
-- **App directory:** `/var/www/mysite2` (the systemd unit's `WorkingDirectory`).
-- **Service name:** confirm which unit is enabled before restarting —
-  `ssh <your-server> "systemctl list-units --type=service | grep -iE 'uvicorn|aslrules'"`
-  (the unit file is `aslrules.service`; older notes say `uvicorn`).
-- **Most changes are pull + restart only** (content, templates, eval JSON under
-  `data/evals/`). Extra steps only when:
-  - `requirements.txt` changed → add `&& pip3 install -r requirements.txt` before the restart.
-  - DB schema changed → run the relevant migration / `python3 scripts/init_db.py` step.
+`deploy.sh` pulls `main`, reinstalls deps only if `requirements.txt` changed,
+reloads nginx, restarts `uvicorn.service`, checks both services are active, and
+does a local HTTP health check on `/evals`.
+
+By hand (exactly what the script runs):
+
+```bash
+cd /root/fastapi_app/mysite2
+git pull origin main
+systemctl reload nginx
+systemctl restart uvicorn.service
+systemctl is-active nginx uvicorn.service     # expect: active / active
+```
+
+- **App directory:** `/root/fastapi_app/mysite2`
+- **Service:** `uvicorn.service` · **Web server:** nginx · **App port:** 8000
+- A bare `git pull` does NOT update the running app — you must restart the service.
+- Extra steps only when: `requirements.txt` changed (`pip install -r requirements.txt`)
+  or the DB schema changed (`python3 scripts/init_db.py` / migration).
 
 ### Verify
 ```bash
-curl -I https://<your-domain>/evals          # expect 200 (or 302 to login)
-# eyeball: /evals (one gpt-5.4 row + "Not yet." answer) and /evals/v1.0 (6-model archive)
+curl -I http://localhost:8000/evals           # on the server (app port)
+curl -I https://<your-domain>/evals           # from anywhere (through nginx)
+# eyeball: /evals ("Not yet." answer + one gpt-5.4 row) and /evals/v1.0 (6-model archive)
 ```
 
 ### If it doesn't come back up
 ```bash
-ssh <your-server> "sudo journalctl -u <service> -n 50"   # last 50 log lines
-ssh <your-server> "sudo systemctl restart <service>"      # a 502 is usually a stale restart
+journalctl -u uvicorn.service -n 50           # last 50 log lines
+systemctl restart uvicorn.service             # a 502 is usually a stale restart
 ```
 
 ## Common Commands
