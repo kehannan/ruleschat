@@ -1,0 +1,30 @@
+[Unit]
+Description=ASL Rules Assistant — FastAPI app (uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/fastapi_app/mysite2
+Environment="PYTHONUNBUFFERED=1"
+# The app runs in a conda env, so its bin must be on PATH for python/uvicorn to
+# resolve. Adjust the conda prefix to match the server (e.g. /opt/conda/bin).
+Environment="PATH=/root/miniconda3/bin:/usr/local/bin:/usr/bin:/bin"
+
+# run.py boots uvicorn on app.main:app at 0.0.0.0:8000.
+# (For a leaner prod process you can invoke uvicorn directly instead:
+#  ExecStart=uvicorn app.main:app --host 0.0.0.0 --port 8000)
+ExecStart=/usr/bin/env python3 run.py
+
+# Restart policy
+Restart=always
+RestartSec=3
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=uvicorn
+
+[Install]
+WantedBy=multi-user.target
