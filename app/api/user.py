@@ -14,7 +14,7 @@ from app.models import User
 from app.models.chat import ChatMessage, ChatConversation
 from app.models.config import SiteConfig
 from app.api.demo import is_demo_enabled, set_demo_enabled
-from app.services.user_service import update_user_profile, get_user_by_email
+from app.services.user_service import update_user_profile, get_user_by_email, delete_user
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -253,6 +253,34 @@ async def admin_create_test_user(
         url="/admin?message=Test user created successfully&message_type=success",
         status_code=303
     )
+
+
+@router.delete("/api/admin/user/{user_id}", name="admin_delete_user")
+async def admin_delete_user(
+    request: Request,
+    user_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a user account (admin only)."""
+    from fastapi import HTTPException
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if user.email != admin_email:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Don't let the admin delete their own account.
+    if user.id == user_id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+
+    deleted = delete_user(db, user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"detail": "User deleted"}
 
 
 @router.get("/admin/logs", name="admin_logs", response_class=HTMLResponse)
