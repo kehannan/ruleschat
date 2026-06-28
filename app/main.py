@@ -19,7 +19,7 @@ from app.core.auth import get_current_user
 from app.services.user_service import update_user_profile, get_user_by_email
 
 # Import routers
-from app.api import auth, user, chat, evals, demo, ift, board_viewer
+from app.api import auth, user, chat, evals, demo, ift, board_viewer, invite
 
 # Load environment variables
 load_dotenv()
@@ -137,6 +137,7 @@ app.include_router(evals.router, tags=["evals"])
 app.include_router(demo.router, tags=["demo"])
 app.include_router(ift.router, tags=["ift"])
 app.include_router(board_viewer.router, tags=["board-viewer"])
+app.include_router(invite.router, tags=["invite"])
 
 
 # Admin dependency
@@ -197,12 +198,29 @@ async def about_page(request: Request):
 
 # Registration routes
 @app.get("/register", name="register")
-async def register_page(request: Request, code: str = None):
-    """Display registration page."""
-    from fastapi import Request
-    from fastapi.responses import HTMLResponse
-    
-    context = {"request": request}
+async def register_page(request: Request, code: str = None, db: Session = Depends(get_db)):
+    """Display registration page for an invitation code.
+
+    Looks up the invitation so the template can show the invited email and
+    carry the code into the completion form. Without a valid code there's
+    nothing to redeem, so show an error instead of a blank form.
+    """
+    invitation = None
+    if code:
+        invitation = db.query(Invitation).filter(
+            Invitation.code == code,
+            Invitation.expires_at > datetime.utcnow(),
+            Invitation.used_at.is_(None),
+        ).first()
+
+    if not invitation:
+        context = {
+            "request": request,
+            "error": "This invitation link is invalid, expired, or already used.",
+        }
+        return templates.TemplateResponse("register.html", context)
+
+    context = {"request": request, "code": code, "email": invitation.email}
     return templates.TemplateResponse("register.html", context)
 
 
