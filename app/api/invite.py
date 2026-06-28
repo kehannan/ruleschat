@@ -12,6 +12,7 @@ import smtplib
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 
 from fastapi import APIRouter, Request, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, EmailStr
@@ -47,6 +48,7 @@ def send_invitation_email(email: str, code: str, base_url: str) -> None:
     background task — the invitation row is already persisted and can be resent.
     """
     sender = os.getenv("MAIL_FROM") or os.getenv("MAIL_USERNAME")
+    sender_name = os.getenv("MAIL_FROM_NAME", "Ruleschat")
     username = os.getenv("MAIL_USERNAME")
     password = os.getenv("MAIL_PASSWORD")
     server = os.getenv("MAIL_SERVER", "smtp.gmail.com")
@@ -64,7 +66,7 @@ def send_invitation_email(email: str, code: str, base_url: str) -> None:
 
     register_url = f"{base_url.rstrip('/')}/register?code={code}"
     msg = MIMEMultipart()
-    msg["From"] = sender
+    msg["From"] = formataddr((sender_name, sender))
     msg["To"] = email
     msg["Subject"] = "Your invitation to ASL Ruleschat"
     body = f"""
