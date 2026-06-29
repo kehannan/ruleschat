@@ -651,6 +651,35 @@ TOOL_SCHEMAS = [
 ]
 
 
+def to_chat_completions_tools(
+    schemas: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Convert Responses-API tool schemas to Chat Completions function shape.
+
+    The Responses API nests the function fields flat
+    (`{"type": "function", "name", "description", "parameters"}`), while the
+    Chat Completions / OpenRouter API nests them under a "function" key
+    (`{"type": "function", "function": {"name", "description", "parameters"}}`).
+    Deriving the Chat shape from `TOOL_SCHEMAS` keeps the two in lock-step so a
+    tool added for the OpenAI path is automatically available on OpenRouter.
+    """
+    out: List[Dict[str, Any]] = []
+    for s in (schemas if schemas is not None else TOOL_SCHEMAS):
+        out.append({
+            "type": "function",
+            "function": {
+                "name": s["name"],
+                "description": s.get("description", ""),
+                "parameters": s.get("parameters", {"type": "object", "properties": {}}),
+            },
+        })
+    return out
+
+
+# Chat Completions function tools (for the OpenRouter agentic path).
+TOOL_SCHEMAS_CHAT = to_chat_completions_tools()
+
+
 # =============================================================================
 # Dispatcher
 # =============================================================================

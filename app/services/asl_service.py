@@ -23,7 +23,7 @@ from app.asl.postprocess import (
     extract_response_text,
     compute_timing_metrics
 )
-from app.asl.tools import TOOL_SCHEMAS, execute_tool
+from app.asl.tools import TOOL_SCHEMAS, TOOL_SCHEMAS_CHAT, execute_tool
 
 _IMAGE_MIME_BY_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 
@@ -193,6 +193,51 @@ def _strip_citation_markers(text: str) -> str:
         return text
     s = _CitationStripper()
     return s.feed(text) + s.flush()
+
+
+def _openrouter_reasoning_config() -> Optional[Dict[str, Any]]:
+    """Build OpenRouter's `reasoning` control from env, or None for default.
+
+    Reasoning models (e.g. z-ai/glm-5.2) reason at full effort by default,
+    emitting tens of thousands of hidden reasoning tokens per question — minutes
+    of latency that `max_tokens` does not bound. Set one of:
+      * OPENROUTER_REASONING_EFFORT     = low | medium | high
+      * OPENROUTER_REASONING_MAX_TOKENS = <int>   (hard reasoning-token cap)
+      * OPENROUTER_REASONING_ENABLED    = false   (disable reasoning entirely)
+    Effort takes precedence, then max_tokens, then the disable flag. Unset =>
+    None => the model's default reasoning behavior (unchanged).
+    """
+    effort = os.getenv("OPENROUTER_REASONING_EFFORT")
+    if effort:
+        return {"effort": effort.strip().lower()}
+    max_tokens = os.getenv("OPENROUTER_REASONING_MAX_TOKENS")
+    if max_tokens:
+        return {"max_tokens": int(max_tokens)}
+    if os.getenv("OPENROUTER_REASONING_ENABLED", "").strip().lower() == "false":
+        return {"enabled": False}
+    return None
+
+
+def _openrouter_provider_config() -> Optional[Dict[str, Any]]:
+    """Build OpenRouter's `provider` routing control from env, or None.
+
+    OpenRouter load-balances a model across many providers of varying speed and
+    reliability; the slow/flaky ones cause minute-long stalls and connection
+    drops. Pin or sort to avoid them:
+      * OPENROUTER_PROVIDER_ORDER = comma-separated slugs (e.g. "deepinfra,novita")
+                                    => {"order": [...], "allow_fallbacks": True}
+      * OPENROUTER_PROVIDER_SORT  = price | throughput | latency
+    Both may be set; order is applied first, then sort across the rest.
+    """
+    cfg: Dict[str, Any] = {}
+    order = os.getenv("OPENROUTER_PROVIDER_ORDER")
+    if order:
+        cfg["order"] = [s.strip() for s in order.split(",") if s.strip()]
+        cfg["allow_fallbacks"] = True
+    sort = os.getenv("OPENROUTER_PROVIDER_SORT")
+    if sort:
+        cfg["sort"] = sort.strip().lower()
+    return cfg or None
 
 
 class ASLService:
@@ -419,9 +464,42 @@ Your response:"""
                     raise ValueError(
                         f"Model '{model}' (OpenRouter) does not support image inputs."
                     )
-                if use_agentic or use_verification:
+                if use_verification:
                     raise ValueError(
-                        "use_agentic / use_verification are not supported on the OpenRouter path."
+                        "use_verification is not supported on the OpenRouter path."
+                    )
+                if use_agentic:
+                    # Agentic OpenRouter: same IFT/CC calculator loop the OpenAI
+                    # path uses, but over Chat Completions function calling. The
+                    # auto-router forces the right calculator on the first turn
+                    # (these models, like gpt-5.4, rarely call it unprompted).
+                    #
+                    # When auto-routing, the classifier decides per question:
+                    #   ift_attack / cc_attack → expose tools, force that one
+                    #   none                   → plain RAG, NO tools exposed
+                    # so a single pass over a mixed file reproduces gpt-5.4's
+                    # calc-with-tools / recall-plain-RAG split automatically.
+                    expose_tools = True
+                    if auto_route_tools and not force_tool:
+                        from app.asl.tool_router import classify_tool
+                        force_tool = classify_tool(question, model=route_model)
+                        if force_tool:
+                            logging.info(f"🧭 Auto-routed to tool: {force_tool}")
+                        else:
+                            expose_tools = False
+                            logging.info("🧭 Auto-routed to: none (plain RAG, no tools)")
+                    tool_context = {"vsav_state": vsav_state} if vsav_state else None
+                    return self._openrouter_agentic_answer(
+                        question=question,
+                        model=model,
+                        temperature=temperature,
+                        instructions=instructions,
+                        num_chunks=num_chunks,
+                        api_call_start_time=api_call_start_time,
+                        return_timing=return_timing,
+                        force_tool=force_tool,
+                        tool_context=tool_context,
+                        expose_tools=expose_tools,
                     )
                 return self._openrouter_answer(
                     question=question,
@@ -592,6 +670,8 @@ Your response:"""
             stream=False,
             temperature=temperature,
             max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
+            reasoning=_openrouter_reasoning_config(),
+            provider=_openrouter_provider_config(),
         )
         inference_ms = (time.time() - inference_start) * 1000
         total_ms = retrieval_ms + inference_ms
@@ -645,6 +725,181 @@ Your response:"""
             return one_shot_generator(), []
 
         return text
+
+    def _openrouter_agentic_answer(
+        self,
+        question: str,
+        model: str,
+        temperature: float,
+        instructions: str,
+        num_chunks: int,
+        api_call_start_time: float,
+        return_timing: bool,
+        force_tool: Optional[str] = None,
+        tool_context: Optional[Dict[str, Any]] = None,
+        max_iterations: int = 5,
+        expose_tools: bool = True,
+    ):
+        """
+        Agentic OpenRouter path: client-side retrieval + a Chat Completions
+        tool-calling loop exposing the IFT/CC calculators.
+
+        expose_tools=False makes this a plain RAG call (no tools offered) while
+        keeping the same (text, timing_data) return contract — used when the
+        auto-router classifies a question as needing no calculator.
+
+        Mirrors `_handle_agentic_response` (the OpenAI Responses path) but over
+        OpenRouter's Chat Completions API, so a `/`-named model (e.g.
+        "z-ai/glm-5.2") gets the same tool-assisted accuracy as gpt-5.4. The
+        force_tool / tool_context contract and the return shape match: a string,
+        or — when return_timing=True — a (text, timing_data) tuple whose keys
+        line up with what the eval harness reads (input/output tokens,
+        retrieval/inference split, tools_called).
+
+        Always non-streaming: the loop must see each turn's tool calls before it
+        can emit the final answer.
+        """
+        import json as json_module
+
+        # 1. Retrieval — client-side, identical to the plain OpenRouter path.
+        retrieval_start = time.time()
+        chunks = retrieve_chunks(
+            self.retrieval_client,
+            self.config.all_vector_store_ids,
+            query=question,
+            max_results_per_store=num_chunks,
+        )
+        context_block = format_chunks_as_context(chunks)
+        retrieval_ms = (time.time() - retrieval_start) * 1000
+        logging.info(
+            f"[RAG Latency] OpenRouter(agentic) retrieval: {retrieval_ms:.1f}ms "
+            f"({len(chunks)} chunks)"
+        )
+
+        sys_with_context = instructions
+        if context_block:
+            sys_with_context = (
+                instructions
+                + "\n\nUse the following retrieved rulebook excerpts as your "
+                "primary source. Cite rule sections (e.g., A6.4) from these "
+                "excerpts in your answer.\n\n"
+                + context_block
+            )
+        messages: List[Dict[str, Any]] = [
+            {"role": "system", "content": sys_with_context},
+            {"role": "user", "content": question},
+        ]
+
+        max_tokens = int(os.getenv("OPENROUTER_MAX_TOKENS", "8192"))
+        reasoning = _openrouter_reasoning_config()
+        provider = _openrouter_provider_config()
+        total_input_tokens = 0
+        total_output_tokens = 0
+        tools_called: List[str] = []
+        final_text = ""
+
+        inference_start = time.time()
+        for iteration in range(max_iterations):
+            logging.info(f"🔄 OpenRouter agentic iteration {iteration + 1}/{max_iterations}")
+
+            # Force the named function on the FIRST turn only; later turns use
+            # "auto" so the model can stop calling tools and emit the answer.
+            call_kwargs: Dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "reasoning": reasoning,
+                "provider": provider,
+            }
+            if expose_tools:
+                call_kwargs["tools"] = TOOL_SCHEMAS_CHAT
+                call_kwargs["tool_choice"] = (
+                    {"type": "function", "function": {"name": force_tool}}
+                    if force_tool and iteration == 0 else "auto"
+                )
+            response = self.openrouter_client.create_chat(**call_kwargs)
+
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                total_input_tokens += getattr(usage, "prompt_tokens", 0) or 0
+                total_output_tokens += getattr(usage, "completion_tokens", 0) or 0
+
+            msg = response.choices[0].message
+            tool_calls = getattr(msg, "tool_calls", None) or []
+
+            # No tool calls → final answer.
+            if not tool_calls:
+                final_text = (msg.content or "").strip()
+                logging.info(
+                    f"✅ OpenRouter agentic loop completed after {iteration + 1} iteration(s)"
+                )
+                break
+
+            # Append the assistant turn (with its tool_calls) verbatim, then a
+            # tool message per call — the Chat Completions tool protocol.
+            messages.append({
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in tool_calls
+                ],
+            })
+            logging.info(f"🔧 Executing {len(tool_calls)} tool call(s)...")
+            for tc in tool_calls:
+                name = tc.function.name
+                args_raw = tc.function.arguments
+                tools_called.append(name)
+                try:
+                    args = json_module.loads(args_raw) if isinstance(args_raw, str) else (args_raw or {})
+                    logging.info(f"  📞 {name}({args})")
+                    result = execute_tool(name, args, context=tool_context)
+                    output = json_module.dumps(result)
+                    logging.info(f"  ✅ Result: {output[:100]}...")
+                except Exception as e:
+                    logging.error(f"  ❌ Tool error: {e}")
+                    output = json_module.dumps({"error": str(e)})
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": output,
+                })
+        else:
+            logging.warning("⚠️ OpenRouter agentic max iterations reached")
+            # final_text stays as the last assistant content (possibly empty).
+
+        inference_ms = (time.time() - inference_start) * 1000
+        total_ms = retrieval_ms + inference_ms
+        logging.info(
+            f"[RAG Latency] OpenRouter(agentic) inference: {inference_ms:.1f}ms · "
+            f"total {total_ms:.1f}ms · tools={tools_called or 'none'}"
+        )
+        if total_input_tokens or total_output_tokens:
+            logging.info(
+                f"📊 Tokens (OpenRouter agentic): {total_input_tokens} in / "
+                f"{total_output_tokens} out"
+            )
+
+        final_text = _strip_citation_markers(final_text)
+        if not return_timing:
+            return final_text
+        return final_text, {
+            "response_time_ms": round(total_ms, 1),
+            "retrieval_ms": round(retrieval_ms, 1),
+            "inference_ms": round(inference_ms, 1),
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+            "tools_called": tools_called,
+        }
 
     def _handle_streaming_response(
         self,
