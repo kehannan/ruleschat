@@ -74,9 +74,7 @@
           <label for="password">Password</label>
           <input type="password" class="input" id="password" name="password" required autofocus minlength="8">
           <div class="pw-strength" id="pw-strength">
-            <span class="pw-rule" data-rule="length"><span class="glyph"></span> 12+ characters</span>
-            <span class="pw-rule" data-rule="case"><span class="glyph"></span> mixed case</span>
-            <span class="pw-rule" data-rule="numsym"><span class="glyph"></span> 1 number or symbol</span>
+            <span class="pw-rule" data-rule="length"><span class="glyph"></span> 8+ characters</span>
           </div>
         </div>
         <button type="submit" class="btn btn-primary btn-block" style="margin-top: 20px;">
@@ -95,9 +93,7 @@
   const strength = document.getElementById('pw-strength');
   if (!pw || !strength) return;
   const rules = {
-    length:  v => v.length >= 12,
-    case:    v => /[a-z]/.test(v) && /[A-Z]/.test(v),
-    numsym:  v => /[0-9]/.test(v) || /[^A-Za-z0-9]/.test(v),
+    length:  v => v.length >= 8,
   };
   pw.addEventListener('input', () => {
     const v = pw.value;
