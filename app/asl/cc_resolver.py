@@ -225,6 +225,101 @@ def cct_column(attack_fp: Fraction, defense_fp: Fraction) -> Dict[str, Any]:
     }
 
 
+def compute_cc(
+    attack_fp,
+    defense_fp,
+    drm: int = 0,
+    hth: bool = False,
+    defender_types: Optional[List[str]] = None,
+    drm_breakdown: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Resolve a Close Combat attack from already-summed CC firepowers (A11.11),
+    with NO board state. Pure function; shares the odds/Kill-Number/outcome math
+    with `resolve_cc` so the agentic tool and the .vsav resolver always agree.
+
+    Args:
+        attack_fp: Total CC FP of the attacker(s) — sum of printed FP for each
+            MMC, 1 per SMC (A11.14); broken units never attack (A11.16);
+            SW/ordnance NA (A11.13); halve vs a concealed target (A11.19). The
+            caller folds those in.
+        defense_fp: Total CC FP of the defender(s).
+        drm: Net CC DR modifier (negative favors the attacker). If
+            `drm_breakdown` is supplied, the sum of its `drm` values is used
+            instead.
+        hth: True if Hand-to-Hand CC is in effect — use the red Kill Number
+            (J2.31, by SSR/Japanese G1.64); otherwise the black KN is used.
+        defender_types: Optional list of 'squad'|'hs'|'crew'|'smc' for the
+            A7.302 Casualty-Reduction-eliminates semantics.
+        drm_breakdown: Optional itemized DRM ledger ([{label, drm}, ...]).
+
+    Returns the odds column, Kill Number, itemized DRM, the Original DR needed
+    to eliminate / cause Casualty Reduction, and 2d6 probabilities.
+    """
+    af = Fraction(str(attack_fp))
+    df = Fraction(str(defense_fp))
+    odds = cct_column(af, df)
+
+    ledger = list(drm_breakdown) if drm_breakdown else []
+    net_drm = sum(int(d["drm"]) for d in ledger) if ledger else int(drm)
+
+    kn = odds["kill_number_hth"] if hth else odds["kill_number"]
+    elim_final = kn - 1                 # Final DR < KN eliminates (A11.11)
+    elim_orig = kn - 1 - net_drm
+    cr_orig = kn - net_drm
+
+    def_types = [t.lower() for t in (defender_types or [])]
+    cr_notes: List[str] = []
+    cr_is_elim = False
+    if def_types and all(t in ("hs", "crew") for t in def_types):
+        cr_is_elim = True
+        cr_notes.append(
+            "TARGET IS A HALF-SQUAD/CREW: Casualty Reduction eliminates any HS "
+            f"or crew (A7.302), so a Final DR EQUAL to the Kill Number ALSO "
+            f"eliminates it; effective elimination on Original DR <= {cr_orig}."
+        )
+    elif def_types and all(t in ("hs", "crew", "smc") for t in def_types):
+        cr_notes.append(
+            "All defenders are HS/crew/SMC: Casualty Reduction eliminates a "
+            "HS/crew and WOUNDS a SMC (A7.302, Wound Severity dr A17.11); "
+            "Random Selection picks the victim (A11.11)."
+        )
+    elif any(t in def_types for t in ("smc", "hs", "crew")):
+        cr_notes.append(
+            "Casualty Reduction varies by defender: squad -> HS; HS/crew -> "
+            "eliminated; SMC -> wounded (A7.302); Random Selection picks the "
+            "victim (A11.11)."
+        )
+
+    out: Dict[str, Any] = {
+        "attack_fp": _fnum(af),
+        "defense_fp": _fnum(df),
+        "odds": odds["odds"],
+        "odds_raw": odds["raw_ratio"],
+        "kill_number": kn,
+        "kill_number_type": "red (Hand-to-Hand)" if hth else "black",
+        "kill_number_black": odds["kill_number"],
+        "kill_number_hth": odds["kill_number_hth"],
+        "hth": hth,
+        "drm": net_drm,
+        "drm_breakdown": ledger,
+        "eliminate_on": f"Final DR < {kn} (i.e. Final DR <= {elim_final})",
+        "eliminate_on_original_dr_le": elim_orig,
+        "casualty_reduction_on": f"Final DR = {kn} (Partial Kill: Random "
+                                 "Selection, A11.11)",
+        "cr_on_original_dr": cr_orig,
+        "p_eliminate": round(_p_le(elim_orig), 4),
+        "p_casualty_reduction": round(_p_eq(cr_orig), 4),
+        "p_any_effect": round(_p_le(elim_orig) + _p_eq(cr_orig), 4),
+        "cr_notes": cr_notes,
+        "hth_note": "Red (Hand-to-Hand) Kill Number applies ONLY when HtH CC "
+                    "is in effect (J2.31); otherwise the black KN is used.",
+    }
+    if cr_is_elim:
+        out["cr_is_elimination"] = True
+        out["p_eliminate_including_cr"] = out["p_any_effect"]
+    return out
+
+
 # ----------------------------------------------------------------------------
 # Per-unit CC classification
 # ----------------------------------------------------------------------------

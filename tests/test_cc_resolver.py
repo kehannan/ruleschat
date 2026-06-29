@@ -500,6 +500,38 @@ def test_schema_registered_and_context_tool():
     assert "resolve_cc" in CONTEXT_TOOLS
 
 
+def test_cc_attack_no_save_matches_a11_examples():
+    r = execute_tool("cc_attack", {"attack_fp": 8, "defense_fp": 4,
+                                   "defender_types": ["squad"]})
+    assert r["odds"] == "2-1" and r["kill_number"] == 7, r
+    r2 = execute_tool("cc_attack", {"attack_fp": 6, "defense_fp": 4})
+    assert r2["odds"] == "3-2" and r2["kill_number"] == 6, r2
+
+
+def test_cc_attack_leader_drm_shifts_threshold():
+    # 6 vs 4 -> 3-2, KN 6; a -1 leadership DRM eases the kill.
+    r = execute_tool("cc_attack", {"attack_fp": 6, "defense_fp": 4, "drm": -1})
+    assert r["drm"] == -1 and r["kill_number"] == 6, r
+    # Final DR < KN eliminates (A11.11): KN6, drm -1 -> Original <= 6 eliminates.
+    assert r["eliminate_on_original_dr_le"] == 6, r
+    assert r["cr_on_original_dr"] == 7, r
+
+
+def test_cc_attack_other_drm_summed_and_hs_cr_is_elim():
+    r = execute_tool("cc_attack", {
+        "attack_fp": 6, "defense_fp": 3, "defender_types": ["hs"],
+        "other_drm": [{"label": "leader", "drm": -1}, {"label": "CX", "drm": 1}],
+    })
+    assert r["drm"] == 0, r                      # -1 + 1
+    assert r.get("cr_is_elimination") is True, r
+
+
+def test_cc_attack_schema_registered_not_context_tool():
+    schema = next(s for s in TOOL_SCHEMAS if s["name"] == "cc_attack")
+    assert set(schema["parameters"]["required"]) == {"attack_fp", "defense_fp"}
+    assert "cc_attack" not in CONTEXT_TOOLS
+
+
 # --------------------------------------------------------------------------- #
 # Runner
 # --------------------------------------------------------------------------- #

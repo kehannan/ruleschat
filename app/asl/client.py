@@ -32,7 +32,8 @@ class OpenAIResponsesClient:
         stream: bool,
         temperature: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
-        previous_response_id: Optional[str] = None
+        previous_response_id: Optional[str] = None,
+        tool_choice: Optional[Any] = None,
     ):
         """
         Create a Responses API response.
@@ -67,6 +68,10 @@ class OpenAIResponsesClient:
         # Add previous_response_id if provided
         if previous_response_id:
             kwargs["previous_response_id"] = previous_response_id
+
+        # Force a specific tool / require a tool call when requested
+        if tool_choice is not None:
+            kwargs["tool_choice"] = tool_choice
 
         return self.client.responses.create(**kwargs)
     

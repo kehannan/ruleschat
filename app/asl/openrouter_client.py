@@ -28,8 +28,19 @@ class OpenRouterClient:
         api_key: str,
         app_name: Optional[str] = None,
         app_url: Optional[str] = None,
+        timeout: Optional[float] = None,
     ):
-        self.client = OpenAI(api_key=api_key, base_url=self.BASE_URL)
+        # A per-request timeout turns a provider that hangs (OpenRouter routes
+        # across providers of wildly varying speed) into a fast failure the
+        # caller can retry, instead of a multi-minute stall. Default from
+        # OPENROUTER_TIMEOUT (seconds); None => SDK default (~600s).
+        if timeout is None:
+            env_t = os.getenv("OPENROUTER_TIMEOUT")
+            timeout = float(env_t) if env_t else None
+        client_kwargs = {"api_key": api_key, "base_url": self.BASE_URL}
+        if timeout is not None:
+            client_kwargs["timeout"] = timeout
+        self.client = OpenAI(**client_kwargs)
         # OpenRouter recommends these headers for attribution; harmless if missing.
         self._extra_headers = {}
         if app_url:
@@ -40,10 +51,14 @@ class OpenRouterClient:
     def create_chat(
         self,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         stream: bool = False,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Any] = None,
+        reasoning: Optional[Dict[str, Any]] = None,
+        provider: Optional[Dict[str, Any]] = None,
     ):
         """
         Make a chat-completions call.
@@ -51,6 +66,22 @@ class OpenRouterClient:
         Returns an OpenAI ChatCompletion (non-streaming) or a stream object
         (streaming). Matches the OpenAI SDK shape so callers can use
         `response.choices[0].message.content` and `response.usage.prompt_tokens`.
+
+        `tools` / `tool_choice` use the OpenAI Chat Completions function-calling
+        shape (tools nested under {"type": "function", "function": {...}}). They
+        let the OpenRouter path run the same agentic calculator loop the OpenAI
+        Responses path uses; omit them for a plain RAG call.
+
+        `reasoning` is OpenRouter's unified reasoning control, e.g.
+        {"effort": "low"} or {"max_tokens": 4000} or {"enabled": False}. It's
+        passed through `extra_body` (not a native OpenAI param). Bounding it
+        matters for reasoning models like z-ai/glm-5.2, which otherwise emit
+        tens of thousands of hidden reasoning tokens per question.
+
+        `provider` is OpenRouter's provider-routing control, e.g.
+        {"sort": "throughput"} or {"order": ["deepinfra"], "allow_fallbacks":
+        True}. Steers away from slow/flaky providers — also passed via
+        extra_body.
         """
         kwargs: Dict[str, Any] = {
             "model": model,
@@ -61,6 +92,17 @@ class OpenRouterClient:
             kwargs["temperature"] = temperature
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
+        if tools:
+            kwargs["tools"] = tools
+            if tool_choice is not None:
+                kwargs["tool_choice"] = tool_choice
+        extra_body: Dict[str, Any] = {}
+        if reasoning is not None:
+            extra_body["reasoning"] = reasoning
+        if provider is not None:
+            extra_body["provider"] = provider
+        if extra_body:
+            kwargs["extra_body"] = extra_body
         if self._extra_headers:
             kwargs["extra_headers"] = self._extra_headers
         return self.client.chat.completions.create(**kwargs)
