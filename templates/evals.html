@@ -124,7 +124,7 @@
         {% if is_archive %}
         <p class="table-caption">TABLE 01 — 200+ questions, human-verified · cost &amp; timing from live production chat</p>
         {% else %}
-        <p class="table-caption">TABLE 01 — 85 questions, human-reviewed · cost &amp; timing from the eval run</p>
+        <p class="table-caption">TABLE 01 — 85 questions, human-reviewed · cost &amp; timing from live production usage</p>
         {% endif %}
 
         {% if model_order is defined %}
@@ -162,7 +162,10 @@
                 {% set cc = acc['calc'] %}
                 <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
               {% else %}<td>—</td>{% endif %}
-              {% if model in mid %}
+              {% if model == 'Fable' %}
+                <td class="acc cell-bad">~30¢<sup>&dagger;</sup></td>
+                <td class="acc cell-bad">~20s<sup>&dagger;</sup></td>
+              {% elif model in mid %}
                 <td id="tbl-cost-{{ mid[model] }}">—</td>
                 <td id="tbl-time-{{ mid[model] }}">—</td>
               {% else %}
@@ -184,6 +187,13 @@
           <strong>Note —</strong> all runs use the same retrieval configuration:
           ~20k token RAG input per question, 20 chunks retrieved per query from
           a vector store of the 700-page rulebook.
+        </p>
+        <p class="table-footnote">
+          <sup>&dagger;</sup> Fable has no live production traffic yet — its cost
+          and time are <strong>estimated from the eval run</strong> (Fable API
+          pricing applied to the per-question token volume; response time
+          approximated from retrieval plus an inference proxy), not measured from
+          live usage like the other rows.
         </p>
         {% if is_archive %}
         <p class="table-footnote">
