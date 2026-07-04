@@ -391,7 +391,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         # Build model_accuracy: latest run per model per question type.
         # Order is "frontier → cheap"; deepseek-v3 sits with the cheaper tier
         # (it's the first OpenRouter-routed model in the table).
-        MODEL_ORDER = ["gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
+        MODEL_ORDER = ["Fable", "gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
         MODEL_VIA_OPENROUTER = {"deepseek-v3", "mercury-2"}
         model_accuracy = {}
         model_latest_file = {}
@@ -475,6 +475,11 @@ def _format_model_name(model_name: str) -> str:
     """Format a model name for display, extracting base model and custom name from fine-tuned models."""
     if not model_name or model_name == "Unknown":
         return model_name
+
+    # Anthropic model IDs → the short label used in prose and MODEL_ORDER.
+    CLAUDE_DISPLAY = {"claude-fable-5": "Fable"}
+    if model_name in CLAUDE_DISPLAY:
+        return CLAUDE_DISPLAY[model_name]
 
     # OpenAI fine-tuned format: ft:{base_model}:{org}:{custom_name}:{id}
     if model_name.startswith("ft:"):

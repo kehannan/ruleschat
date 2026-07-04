@@ -88,21 +88,22 @@
         <div class="ev-title">The answer</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Not <em>yet</em>.</h2>
+        <h2 class="h-section">Accurate — but not <em>cheap</em>.</h2>
+        {% set fable_fid = (model_latest_file.get('Fable') if model_latest_file is defined else None) %}
         {% set gpt54_fid = (model_latest_file.get('gpt-5.4') if model_latest_file is defined else None) %}
         <p class="lede">
-          State-of-the-art models aren't reliable enough yet. On a
-          {% if gpt54_fid %}<a href="{{ url_for('evals_detail', file_id=gpt54_fid) }}?judge=human" class="inline-link">simple Q&amp;A eval</a>{% else %}simple Q&amp;A eval{% endif %},
-          GPT-5.4 was <strong>90% accurate</strong> on straight recall
-          questions and <strong>80% accurate</strong> on recall plus calculation
-          (i.e., reasoning), and each query costs about <strong>6¢</strong>. There
-          are <a href="{{ url_for('evals_v1') }}" class="inline-link">cheaper and slower models</a>
-          with slightly worse performance.
+          Fable can answer this
+          {% if fable_fid %}<a href="{{ url_for('evals_detail', file_id=fable_fid) }}?judge=human" class="inline-link">simple eval</a>{% else %}simple eval{% endif %}
+          with <strong>98.8% accuracy</strong> (100% on calculation, 98% on
+          recall) — but at a cost of about <strong>25–30¢ per query</strong>.
         </p>
         <p class="lede">
-          That said, the models are improving on this task at a rapid rate —
-          limited testing with <strong>Fable</strong> showed a step change over
-          GPT-5.4.
+          A more cost-effective model,
+          {% if gpt54_fid %}<a href="{{ url_for('evals_detail', file_id=gpt54_fid) }}?judge=human" class="inline-link">GPT-5.4</a>{% else %}GPT-5.4{% endif %},
+          has <strong>~85% accuracy</strong> (90% recall, 80% calculation) at a
+          cost of about <strong>6¢ per query</strong>. There are
+          <a href="{{ url_for('evals_v1') }}" class="inline-link">cheaper and slower models</a>
+          with slightly worse performance.
         </p>
       </div>
     </div>
@@ -123,7 +124,7 @@
         {% if is_archive %}
         <p class="table-caption">TABLE 01 — 200+ questions, human-verified · cost &amp; timing from live production chat</p>
         {% else %}
-        <p class="table-caption">TABLE 01 — 85 questions, human-reviewed · Recall 45/50, Calc 28/35, Overall 73/85 (85.9%) · cost &amp; timing from the eval run</p>
+        <p class="table-caption">TABLE 01 — 85 questions, human-reviewed · cost &amp; timing from the eval run</p>
         {% endif %}
 
         {% if model_order is defined %}
