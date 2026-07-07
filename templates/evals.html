@@ -91,11 +91,14 @@
         <h2 class="h-section">Accurate — but not <em>cheap</em>.</h2>
         {% set fable_fid = (model_latest_file.get('Fable') if model_latest_file is defined else None) %}
         {% set gpt54_fid = (model_latest_file.get('gpt-5.4') if model_latest_file is defined else None) %}
+        {% set fable_med = (table_rows | selectattr('model', 'equalto', 'Fable') | selectattr('tier', 'equalto', 'Medium') | list | first) if table_rows is defined else None %}
         <p class="lede">
-          Fable can answer this
-          {% if fable_fid %}<a href="{{ url_for('evals_detail', file_id=fable_fid) }}?judge=human" class="inline-link">simple eval</a>{% else %}simple eval{% endif %}
-          with <strong>98.8% accuracy</strong> (100% on calculation, 98% on
-          recall) — but at a cost of about <strong>25–30¢ per query</strong>.
+          Fable can answer an
+          {% if fable_fid %}<a href="{{ url_for('evals_detail', file_id=fable_fid) }}?judge=human" class="inline-link">easy eval</a>{% else %}easy eval{% endif %}
+          with <strong>98.8% accuracy</strong> and a harder
+          {% if fable_med %}<a href="{{ url_for('evals_detail', file_id=fable_med.file_id) }}?judge=human" class="inline-link">medium eval</a>{% else %}medium eval{% endif %}
+          with <strong>93.3%</strong> — scoring 100% on calculation questions in
+          both — but at a cost of about <strong>25–30¢ per query</strong>.
         </p>
         <p class="lede">
           A more cost-effective model,
