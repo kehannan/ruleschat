@@ -124,15 +124,17 @@
         {% if is_archive %}
         <p class="table-caption">TABLE 01 — 200+ questions, human-verified · cost &amp; timing from live production chat</p>
         {% else %}
-        <p class="table-caption">TABLE 01 — 85 questions, human-reviewed · cost &amp; timing from live production usage</p>
+        <p class="table-caption">TABLE 01 — 85-question easy + 60-question medium evals, human-reviewed · cost &amp; timing from live production usage</p>
         {% endif %}
 
-        {% if model_order is defined %}
+        {% if table_rows is defined %}
         {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2'} %}
+        {% set ns = namespace(cost_ids_done=[]) %}
         <table class="compare-table">
           <thead>
             <tr>
               <th class="col-model">Model</th>
+              <th>Eval</th>
               <th>Recall</th>
               <th>Calc</th>
               <th>Cost / q</th>
@@ -142,18 +144,16 @@
             </tr>
           </thead>
           <tbody>
-            {% for model in model_order %}
-            {% set acc = model_accuracy.get(model, {}) if model_accuracy is defined else {} %}
-            {% set fid = model_latest_file.get(model) if model_latest_file is defined else None %}
-            {% set est = model_estimated is defined and model in model_estimated %}
-            {% set last_run = model_last_run_date.get(model) if model_last_run_date is defined else None %}
-            {% set via_or = model_via_openrouter is defined and model in model_via_openrouter %}
+            {% for row in table_rows %}
+            {% set acc = row.acc %}
+            {% set est = row.estimated %}
             <tr>
               <td class="col-model">
-                {{ model }}
+                {{ row.model }}
                 {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
-                {% if via_or %}<div class="model-sub">via OpenRouter</div>{% endif %}
+                {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
               </td>
+              <td>{{ row.tier }}</td>
               {% if 'recall' in acc %}
                 {% set rc = acc['recall'] %}
                 <td class="acc {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
@@ -162,20 +162,21 @@
                 {% set cc = acc['calc'] %}
                 <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
               {% else %}<td>—</td>{% endif %}
-              {% if model == 'Fable' %}
+              {% if row.model == 'Fable' and row.file_id %}
                 <td class="acc cell-bad">~30¢<sup>&dagger;</sup></td>
                 <td class="acc cell-bad">~20s<sup>&dagger;</sup></td>
-              {% elif model in mid %}
-                <td id="tbl-cost-{{ mid[model] }}">—</td>
-                <td id="tbl-time-{{ mid[model] }}">—</td>
+              {% elif row.model in mid and row.model not in ns.cost_ids_done %}
+                {% set ns.cost_ids_done = ns.cost_ids_done + [row.model] %}
+                <td id="tbl-cost-{{ mid[row.model] }}">—</td>
+                <td id="tbl-time-{{ mid[row.model] }}">—</td>
               {% else %}
                 <td>—</td>
                 <td>—</td>
               {% endif %}
-              <td class="col-date">{{ last_run or '—' }}</td>
+              <td class="col-date">{{ row.date or '—' }}</td>
               <td class="col-action">
-                {% if fid %}
-                <a href="{{ url_for('evals_detail', file_id=fid) }}?judge=human" class="view-link">VIEW →</a>
+                {% if row.file_id %}
+                <a href="{{ url_for('evals_detail', file_id=row.file_id) }}?judge=human" class="view-link">VIEW →</a>
                 {% else %}—{% endif %}
               </td>
             </tr>

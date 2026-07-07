@@ -296,6 +296,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     eval_file = Path(eval_file).stem
 
                     is_estimated = metadata.get("estimated", False)
+                    eval_tier = _eval_tier(eval_file)
 
                     # Create rows for each question type (Human Review only)
                     if by_question_type:
@@ -309,6 +310,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                                 "date": date_str,
                                 "model": model_display,
                                 "eval_name": eval_file,
+                                "eval_tier": eval_tier,
                                 "judge_type": "Human Review",
                                 "question_type": q_type.capitalize(),
                                 "total": q_total,
@@ -332,6 +334,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                             "date": date_str,
                             "model": model_display,
                             "eval_name": eval_file,
+                            "eval_tier": eval_tier,
                             "judge_type": "Human Review",
                             "question_type": "All",
                             "total": total,
@@ -366,6 +369,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         "date": date_str,
                         "model": model_display,
                         "eval_name": file_path.stem,
+                        "eval_tier": _eval_tier(file_path.stem),
                         "judge_type": "AI Judge",
                         "total": total,
                         "pass_count": summary["ai_stats"]["pass"],
@@ -388,44 +392,87 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
             -TYPE_ORDER.get(x.get("question_type", ""), 99),
         ), reverse=True)
 
-        # Build model_accuracy: latest run per model per question type.
-        # Order is "frontier → cheap"; deepseek-v3 sits with the cheaper tier
-        # (it's the first OpenRouter-routed model in the table).
+        # Build the comparison-table rows, one per (model, eval tier) — e.g.
+        # Fable has an Easy row and a Medium row. Order is "frontier → cheap";
+        # deepseek-v3 sits with the cheaper tier (it's the first
+        # OpenRouter-routed model in the table). Within a model, easier tiers
+        # come first.
         MODEL_ORDER = ["Fable", "gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
         MODEL_VIA_OPENROUTER = {"deepseek-v3", "mercury-2"}
+        TIER_SORT = {"Easy": 0, "Medium": 1, "—": 2}
+
+        rows_map = {}
+        for run in eval_runs:
+            m = run["model"]
+            tier = run.get("eval_tier", "—")
+            qt = run["question_type"].lower()
+            key = (m, tier)
+            if key not in rows_map:
+                date_label = None
+                if run.get("date"):
+                    try:
+                        date_label = datetime.strptime(run["date"], "%Y-%m-%d").strftime("%b %-d")
+                    except (ValueError, TypeError):
+                        pass
+                rows_map[key] = {
+                    "model": m, "tier": tier, "acc": {},
+                    "file_id": run["file_id"], "date": date_label,
+                    "estimated": bool(run.get("estimated")),
+                    "via_openrouter": m in MODEL_VIA_OPENROUTER,
+                }
+            # eval_runs is sorted newest-first, so the first value seen per
+            # (model, tier, qtype) is the latest run's accuracy.
+            if qt not in rows_map[key]["acc"]:
+                rows_map[key]["acc"][qt] = round(run["pass_pct"])
+
+        def _row_sort(key):
+            m, tier = key
+            m_idx = MODEL_ORDER.index(m) if m in MODEL_ORDER else len(MODEL_ORDER)
+            return (m_idx, TIER_SORT.get(tier, 99))
+
+        row_order = sorted(rows_map.keys(), key=_row_sort)
+        if not filter_to_present:
+            # Archive page keeps the full fixed model grid even without data.
+            # Fable postdates the v1.0 archive, so it's not padded in.
+            present = {m for m, _ in rows_map.keys()}
+            for m in MODEL_ORDER:
+                if m == "Fable":
+                    continue
+                if m not in present:
+                    rows_map[(m, "—")] = {
+                        "model": m, "tier": "—", "acc": {}, "file_id": None,
+                        "date": None, "estimated": False,
+                        "via_openrouter": m in MODEL_VIA_OPENROUTER,
+                    }
+            row_order = sorted(rows_map.keys(), key=_row_sort)
+        table_rows = [rows_map[k] for k in row_order]
+
+        # Legacy per-model keys, still used by Section 01 prose links (and kept
+        # for any external consumers). model_latest_file prefers the Easy-tier
+        # run so prose that cites the easy-eval numbers links to that file.
         model_accuracy = {}
         model_latest_file = {}
         model_estimated = set()
         model_last_run_date = {}
-        for run in eval_runs:
-            m = run["model"]
-            qt = run["question_type"].lower()
-            if m not in model_accuracy:
-                model_accuracy[m] = {}
-            if qt not in model_accuracy[m]:
-                model_accuracy[m][qt] = round(run["pass_pct"])
-            if m not in model_latest_file:
-                model_latest_file[m] = run["file_id"]
-            if run.get("estimated"):
+        for key in row_order:
+            row = rows_map[key]
+            m = row["model"]
+            if not row["file_id"]:
+                continue
+            if m not in model_latest_file:  # first row per model = easiest tier
+                model_latest_file[m] = row["file_id"]
+                model_accuracy[m] = dict(row["acc"])
+                if row["date"]:
+                    model_last_run_date[m] = row["date"]
+            if row["estimated"]:
                 model_estimated.add(m)
-            # Track most recent run date per model. eval_runs is sorted desc by date,
-            # so the first time we see a model is its newest run.
-            if m not in model_last_run_date and run.get("date"):
-                try:
-                    model_last_run_date[m] = datetime.strptime(
-                        run["date"], "%Y-%m-%d"
-                    ).strftime("%b %-d")
-                except (ValueError, TypeError):
-                    pass
 
-        # Optionally restrict the rendered order to models that actually have
-        # data, preserving the canonical frontier→cheap ordering. The main
-        # /evals page uses this so a single-model result renders one row.
         model_order = MODEL_ORDER
         if filter_to_present:
             model_order = [m for m in MODEL_ORDER if m in model_accuracy]
 
-        return {"eval_runs": eval_runs, "model_accuracy": model_accuracy,
+        return {"eval_runs": eval_runs, "table_rows": table_rows,
+                "model_accuracy": model_accuracy,
                 "model_order": model_order, "model_latest_file": model_latest_file,
                 "model_estimated": model_estimated,
                 "model_last_run_date": model_last_run_date,
@@ -469,6 +516,21 @@ OPENROUTER_DISPLAY = {
     "deepseek/deepseek-v3.2": "deepseek-v3",
     "inception/mercury-2": "mercury-2",
 }
+
+
+def _eval_tier(eval_name: str) -> str:
+    """Classify an eval file name into a difficulty tier for the comparison table.
+
+    v1.1 eval files are named asl-evals-<tier>-... (easy/med). Files that
+    predate the tier naming (the v1.0 archive) get "—" so the Eval column
+    renders a neutral placeholder rather than a wrong label.
+    """
+    name = (eval_name or "").lower()
+    if "med" in name:
+        return "Medium"
+    if "easy" in name:
+        return "Easy"
+    return "—"
 
 
 def _format_model_name(model_name: str) -> str:
