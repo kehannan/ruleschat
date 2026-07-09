@@ -146,7 +146,26 @@
             </svg>
             <span class="num">iii</span>
           </div>
-          <div class="step-label">Stage 03 · Evaluation</div>
+          <div class="step-label">Stage 03 · Agentic</div>
+          <h3>Tools, then <em>verification</em></h3>
+          <p>
+            The model works in a loop: deterministic IFT / CC calculators do
+            the arithmetic, a lookup tool fetches the exact text (plus
+            official Q&amp;A) of any rule before it's cited, and a cite-check
+            pass re-reads every cited section and corrects the draft.
+          </p>
+          <div class="tech"><span>function calling</span><span>get_section</span><span>cite-check</span></div>
+        </article>
+
+        <article class="pipe-node">
+          <div class="hex-wrap">
+            <svg viewBox="0 0 88 100">
+              <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
+                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
+            </svg>
+            <span class="num">iv</span>
+          </div>
+          <div class="step-label">Stage 04 · Evaluation</div>
           <h3>LLM-as-a-<em>judge</em></h3>
           <p>
             A zero-shot AI judge scores each response Pass / Fail / Needs
@@ -162,9 +181,9 @@
               <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
                        fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
             </svg>
-            <span class="num">iv</span>
+            <span class="num">v</span>
           </div>
-          <div class="step-label">Stage 04 · Improvement</div>
+          <div class="step-label">Stage 05 · Improvement</div>
           <h3>Curate &amp; <em>retrain</em></h3>
           <p>
             Strong Q&amp;A pairs feed eval datasets and fine-tuning corpora;

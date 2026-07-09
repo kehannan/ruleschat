@@ -415,7 +415,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
 .pipeline { position: relative; padding: 8px 0 0; }
 .pipe-flow {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 0;
   position: relative;
 }

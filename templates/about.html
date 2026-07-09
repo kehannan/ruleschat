@@ -464,12 +464,79 @@
   </div>
 </section>
 
-<!-- 05 · What makes this hard -->
 <section class="about-section">
   <div class="wrap-narrow">
     <div class="about-row">
       <div class="about-rail">
         <div class="num-eyebrow"><span class="num">05</span></div>
+        <div class="rail-title">Verified</div>
+      </div>
+      <div>
+        <h2 class="about-h2">Never cite a rule<br />you haven't <em>read</em>.</h2>
+        <div class="about-prose">
+          <p>
+            Vector search finds the rule that answers the question; the failures
+            come from the rule <em>next to</em> it. In evals, nearly every wrong
+            recall answer had the same shape: the headline rule stated correctly,
+            and a qualifier — an <span class="mono">EXC:</span>, an "unless", an
+            out-of-LOS condition — sitting in a cross-referenced section that
+            never entered the context window.
+          </p>
+          <p>
+            So the rulebook was made deterministically addressable. An offline
+            pipeline slices the eASLRB PDF into its 2,781 numbered sections
+            (99.4% coverage), and parses the official Q&amp;A / errata
+            compilation into ~2,400 entries keyed to the sections they clarify.
+            On top of that store sit two layers:
+          </p>
+        </div>
+        <ol class="stage-list">
+          <li>
+            <span class="roman">i</span>
+            <div>
+              <div class="stage-title"><span class="mono">get_section</span> · exact lookup, in the loop</div>
+              <div class="stage-body">
+                With Tools on, the model can fetch the verbatim text of any
+                section by ID — plus every official ruling about it — before
+                citing it, and is instructed to do so for each section it cites
+                and each cross-reference that could qualify the answer.
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="roman">ii</span>
+            <div>
+              <div class="stage-title">Cite-check · code-driven verification</div>
+              <div class="stage-body">
+                Models don't reliably follow fetch-before-cite protocols, so the
+                backstop doesn't rely on model discretion: after a draft answer,
+                <em>code</em> extracts the section IDs it cites, fetches their
+                exact text (one level of cross-references and Q&amp;A included),
+                and a single forced revision turn corrects the draft against
+                them. If nothing contradicts the draft, it passes through
+                unchanged.
+              </div>
+            </div>
+          </li>
+        </ol>
+        <div class="about-prose" style="margin-top: 24px;">
+          <p>
+            The division of labor mirrors the calculator tools: the model
+            interprets and writes; deterministic code decides what evidence it
+            must have read first.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 · What makes this hard -->
+<section class="about-section alt">
+  <div class="wrap-narrow">
+    <div class="about-row">
+      <div class="about-rail">
+        <div class="num-eyebrow"><span class="num">06</span></div>
         <div class="rail-title">Hardness</div>
       </div>
       <div>
@@ -502,11 +569,11 @@
 </section>
 
 <!-- 06 · About ASL -->
-<section class="about-section alt">
+<section class="about-section">
   <div class="wrap-narrow">
     <div class="about-row">
       <div class="about-rail">
-        <div class="num-eyebrow"><span class="num">06</span></div>
+        <div class="num-eyebrow"><span class="num">07</span></div>
         <div class="rail-title">About ASL</div>
       </div>
       <div>
