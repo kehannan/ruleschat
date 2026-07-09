@@ -494,10 +494,11 @@ async def websocket_chat(websocket: WebSocket):
                         "deepseek-v3": "deepseek/deepseek-v3.2",
                         "mercury-2": "inception/mercury-2",
                         "fable": "anthropic/claude-fable-5",
+                        "glm-5.2": "z-ai/glm-5.2",
                     }
                     allowed_models = {
                         "gpt-5.4", "gpt-4.1-mini",
-                        "deepseek-v3", "mercury-2", "fable",
+                        "deepseek-v3", "mercury-2", "fable", "glm-5.2",
                     }
                     if selected_model in allowed_models:
                         model_override = OPENROUTER_SLUG.get(selected_model, selected_model)
