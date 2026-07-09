@@ -84,6 +84,26 @@ MAX_ITER_DEFAULT = 5
 MAX_ITER_WITH_LOOKUP = 8
 
 
+# User-facing progress labels for the streaming agentic loop. The generator
+# yields {"status": <label>} dicts between text deltas; the WebSocket layer
+# forwards them as typed messages and the UI shows them in the searching pill.
+_TOOL_STATUS_LABELS = {
+    "ift_odds": "Calculating IFT odds",
+    "ift_attack": "Calculating the IFT attack",
+    "cc_attack": "Calculating close combat",
+    "resolve_attack": "Resolving the attack from the save file",
+    "resolve_cc": "Resolving close combat from the save file",
+    "search_rules": "Searching the rules",
+}
+
+
+def _tool_status_label(name: str, args: Optional[Dict[str, Any]]) -> str:
+    if name == "get_section":
+        sec = (args or {}).get("section")
+        return f"Checking rule {sec}" if sec else "Checking rule text"
+    return _TOOL_STATUS_LABELS.get(name, f"Running {name}")
+
+
 def _lookup_tools_available() -> bool:
     """True when the extracted rulebook store exists on this deployment."""
     try:
@@ -1258,6 +1278,11 @@ Your response:"""
         Returns (generator, timing_data) — same contract as
         _handle_streaming_response: timing_data fills in once the generator is
         fully consumed.
+
+        The generator yields two item types: str (answer text deltas) and
+        dict ({"status": <user-facing progress label>}) at phase boundaries
+        (turn start, each tool call). Consumers that only want text must
+        filter dicts.
         """
         import json as json_module
 
@@ -1275,6 +1300,11 @@ Your response:"""
             tools_called: List[str] = []
 
             for iteration in range(max_iterations):
+                # Progress event for the UI pill. Turn 0 starts with the
+                # server-side file_search; later turns come right after tool
+                # results were submitted.
+                yield {"status": "Searching the rulebook" if iteration == 0
+                       else "Working on the answer"}
                 stream_manager = self.client.stream_response(
                     model=model,
                     input=current_input,
@@ -1324,6 +1354,7 @@ Your response:"""
                     try:
                         raw = fc.get("arguments")
                         args = json_module.loads(raw) if isinstance(raw, str) else (raw or {})
+                        yield {"status": _tool_status_label(fc["name"], args)}
                         logging.info("  📞 %s(%s)", fc["name"], args)
                         output_json = json_module.dumps(
                             execute_tool(fc["name"], args, context=tool_context)

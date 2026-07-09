@@ -35,6 +35,7 @@
     <h4>Ask the <em>rulebook</em>.</h4>
     <select class="model-pill" id="model-selector" title="Select model">
       <option value="gpt-5.4">gpt-5.4 · ¢¢/fast</option>
+      <option value="gpt-5.6-luna">gpt-5.6-luna · ¢/new</option>
       <option value="deepseek-v3">deepseek-v3 · ¢</option>
     </select>
   </div>
@@ -201,12 +202,27 @@
     return content;
   }
 
-  function createSearchingBubble() {
+  function searchingBubbleHtml(label) {
+    const span = document.createElement('span');
+    span.textContent = label;  // labels are server-sent; escape anyway
+    return span.innerHTML + ' <span class="searching-dots"><span></span><span></span><span></span></span>';
+  }
+
+  function createSearchingBubble(label) {
     const wrap = document.createElement('div');
     wrap.className = 'searching-bubble';
-    wrap.innerHTML = 'Searching <span class="searching-dots"><span></span><span></span><span></span></span>';
+    wrap.innerHTML = searchingBubbleHtml(label || 'Searching');
     appendToScroll(wrap);
     scrollChatBottom();
+  }
+
+  // Live progress from the agentic loop (e.g. "Resolving the attack from the
+  // save file"). Reuses the searching pill; recreates it if the answer hasn't
+  // started streaming yet.
+  function updateSearchingBubble(label) {
+    const bubble = document.querySelector('.searching-bubble');
+    if (bubble) bubble.innerHTML = searchingBubbleHtml(label);
+    else if (!getCurrentAssistantContent()) createSearchingBubble(label);
   }
 
   function removeSearchingBubble() {
@@ -286,6 +302,10 @@
         }
         if (msg.type === 'rate_limit') {
           showRateLimit(msg.message);
+          return;
+        }
+        if (msg.type === 'status') {
+          updateSearchingBubble(msg.label || 'Working');
           return;
         }
         if (msg.type === 'stream_complete') {

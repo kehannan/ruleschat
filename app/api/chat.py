@@ -497,7 +497,7 @@ async def websocket_chat(websocket: WebSocket):
                         "glm-5.2": "z-ai/glm-5.2",
                     }
                     allowed_models = {
-                        "gpt-5.4", "gpt-4.1-mini",
+                        "gpt-5.4", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-4.1-mini",
                         "deepseek-v3", "mercury-2", "fable", "glm-5.2",
                     }
                     if selected_model in allowed_models:
@@ -537,12 +537,20 @@ async def websocket_chat(websocket: WebSocket):
                     delta_count = 0
                     first_delta_time = None
                     
-                    # Stream deltas to client
+                    # Stream deltas to client. Dict items are progress events
+                    # from the agentic loop ({"status": label}) — forwarded as
+                    # typed messages for the searching pill, not answer text.
                     for delta in stream:
+                        if isinstance(delta, dict):
+                            await websocket.send_text(json.dumps({
+                                "type": "status",
+                                "label": delta.get("status", ""),
+                            }))
+                            continue
                         delta_count += 1
                         if first_delta_time is None:
                             first_delta_time = time.time()
-                        
+
                         await websocket.send_text(delta)
                         full_response += delta
                         response_received = True

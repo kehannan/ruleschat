@@ -322,7 +322,7 @@ async def websocket_demo(websocket: WebSocket):
                         "mercury-2": "inception/mercury-2",
                     }
                     allowed_models = {
-                        "gpt-5.4",
+                        "gpt-5.4", "gpt-5.6-luna",
                         "deepseek-v3", "mercury-2",
                     }
                     if selected_model in allowed_models:
@@ -361,6 +361,14 @@ async def websocket_demo(websocket: WebSocket):
                     response_received = False
 
                     for delta in stream:
+                        # Agentic-loop progress events ({"status": label}) go
+                        # out as typed messages for the searching pill.
+                        if isinstance(delta, dict):
+                            await websocket.send_text(json.dumps({
+                                "type": "status",
+                                "label": delta.get("status", ""),
+                            }))
+                            continue
                         await websocket.send_text(delta)
                         full_response += delta
                         response_received = True

@@ -229,11 +229,13 @@
   <div class="wrap">
     <select class="model-pill" id="model-selector" title="Select model">
       <option value="gpt-5.4">gpt-5.4 · ¢¢¢/fast</option>
+      <option value="gpt-5.6-terra">gpt-5.6-terra · ¢¢¢/new</option>
+      <option value="gpt-5.6-luna">gpt-5.6-luna · ¢¢/new</option>
       <option value="deepseek-v3">deepseek-v3 · ¢</option>
       <option value="fable">fable · anthropic</option>
       <option value="glm-5.2">glm-5.2 · ¢</option>
     </select>
-    <label id="tools-toggle-label" class="tools-toggle" title="Let the assistant call the IFT calculator when relevant"
+    <label id="tools-toggle-label" class="tools-toggle" title="Let the assistant use tools when relevant: exact rulebook lookup + IFT/CC calculators"
            style="display:none;align-items:center;gap:.4em;margin-left:.6em;color:var(--muted);font-size:.85em;cursor:pointer;user-select:none;">
       <input type="checkbox" id="agentic-toggle" style="cursor:pointer;margin:0;"> Tools
     </label>
@@ -400,12 +402,27 @@
     return content;
   }
 
-  function createSearchingBubble() {
+  function searchingBubbleHtml(label) {
+    const span = document.createElement('span');
+    span.textContent = label;  // labels are server-sent; escape anyway
+    return span.innerHTML + ' <span class="searching-dots"><span></span><span></span><span></span></span>';
+  }
+
+  function createSearchingBubble(label) {
     const wrap = document.createElement('div');
     wrap.className = 'searching-bubble';
-    wrap.innerHTML = 'Searching <span class="searching-dots"><span></span><span></span><span></span></span>';
+    wrap.innerHTML = searchingBubbleHtml(label || 'Searching');
     appendToScroll(wrap);
     scrollChatBottom();
+  }
+
+  // Live progress from the agentic loop ("Checking rule A12.14", "Calculating
+  // IFT odds", ...). Reuses the searching pill; recreates it if the answer
+  // hasn't started streaming yet.
+  function updateSearchingBubble(label) {
+    const bubble = document.querySelector('.searching-bubble');
+    if (bubble) bubble.innerHTML = searchingBubbleHtml(label);
+    else if (!getCurrentAssistantContent()) createSearchingBubble(label);
   }
 
   function removeSearchingBubble() {
@@ -493,6 +510,10 @@
         }
         if (msg.type === 'error') {
           console.error('Server error:', msg.message);
+          return;
+        }
+        if (msg.type === 'status') {
+          updateSearchingBubble(msg.label || 'Working');
           return;
         }
         if (msg.type === 'latency') {
@@ -597,13 +618,14 @@
     const input = document.getElementById('chat-message-input');
     const submitBtn = document.getElementById('chat-message-submit');
 
-    // Tools toggle is only meaningful on gpt-5.4 — other models don't have
-    // function-calling wired into this app's agentic path.
+    // Tools toggle is only meaningful on OpenAI-native models — the agentic
+    // path is disabled server-side for OpenRouter-routed models in chat.
+    const AGENTIC_MODELS = ['gpt-5.4', 'gpt-5.6-terra', 'gpt-5.6-luna'];
     const modelSel = document.getElementById('model-selector');
     const toolsLabel = document.getElementById('tools-toggle-label');
     const toolsCheckbox = document.getElementById('agentic-toggle');
     function syncToolsVisibility() {
-      const isAgenticCapable = modelSel.value === 'gpt-5.4';
+      const isAgenticCapable = AGENTIC_MODELS.includes(modelSel.value);
       toolsLabel.style.display = isAgenticCapable ? 'inline-flex' : 'none';
       if (!isAgenticCapable) toolsCheckbox.checked = false;
     }

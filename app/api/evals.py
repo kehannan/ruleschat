@@ -183,12 +183,14 @@ async def usage_daily(db: Session = Depends(get_db)):
     # USD per 1M tokens (input, output). OpenRouter prices are approximate —
     # verify against the live OpenRouter dashboard if exact COST chips matter.
     MODEL_PRICING = {
-        "gpt-5-mini":   (0.25, 1.00),
-        "gpt-5.4":      (3.00, 15.00),
-        "gpt-5.4-mini": (0.25, 2.00),
-        "gpt-4.1-mini": (0.40, 1.60),
-        "deepseek-v3":  (0.27, 1.10),
-        "mercury-2":    (0.25, 1.00),
+        "gpt-5-mini":    (0.25, 1.00),
+        "gpt-5.4":       (3.00, 15.00),
+        "gpt-5.4-mini":  (0.25, 2.00),
+        "gpt-5.6-terra": (2.50, 15.00),
+        "gpt-5.6-luna":  (1.00, 6.00),
+        "gpt-4.1-mini":  (0.40, 1.60),
+        "deepseek-v3":   (0.27, 1.10),
+        "mercury-2":     (0.25, 1.00),
     }
 
     def base_model(variant: str) -> str:
