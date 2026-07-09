@@ -8,6 +8,11 @@ agentic path can FORCE that tool (tool_choice) on the first turn.
 
 Fails safe: any error or an unrecognized label returns None, i.e. "do not
 force a tool" — so a router hiccup never blocks or corrupts an answer.
+
+NOTE: a "none" result no longer means "no tools at all" — the service still
+exposes the deterministic lookup tools (get_section / search_rules) on every
+agentic call; "none" only means no calculator is forced. See
+docs/agentic_retrieval_plan.md §3.
 """
 import logging
 from typing import Optional

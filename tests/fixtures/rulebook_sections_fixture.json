@@ -1,0 +1,14 @@
+{
+  "meta": {"source_pdf": "fixture", "built": "2026-07-09", "sections": 9, "extracted": 8, "misses": 1},
+  "sections": {
+    "Z1": {"text": "Z1 WIDGETS: Widgets are the basic manoeuvre element. A widget may perform one action per turn [EXC: see Z1.12].", "page": 10},
+    "Z1.1": {"text": "Z1.1 ACTIVATION: A widget activates by expending one token. Activation is voluntary.", "page": 10},
+    "Z1.11": {"text": "Z1.11 DOUBLE ACTIVATION: A widget may not activate twice in the same turn unless it is Elite (Z2.1).", "page": 10},
+    "Z1.12": {"text": "Z1.12 EXCEPTIONS: A stunned widget may perform no actions. This overrides Z1.", "page": 11},
+    "Z1.2": {"text": "Z1.2 TOKENS: Each side receives three tokens per turn.", "page": 11},
+    "Z2": {"text": "Z2 ELITE WIDGETS: Elite widgets follow all Z1 rules unless stated otherwise.", "page": 12},
+    "Z2.1": {"text": "Z2.1 ELITE ACTIVATION: An Elite widget may activate twice per turn, paying one token each time.", "page": 12},
+    "Z3": {"text": null, "page": 13},
+    "Z9": {"text": "Z9 LONGSECTION: START. This section is deliberately long for cap tests. FILLER.", "page": 20}
+  }
+}

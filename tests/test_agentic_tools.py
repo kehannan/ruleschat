@@ -52,9 +52,13 @@ def test_schemas_enums_match_engines():
 
 
 def test_registry_only_ui_tools():
-    assert set(TOOL_FUNCTIONS) == {"ift_odds", "ift_attack", "resolve_attack",
-                                   "resolve_cc"}, \
-        "hand-rolled calculators should be retired"
+    assert set(TOOL_FUNCTIONS) == {"ift_odds", "ift_attack", "cc_attack",
+                                   "resolve_attack", "resolve_cc",
+                                   "get_section", "search_rules"}, \
+        "hand-rolled calculators should be retired; registry must match schemas"
+    from app.asl.tools import CALC_TOOL_NAMES, LOOKUP_TOOL_NAMES
+    assert CALC_TOOL_NAMES | LOOKUP_TOOL_NAMES == set(TOOL_FUNCTIONS)
+    assert not (CALC_TOOL_NAMES & LOOKUP_TOOL_NAMES)
 
 
 def test_execute_tool_unknown_raises():
@@ -63,6 +67,62 @@ def test_execute_tool_unknown_raises():
     except ValueError:
         return
     raise AssertionError("execute_tool should reject a retired/unknown tool name")
+
+
+# --------------------------------------------------------------------------- #
+# Lookup tools (get_section / search_rules)
+# --------------------------------------------------------------------------- #
+
+def _use_lookup_fixtures():
+    from app.asl import rules_lookup
+    fixtures = Path(__file__).resolve().parent / "fixtures"
+    rules_lookup.reset()
+    rules_lookup.load_sections(
+        str(fixtures / "rulebook_sections_fixture.json"),
+        str(fixtures / "qa_entries_fixture.json"),
+    )
+
+
+def test_get_section_tool_dispatch():
+    _use_lookup_fixtures()
+    r = execute_tool("get_section", {"section": "z1.11"})
+    assert r["section"] == "Z1.11" and "DOUBLE ACTIVATION" in r["text"]
+    import json as _json
+    _json.dumps(r)  # tool outputs must be JSON-serializable
+
+
+def test_lookup_schema_roundtrip_to_chat():
+    from app.asl.tools import lookup_tool_schemas
+    chat = lookup_tool_schemas(chat=True)
+    assert {c["function"]["name"] for c in chat} == {"get_section", "search_rules"}
+    no_search = lookup_tool_schemas(include_search=False)
+    assert [s["name"] for s in no_search] == ["get_section"]
+
+
+def test_search_rules_uses_context_client():
+    calls = {}
+
+    class _FakePage:
+        data = []
+
+    class _FakeVS:
+        def search(self, **kw):
+            calls.update(kw)
+            return _FakePage()
+
+    class _FakeClient:
+        vector_stores = _FakeVS()
+
+    r = execute_tool("search_rules", {"query": "concealment sniper"},
+                     context={"retrieval_client": _FakeClient(),
+                              "vector_store_ids": ["vs_1"]})
+    assert r == {"chunks": []}
+    assert calls["vector_store_id"] == "vs_1" and calls["query"] == "concealment sniper"
+
+
+def test_search_rules_without_context_is_clean_error():
+    r = execute_tool("search_rules", {"query": "anything"}, context=None)
+    assert "error" in r and "unavailable" in r["error"]
 
 
 # --------------------------------------------------------------------------- #

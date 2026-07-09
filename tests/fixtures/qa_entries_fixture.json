@@ -1,0 +1,15 @@
+{
+  "meta": {"source_pdf": "fixture", "built": "2026-07-09", "entries": 3, "by_kind": {"official-qa": 2, "errata": 1}, "sections_covered": 3},
+  "by_section": {
+    "Z1.1": [
+      {"sections": ["Z1.1"], "text": "Z1.1 Can a widget activate during the opponent's turn? A. No. [FIX1]", "kind": "official-qa", "page": 5},
+      {"sections": ["Z1.1", "Z2.1"], "text": "Z1.1 & Z2.1 Does Elite double activation cost two tokens? A. Yes. [FIX2]", "kind": "official-qa", "page": 5}
+    ],
+    "Z2.1": [
+      {"sections": ["Z1.1", "Z2.1"], "text": "Z1.1 & Z2.1 Does Elite double activation cost two tokens? A. Yes. [FIX2]", "kind": "official-qa", "page": 5}
+    ],
+    "Z1.2": [
+      {"sections": ["Z1.2"], "text": "Z1.2 In line 1, replace \"three tokens\" with \"four tokens\". [FIX3]", "kind": "errata", "page": 100}
+    ]
+  }
+}

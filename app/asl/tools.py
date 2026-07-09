@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional
 from app.asl import ift
 from app.asl import attack_resolver
 from app.asl import cc_resolver
+from app.asl import rules_lookup
 
 
 # =============================================================================
@@ -234,6 +235,65 @@ def cc_attack(
         result.get("odds"), result.get("kill_number"), result.get("p_eliminate"),
     )
     return result
+
+
+def get_section(
+    section: str,
+    include_subsections: bool = False,
+) -> Dict[str, Any]:
+    """
+    Deterministic rulebook lookup: exact text of one rule section (plus any
+    official Q&A / errata entries for it). Backed by the extracted stores in
+    data/rulebook/ (see app.asl.rules_lookup).
+    """
+    result = rules_lookup.get_section(
+        section, include_subsections=include_subsections, include_qa=True
+    )
+    logging.info(
+        "📖 get_section(%s%s) -> %s",
+        section, ", +subs" if include_subsections else "",
+        result.get("section") or result.get("error", "?"),
+    )
+    return result
+
+
+_SEARCH_RULES_MAX = 12
+_SEARCH_CHUNK_CHAR_CAP = 1500
+
+
+def search_rules(
+    query: str,
+    max_results: int = 8,
+    _context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Follow-up semantic search over the rulebook + Q&A vector stores.
+
+    Exposed only on the OpenRouter agentic path (the OpenAI path has the
+    hosted file_search tool mid-loop). Requires the service to thread
+    `retrieval_client` and `vector_store_ids` into the tool context.
+    """
+    if not query or not query.strip():
+        return {"error": "empty query"}
+    ctx = _context or {}
+    client = ctx.get("retrieval_client")
+    store_ids = ctx.get("vector_store_ids")
+    if client is None or not store_ids:
+        return {"error": "search_rules unavailable: no retrieval client in tool context"}
+    from app.asl.retrieval import retrieve_chunks  # local import: avoids cycle at module load
+    n = max(1, min(int(max_results), _SEARCH_RULES_MAX))
+    chunks = retrieve_chunks(client, store_ids, query=query, max_results_per_store=n)
+    chunks.sort(key=lambda c: c.get("score", 0.0), reverse=True)
+    out = [
+        {
+            "text": c["text"][:_SEARCH_CHUNK_CHAR_CAP],
+            "filename": c.get("filename", ""),
+            "score": round(c.get("score", 0.0), 4),
+        }
+        for c in chunks[:n]
+    ]
+    logging.info("🔎 search_rules(%r, n=%d) -> %d chunks", query[:60], n, len(out))
+    return {"chunks": out}
 
 
 # =============================================================================
@@ -648,7 +708,75 @@ TOOL_SCHEMAS = [
             "additionalProperties": False,
         },
     },
+    {
+        "type": "function",
+        "name": "get_section",
+        "description": (
+            "Fetch the EXACT text of one rulebook section by its ID (e.g. 'A12.14'), "
+            "plus any official Q&A / errata entries about it. Use this to verify every "
+            "rule section you cite, and to check cross-referenced sections for "
+            "exceptions (EXC:), qualifiers, or NA clauses before answering. Prefer this "
+            "over memory for any TEM/DRM/limit value."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "section": {
+                    "type": "string",
+                    "description": "Section ID, e.g. 'A12.14', 'B27.1', 'C13.31'.",
+                },
+                "include_subsections": {
+                    "type": "boolean",
+                    "description": "Also return the direct child sections (default false).",
+                },
+            },
+            "required": ["section"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": "search_rules",
+        "description": (
+            "Semantic search over the ASL rulebook and Q&A/errata for passages matching "
+            "a query. Use when you need a rule but do not know its section number; then "
+            "verify the found section with get_section."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "What to look for, e.g. 'concealment loss sniper attack LOS'.",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Max chunks to return (1-12, default 8).",
+                },
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
 ]
+
+# Name groups: calculators vs deterministic-lookup tools. The service exposes
+# these differently per path (see docs/agentic_retrieval_plan.md §3):
+#   * OpenAI path: calc + get_section (hosted file_search covers search)
+#   * OpenRouter path: calc + get_section + search_rules
+LOOKUP_TOOL_NAMES = {"get_section", "search_rules"}
+CALC_TOOL_NAMES = {"ift_odds", "ift_attack", "cc_attack", "resolve_attack", "resolve_cc"}
+
+
+def calc_tool_schemas(chat: bool = False) -> List[Dict[str, Any]]:
+    schemas = [s for s in TOOL_SCHEMAS if s["name"] in CALC_TOOL_NAMES]
+    return to_chat_completions_tools(schemas) if chat else schemas
+
+
+def lookup_tool_schemas(chat: bool = False, include_search: bool = True) -> List[Dict[str, Any]]:
+    names = LOOKUP_TOOL_NAMES if include_search else (LOOKUP_TOOL_NAMES - {"search_rules"})
+    schemas = [s for s in TOOL_SCHEMAS if s["name"] in names]
+    return to_chat_completions_tools(schemas) if chat else schemas
 
 
 def to_chat_completions_tools(
@@ -690,11 +818,14 @@ TOOL_FUNCTIONS = {
     "cc_attack": cc_attack,
     "resolve_attack": resolve_attack,
     "resolve_cc": resolve_cc,
+    "get_section": get_section,
+    "search_rules": search_rules,
 }
 
 # Tools that receive the server-side execution context (parsed .vsav state,
-# ...) as a hidden `_context` kwarg. The model never sees or supplies it.
-CONTEXT_TOOLS = {"resolve_attack", "resolve_cc"}
+# retrieval client, ...) as a hidden `_context` kwarg. The model never sees or
+# supplies it.
+CONTEXT_TOOLS = {"resolve_attack", "resolve_cc", "search_rules"}
 
 
 def execute_tool(

@@ -23,7 +23,13 @@ from app.asl.postprocess import (
     extract_response_text,
     compute_timing_metrics
 )
-from app.asl.tools import TOOL_SCHEMAS, TOOL_SCHEMAS_CHAT, execute_tool
+from app.asl.tools import (
+    TOOL_SCHEMAS_CHAT,
+    calc_tool_schemas,
+    lookup_tool_schemas,
+    execute_tool,
+)
+from app.asl import rules_lookup
 
 _IMAGE_MIME_BY_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 
@@ -64,6 +70,26 @@ CLOSE COMBAT / MELEE RESOLUTION: when the question asks about Close Combat or Me
 MANDATORY CALCULATOR USE: Any question that requires computing an Infantry Fire Table result MUST be answered by calling ift_attack, and any Close Combat result by calling cc_attack - even when it looks simple, and even with no save attached. Trigger cases include: final/adjusted FP, the FP column, a net DRM total, Residual FP, break/pin/Casualty or kill odds; and for CC: the odds ratio, the Kill Number, or the DR needed to eliminate/Casualty-Reduce a unit. Do NOT hand-derive this arithmetic - it is exactly where hand derivation goes wrong. Instead use file_search to confirm which DRMs/TEM apply, then pass the situation to the tool (FP plus pbf/pinned/assault_fire/afph flags, and the range_to_target plus each firer's normal_range so the tool derives Long Range itself rather than you hand-judging it, TEM, hindrance, FFMO/FFNAM, leadership for ift_attack; attacker_fp, defense_fp and the CC DRMs for cc_attack) and report the tool's numbers verbatim. These two tools cover ONLY IFT and CC math: for movement-point costs, LOS/blind-hex geometry, Morale/Task-Check thresholds, rally/self-rally, concealment dr, sniper checks, To-Hit, and the like there is no calculator - derive those by hand with file_search citations.
 
 Never quote a TEM or DRM value from memory - look it up with file_search first, even for terrain and markers that seem familiar. This applies equally to values you pass INTO ift_attack (the tool trusts whatever TEM you give it). In particular, entrenchments shown as 'Foxhole: in' / 'Trench: in' in {..} have their own TEM rules (B27) distinct from the hex's terrain TEM - and they protect ONLY the units annotated as in them, and similar-sounding features differ (e.g., foxholes and shellholes have different TEMs); verify which applies and cite the section."""
+
+
+CITE_VERIFICATION_ADDENDUM = """
+
+RULE VERIFICATION: A get_section tool is available. Before answering, call get_section for EVERY rule section you intend to cite — its exact text plus any official Q&A/errata comes back. If a fetched section cross-references another section that could qualify your answer (exceptions, "unless", "EXC:", "NA" clauses), fetch that section too. Never quote a TEM, DRM, or numeric limit from memory — fetch the section that states it, including values you pass into the calculator tools. If get_section returns a note that it fell back to a parent section, or an error, either re-fetch a better ID (use search_rules to find it when available) or state the uncertainty explicitly. Do not cite a section whose text you have not fetched this turn."""
+
+
+# When the deterministic lookup tools are exposed, the loop needs more turns:
+# fetch-verify-answer is a multi-hop pattern. Calculators alone keep the
+# tighter budget.
+MAX_ITER_DEFAULT = 5
+MAX_ITER_WITH_LOOKUP = 8
+
+
+def _lookup_tools_available() -> bool:
+    """True when the extracted rulebook store exists on this deployment."""
+    try:
+        return bool(rules_lookup.valid_section_ids())
+    except Exception:
+        return False
 
 
 def _read_image_as_data_url(image_path: str) -> str:
@@ -195,8 +221,26 @@ def _strip_citation_markers(text: str) -> str:
     return s.feed(text) + s.flush()
 
 
-def _openrouter_reasoning_config() -> Optional[Dict[str, Any]]:
-    """Build OpenRouter's `reasoning` control from env, or None for default.
+# Per-model OpenRouter defaults for models that are unusable interactively at
+# their out-of-the-box settings. Applied when no env override is set, so a model
+# is safe by default without depending on server env config. Env vars
+# (OPENROUTER_REASONING_* / OPENROUTER_PROVIDER_*) still override these globally.
+#
+# z-ai/glm-5.2: a reasoning model that, unbounded, emits ~65k hidden reasoning
+# tokens and stalls ~13 min/question; OpenRouter also spreads it across ~24
+# providers of uneven speed (slow ones cause connection drops / multi-minute
+# hangs). effort=low keeps answers fast and accurate; sort=throughput steers to
+# fast, reliable providers.
+_MODEL_OPENROUTER_DEFAULTS: Dict[str, Dict[str, Dict[str, Any]]] = {
+    "z-ai/glm-5.2": {
+        "reasoning": {"effort": "low"},
+        "provider": {"sort": "throughput"},
+    },
+}
+
+
+def _openrouter_reasoning_config(model: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Build OpenRouter's `reasoning` control from env, a per-model default, or None.
 
     Reasoning models (e.g. z-ai/glm-5.2) reason at full effort by default,
     emitting tens of thousands of hidden reasoning tokens per question — minutes
@@ -204,7 +248,9 @@ def _openrouter_reasoning_config() -> Optional[Dict[str, Any]]:
       * OPENROUTER_REASONING_EFFORT     = low | medium | high
       * OPENROUTER_REASONING_MAX_TOKENS = <int>   (hard reasoning-token cap)
       * OPENROUTER_REASONING_ENABLED    = false   (disable reasoning entirely)
-    Effort takes precedence, then max_tokens, then the disable flag. Unset =>
+    Effort takes precedence, then max_tokens, then the disable flag. With no env
+    set, falls back to the per-model default in _MODEL_OPENROUTER_DEFAULTS (so
+    known reasoning-heavy models stay usable without server env config), else
     None => the model's default reasoning behavior (unchanged).
     """
     effort = os.getenv("OPENROUTER_REASONING_EFFORT")
@@ -215,11 +261,12 @@ def _openrouter_reasoning_config() -> Optional[Dict[str, Any]]:
         return {"max_tokens": int(max_tokens)}
     if os.getenv("OPENROUTER_REASONING_ENABLED", "").strip().lower() == "false":
         return {"enabled": False}
-    return None
+    default = _MODEL_OPENROUTER_DEFAULTS.get(model or "", {}).get("reasoning")
+    return dict(default) if default else None
 
 
-def _openrouter_provider_config() -> Optional[Dict[str, Any]]:
-    """Build OpenRouter's `provider` routing control from env, or None.
+def _openrouter_provider_config(model: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Build OpenRouter's `provider` routing control from env, a per-model default, or None.
 
     OpenRouter load-balances a model across many providers of varying speed and
     reliability; the slow/flaky ones cause minute-long stalls and connection
@@ -227,7 +274,8 @@ def _openrouter_provider_config() -> Optional[Dict[str, Any]]:
       * OPENROUTER_PROVIDER_ORDER = comma-separated slugs (e.g. "deepinfra,novita")
                                     => {"order": [...], "allow_fallbacks": True}
       * OPENROUTER_PROVIDER_SORT  = price | throughput | latency
-    Both may be set; order is applied first, then sort across the rest.
+    Both may be set; order is applied first, then sort across the rest. With no
+    env set, falls back to the per-model default in _MODEL_OPENROUTER_DEFAULTS.
     """
     cfg: Dict[str, Any] = {}
     order = os.getenv("OPENROUTER_PROVIDER_ORDER")
@@ -237,7 +285,10 @@ def _openrouter_provider_config() -> Optional[Dict[str, Any]]:
     sort = os.getenv("OPENROUTER_PROVIDER_SORT")
     if sort:
         cfg["sort"] = sort.strip().lower()
-    return cfg or None
+    if cfg:
+        return cfg
+    default = _MODEL_OPENROUTER_DEFAULTS.get(model or "", {}).get("provider")
+    return dict(default) if default else None
 
 
 class ASLService:
@@ -376,6 +427,132 @@ Your response:"""
         force_tool: Optional[str] = None,
         auto_route_tools: bool = False,
         route_model: str = "gpt-4.1-mini",
+        use_cite_check: bool = False,
+    ):
+        """Public entry point. See _get_answer_impl for the full contract.
+
+        use_cite_check adds the deterministic cite-check pass (non-streaming
+        only): code extracts the sections the draft answer cites, fetches
+        their exact text + Q&A via rules_lookup, and one forced revision turn
+        corrects the draft against them (docs/agentic_retrieval_plan.md §3.4).
+        On any cite-check failure the draft is returned unchanged.
+        """
+        if use_cite_check and stream:
+            raise ValueError(
+                "use_cite_check is only supported in non-streaming mode (stream=False)"
+            )
+        result = self._get_answer_impl(
+            question=question,
+            stream=stream,
+            model=model,
+            temperature=temperature,
+            return_timing=return_timing,
+            force_web_search=force_web_search,
+            use_verification=use_verification,
+            use_agentic=use_agentic,
+            max_chunks=max_chunks,
+            image_paths=image_paths,
+            board_state=board_state,
+            vsav_state=vsav_state,
+            force_tool=force_tool,
+            auto_route_tools=auto_route_tools,
+            route_model=route_model,
+        )
+        if not use_cite_check:
+            return result
+        resolved_model = model or self.config.model
+        if isinstance(result, tuple):
+            text, timing = result
+            revised, info = self._apply_cite_check(question, text, resolved_model, temperature)
+            if isinstance(timing, dict):
+                timing["cite_check"] = info
+            return revised, timing
+        revised, _info = self._apply_cite_check(question, result, resolved_model, temperature)
+        return revised
+
+    def _apply_cite_check(
+        self,
+        question: str,
+        draft: str,
+        model: str,
+        temperature: Optional[float],
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Run the deterministic cite-check revision turn on a drafted answer.
+
+        Never raises: any failure returns the draft unchanged with the error
+        recorded in the info dict.
+        """
+        from app.asl.cite_check import build_cite_check_context, build_revision_prompt
+
+        info: Dict[str, Any] = {"applied": False}
+        try:
+            ctx = build_cite_check_context(draft or "")
+            info.update({k: ctx[k] for k in ("cited", "cross_refs", "dropped", "missing")})
+            if not ctx["sections"]:
+                info["skipped"] = "draft cites no known sections"
+                logging.info("🔎 cite-check skipped: draft cites no known sections")
+                return draft, info
+
+            prompt = build_revision_prompt(question, draft, ctx)
+            t0 = time.time()
+            if "/" in str(model):
+                if self.openrouter_client is None:
+                    raise RuntimeError("OpenRouter client unavailable for cite-check")
+                resp = self.openrouter_client.create_chat(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": self.config.system_instructions},
+                        {"role": "user", "content": prompt},
+                    ],
+                    stream=False,
+                    temperature=temperature,
+                    max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
+                    reasoning=_openrouter_reasoning_config(model),
+                    provider=_openrouter_provider_config(model),
+                )
+                revised = (resp.choices[0].message.content or "").strip()
+            else:
+                supports_temp = not str(model).startswith("gpt-5")
+                resp = self.client.create_response(
+                    model=model,
+                    input=prompt,
+                    instructions=self.config.system_instructions,
+                    stream=False,
+                    tools=[],
+                    temperature=(temperature if (supports_temp and temperature is not None) else None),
+                )
+                revised = _strip_citation_markers(extract_response_text(resp)).strip()
+
+            info["applied"] = True
+            info["revised"] = bool(revised) and revised != (draft or "").strip()
+            info["ms"] = round((time.time() - t0) * 1000, 1)
+            logging.info(
+                "🔎 cite-check: %d sections (%d cross-refs), revised=%s (%sms)",
+                len(ctx["sections"]), len(ctx["cross_refs"]), info["revised"], info["ms"],
+            )
+            return (revised or draft), info
+        except Exception as e:
+            logging.error("cite-check failed; keeping draft: %s", e)
+            info["error"] = str(e)
+            return draft, info
+
+    def _get_answer_impl(
+        self,
+        question: str,
+        stream: bool = False,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        return_timing: bool = False,
+        force_web_search: bool = False,
+        use_verification: bool = False,
+        use_agentic: bool = False,
+        max_chunks: Optional[int] = None,
+        image_paths: Optional[List[str]] = None,
+        board_state: Optional[str] = None,
+        vsav_state: Optional[Dict[str, Any]] = None,
+        force_tool: Optional[str] = None,
+        auto_route_tools: bool = False,
+        route_model: str = "gpt-4.1-mini",
     ):
         """
         Get an answer to an ASL question.
@@ -433,6 +610,11 @@ Your response:"""
             instructions = instructions + VISION_INSTRUCTIONS_ADDENDUM
         if board_state:
             instructions = instructions + VSAV_INSTRUCTIONS_ADDENDUM
+        # Deterministic lookup tools ride with agentic mode, but only when the
+        # extracted rulebook store is built on this deployment.
+        lookup_enabled = use_agentic and _lookup_tools_available()
+        if lookup_enabled:
+            instructions = instructions + CITE_VERIFICATION_ADDENDUM
 
         # Build input — multimodal if image(s) attached, else plain string
         if image_paths:
@@ -441,6 +623,16 @@ Your response:"""
         else:
             api_input = question
         
+        # Server-side tool-execution context: never model-controlled. The
+        # retrieval client + store IDs power the search_rules tool; vsav_state
+        # powers resolve_attack/resolve_cc.
+        tool_context: Dict[str, Any] = {
+            "retrieval_client": self.retrieval_client,
+            "vector_store_ids": self.config.all_vector_store_ids,
+        }
+        if vsav_state:
+            tool_context["vsav_state"] = vsav_state
+
         # Start timing for RAG latency measurement
         api_call_start_time = time.time()
         logging.info(f"[RAG Latency] Question: {question[:100]}{'...' if len(question) > 100 else ''}")
@@ -475,20 +667,21 @@ Your response:"""
                     # (these models, like gpt-5.4, rarely call it unprompted).
                     #
                     # When auto-routing, the classifier decides per question:
-                    #   ift_attack / cc_attack → expose tools, force that one
-                    #   none                   → plain RAG, NO tools exposed
-                    # so a single pass over a mixed file reproduces gpt-5.4's
-                    # calc-with-tools / recall-plain-RAG split automatically.
-                    expose_tools = True
+                    #   ift_attack / cc_attack → calc + lookup tools, force that one
+                    #   none                   → lookup tools only, no calc, no force
+                    # Lookup tools (get_section + search_rules) are exposed on
+                    # every agentic call when the extracted store is built.
+                    tools_chat = calc_tool_schemas(chat=True)
                     if auto_route_tools and not force_tool:
                         from app.asl.tool_router import classify_tool
                         force_tool = classify_tool(question, model=route_model)
                         if force_tool:
                             logging.info(f"🧭 Auto-routed to tool: {force_tool}")
                         else:
-                            expose_tools = False
-                            logging.info("🧭 Auto-routed to: none (plain RAG, no tools)")
-                    tool_context = {"vsav_state": vsav_state} if vsav_state else None
+                            tools_chat = []
+                            logging.info("🧭 Auto-routed to: none (no calculators forced)")
+                    if lookup_enabled:
+                        tools_chat = tools_chat + lookup_tool_schemas(chat=True)
                     return self._openrouter_agentic_answer(
                         question=question,
                         model=model,
@@ -499,7 +692,8 @@ Your response:"""
                         return_timing=return_timing,
                         force_tool=force_tool,
                         tool_context=tool_context,
-                        expose_tools=expose_tools,
+                        tools_chat=tools_chat,
+                        max_iterations=MAX_ITER_WITH_LOOKUP if lookup_enabled else MAX_ITER_DEFAULT,
                     )
                 return self._openrouter_answer(
                     question=question,
@@ -521,12 +715,16 @@ Your response:"""
                 }
             ]
             
-            # Add function tools if agentic mode is enabled
-            tool_context = {"vsav_state": vsav_state} if vsav_state else None
+            # Add function tools if agentic mode is enabled. OpenAI path gets
+            # the calculators plus get_section — but NOT search_rules, because
+            # the hosted file_search tool already covers mid-loop search here.
             if use_agentic:
-                tools.extend(TOOL_SCHEMAS)
-                logging.info(f"🤖 Agentic mode enabled - added {len(TOOL_SCHEMAS)} function tools"
-                             + (" (with parsed .vsav state in tool context)" if tool_context else ""))
+                tools.extend(calc_tool_schemas())
+                if lookup_enabled:
+                    tools.extend(lookup_tool_schemas(include_search=False))
+                logging.info(f"🤖 Agentic mode enabled - added {len(tools) - 1} function tools"
+                             + (" (with parsed .vsav state in tool context)" if vsav_state else "")
+                             + (" (+ get_section lookup)" if lookup_enabled else ""))
                 # Auto-route calc questions to the right calculator (force it on
                 # the first turn). gpt-5.4 rarely calls these tools on its own.
                 if auto_route_tools and not force_tool:
@@ -564,6 +762,7 @@ Your response:"""
                         api_call_start_time=api_call_start_time,
                         return_timing=return_timing,
                         tool_context=tool_context,
+                        max_iterations=MAX_ITER_WITH_LOOKUP if lookup_enabled else MAX_ITER_DEFAULT,
                     )
                 # Use stream_response for true streaming with final response access
                 stream_manager = self.client.stream_response(**api_kwargs)
@@ -587,6 +786,7 @@ Your response:"""
                         tool_context=tool_context,
                         return_timing=return_timing,
                         force_tool=force_tool,
+                        max_iterations=MAX_ITER_WITH_LOOKUP if lookup_enabled else MAX_ITER_DEFAULT,
                     )
                 else:
                     # Standard non-streaming
@@ -670,8 +870,8 @@ Your response:"""
             stream=False,
             temperature=temperature,
             max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
-            reasoning=_openrouter_reasoning_config(),
-            provider=_openrouter_provider_config(),
+            reasoning=_openrouter_reasoning_config(model),
+            provider=_openrouter_provider_config(model),
         )
         inference_ms = (time.time() - inference_start) * 1000
         total_ms = retrieval_ms + inference_ms
@@ -738,15 +938,16 @@ Your response:"""
         force_tool: Optional[str] = None,
         tool_context: Optional[Dict[str, Any]] = None,
         max_iterations: int = 5,
-        expose_tools: bool = True,
+        tools_chat: Optional[List[Dict[str, Any]]] = None,
     ):
         """
         Agentic OpenRouter path: client-side retrieval + a Chat Completions
-        tool-calling loop exposing the IFT/CC calculators.
+        tool-calling loop.
 
-        expose_tools=False makes this a plain RAG call (no tools offered) while
-        keeping the same (text, timing_data) return contract — used when the
-        auto-router classifies a question as needing no calculator.
+        tools_chat is the Chat-format tool list to expose (None falls back to
+        TOOL_SCHEMAS_CHAT, i.e. everything). An empty list makes this a plain
+        RAG call (no tools offered) while keeping the same (text, timing_data)
+        return contract.
 
         Mirrors `_handle_agentic_response` (the OpenAI Responses path) but over
         OpenRouter's Chat Completions API, so a `/`-named model (e.g.
@@ -791,8 +992,8 @@ Your response:"""
         ]
 
         max_tokens = int(os.getenv("OPENROUTER_MAX_TOKENS", "8192"))
-        reasoning = _openrouter_reasoning_config()
-        provider = _openrouter_provider_config()
+        reasoning = _openrouter_reasoning_config(model)
+        provider = _openrouter_provider_config(model)
         total_input_tokens = 0
         total_output_tokens = 0
         tools_called: List[str] = []
@@ -813,8 +1014,9 @@ Your response:"""
                 "reasoning": reasoning,
                 "provider": provider,
             }
-            if expose_tools:
-                call_kwargs["tools"] = TOOL_SCHEMAS_CHAT
+            exposed = TOOL_SCHEMAS_CHAT if tools_chat is None else tools_chat
+            if exposed:
+                call_kwargs["tools"] = exposed
                 call_kwargs["tool_choice"] = (
                     {"type": "function", "function": {"name": force_tool}}
                     if force_tool and iteration == 0 else "auto"
