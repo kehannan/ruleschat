@@ -193,6 +193,8 @@ def ruleschat(request: Request):
         context = get_base_context(request, user)
         context["cost_per_1m_input"] = float(os.getenv("COST_PER_1M_INPUT", "0.25"))
         context["cost_per_1m_output"] = float(os.getenv("COST_PER_1M_OUTPUT", "1.00"))
+        admin_email = os.getenv("ADMIN_EMAIL")
+        context["is_admin"] = bool(admin_email) and user.email == admin_email
         return templates.TemplateResponse("ruleschat.html", context)
     except JWTError:
         return RedirectResponse(url="/login", status_code=303)
@@ -500,6 +502,18 @@ async def websocket_chat(websocket: WebSocket):
                         "gpt-5.4", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-4.1-mini",
                         "deepseek-v3", "mercury-2", "fable", "glm-5.2",
                     }
+                    # Admin-only models: enforced server-side (the dropdown
+                    # hides them for non-admins, but the WS payload is
+                    # client-controlled). Unset ADMIN_EMAIL locks them for all.
+                    ADMIN_ONLY_MODELS = {"fable"}
+                    admin_email = os.getenv("ADMIN_EMAIL")
+                    if (selected_model in ADMIN_ONLY_MODELS
+                            and (not admin_email or user.email != admin_email)):
+                        logging.warning(
+                            "🔒 Non-admin %s requested admin-only model %s — using default",
+                            user.email, selected_model,
+                        )
+                        selected_model = None
                     if selected_model in allowed_models:
                         model_override = OPENROUTER_SLUG.get(selected_model, selected_model)
                     else:

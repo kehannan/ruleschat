@@ -232,7 +232,9 @@
       <option value="gpt-5.6-terra">gpt-5.6-terra · ¢¢¢/new</option>
       <option value="gpt-5.6-luna">gpt-5.6-luna · ¢¢/new</option>
       <option value="deepseek-v3">deepseek-v3 · ¢</option>
+      {% if is_admin %}
       <option value="fable">fable · anthropic</option>
+      {% endif %}
       <option value="glm-5.2">glm-5.2 · ¢</option>
     </select>
     <label id="tools-toggle-label" class="tools-toggle" title="Let the assistant use tools when relevant: exact rulebook lookup + IFT/CC calculators"
