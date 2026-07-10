@@ -140,6 +140,7 @@
               <th>Eval</th>
               <th>Recall</th>
               <th>Calc</th>
+              <th>False Refusal</th>
               <th>Cost / q</th>
               <th>Avg time</th>
               <th>Date run</th>
@@ -164,6 +165,9 @@
               {% if 'calc' in acc %}
                 {% set cc = acc['calc'] %}
                 <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+              {% else %}<td>—</td>{% endif %}
+              {% if row.file_id %}
+                <td class="acc {% if row.false_refusals %}cell-mid{% endif %}">{{ row.false_refusals }}</td>
               {% else %}<td>—</td>{% endif %}
               {% if row.est_cost and row.file_id %}
                 <td class="acc cell-bad">{{ row.est_cost }}<sup>&dagger;</sup></td>
@@ -193,7 +197,15 @@
           a vector store of the 700-page rulebook.
         </p>
         <p class="table-footnote">
-          <sup>&dagger;</sup> Fable and Sonnet 5 have no live production traffic —
+          <strong>False Refusal —</strong> the provider's content filter
+          rejected the question outright (wargame terminology misread as
+          violent content), so the model never answered. Refused questions
+          still count in the accuracy denominators but are not scored as
+          answer failures.
+        </p>
+        <p class="table-footnote">
+          <sup>&dagger;</sup> Fable, Sonnet 5, and muse-spark-1.1 have no live
+          production traffic —
           their cost and time are <strong>estimated from the eval run</strong>
           (the model's API pricing applied to the per-question token volume;
           response time approximated from retrieval plus an inference proxy),

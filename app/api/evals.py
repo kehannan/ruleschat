@@ -299,6 +299,14 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     is_estimated = metadata.get("estimated", False)
                     eval_tier = _eval_tier(eval_file)
 
+                    # Provider content filter rejected the prompt outright
+                    # (e.g. Meta misreading wargame terminology as violence).
+                    # Counted separately — not an answer failure.
+                    false_refusals = sum(
+                        1 for r in eval_data.get("results", [])
+                        if (r.get("final_evaluation") or "").lower() == "false refusal"
+                    )
+
                     # Create rows for each question type (Human Review only)
                     if by_question_type:
                         # Create separate row for each question type
@@ -324,6 +332,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                                 "file_id": file_path.stem,
                                 "filename": file_path.name,
                                 "estimated": is_estimated,
+                                "false_refusals": false_refusals,
                             })
                     else:
                         # Fallback: single row with overall stats if no question type breakdown
@@ -347,6 +356,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                             "needs_review_pct": (human_pending / total * 100) if total > 0 else 0,
                             "file_id": file_path.stem,
                             "filename": file_path.name,
+                            "false_refusals": false_refusals,
                         })
                 # Handle legacy list format
                 elif isinstance(eval_data, list) and eval_data:
@@ -398,7 +408,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         # (all Easy rows, then Medium, then untiered); within a tier, models
         # run "frontier → cheap". deepseek-v3 sits with the cheaper tier
         # (it's the first OpenRouter-routed model in the table).
-        MODEL_ORDER = ["Fable", "Sonnet 5", "gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
+        MODEL_ORDER = ["Fable", "Sonnet 5", "gpt-5.4", "muse-spark-1.1", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
 
         # Models with no live production traffic: cost & time shown in the
         # table are ESTIMATED from the eval run (per-question token volume of
@@ -407,6 +417,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         ESTIMATED_FROM_EVAL = {
             "Fable": ("~30¢", "~20s"),
             "Sonnet 5": ("~11¢", "~15s"),
+            "muse-spark-1.1": ("~7¢", "~27s"),
         }
         MODEL_VIA_OPENROUTER = {"deepseek-v3", "mercury-2"}
         TIER_SORT = {"Easy": 0, "Medium": 1, "—": 2}
@@ -431,6 +442,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     "estimated": bool(run.get("estimated")),
                     "via_openrouter": m in MODEL_VIA_OPENROUTER,
                     "est_cost": est_cost, "est_time": est_time,
+                    "false_refusals": run.get("false_refusals", 0),
                 }
             # eval_runs is sorted newest-first, so the first value seen per
             # (model, tier, qtype) is the latest run's accuracy.
@@ -449,13 +461,14 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
             present = {m for m, _ in rows_map.keys()}
             for m in MODEL_ORDER:
                 if m in ESTIMATED_FROM_EVAL:
-                    continue  # Fable / Sonnet 5 postdate the v1.0 archive
+                    continue  # Fable / Sonnet 5 / muse-spark postdate the v1.0 archive
                 if m not in present:
                     rows_map[(m, "—")] = {
                         "model": m, "tier": "—", "acc": {}, "file_id": None,
                         "date": None, "estimated": False,
                         "via_openrouter": m in MODEL_VIA_OPENROUTER,
                         "est_cost": None, "est_time": None,
+                        "false_refusals": 0,
                     }
             row_order = sorted(rows_map.keys(), key=_row_sort)
         table_rows = [rows_map[k] for k in row_order]
@@ -604,17 +617,21 @@ def _process_eval_data(eval_data: list, use_human_review: bool = False) -> dict:
         # Determine judgment based on view type
         if use_human_review:
             # Use final_evaluation which respects human overrides
-            final_eval = item.get("final_evaluation", "").lower()
+            final_eval = (item.get("final_evaluation") or "").lower()
             # Map pass/fail to correct/incorrect for consistency
             if final_eval == "pass":
                 judgment = "correct"
             elif final_eval == "fail":
                 judgment = "incorrect"
+            elif final_eval:
+                # e.g. "false refusal" — keep the verdict as-is. These items
+                # have no llm_judgment (the provider rejected the prompt).
+                judgment = final_eval
             else:
-                judgment = item.get("llm_judgment", "unknown").lower()
+                judgment = (item.get("llm_judgment") or "unknown").lower()
         else:
             # AI Judge only
-            judgment = item.get("llm_judgment", "unknown").lower()
+            judgment = (item.get("llm_judgment") or item.get("ai_evaluation") or "unknown").lower()
         
         # Section aggregation
         section_stats[section_letter]["total"] += 1
@@ -626,7 +643,7 @@ def _process_eval_data(eval_data: list, use_human_review: bool = False) -> dict:
         results.append({
             "question": item.get("question", ""),
             "expected_answer": item.get("expected_answer", ""),
-            "assistant_response": item.get("model_response", ""),
+            "assistant_response": item.get("model_response") or "",
             "section": section,
             "question_type": item.get("question_type", "unknown"),
             "judgment": judgment,
