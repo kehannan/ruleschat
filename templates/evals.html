@@ -167,7 +167,7 @@
                 <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
               {% else %}<td>—</td>{% endif %}
               {% if row.file_id %}
-                <td class="acc {% if row.false_refusals %}cell-mid{% endif %}">{{ row.false_refusals }}</td>
+                <td class="acc {% if row.false_refusals %}cell-mid{% endif %}">{{ row.false_refusal_pct }}%</td>
               {% else %}<td>—</td>{% endif %}
               {% if row.est_cost and row.file_id %}
                 <td class="acc cell-bad">{{ row.est_cost }}<sup>&dagger;</sup></td>
