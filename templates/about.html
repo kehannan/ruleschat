@@ -213,6 +213,7 @@
   .site .arch-figure .ab-flow-a { stroke: var(--accent); fill: none; stroke-width: 1.4; }
   .site .arch-figure .ab-flow-d { stroke: var(--ink); stroke-opacity: 0.55; fill: none; stroke-width: 1.2; stroke-dasharray: 4 4; }
   .site .arch-figure .ab-hr { stroke: var(--hair); stroke-width: 1; }
+  .site .arch-figure .ab-loop { font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; fill: var(--accent); }
 
   @media (max-width: 720px) {
     .site .about-row { grid-template-columns: 1fr; gap: 18px; }
@@ -229,11 +230,9 @@
     <div class="eyebrow"><span class="dot"></span><span>About the project</span></div>
     <h1>How it was built,<br />and <em>why</em>.</h1>
     <p class="lede">
-      A personal experiment in retrieval and tool use over a notoriously dense
-      rulebook. Not a polished product — answers can be wrong, citations can
-      drift, and the system struggles with questions that chain several lookups.
-      The goal is to find out how close a cheaper model with the right scaffolding
-      can get to a frontier model on this task, and to publish where it falls short.
+      An experiment in retrieval and tool use over a notoriously dense rulebook.
+      The goal: answers accurate enough to trust at the table, for a cent or
+      less per question.
     </p>
   </div>
 </header>
@@ -247,25 +246,18 @@
         <div class="rail-title">Motivation</div>
       </div>
       <div>
-        <h2 class="about-h2">A 1M-token rulebook and<br />a <em>cost question</em>.</h2>
+        <h2 class="about-h2">A 1M-token rulebook.<br />A <em>one-cent</em> budget.</h2>
         <div class="about-prose">
           <p class="drop">
-            Advanced Squad Leader has one of the most complex rulebooks of any
-            game ever published — over a million tokens, densely cross-referenced,
-            with dozens of tables, exceptions, and numerical calculations. Looking
-            up rules mid-game is slow and error-prone even for experienced players.
+            Advanced Squad Leader's rulebook runs over a million tokens, densely
+            cross-referenced and full of exceptions. Looking up rules mid-game is
+            slow even for veterans.
           </p>
           <p>
-            A frontier model like <span class="mono">gpt-5.4</span> answers most
-            rules questions well, but at a price point that is hard to justify for
-            a hobby tool. Mini-class models cost a small fraction of that. The
-            experiment is whether the right retrieval and tool scaffolding can
-            close enough of the gap to make a cheap model practically useful at
-            the table.
-          </p>
-          <p>
-            This is a personal project I built for my own use while learning the
-            game. The eval results, including the failures, are published on the
+            A frontier model answers most rules questions well — at roughly ten
+            cents a question. The experiment: how much retrieval and tool
+            scaffolding does it take before a model a tenth of that price is
+            trustworthy at the table? Results, including the failures, are on the
             <a class="inline-link" href="{{ url_for('evals') }}">evals page</a>.
           </p>
         </div>
@@ -283,18 +275,17 @@
         <div class="rail-title">Architecture</div>
       </div>
       <div>
-        <h2 class="about-h2">FastAPI, the OpenAI<br />Responses API, and a <em>WebSocket</em>.</h2>
+        <h2 class="about-h2">Retrieval, tools, and an<br /><em>agentic loop</em>.</h2>
         <div class="about-prose">
           <p>
-            The backend is FastAPI behind nginx on Digital Ocean. Chat streams
-            over a persistent WebSocket so the user sees tokens as they arrive
-            and can interrupt mid-answer. Each query travels the same four-stage
-            pipeline:
+            FastAPI on Digital Ocean; answers stream over a WebSocket. The core
+            is the loop below: the model asks for exactly the rules it needs,
+            code fetches them, and the loop repeats until it can answer.
           </p>
         </div>
 
         <figure class="arch-figure">
-          <svg viewBox="0 0 880 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture schematic: browser to FastAPI to OpenAI Responses API, with vector store, local tools, and logging">
+          <svg viewBox="0 0 880 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Schematic: browser to server to model, with an agentic loop between the model and the rulebook tools">
             <defs>
               <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
                 <path d="M0,0 L8,4 L0,8 z" fill="var(--ink)" fill-opacity="0.55"/>
@@ -305,100 +296,53 @@
             </defs>
 
             <!-- BROWSER -->
-            <rect class="ab-box" x="16" y="48" width="190" height="150"/>
-            <text class="ab-title" x="32" y="76">BROWSER</text>
-            <line class="ab-hr" x1="32" y1="88" x2="190" y2="88"/>
-            <text class="ab-sub" x="32" y="110">chat ui · websocket</text>
-            <text class="ab-sub" x="32" y="128">status pill + stream</text>
-            <text class="ab-sub" x="32" y="146">citations open the</text>
-            <text class="ab-sub" x="32" y="162">pdf at the exact page</text>
-            <text class="ab-sub" x="32" y="184">timing + cost footer</text>
+            <rect class="ab-box" x="16" y="60" width="180" height="96"/>
+            <text class="ab-title" x="32" y="88">BROWSER</text>
+            <line class="ab-hr" x1="32" y1="100" x2="180" y2="100"/>
+            <text class="ab-sub" x="32" y="122">ask a question</text>
+            <text class="ab-sub" x="32" y="140">answer streams back</text>
 
-            <!-- FASTAPI -->
-            <rect class="ab-box" x="335" y="48" width="205" height="150"/>
-            <text class="ab-title" x="351" y="76">FASTAPI · DROPLET</text>
-            <line class="ab-hr" x1="351" y1="88" x2="524" y2="88"/>
-            <text class="ab-sub" x="351" y="110">websocket handler</text>
-            <text class="ab-sub" x="351" y="128">auth · rate limits</text>
-            <text class="ab-sub" x="351" y="146">agentic loop driver</text>
-            <text class="ab-sub" x="351" y="164">runs tool calls locally</text>
-            <text class="ab-sub" x="351" y="184">forwards each delta</text>
+            <!-- SERVER -->
+            <rect class="ab-box" x="350" y="60" width="180" height="96"/>
+            <text class="ab-title" x="366" y="88">SERVER</text>
+            <line class="ab-hr" x1="366" y1="100" x2="514" y2="100"/>
+            <text class="ab-sub" x="366" y="122">retrieves rules</text>
+            <text class="ab-sub" x="366" y="140">executes tools locally</text>
 
-            <!-- OPENAI -->
-            <rect class="ab-box" x="670" y="48" width="194" height="150"/>
-            <text class="ab-title" x="686" y="76">OPENAI · RESPONSES</text>
-            <line class="ab-hr" x1="686" y1="88" x2="848" y2="88"/>
-            <text class="ab-sub" x="686" y="110">gpt-5.4 (default)</text>
-            <text class="ab-sub" x="686" y="128">streams text deltas</text>
-            <text class="ab-sub" x="686" y="146">emits function calls</text>
-            <text class="ab-sub" x="686" y="164">file_search built in</text>
-            <text class="ab-sub" x="686" y="184">openrouter alt path</text>
+            <!-- MODEL -->
+            <rect class="ab-box" x="684" y="60" width="180" height="96"/>
+            <text class="ab-title" x="700" y="88">MODEL</text>
+            <line class="ab-hr" x1="700" y1="100" x2="848" y2="100"/>
+            <text class="ab-sub" x="700" y="122">reads rules · calls tools</text>
+            <text class="ab-sub" x="700" y="140">writes the answer</text>
 
-            <!-- LOGS / EVALS -->
-            <rect class="ab-box" x="16" y="310" width="190" height="140"/>
-            <text class="ab-title" x="32" y="338">LOGS &amp; EVALS</text>
-            <line class="ab-hr" x1="32" y1="350" x2="190" y2="350"/>
-            <text class="ab-sub" x="32" y="372">every chat logged</text>
-            <text class="ab-sub" x="32" y="390">200+ question evals</text>
-            <text class="ab-sub" x="32" y="408">llm judge + review</text>
-            <text class="ab-sub" x="32" y="426">curated q&amp;a feeds back</text>
+            <!-- RULEBOOK & TOOLS -->
+            <rect class="ab-box" x="350" y="260" width="180" height="96"/>
+            <text class="ab-title" x="366" y="288">RULEBOOK &amp; TOOLS</text>
+            <line class="ab-hr" x1="366" y1="300" x2="514" y2="300"/>
+            <text class="ab-sub" x="366" y="322">2,781 exact sections</text>
+            <text class="ab-sub" x="366" y="340">ift / cc calculators</text>
 
-            <!-- LOCAL TOOLS -->
-            <rect class="ab-box" x="335" y="310" width="205" height="140"/>
-            <text class="ab-title" x="351" y="338">LOCAL TOOLS</text>
-            <line class="ab-hr" x1="351" y1="350" x2="524" y2="350"/>
-            <text class="ab-sub" x="351" y="372">get_section · search_rules</text>
-            <text class="ab-sub" x="351" y="390">ift + cc calculators</text>
-            <text class="ab-sub" x="351" y="408">resolve_attack (.vsav)</text>
-            <text class="ab-sub" x="351" y="426">exact rulebook text</text>
+            <!-- Browser <-> Server -->
+            <line class="ab-flow" x1="196" y1="88" x2="346" y2="88" marker-end="url(#ah)"/>
+            <text class="ab-lbl" x="228" y="80">QUESTION</text>
+            <line class="ab-flow" x1="350" y1="132" x2="200" y2="132" marker-end="url(#ah)"/>
+            <text class="ab-lbl" x="228" y="152">ANSWER · STREAMED</text>
 
-            <!-- VECTOR STORE -->
-            <rect class="ab-box" x="670" y="310" width="194" height="140"/>
-            <text class="ab-title" x="686" y="338">VECTOR STORE</text>
-            <line class="ab-hr" x1="686" y1="350" x2="848" y2="350"/>
-            <text class="ab-sub" x="686" y="372">rulebook chunks</text>
-            <text class="ab-sub" x="686" y="390">2,378 q&amp;a entries</text>
-            <text class="ab-sub" x="686" y="408">top-20 retrieval</text>
-            <text class="ab-sub" x="686" y="426">per-query citations</text>
+            <!-- Agentic loop: server <-> model <-> tools, in accent -->
+            <line class="ab-flow-a" x1="530" y1="88" x2="680" y2="88" marker-end="url(#ah-a)"/>
+            <text class="ab-lbl-a" x="548" y="80">RULES + TOOL DEFS</text>
+            <line class="ab-flow-a" x1="684" y1="132" x2="534" y2="132" marker-end="url(#ah-a)"/>
+            <text class="ab-lbl-a" x="566" y="152">TOOL CALLS</text>
+            <path class="ab-flow-a" d="M 415 156 L 415 256" marker-end="url(#ah-a)"/>
+            <path class="ab-flow-a" d="M 465 256 L 465 156" marker-end="url(#ah-a)"/>
+            <text class="ab-lbl-a" x="288" y="210">FETCH · COMPUTE</text>
 
-            <!-- Browser -> FastAPI -->
-            <line class="ab-flow" x1="206" y1="92" x2="331" y2="92" marker-end="url(#ah)"/>
-            <text class="ab-lbl" x="222" y="84">QUESTION · WS</text>
-
-            <!-- FastAPI -> Browser (stream) -->
-            <line class="ab-flow-a" x1="335" y1="160" x2="210" y2="160" marker-end="url(#ah-a)"/>
-            <text class="ab-lbl-a" x="216" y="152">TOKENS + STATUS</text>
-
-            <!-- FastAPI -> OpenAI -->
-            <line class="ab-flow" x1="540" y1="92" x2="666" y2="92" marker-end="url(#ah)"/>
-            <text class="ab-lbl" x="552" y="84">PROMPT + TOOLS</text>
-
-            <!-- OpenAI -> FastAPI (stream) -->
-            <line class="ab-flow-a" x1="670" y1="160" x2="544" y2="160" marker-end="url(#ah-a)"/>
-            <text class="ab-lbl-a" x="548" y="152">DELTAS · TOOL CALLS</text>
-
-            <!-- OpenAI <-> Vector store -->
-            <line class="ab-flow" x1="767" y1="198" x2="767" y2="306" marker-end="url(#ah)"/>
-            <text class="ab-lbl" x="778" y="256">FILE_SEARCH</text>
-
-            <!-- FastAPI <-> Local tools (agentic loop) -->
-            <line class="ab-flow-d" x1="420" y1="198" x2="420" y2="306" marker-end="url(#ah)"/>
-            <line class="ab-flow-d" x1="455" y1="306" x2="455" y2="198" marker-end="url(#ah)"/>
-            <text class="ab-lbl" x="466" y="256">EXECUTE ×N</text>
-
-            <!-- FastAPI -> Logs -->
-            <path class="ab-flow" d="M 360 198 L 360 245 L 111 245 L 111 306" marker-end="url(#ah)"/>
-            <text class="ab-lbl" x="126" y="237">EVERY CHAT</text>
-
-            <!-- Legend -->
-            <line class="ab-flow" x1="560" y1="510" x2="600" y2="510"/>
-            <text class="ab-lbl" x="608" y="513">REQUEST</text>
-            <line class="ab-flow-a" x1="672" y1="510" x2="712" y2="510"/>
-            <text class="ab-lbl" x="720" y="513">STREAMED BACK</text>
-            <line class="ab-flow-d" x1="16" y1="510" x2="56" y2="510"/>
-            <text class="ab-lbl" x="64" y="513">AGENTIC LOOP · UNTIL NO TOOL CALLS</text>
+            <text class="ab-loop" x="560" y="212">AGENTIC LOOP</text>
+            <text class="ab-lbl-a" x="560" y="230">repeats until the model stops</text>
+            <text class="ab-lbl-a" x="560" y="246">calling tools and answers</text>
           </svg>
-          <figcaption>One question, end to end. The loop between FastAPI and the local tools repeats until the model stops calling tools and streams its answer.</figcaption>
+          <figcaption>The model asks for exactly the rules it needs; code fetches or computes them; repeat until it answers.</figcaption>
         </figure>
 
         <ol class="stage-list">
@@ -407,12 +351,9 @@
             <div>
               <div class="stage-title">Retrieve &amp; generate</div>
               <div class="stage-body">
-                The question is sent to the OpenAI Responses API with a
-                <span class="mono">file_search</span> tool over a vector store
-                of the rulebook. Up to 20 chunks are pulled into a structured
-                system prompt that tells the model to cite section numbers.
-                Tokens stream back over the WebSocket along with TTFT, RAG
-                latency, total time, token counts, and per-query cost.
+                The question plus retrieved rulebook chunks go to the model,
+                which cites section numbers; tokens stream back with timing
+                and per-query cost.
               </div>
             </div>
           </li>
@@ -421,11 +362,8 @@
             <div>
               <div class="stage-title">Ground in the source</div>
               <div class="stage-body">
-                Citations in the response are rendered as clickable links that
-                open an in-browser PDF viewer at the exact rulebook page, using
-                a pre-built section-to-page index
-                (<span class="mono">section_pages.json</span>). The user can
-                check every claim against the source without leaving the chat.
+                Every citation is a link that opens the rulebook PDF at the
+                exact page, so each claim can be checked against the source.
               </div>
             </div>
           </li>
@@ -434,11 +372,8 @@
             <div>
               <div class="stage-title">Evaluate</div>
               <div class="stage-body">
-                A growing eval set of 200+ rules questions runs against the
-                current model. A zero-shot LLM judge scores each response Pass
-                / Fail / Needs Review against an expected answer; flagged rows
-                are reviewed manually. Results are broken down by question type
-                and published on the
+                200+ eval questions score every change; an LLM judge flags rows
+                for manual review. Results are on the
                 <a class="inline-link" href="{{ url_for('evals') }}">evals page</a>.
               </div>
             </div>
@@ -448,9 +383,8 @@
             <div>
               <div class="stage-title">Curate &amp; retrain</div>
               <div class="stage-body">
-                Every chat is logged. Promising Q&amp;A pairs are triaged through
-                a review UI into eval sets or SFT training data. Strong examples
-                feed the next iteration; mistakes become regression tests.
+                Every chat is logged; strong Q&amp;A pairs become evals or
+                training data, and mistakes become regression tests.
               </div>
             </div>
           </li>
@@ -472,36 +406,17 @@
         <h2 class="about-h2">Pasting in your<br /><em>board state</em>.</h2>
         <div class="about-prose">
           <p>
-            VASL is the dominant online client for ASL. Every game on VASL can be
-            written to a <span class="mono">.vsav</span> save file — a complete,
-            machine-readable snapshot of the board: which boards are in play,
-            their orientation, every counter, its hex, its stacking order, the
-            face it shows, and any SSR-level terrain transforms.
+            VASL, the online client for ASL, writes each game to a
+            <span class="mono">.vsav</span> save — a machine-readable snapshot
+            of the board. Attach one and the server parses it into a plain-text
+            <span class="mono">BOARD STATE</span> block: every unit, its hex,
+            its state flags and markers, and the terrain it stands on.
           </p>
           <p>
-            The chat has a <span class="mono">📎&nbsp;.vsav</span> button on both
-            the authenticated chat and the public demo. Drop a save file in and
-            the server parses it directly — no screenshot involved — and appends
-            a plain-text <span class="mono">BOARD STATE</span> block to your
-            question. Hex IDs, units, state flags
-            (<span class="mono">BROKEN</span>,
-            <span class="mono">concealed</span>,
-            <span class="mono">HIP</span>), per-unit markers
-            (<span class="mono">DM</span>, <span class="mono">Prep&nbsp;Fire</span>,
-            <span class="mono">Melee</span>, <span class="mono">Foxhole:&nbsp;in</span>),
-            and the terrain of every occupied hex are all included.
-          </p>
-          <p>
-            The model is told to treat that block as ground truth: it is exact,
-            machine-parsed data from the save file, so it wins over any
-            screenshot if the two disagree about a unit's identity or position.
-            That removes a whole class of vision errors — misread counter labels,
-            wrong stacking, mistaken terrain — from the answer.
-          </p>
-          <p>
-            One file picker, no manual setup, no schema to learn. Open the
-            <a class="inline-link" href="{{ url_for('demo') }}">demo</a> and
-            try it with one of your own saves.
+            The model treats that block as ground truth — exact parsed data
+            beats any screenshot — which removes misread counters, wrong
+            stacking, and mistaken terrain from the answer. Try it in the
+            <a class="inline-link" href="{{ url_for('demo') }}">demo</a>.
           </p>
         </div>
       </div>
@@ -521,18 +436,11 @@
         <h2 class="about-h2">Where rules end and<br /><em>arithmetic</em> begins.</h2>
         <div class="about-prose">
           <p>
-            Many ASL questions split cleanly in two: a retrieval question
-            (<em>which rule applies here?</em>) and an arithmetic question
-            (<em>what does that rule compute to?</em>). LLMs are good at the
-            first and unreliable at the second. The same model that correctly
-            cites A7.21 PBF and B27 entrenchment TEM will, on the same turn,
-            quietly drop a +1 DRM or round an IFT column the wrong way.
-          </p>
-          <p>
-            The fix is to take the math out of the model and put it in code.
-            The assistant ships four deterministic function-calling tools that
-            the LLM is required to invoke whenever a question reduces to
-            arithmetic, and to never derive by hand:
+            Rules questions split into retrieval (<em>which rule applies?</em>)
+            and arithmetic (<em>what does it compute to?</em>). LLMs are good at
+            the first and unreliable at the second — the same model that cites
+            the right rules will quietly drop a +1 DRM. So the math lives in
+            code, in four tools the model must call instead of deriving by hand:
           </p>
         </div>
         <ol class="stage-list">
@@ -541,10 +449,8 @@
             <div>
               <div class="stage-title"><span class="mono">ift_odds</span> · IFT lookup</div>
               <div class="stage-body">
-                Column + DRM in, break / pin / casualty odds out, read from the
-                Infantry Fire Table. Also available as the
-                <a class="inline-link" href="{{ url_for('ift') }}">/ift</a>
-                page for direct use.
+                Column + DRM in, break / pin / casualty odds out. Also the
+                <a class="inline-link" href="{{ url_for('ift') }}">/ift</a> page.
               </div>
             </div>
           </li>
@@ -553,11 +459,8 @@
             <div>
               <div class="stage-title"><span class="mono">ift_attack</span> · Full attack builder</div>
               <div class="stage-body">
-                The whole A7.2–.36 pipeline: per-unit FP, range halving and
-                doubling, FP column, itemized DRM, auto cowering, break / pin /
-                casualty odds against a target morale or a vehicle's
-                <span class="mono">★</span> line. Used whenever the user
-                describes a situation in text.
+                The full A7.2–.36 pipeline from a described situation: per-unit
+                FP, range effects, itemized DRM, cowering, final odds.
               </div>
             </div>
           </li>
@@ -566,12 +469,9 @@
             <div>
               <div class="stage-title"><span class="mono">resolve_attack</span> · Save-driven fire</div>
               <div class="stage-body">
-                Given an attached <span class="mono">.vsav</span> and a firing
-                and target hex, the server computes the entire fire attack from
-                the parsed save: which units fire, final FP, range / PBF, every
-                DRM line item, and the IFT result. No values from memory; every
-                modifier is derived from the file and an itemized ledger is
-                returned to the model verbatim.
+                A whole fire attack computed from an attached
+                <span class="mono">.vsav</span> — every modifier derived from
+                the file, returned as an itemized ledger.
               </div>
             </div>
           </li>
@@ -580,24 +480,16 @@
             <div>
               <div class="stage-title"><span class="mono">resolve_cc</span> · Save-driven Close Combat</div>
               <div class="stage-body">
-                Given a hex and an attacker side, the server computes both sides
-                of a simultaneous CC: the per-unit FP ledger, DRMs, CCT column
-                after odds, the DR thresholds for elimination and Casualty
-                Reduction, and Melee state. A11 is exactly where hand derivation
-                breaks; this removes the chance to.
+                Both sides of a Close Combat from the save: FP ledgers, CCT
+                odds, kill / reduction thresholds, Melee state.
               </div>
             </div>
           </li>
         </ol>
         <div class="about-prose" style="margin-top: 24px;">
           <p>
-            The model still reads the rules, picks the right tool, and writes the
-            explanation; the tool supplies the numbers and the per-line
-            derivation, which the model is instructed to surface to the user
-            verbatim — along with its assumptions and warnings (LOS not modeled,
-            no Ambush dr, etc.). The result is an answer where the prose can be
-            judged on rules interpretation, and the arithmetic is auditable line
-            by line.
+            The model picks the tool and writes the explanation; the tool
+            supplies auditable numbers, surfaced line by line.
           </p>
         </div>
       </div>
@@ -616,19 +508,11 @@
         <h2 class="about-h2">Never cite a rule<br />you haven't <em>read</em>.</h2>
         <div class="about-prose">
           <p>
-            Vector search finds the rule that answers the question; the failures
-            come from the rule <em>next to</em> it. In evals, nearly every wrong
-            recall answer had the same shape: the headline rule stated correctly,
-            and a qualifier — an <span class="mono">EXC:</span>, an "unless", an
-            out-of-LOS condition — sitting in a cross-referenced section that
-            never entered the context window.
-          </p>
-          <p>
-            So the rulebook was made deterministically addressable. An offline
-            pipeline slices the eASLRB PDF into its 2,781 numbered sections
-            (99.4% coverage), and parses the official Q&amp;A / errata
-            compilation into ~2,400 entries keyed to the sections they clarify.
-            On top of that store sit two layers:
+            Vector search finds the rule; the failures come from the rule
+            <em>next to</em> it — a qualifier in a cross-referenced section that
+            never entered the context. So the rulebook was made addressable:
+            2,781 numbered sections plus ~2,400 official Q&amp;A entries,
+            exposed two ways:
           </p>
         </div>
         <ol class="stage-list">
@@ -637,10 +521,8 @@
             <div>
               <div class="stage-title"><span class="mono">get_section</span> · exact lookup, in the loop</div>
               <div class="stage-body">
-                With Tools on, the model can fetch the verbatim text of any
-                section by ID — plus every official ruling about it — before
-                citing it, and is instructed to do so for each section it cites
-                and each cross-reference that could qualify the answer.
+                With Tools on, the model fetches the verbatim text — and every
+                official ruling — of any section before citing it.
               </div>
             </div>
           </li>
@@ -649,24 +531,13 @@
             <div>
               <div class="stage-title">Cite-check · code-driven verification</div>
               <div class="stage-body">
-                Models don't reliably follow fetch-before-cite protocols, so the
-                backstop doesn't rely on model discretion: after a draft answer,
-                <em>code</em> extracts the section IDs it cites, fetches their
-                exact text (one level of cross-references and Q&amp;A included),
-                and a single forced revision turn corrects the draft against
-                them. If nothing contradicts the draft, it passes through
-                unchanged.
+                After a draft answer, <em>code</em> — not the model — extracts
+                every cited section, fetches its exact text, and forces one
+                revision turn against it.
               </div>
             </div>
           </li>
         </ol>
-        <div class="about-prose" style="margin-top: 24px;">
-          <p>
-            The division of labor mirrors the calculator tools: the model
-            interprets and writes; deterministic code decides what evidence it
-            must have read first.
-          </p>
-        </div>
       </div>
     </div>
   </div>
@@ -685,23 +556,23 @@
         <div class="hard-list">
           <div class="row">
             <div class="term">Scale</div>
-            <div class="body">At over a million tokens, the rulebook is far longer than any context window can hold. Naive "stuff it in the prompt" approaches don't apply.</div>
+            <div class="body">Over a million tokens — no context window holds it.</div>
           </div>
           <div class="row">
             <div class="term">Cross-references</div>
-            <div class="body">Rules routinely reference other rules by section. A complete answer often requires retrieving from several non-adjacent sections in one query.</div>
+            <div class="body">Complete answers need several non-adjacent sections at once.</div>
           </div>
           <div class="row">
             <div class="term">Multimodal content</div>
-            <div class="body">The book carries hex maps, counter diagrams, and fire tables. Pure text retrieval loses visual context some rules depend on; vision input and a fixed terrain legend partially compensate.</div>
+            <div class="body">Maps, counters, and tables that text retrieval loses.</div>
           </div>
           <div class="row">
             <div class="term">Precision</div>
-            <div class="body">A "mostly right" answer that misses one exception or DRM produces incorrect gameplay. Vague answers have no value at the table.</div>
+            <div class="body">Miss one exception and the gameplay is wrong.</div>
           </div>
           <div class="row">
             <div class="term">Calculation</div>
-            <div class="body">Many questions chain lookups across multiple tables (terrain, unit stats, IFT columns) that retrieval alone cannot resolve — the deterministic tools above exist for this reason.</div>
+            <div class="body">Many questions chain table lookups retrieval can't resolve — hence the tools.</div>
           </div>
         </div>
       </div>
@@ -721,11 +592,9 @@
         <h2 class="about-h2">A 1985 hex-and-counter<br /><em>tactical wargame</em>.</h2>
         <div class="about-prose">
           <p>
-            Advanced Squad Leader is a tactical-level hex-and-counter wargame
-            covering WW2 and the Korean War, originally published by Avalon Hill
-            in 1985 and now by Multi-Man Publishing. It is widely regarded as
-            the most comprehensive squad-level wargame ever published, and most
-            play today happens online over
+            Advanced Squad Leader is a WW2 tactical hex-and-counter wargame,
+            published by Avalon Hill in 1985 and now by Multi-Man Publishing.
+            Most play today happens online over
             <a class="inline-link" href="https://vassalengine.org/" target="_blank" rel="noopener noreferrer">VASSAL</a>
             and <a class="inline-link" href="https://vasl.info/" target="_blank" rel="noopener noreferrer">VASL</a>.
           </p>

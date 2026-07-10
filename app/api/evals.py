@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, cast, String
 from sqlalchemy.orm import Session
 
+from app import model_registry
 from app.database import get_db
 from app.models.chat import ChatMessage
 from app.models.demo import DemoMessage
@@ -101,15 +102,15 @@ async def usage_daily(db: Session = Depends(get_db)):
     so the /evals charts can show text vs image queries side by side.
     """
     # Production chat tags messages with the full model id sent to the API.
-    # OpenRouter rows arrive as "deepseek/deepseek-v3.2" / "inception/mercury-2";
-    # they're normalized to display labels below via _normalize_model_for_usage.
+    # Routed rows arrive as full slugs ("meta/muse-spark-1.1"); they're
+    # normalized to short display labels below.
     ALLOWED_MODELS = {
         "gpt-5-mini", "gpt-4.1-mini", "gpt-5.4", "gpt-5.4-mini",
-        "deepseek/deepseek-v3.2", "inception/mercury-2",
+        "gpt-5.6-luna", "gpt-5.6-terra",
+        "meta/muse-spark-1.1",
     }
     USAGE_DISPLAY = {
-        "deepseek/deepseek-v3.2": "deepseek-v3",
-        "inception/mercury-2": "mercury-2",
+        "meta/muse-spark-1.1": "muse-spark-1.1",
     }
 
     messages = (
@@ -180,18 +181,16 @@ async def usage_daily(db: Session = Depends(get_db)):
         daily[key]["total_time_ms"] += timing.get("total_time_ms", 0) or 0
         daily[key]["count"] += 1
 
-    # USD per 1M tokens (input, output). OpenRouter prices are approximate —
-    # verify against the live OpenRouter dashboard if exact COST chips matter.
+    # USD per 1M tokens (input, output). Current models come from the model
+    # registry; the rest are legacy entries for historical rows.
     MODEL_PRICING = {
-        "gpt-5-mini":    (0.25, 1.00),
-        "gpt-5.4":       (3.00, 15.00),
-        "gpt-5.4-mini":  (0.25, 2.00),
-        "gpt-5.6-terra": (2.50, 15.00),
-        "gpt-5.6-luna":  (1.00, 6.00),
-        "gpt-4.1-mini":  (0.40, 1.60),
-        "deepseek-v3":   (0.27, 1.10),
-        "mercury-2":     (0.25, 1.00),
+        m.key: (m.price_in, m.price_out) for m in model_registry.MODELS
     }
+    MODEL_PRICING.update({
+        "gpt-5-mini":   (0.25, 1.00),
+        "gpt-5.4-mini": (0.75, 4.50),
+        "gpt-4.1-mini": (0.40, 1.60),
+    })
 
     def base_model(variant: str) -> str:
         return variant.replace(" (image)", "").replace(" (agentic)", "")
@@ -399,7 +398,16 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         # deepseek-v3 sits with the cheaper tier (it's the first
         # OpenRouter-routed model in the table). Within a model, easier tiers
         # come first.
-        MODEL_ORDER = ["Fable", "gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
+        MODEL_ORDER = ["Fable", "Sonnet 5", "gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
+
+        # Models with no live production traffic: cost & time shown in the
+        # table are ESTIMATED from the eval run (per-question token volume of
+        # the same 85-q / 20-chunk config, priced at the model's API rates;
+        # time = retrieval + an inference proxy), not measured live.
+        ESTIMATED_FROM_EVAL = {
+            "Fable": ("~30¢", "~20s"),
+            "Sonnet 5": ("~11¢", "~15s"),
+        }
         MODEL_VIA_OPENROUTER = {"deepseek-v3", "mercury-2"}
         TIER_SORT = {"Easy": 0, "Medium": 1, "—": 2}
 
@@ -416,11 +424,13 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         date_label = datetime.strptime(run["date"], "%Y-%m-%d").strftime("%b %-d")
                     except (ValueError, TypeError):
                         pass
+                est_cost, est_time = ESTIMATED_FROM_EVAL.get(m, (None, None))
                 rows_map[key] = {
                     "model": m, "tier": tier, "acc": {},
                     "file_id": run["file_id"], "date": date_label,
                     "estimated": bool(run.get("estimated")),
                     "via_openrouter": m in MODEL_VIA_OPENROUTER,
+                    "est_cost": est_cost, "est_time": est_time,
                 }
             # eval_runs is sorted newest-first, so the first value seen per
             # (model, tier, qtype) is the latest run's accuracy.
@@ -438,13 +448,14 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
             # Fable postdates the v1.0 archive, so it's not padded in.
             present = {m for m, _ in rows_map.keys()}
             for m in MODEL_ORDER:
-                if m == "Fable":
-                    continue
+                if m in ESTIMATED_FROM_EVAL:
+                    continue  # Fable / Sonnet 5 postdate the v1.0 archive
                 if m not in present:
                     rows_map[(m, "—")] = {
                         "model": m, "tier": "—", "acc": {}, "file_id": None,
                         "date": None, "estimated": False,
                         "via_openrouter": m in MODEL_VIA_OPENROUTER,
+                        "est_cost": None, "est_time": None,
                     }
             row_order = sorted(rows_map.keys(), key=_row_sort)
         table_rows = [rows_map[k] for k in row_order]
@@ -541,7 +552,7 @@ def _format_model_name(model_name: str) -> str:
         return model_name
 
     # Anthropic model IDs → the short label used in prose and MODEL_ORDER.
-    CLAUDE_DISPLAY = {"claude-fable-5": "Fable"}
+    CLAUDE_DISPLAY = {"claude-fable-5": "Fable", "claude-sonnet-5": "Sonnet 5"}
     if model_name in CLAUDE_DISPLAY:
         return CLAUDE_DISPLAY[model_name]
 

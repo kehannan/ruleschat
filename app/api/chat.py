@@ -13,6 +13,7 @@ from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from openai import OpenAI
 
+from app import model_registry
 from app.config import ASL_SYSTEM_INSTRUCTIONS, DEFAULT_MODEL, TEMPERATURE, WEBSOCKET_PING_INTERVAL
 from app.core.auth import SECRET_KEY, ALGORITHM, require_user
 from app.services.user_service import get_user_by_email
@@ -193,6 +194,9 @@ def ruleschat(request: Request):
         context = get_base_context(request, user)
         context["cost_per_1m_input"] = float(os.getenv("COST_PER_1M_INPUT", "0.25"))
         context["cost_per_1m_output"] = float(os.getenv("COST_PER_1M_OUTPUT", "1.00"))
+        context["models"] = model_registry.specs_for("chat")
+        context["model_pricing"] = model_registry.pricing_table()
+        context["agentic_models"] = model_registry.agentic_keys()
         return templates.TemplateResponse("ruleschat.html", context)
     except JWTError:
         return RedirectResponse(url="/login", status_code=303)
@@ -487,40 +491,40 @@ async def websocket_chat(websocket: WebSocket):
                     else:
                         full_input = message
                     
-                    # Validate selected model (whitelist). OpenRouter shortcuts
-                    # are expanded to their full vendor/model slugs — the "/"
-                    # is what triggers OpenRouter routing in ASLService.
-                    OPENROUTER_SLUG = {
-                        "deepseek-v3": "deepseek/deepseek-v3.2",
-                        "mercury-2": "inception/mercury-2",
-                        "fable": "anthropic/claude-fable-5",
-                        "glm-5.2": "z-ai/glm-5.2",
-                        # "meta/" routes to the Meta Model API, not OpenRouter.
-                        "muse-spark-1.1": "meta/muse-spark-1.1",
-                    }
-                    allowed_models = {
-                        "gpt-5.4", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-4.1-mini",
-                        "deepseek-v3", "mercury-2", "fable", "glm-5.2",
-                        "muse-spark-1.1",
-                    }
-                    if selected_model in allowed_models:
-                        model_override = OPENROUTER_SLUG.get(selected_model, selected_model)
+                    # Validate against the model registry (app/model_registry.py
+                    # is the one table to edit when adding/removing models).
+                    if selected_model in model_registry.allowed_keys("chat"):
+                        model_override = model_registry.resolve(selected_model)
                     else:
                         model_override = None
+                        selected_model = None
 
                     # Force vision-capable model when image(s) attached
-                    # (OpenRouter path doesn't support images yet).
+                    # (routed models don't support images yet).
                     if image_paths and model_override != "gpt-5.4":
                         logging.info(f"🖼️  Image(s) attached — overriding model {model_override} → gpt-5.4")
                         model_override = "gpt-5.4"
+                        selected_model = "gpt-5.4"
 
-                    # Agentic tool calling is an OpenAI-Responses-only feature;
-                    # disable it for OpenRouter-routed models (slug contains "/").
-                    agentic_enabled = agentic and not (model_override and "/" in model_override)
+                    # "Thorough" toggle (/chat only), honored per the
+                    # registry's agentic flag. ON = adaptive retrieval: a small
+                    # chunk baseline (ADAPTIVE_RAG_CHUNKS, default 5) plus the
+                    # agentic loop — the model pulls exact sections and runs
+                    # calculators as needed. Slower and often costlier per
+                    # question, but more accurate. OFF = classic single-shot
+                    # 20-chunk prompt.
+                    agentic_enabled = agentic and (
+                        model_registry.agentic_allowed(selected_model)
+                        if selected_model else True
+                    )
                     if agentic and not agentic_enabled:
-                        logging.info("🤖 Agentic requested but disabled for OpenRouter model %s", model_override)
-                    elif agentic_enabled:
-                        logging.info("🤖 Agentic tool calling enabled for this message")
+                        logging.info("🤖 Thorough requested but disabled for model %s", model_override)
+                    adaptive_chunks = (
+                        int(os.getenv("ADAPTIVE_RAG_CHUNKS", "5"))
+                        if agentic_enabled else None
+                    )
+                    if adaptive_chunks:
+                        logging.info("🪶 Thorough mode: %d-chunk baseline + agentic loop", adaptive_chunks)
 
                     # Get streaming response from service
                     stream, timing_data = asl_service.get_answer(
@@ -532,6 +536,7 @@ async def websocket_chat(websocket: WebSocket):
                         board_state=board_state,
                         vsav_state=vsav_state,
                         use_agentic=agentic_enabled,
+                        max_chunks=adaptive_chunks,
                     )
                     
                     logging.info("🔄 Streaming response from OpenAI...")

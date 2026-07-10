@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from sqlalchemy import func
 
+from app import model_registry
 from app.database import SessionLocal
 from app.models.demo import DemoUsage, DemoMessage
 from app.models.config import SiteConfig
@@ -128,6 +129,8 @@ async def demo_page(request: Request):
                     db.close()
         except JWTError:
             pass
+    context["models"] = model_registry.specs_for("demo")
+    context["model_pricing"] = model_registry.pricing_table()
     return templates.TemplateResponse("demo.html", context)
 
 
@@ -313,23 +316,10 @@ async def websocket_demo(websocket: WebSocket):
                     _increment(db, ip, today)
                     remaining_after = remaining - 1
 
-                    # Dropdown short names → ASLService model identifiers. The
-                    # OpenRouter ones (deepseek-v3, mercury-2) get expanded to
-                    # the full vendor/model slug; the "/" triggers OpenRouter
-                    # routing in ASLService.get_answer.
-                    OPENROUTER_SLUG = {
-                        "deepseek-v3": "deepseek/deepseek-v3.2",
-                        "mercury-2": "inception/mercury-2",
-                        # "meta/" routes to the Meta Model API, not OpenRouter.
-                        "muse-spark-1.1": "meta/muse-spark-1.1",
-                    }
-                    allowed_models = {
-                        "gpt-5.4", "gpt-5.6-luna",
-                        "deepseek-v3", "mercury-2",
-                        "muse-spark-1.1",
-                    }
-                    if selected_model in allowed_models:
-                        model = OPENROUTER_SLUG.get(selected_model, selected_model)
+                    # Validate against the model registry (app/model_registry.py
+                    # is the one table to edit when adding/removing models).
+                    if selected_model in model_registry.allowed_keys("demo"):
+                        model = model_registry.resolve(selected_model)
                     else:
                         model = DEMO_MODEL
 

@@ -88,6 +88,9 @@ class OpenRouterClient:
             "messages": messages,
             "stream": stream,
         }
+        if stream:
+            # Usage arrives on the final chunk only when asked for.
+            kwargs["stream_options"] = {"include_usage": True}
         if temperature is not None:
             kwargs["temperature"] = temperature
         if max_tokens is not None:
@@ -141,6 +144,16 @@ class MetaModelClient(OpenRouterClient):
         if base_override:
             self.BASE_URL = base_override
         super().__init__(api_key=api_key, timeout=timeout)
+
+    def create_chat(self, *args, **kwargs):
+        # Meta rejects named/required tool_choice with a 400 — only "auto" is
+        # supported (as of 2026-07). Downgrade forced choices; the tool
+        # instructions in the prompt still steer the model.
+        tc = kwargs.get("tool_choice")
+        if tc is not None and tc != "auto":
+            logging.info("Meta API: downgrading tool_choice %s -> 'auto'", tc)
+            kwargs["tool_choice"] = "auto"
+        return super().create_chat(*args, **kwargs)
 
 
 def build_meta_client_from_env() -> Optional["MetaModelClient"]:

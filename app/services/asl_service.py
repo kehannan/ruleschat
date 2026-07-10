@@ -772,6 +772,7 @@ Your response:"""
                         tool_context=tool_context,
                         tools_chat=tools_chat,
                         max_iterations=MAX_ITER_WITH_LOOKUP if lookup_enabled else MAX_ITER_DEFAULT,
+                        stream=stream,
                     )
                 return self._openrouter_answer(
                     question=question,
@@ -1019,10 +1020,19 @@ Your response:"""
         tool_context: Optional[Dict[str, Any]] = None,
         max_iterations: int = 5,
         tools_chat: Optional[List[Dict[str, Any]]] = None,
+        stream: bool = False,
     ):
         """
         Agentic OpenRouter path: client-side retrieval + a Chat Completions
         tool-calling loop.
+
+        stream=True returns (generator, timing_data) instead of (text,
+        timing_data): the generator yields {"status": label} dicts at tool
+        boundaries and str deltas for answer text, and timing_data fills once
+        it is fully consumed — the same contract as the OpenAI streaming
+        paths, so the chat WebSocket handles both identically. Tool turns are
+        assumed to carry no user-visible text (same assumption as the
+        Responses-API loop). The eval harness keeps using stream=False.
 
         tools_chat is the Chat-format tool list to expose (None falls back to
         TOOL_SCHEMAS_CHAT, i.e. everything). An empty list makes this a plain
@@ -1036,9 +1046,6 @@ Your response:"""
         or — when return_timing=True — a (text, timing_data) tuple whose keys
         line up with what the eval harness reads (input/output tokens,
         retrieval/inference split, tools_called).
-
-        Always non-streaming: the loop must see each turn's tool calls before it
-        can emit the final answer.
         """
         import json as json_module
 
@@ -1081,6 +1088,132 @@ Your response:"""
         tools_called: List[str] = []
         final_text = ""
 
+        exposed_tools = TOOL_SCHEMAS_CHAT if tools_chat is None else tools_chat
+
+        if stream:
+            timing_data: Dict[str, Any] = {}
+
+            def stream_generator():
+                in_tok = 0
+                out_tok = 0
+                called: List[str] = []
+                stripper = _CitationStripper()
+                inference_t0 = time.time()
+                yield {"status": "Searching the rulebook"}
+                for iteration in range(max_iterations):
+                    logging.info(
+                        f"🔄 OpenRouter agentic(stream) iteration {iteration + 1}/{max_iterations}"
+                    )
+                    call_kwargs: Dict[str, Any] = {
+                        "model": provider_model,
+                        "messages": messages,
+                        "stream": True,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                        "reasoning": reasoning,
+                        "provider": provider,
+                    }
+                    if exposed_tools:
+                        call_kwargs["tools"] = exposed_tools
+                        call_kwargs["tool_choice"] = (
+                            {"type": "function", "function": {"name": force_tool}}
+                            if force_tool and iteration == 0 else "auto"
+                        )
+                    resp_stream = chat_client.create_chat(**call_kwargs)
+
+                    # Forward text deltas live; assemble tool-call fragments
+                    # (they arrive split across chunks, keyed by index).
+                    turn_text_raw = ""
+                    tc_acc: Dict[int, Dict[str, Any]] = {}
+                    for chunk in resp_stream:
+                        usage = getattr(chunk, "usage", None)
+                        if usage is not None:
+                            in_tok += getattr(usage, "prompt_tokens", 0) or 0
+                            out_tok += getattr(usage, "completion_tokens", 0) or 0
+                        choices = getattr(chunk, "choices", None) or []
+                        if not choices:
+                            continue
+                        delta = choices[0].delta
+                        content = getattr(delta, "content", None)
+                        if content:
+                            turn_text_raw += content
+                            cleaned = stripper.feed(content)
+                            if cleaned:
+                                yield cleaned
+                        for tcd in (getattr(delta, "tool_calls", None) or []):
+                            entry = tc_acc.setdefault(
+                                tcd.index, {"id": None, "name": "", "arguments": ""}
+                            )
+                            if tcd.id:
+                                entry["id"] = tcd.id
+                            fn = getattr(tcd, "function", None)
+                            if fn is not None:
+                                if getattr(fn, "name", None):
+                                    entry["name"] = fn.name
+                                if getattr(fn, "arguments", None):
+                                    entry["arguments"] += fn.arguments
+
+                    # No tool calls → the text just streamed was the answer.
+                    if not tc_acc:
+                        tail = stripper.flush()
+                        if tail:
+                            yield tail
+                        logging.info(
+                            f"✅ OpenRouter agentic(stream) completed after {iteration + 1} iteration(s)"
+                        )
+                        break
+
+                    calls = [tc_acc[i] for i in sorted(tc_acc)]
+                    yield {"status": _batch_status_label(calls)}
+                    messages.append({
+                        "role": "assistant",
+                        "content": turn_text_raw,
+                        "tool_calls": [
+                            {
+                                "id": fc["id"],
+                                "type": "function",
+                                "function": {
+                                    "name": fc["name"],
+                                    "arguments": fc["arguments"],
+                                },
+                            }
+                            for fc in calls
+                        ],
+                    })
+                    logging.info(f"🔧 Executing {len(calls)} tool call(s)...")
+                    for fc in calls:
+                        called.append(fc["name"])
+                        try:
+                            args = json_module.loads(fc["arguments"]) if fc["arguments"] else {}
+                            logging.info(f"  📞 {fc['name']}({args})")
+                            output = json_module.dumps(
+                                execute_tool(fc["name"], args, context=tool_context)
+                            )
+                        except Exception as e:
+                            logging.error(f"  ❌ Tool error: {e}")
+                            output = json_module.dumps({"error": str(e)})
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": fc["id"],
+                            "content": output,
+                        })
+                else:
+                    logging.warning("⚠️ OpenRouter agentic(stream) max iterations reached")
+
+                if return_timing:
+                    inf_ms = (time.time() - inference_t0) * 1000
+                    timing_data.update({
+                        "response_time_ms": round(retrieval_ms + inf_ms, 1),
+                        "retrieval_ms": round(retrieval_ms, 1),
+                        "inference_ms": round(inf_ms, 1),
+                        "input_tokens": in_tok,
+                        "output_tokens": out_tok,
+                        "tools_called": called,
+                    })
+
+            generator = stream_generator()
+            return (generator, timing_data) if return_timing else generator
+
         inference_start = time.time()
         for iteration in range(max_iterations):
             logging.info(f"🔄 OpenRouter agentic iteration {iteration + 1}/{max_iterations}")
@@ -1096,7 +1229,7 @@ Your response:"""
                 "reasoning": reasoning,
                 "provider": provider,
             }
-            exposed = TOOL_SCHEMAS_CHAT if tools_chat is None else tools_chat
+            exposed = exposed_tools
             if exposed:
                 call_kwargs["tools"] = exposed
                 call_kwargs["tool_choice"] = (

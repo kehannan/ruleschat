@@ -228,14 +228,12 @@
 <div class="chat-toolbar">
   <div class="wrap">
     <select class="model-pill" id="model-selector" title="Select model">
-      <option value="gpt-5.4">gpt-5.4 · ¢¢¢/fast</option>
-      <option value="gpt-5.6-luna">gpt-5.6-luna · ¢¢/new</option>
-      <option value="gpt-5.6-terra">gpt-5.6-terra · ¢¢¢/new</option>
-      <option value="muse-spark-1.1">muse-spark-1.1 · ¢/new</option>
+      {% for m in models %}<option value="{{ m.key }}">{{ m.label }}</option>
+      {% endfor %}
     </select>
-    <label id="tools-toggle-label" class="tools-toggle" title="Let the assistant use tools when relevant: exact rulebook lookup + IFT/CC calculators"
+    <label id="tools-toggle-label" class="tools-toggle" title="Slower, more intensive: starts from a small set of excerpts, then pulls exact rule sections and runs the IFT/CC calculators until the answer checks out. More accurate; takes noticeably longer."
            style="display:none;align-items:center;gap:.4em;margin-left:.6em;color:var(--muted);font-size:.85em;cursor:pointer;user-select:none;">
-      <input type="checkbox" id="agentic-toggle" style="cursor:pointer;margin:0;"> Tools
+      <input type="checkbox" id="agentic-toggle" style="cursor:pointer;margin:0;"> Thorough · slower
     </label>
   </div>
 </div>
@@ -324,6 +322,7 @@
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 </script>
+<script>window.MODEL_PRICING_TABLE = {{ model_pricing | tojson }};</script>
 <script src="{{ url_for('static', path='/js/chat-shared.js') }}?v=20260710"></script>
 <script src="{{ url_for('static', path='/js/board-viewer.js') }}"></script>
 <script>
@@ -616,9 +615,9 @@
     const input = document.getElementById('chat-message-input');
     const submitBtn = document.getElementById('chat-message-submit');
 
-    // Tools toggle is only meaningful on OpenAI-native models — the agentic
-    // path is disabled server-side for OpenRouter-routed models in chat.
-    const AGENTIC_MODELS = ['gpt-5.4', 'gpt-5.6-terra', 'gpt-5.6-luna'];
+    // Models whose Tools toggle the server honors — served from the model
+    // registry (app/model_registry.py).
+    const AGENTIC_MODELS = {{ agentic_models | tojson }};
     const modelSel = document.getElementById('model-selector');
     const toolsLabel = document.getElementById('tools-toggle-label');
     const toolsCheckbox = document.getElementById('agentic-toggle');

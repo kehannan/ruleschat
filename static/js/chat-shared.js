@@ -24,7 +24,10 @@ const MODEL_PRICING = {
 function getModelPricing() {
     const sel = document.getElementById('model-selector');
     const model = sel ? sel.value : 'gpt-5-mini';
-    return MODEL_PRICING[model] || MODEL_PRICING['gpt-5-mini'];
+    // Server-rendered registry table wins (window.MODEL_PRICING_TABLE, from
+    // app/model_registry.py); the local map is a fallback for older pages.
+    const table = window.MODEL_PRICING_TABLE || {};
+    return table[model] || MODEL_PRICING[model] || MODEL_PRICING['gpt-5-mini'];
 }
 
 // ============================================================
