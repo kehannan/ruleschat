@@ -360,7 +360,16 @@ async def websocket_demo(websocket: WebSocket):
                     full_response = ""
                     response_received = False
 
-                    for delta in stream:
+                    # The generator is synchronous (blocking OpenAI SDK reads) —
+                    # run each next() on a worker thread so the event loop can
+                    # flush sends as they happen instead of buffering the whole
+                    # response into one burst (see chat.py for details).
+                    stream_iter = iter(stream)
+                    _stream_end = object()
+                    while True:
+                        delta = await asyncio.to_thread(next, stream_iter, _stream_end)
+                        if delta is _stream_end:
+                            break
                         # Agentic-loop progress events ({"status": label}) go
                         # out as typed messages for the searching pill.
                         if isinstance(delta, dict):
@@ -407,6 +416,9 @@ async def websocket_demo(websocket: WebSocket):
                 except Exception as e:
                     logging.error(f"❌ Demo API error: {e}", exc_info=True)
                     await websocket.send_text("Error processing your question. Please try again.")
+                    # Close out the message so the client finalizes it —
+                    # otherwise the next answer streams into the same bubble.
+                    await websocket.send_text(json.dumps({"type": "stream_complete"}))
                 finally:
                     db.close()
 

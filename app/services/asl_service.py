@@ -104,6 +104,42 @@ def _tool_status_label(name: str, args: Optional[Dict[str, Any]]) -> str:
     return _TOOL_STATUS_LABELS.get(name, f"Running {name}")
 
 
+def _batch_status_label(calls: List[Dict[str, Any]]) -> str:
+    """One pill label covering a whole turn's tool calls.
+
+    The tools themselves are near-instant local lookups, so a per-call label
+    would flash for ~1ms. Instead the batch label is shown while the model
+    reads the results in the next turn — get_section calls merge into
+    "Checking rules D7.1, A8.31 & D7.2", other tools keep their own label.
+    """
+    sections: List[str] = []
+    other_labels: List[str] = []
+    for fc in calls:
+        raw = fc.get("arguments")
+        try:
+            args = json.loads(raw) if isinstance(raw, str) else (raw or {})
+        except Exception:
+            args = {}
+        if fc.get("name") == "get_section":
+            sec = args.get("section")
+            if sec and sec not in sections:
+                sections.append(sec)
+        else:
+            label = _tool_status_label(fc.get("name", ""), args)
+            if label not in other_labels:
+                other_labels.append(label)
+
+    parts = list(other_labels)
+    if len(sections) == 1:
+        parts.append(f"Checking rule {sections[0]}")
+    elif sections:
+        shown = sections[:4]
+        listed = ", ".join(shown[:-1]) + f" & {shown[-1]}"
+        extra = f" (+{len(sections) - 4} more)" if len(sections) > 4 else ""
+        parts.append(f"Checking rules {listed}{extra}")
+    return " · ".join(parts) if parts else "Working on the answer"
+
+
 def _lookup_tools_available() -> bool:
     """True when the extracted rulebook store exists on this deployment."""
     try:
@@ -1300,11 +1336,12 @@ Your response:"""
             tools_called: List[str] = []
 
             for iteration in range(max_iterations):
-                # Progress event for the UI pill. Turn 0 starts with the
-                # server-side file_search; later turns come right after tool
-                # results were submitted.
-                yield {"status": "Searching the rulebook" if iteration == 0
-                       else "Working on the answer"}
+                # Progress event for the UI pill. Only turn 0 sets a label
+                # here — later turns keep the batch tool label yielded below,
+                # so "Checking rules …" stays up while the model reads the
+                # tool results (the tools themselves finish in ~1ms).
+                if iteration == 0:
+                    yield {"status": "Searching the rulebook"}
                 stream_manager = self.client.stream_response(
                     model=model,
                     input=current_input,
@@ -1349,12 +1386,12 @@ Your response:"""
                     "🔧 Agentic(stream) iter %d: executing %d tool call(s): %s",
                     iteration + 1, len(calls), [c["name"] for c in calls],
                 )
+                yield {"status": _batch_status_label(calls)}
                 function_results = []
                 for fc in calls:
                     try:
                         raw = fc.get("arguments")
                         args = json_module.loads(raw) if isinstance(raw, str) else (raw or {})
-                        yield {"status": _tool_status_label(fc["name"], args)}
                         logging.info("  📞 %s(%s)", fc["name"], args)
                         output_json = json_module.dumps(
                             execute_tool(fc["name"], args, context=tool_context)

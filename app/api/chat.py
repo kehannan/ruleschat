@@ -540,7 +540,18 @@ async def websocket_chat(websocket: WebSocket):
                     # Stream deltas to client. Dict items are progress events
                     # from the agentic loop ({"status": label}) — forwarded as
                     # typed messages for the searching pill, not answer text.
-                    for delta in stream:
+                    #
+                    # The generator is synchronous (blocking OpenAI SDK reads),
+                    # so each next() must run on a worker thread. Iterating it
+                    # inline starves the event loop and uvicorn buffers every
+                    # send until processing ends — the client then gets the
+                    # statuses, all deltas, and stream_complete in one burst.
+                    stream_iter = iter(stream)
+                    _stream_end = object()
+                    while True:
+                        delta = await asyncio.to_thread(next, stream_iter, _stream_end)
+                        if delta is _stream_end:
+                            break
                         if isinstance(delta, dict):
                             await websocket.send_text(json.dumps({
                                 "type": "status",
@@ -607,12 +618,17 @@ async def websocket_chat(websocket: WebSocket):
                 except AttributeError as attr_error:
                     logging.error(f"❌ Attribute Error: {attr_error}")
                     await websocket.send_text("Error: OpenAI client configuration issue.")
+                    await websocket.send_text(json.dumps({"type": "stream_complete"}))
                 except ValueError as val_error:
                     logging.error(f"❌ Configuration Error: {val_error}")
                     await websocket.send_text("Error: Responses API not properly configured.")
+                    await websocket.send_text(json.dumps({"type": "stream_complete"}))
                 except Exception as api_error:
                     logging.error(f"❌ API Error: {api_error}", exc_info=True)
                     await websocket.send_text(f"Error: {str(api_error)}")
+                    # Close out the message so the client finalizes it —
+                    # otherwise the next answer streams into the same bubble.
+                    await websocket.send_text(json.dumps({"type": "stream_complete"}))
                 finally:
                     db.close()
                 

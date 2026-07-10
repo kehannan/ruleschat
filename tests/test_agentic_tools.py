@@ -213,9 +213,11 @@ def test_agentic_loop_resolves_tool_then_streams():
     statuses = [i["status"] for i in items if isinstance(i, dict)]
 
     assert text == "About 30%.", f"final answer should stream through, got {text!r}"
-    # progress events: turn 0 search, the tool call, then the answer turn
-    assert statuses == ["Searching the rulebook", "Calculating IFT odds",
-                        "Working on the answer"], statuses
+    # progress events: turn 0 search, then the tool-batch label, which stays
+    # up while the model reads the results (no "Working on the answer"
+    # overwrite — the tools finish in ~1ms so it would erase the label
+    # before anyone saw it)
+    assert statuses == ["Searching the rulebook", "Calculating IFT odds"], statuses
     assert timing["tools_called"] == ["ift_odds"]
     assert timing["input_tokens"] == 150 and timing["output_tokens"] == 8
     assert timing["ttft_ms"] is not None

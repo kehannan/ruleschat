@@ -9,13 +9,15 @@
 // the latency-row. OpenRouter prices are approximate; verify against the
 // live OpenRouter dashboard if exact COST chips matter.
 const MODEL_PRICING = {
-    'gpt-5-mini':   { input: 0.25, output: 1.00 },
-    'gpt-4.1-mini': { input: 0.40, output: 1.60 },
-    'gpt-5.4-mini': { input: 0.25, output: 2.00 },
-    'gpt-5.4':      { input: 3.00, output: 15.00 },
-    'deepseek-v3':  { input: 0.27, output: 1.10 },
-    'mercury-2':    { input: 0.25, output: 1.00 },
-    'fable':        { input: 10.00, output: 50.00 },
+    'gpt-5-mini':     { input: 0.25, output: 1.00 },
+    'gpt-4.1-mini':   { input: 0.40, output: 1.60 },
+    'gpt-5.4-mini':   { input: 0.75, output: 4.50 },
+    'gpt-5.4':        { input: 2.50, output: 15.00 },
+    'gpt-5.6-terra':  { input: 2.50, output: 15.00 },
+    'gpt-5.6-luna':   { input: 1.00, output: 6.00 },
+    'deepseek-v3':    { input: 0.27, output: 1.10 },
+    'mercury-2':      { input: 0.25, output: 1.00 },
+    'fable':          { input: 10.00, output: 50.00 },
 };
 
 function getModelPricing() {
@@ -74,9 +76,10 @@ function displayLatencyTimeline(latencyData) {
 
     // New surface: per-assistant-message .latency-row block. Populate the most
     // recently-created assistant message (.msg.assistant or legacy .bot-message).
-    const lastAssistant = document.querySelector(
-        '.msg.assistant:last-of-type, .bot-message:last-of-type'
-    );
+    // Note: :last-of-type won't work here — the feedback row inserted after the
+    // message is also a div, which disqualifies the message from matching.
+    const assistants = document.querySelectorAll('.msg.assistant, .bot-message');
+    const lastAssistant = assistants.length ? assistants[assistants.length - 1] : null;
     if (lastAssistant) {
         let row = lastAssistant.querySelector('.latency-row');
         if (!row) {
