@@ -16,7 +16,7 @@ from openai import OpenAI
 
 from app.asl.config import load_asl_config, ASLConfig
 from app.asl.client import OpenAIResponsesClient
-from app.asl.openrouter_client import build_openrouter_client_from_env
+from app.asl.openrouter_client import build_openrouter_client_from_env, build_meta_client_from_env
 from app.asl.retrieval import retrieve_chunks, format_chunks_as_context
 from app.asl.policy import build_instructions
 from app.asl.postprocess import (
@@ -373,10 +373,35 @@ class ASLService:
         # OpenRouter client — None if OPENROUTER_API_KEY isn't set.
         # Selecting a "/" model when this is None raises a clear error.
         self.openrouter_client = build_openrouter_client_from_env()
+        # Meta Model API client (Muse Spark) — None if META_API_KEY isn't set.
+        self.meta_client = build_meta_client_from_env()
 
         logging.info(f"ASL Service initialized with vector store: {self.config.vector_store_id}")
         if self.openrouter_client:
             logging.info("OpenRouter client initialized (/-prefixed model names route here)")
+        if self.meta_client:
+            logging.info("Meta Model API client initialized (meta/-prefixed model names route here)")
+
+    def _chat_client_for(self, model: str):
+        """Resolve a '/'-routed model to (client, provider_model_id).
+
+        'meta/…' models go to the Meta Model API with the prefix stripped;
+        everything else goes to OpenRouter with the slug unchanged. Raises
+        RuntimeError when the needed API key isn't configured.
+        """
+        if model.startswith("meta/"):
+            if self.meta_client is None:
+                raise RuntimeError(
+                    f"Model '{model}' requires the Meta Model API, but META_API_KEY "
+                    "is not set on this deployment."
+                )
+            return self.meta_client, model.split("/", 1)[1]
+        if self.openrouter_client is None:
+            raise RuntimeError(
+                f"Model '{model}' requires OpenRouter, but OPENROUTER_API_KEY "
+                "is not set on this deployment."
+            )
+        return self.openrouter_client, model
     
     def _verify_answer(
         self, 
@@ -552,10 +577,10 @@ Your response:"""
             prompt = build_revision_prompt(question, draft, ctx)
             t0 = time.time()
             if "/" in str(model):
-                if self.openrouter_client is None:
-                    raise RuntimeError("OpenRouter client unavailable for cite-check")
-                resp = self.openrouter_client.create_chat(
-                    model=model,
+                chat_client, provider_model = self._chat_client_for(str(model))
+                is_openrouter = chat_client is self.openrouter_client
+                resp = chat_client.create_chat(
+                    model=provider_model,
                     messages=[
                         {"role": "system", "content": self.config.system_instructions},
                         {"role": "user", "content": prompt},
@@ -563,8 +588,8 @@ Your response:"""
                     stream=False,
                     temperature=temperature,
                     max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
-                    reasoning=_openrouter_reasoning_config(model),
-                    provider=_openrouter_provider_config(model),
+                    reasoning=_openrouter_reasoning_config(model) if is_openrouter else None,
+                    provider=_openrouter_provider_config(model) if is_openrouter else None,
                 )
                 revised = (resp.choices[0].message.content or "").strip()
             else:
@@ -703,11 +728,8 @@ Your response:"""
             # Always non-streaming for now — the chat WebSocket gets the full
             # answer as one delta. Image inputs aren't supported on this path.
             if "/" in model:
-                if self.openrouter_client is None:
-                    raise RuntimeError(
-                        f"Model '{model}' requires OpenRouter, but OPENROUTER_API_KEY "
-                        "is not set on this deployment."
-                    )
+                # Validates the needed API key (OpenRouter or Meta) is configured.
+                self._chat_client_for(model)
                 if image_paths:
                     raise ValueError(
                         f"Model '{model}' (OpenRouter) does not support image inputs."
@@ -920,14 +942,16 @@ Your response:"""
         # output rate against the credit balance, and an unset cap means the
         # model's full ceiling (65K on some models) — which 402s on expensive
         # models even though real answers are ~1K tokens.
-        response = self.openrouter_client.create_chat(
-            model=model,
+        chat_client, provider_model = self._chat_client_for(model)
+        is_openrouter = chat_client is self.openrouter_client
+        response = chat_client.create_chat(
+            model=provider_model,
             messages=messages,
             stream=False,
             temperature=temperature,
             max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
-            reasoning=_openrouter_reasoning_config(model),
-            provider=_openrouter_provider_config(model),
+            reasoning=_openrouter_reasoning_config(model) if is_openrouter else None,
+            provider=_openrouter_provider_config(model) if is_openrouter else None,
         )
         inference_ms = (time.time() - inference_start) * 1000
         total_ms = retrieval_ms + inference_ms
@@ -1048,8 +1072,10 @@ Your response:"""
         ]
 
         max_tokens = int(os.getenv("OPENROUTER_MAX_TOKENS", "8192"))
-        reasoning = _openrouter_reasoning_config(model)
-        provider = _openrouter_provider_config(model)
+        chat_client, provider_model = self._chat_client_for(model)
+        is_openrouter = chat_client is self.openrouter_client
+        reasoning = _openrouter_reasoning_config(model) if is_openrouter else None
+        provider = _openrouter_provider_config(model) if is_openrouter else None
         total_input_tokens = 0
         total_output_tokens = 0
         tools_called: List[str] = []
@@ -1062,7 +1088,7 @@ Your response:"""
             # Force the named function on the FIRST turn only; later turns use
             # "auto" so the model can stop calling tools and emit the answer.
             call_kwargs: Dict[str, Any] = {
-                "model": model,
+                "model": provider_model,
                 "messages": messages,
                 "stream": False,
                 "temperature": temperature,
@@ -1077,7 +1103,7 @@ Your response:"""
                     {"type": "function", "function": {"name": force_tool}}
                     if force_tool and iteration == 0 else "auto"
                 )
-            response = self.openrouter_client.create_chat(**call_kwargs)
+            response = chat_client.create_chat(**call_kwargs)
 
             usage = getattr(response, "usage", None)
             if usage is not None:

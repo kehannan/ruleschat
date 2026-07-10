@@ -123,3 +123,30 @@ def build_openrouter_client_from_env() -> Optional["OpenRouterClient"]:
         app_name=os.getenv("OPENROUTER_APP_NAME"),
         app_url=os.getenv("OPENROUTER_APP_URL"),
     )
+
+
+class MetaModelClient(OpenRouterClient):
+    """Meta Model API (Muse Spark) — same OpenAI-compatible wire format.
+
+    Base URL per the official docs (dev.meta.ai/docs/getting-started/overview);
+    override with META_API_BASE_URL if Meta moves it. Model ids on this
+    endpoint carry no vendor prefix ("muse-spark-1.1") — the service layer's
+    "meta/" prefix exists only to route here and is stripped before calling.
+    OpenRouter-specific extras (reasoning, provider) must not be passed.
+    """
+    BASE_URL = "https://api.meta.ai/v1"
+
+    def __init__(self, api_key: str, timeout: Optional[float] = None):
+        base_override = os.getenv("META_API_BASE_URL")
+        if base_override:
+            self.BASE_URL = base_override
+        super().__init__(api_key=api_key, timeout=timeout)
+
+
+def build_meta_client_from_env() -> Optional["MetaModelClient"]:
+    """Initialize from META_API_KEY. Returns None if no key is set."""
+    api_key = os.getenv("META_API_KEY")
+    if not api_key:
+        logging.info("META_API_KEY not set — Meta Model API routing disabled.")
+        return None
+    return MetaModelClient(api_key=api_key)

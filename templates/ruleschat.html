@@ -231,6 +231,7 @@
       <option value="gpt-5.4">gpt-5.4 · ¢¢¢/fast</option>
       <option value="gpt-5.6-luna">gpt-5.6-luna · ¢¢/new</option>
       <option value="gpt-5.6-terra">gpt-5.6-terra · ¢¢¢/new</option>
+      <option value="muse-spark-1.1">muse-spark-1.1 · ¢/new</option>
     </select>
     <label id="tools-toggle-label" class="tools-toggle" title="Let the assistant use tools when relevant: exact rulebook lookup + IFT/CC calculators"
            style="display:none;align-items:center;gap:.4em;margin-left:.6em;color:var(--muted);font-size:.85em;cursor:pointer;user-select:none;">
@@ -323,7 +324,7 @@
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 </script>
-<script src="{{ url_for('static', path='/js/chat-shared.js') }}?v=20260709"></script>
+<script src="{{ url_for('static', path='/js/chat-shared.js') }}?v=20260710"></script>
 <script src="{{ url_for('static', path='/js/board-viewer.js') }}"></script>
 <script>
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

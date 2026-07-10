@@ -320,10 +320,13 @@ async def websocket_demo(websocket: WebSocket):
                     OPENROUTER_SLUG = {
                         "deepseek-v3": "deepseek/deepseek-v3.2",
                         "mercury-2": "inception/mercury-2",
+                        # "meta/" routes to the Meta Model API, not OpenRouter.
+                        "muse-spark-1.1": "meta/muse-spark-1.1",
                     }
                     allowed_models = {
                         "gpt-5.4", "gpt-5.6-luna",
                         "deepseek-v3", "mercury-2",
+                        "muse-spark-1.1",
                     }
                     if selected_model in allowed_models:
                         model = OPENROUTER_SLUG.get(selected_model, selected_model)
