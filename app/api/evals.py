@@ -394,10 +394,10 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         ), reverse=True)
 
         # Build the comparison-table rows, one per (model, eval tier) — e.g.
-        # Fable has an Easy row and a Medium row. Order is "frontier → cheap";
-        # deepseek-v3 sits with the cheaper tier (it's the first
-        # OpenRouter-routed model in the table). Within a model, easier tiers
-        # come first.
+        # Fable has an Easy row and a Medium row. Rows group by eval tier
+        # (all Easy rows, then Medium, then untiered); within a tier, models
+        # run "frontier → cheap". deepseek-v3 sits with the cheaper tier
+        # (it's the first OpenRouter-routed model in the table).
         MODEL_ORDER = ["Fable", "Sonnet 5", "gpt-5.4", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
 
         # Models with no live production traffic: cost & time shown in the
@@ -440,7 +440,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         def _row_sort(key):
             m, tier = key
             m_idx = MODEL_ORDER.index(m) if m in MODEL_ORDER else len(MODEL_ORDER)
-            return (m_idx, TIER_SORT.get(tier, 99))
+            return (TIER_SORT.get(tier, 99), m_idx)
 
         row_order = sorted(rows_map.keys(), key=_row_sort)
         if not filter_to_present:
