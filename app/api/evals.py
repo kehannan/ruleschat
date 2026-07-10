@@ -306,6 +306,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         1 for r in eval_data.get("results", [])
                         if (r.get("final_evaluation") or "").lower() == "false refusal"
                     )
+                    false_refusal_pct = round(false_refusals / total * 100) if total else 0
 
                     # Create rows for each question type (Human Review only)
                     if by_question_type:
@@ -333,6 +334,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                                 "filename": file_path.name,
                                 "estimated": is_estimated,
                                 "false_refusals": false_refusals,
+                                "false_refusal_pct": false_refusal_pct,
                             })
                     else:
                         # Fallback: single row with overall stats if no question type breakdown
@@ -357,6 +359,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                             "file_id": file_path.stem,
                             "filename": file_path.name,
                             "false_refusals": false_refusals,
+                            "false_refusal_pct": false_refusal_pct,
                         })
                 # Handle legacy list format
                 elif isinstance(eval_data, list) and eval_data:
@@ -443,6 +446,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     "via_openrouter": m in MODEL_VIA_OPENROUTER,
                     "est_cost": est_cost, "est_time": est_time,
                     "false_refusals": run.get("false_refusals", 0),
+                    "false_refusal_pct": run.get("false_refusal_pct", 0),
                 }
             # eval_runs is sorted newest-first, so the first value seen per
             # (model, tier, qtype) is the latest run's accuracy.
@@ -468,7 +472,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         "date": None, "estimated": False,
                         "via_openrouter": m in MODEL_VIA_OPENROUTER,
                         "est_cost": None, "est_time": None,
-                        "false_refusals": 0,
+                        "false_refusals": 0, "false_refusal_pct": 0,
                     }
             row_order = sorted(rows_map.keys(), key=_row_sort)
         table_rows = [rows_map[k] for k in row_order]
