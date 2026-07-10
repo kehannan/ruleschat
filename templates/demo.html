@@ -64,10 +64,9 @@
         <button class="send-btn" id="chat-message-submit" type="button">Send</button>
       </div>
       <div class="helper-strip">
-        <button class="surprise" id="surprise-btn" type="button" title="Try a random question from the eval set">🎲 Surprise me</button>
         <button class="surprise" id="vsav-attach-btn" type="button" title="Attach a VASL .vsav save — its board state is parsed and given to the model">Attach .vsav</button>
         <input type="file" id="vsav-file-input" accept=".vsav" style="display:none;">
-        <span>random question from the eval set · enter to send · shift-enter for newline</span>
+        <span>enter to send · shift-enter for newline</span>
         <span class="status" id="connection-status"><span class="pip"></span>connecting…</span>
       </div>
     </div>
@@ -254,7 +253,6 @@
     scrollChatBottom();
     document.getElementById('chat-message-input').disabled = true;
     document.getElementById('chat-message-submit').disabled = true;
-    document.getElementById('surprise-btn').disabled = true;
   }
 
   function setConnectionStatus(state, label) {
@@ -433,27 +431,6 @@
       if (e.key === 'Escape' && lightbox && lightbox.style.display !== 'none') closeLightbox();
     });
 
-    document.getElementById('surprise-btn').addEventListener('click', async function() {
-      if (input.disabled) return;
-      this.disabled = true;
-      const original = this.textContent;
-      this.textContent = 'Loading…';
-      try {
-        const res = await fetch('/api/demo/random-question');
-        const data = await res.json();
-        if (data.question) {
-          input.value = data.question;
-          input.style.height = 'auto';
-          input.style.height = Math.min(input.scrollHeight, 200) + 'px';
-          isEvalQuestion = true;
-          sendMessage();
-        }
-      } catch(e) {
-        console.warn('Surprise Me failed:', e);
-      }
-      this.disabled = false;
-      this.textContent = original;
-    });
   });
 </script>
 {% endblock %}

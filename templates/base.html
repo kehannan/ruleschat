@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/site-design-system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/site-design-system.css') }}?v=20260710">
     {% block extra_css %}{% endblock %}
   </head>
   <body>
@@ -26,6 +26,7 @@
           </a>
           <div class="nav-links">
             <a href="{{ url_for('home') }}" {% if active_page == 'home' %}class="active"{% endif %}>Home</a>
+            <a href="{{ url_for('about') }}" {% if active_page == 'about' %}class="active"{% endif %}>About</a>
             <a href="{{ url_for('evals') }}" {% if active_page == 'evals' %}class="active"{% endif %}>Evals</a>
             <a href="{{ url_for('ruleschat') }}" data-require-login="true" class="nav-chat {% if active_page == 'chat' %}active{% endif %}">Chat</a>
             <a href="{{ url_for('profile_page') }}" data-require-login="true" class="nav-profile {% if active_page == 'profile' %}active{% endif %}">Profile</a>
