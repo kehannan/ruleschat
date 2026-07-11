@@ -156,6 +156,7 @@
                 {{ row.model }}
                 {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
                 {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
+                {% if row.agentic %}<div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>{% endif %}
               </td>
               <td>{{ row.tier }}</td>
               {% if 'recall' in acc %}

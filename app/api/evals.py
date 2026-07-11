@@ -308,6 +308,13 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     )
                     false_refusal_pct = round(false_refusals / total * 100) if total else 0
 
+                    # Agentic run = the model actually executed tool calls
+                    # (rulebook lookups / calculators) during the eval; badged
+                    # in the comparison table since it changes cost and time.
+                    is_agentic_run = any(
+                        r.get("tools_called") for r in eval_data.get("results", [])
+                    )
+
                     # Create rows for each question type (Human Review only)
                     if by_question_type:
                         # Create separate row for each question type
@@ -335,6 +342,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                                 "estimated": is_estimated,
                                 "false_refusals": false_refusals,
                                 "false_refusal_pct": false_refusal_pct,
+                                "agentic": is_agentic_run,
                             })
                     else:
                         # Fallback: single row with overall stats if no question type breakdown
@@ -360,6 +368,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                             "filename": file_path.name,
                             "false_refusals": false_refusals,
                             "false_refusal_pct": false_refusal_pct,
+                            "agentic": is_agentic_run,
                         })
                 # Handle legacy list format
                 elif isinstance(eval_data, list) and eval_data:
@@ -447,7 +456,10 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     "est_cost": est_cost, "est_time": est_time,
                     "false_refusals": run.get("false_refusals", 0),
                     "false_refusal_pct": run.get("false_refusal_pct", 0),
+                    "agentic": bool(run.get("agentic")),
                 }
+            elif run.get("agentic"):
+                rows_map[key]["agentic"] = True
             # eval_runs is sorted newest-first, so the first value seen per
             # (model, tier, qtype) is the latest run's accuracy.
             if qt not in rows_map[key]["acc"]:
@@ -473,6 +485,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         "via_openrouter": m in MODEL_VIA_OPENROUTER,
                         "est_cost": None, "est_time": None,
                         "false_refusals": 0, "false_refusal_pct": 0,
+                        "agentic": False,
                     }
             row_order = sorted(rows_map.keys(), key=_row_sort)
         table_rows = [rows_map[k] for k in row_order]
