@@ -67,10 +67,15 @@ WEBSOCKET_PING_INTERVAL = 30
 
 
 def _get_client_ip(websocket: WebSocket) -> str:
-    """Extract real IP, respecting X-Forwarded-For from nginx."""
-    forwarded = websocket.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """Extract real IP from X-Real-IP, which nginx sets from $remote_addr.
+
+    Never trust X-Forwarded-For here: nginx appends to the client-supplied
+    value, so its first entry is attacker-controlled and would let anyone
+    reset the per-IP demo limit with a spoofed header.
+    """
+    real_ip = websocket.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
     return websocket.client.host or "unknown"
 
 

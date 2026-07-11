@@ -304,8 +304,13 @@ def test_endpoints_are_public_by_design():
 
 class _StubRequest:
     """Just enough of fastapi.Request for direct handler calls."""
-    def __init__(self, ip="203.0.113.1", forwarded=None):
-        self.headers = ({"x-forwarded-for": forwarded} if forwarded else {})
+    def __init__(self, ip="203.0.113.1", real_ip=None, forwarded=None):
+        headers = {}
+        if real_ip:
+            headers["x-real-ip"] = real_ip
+        if forwarded:
+            headers["x-forwarded-for"] = forwarded
+        self.headers = headers
         self.client = type("_C", (), {"host": ip})()
 
 
@@ -338,7 +343,8 @@ def test_preview_endpoint_rejects_bad_input():
 
 def test_preview_rate_limit_per_ip():
     """31st preview within the window from one IP gets a 429 with
-    Retry-After; other IPs are unaffected; X-Forwarded-For is honored."""
+    Retry-After; other IPs are unaffected; X-Real-IP is honored and
+    client-supplied X-Forwarded-For is ignored (it's spoofable)."""
     ip = "198.51.100.7"  # unique to this test; state is module-global
     for _ in range(board_viewer.PREVIEW_RATE_LIMIT):
         board_viewer._check_preview_rate(ip)
@@ -350,9 +356,16 @@ def test_preview_rate_limit_per_ip():
     else:
         raise AssertionError("expected 429 after limit")
     board_viewer._check_preview_rate("198.51.100.8")  # other IP still fine
-    # X-Forwarded-For wins over the socket peer (nginx proxying)
-    req = _StubRequest(ip="127.0.0.1", forwarded="198.51.100.9, 10.0.0.1")
+    # X-Real-IP (set by nginx from $remote_addr) wins over the socket peer
+    req = _StubRequest(ip="127.0.0.1", real_ip="198.51.100.9")
     assert board_viewer._client_ip(req) == "198.51.100.9"
+    # A client-supplied X-Forwarded-For must NOT override it — its first
+    # entry is attacker-controlled ($proxy_add_x_forwarded_for appends).
+    req = _StubRequest(ip="127.0.0.1", real_ip="198.51.100.9",
+                       forwarded="1.2.3.4, 10.0.0.1")
+    assert board_viewer._client_ip(req) == "198.51.100.9"
+    # No proxy headers at all (local dev): fall back to the socket peer
+    assert board_viewer._client_ip(_StubRequest(ip="127.0.0.1")) == "127.0.0.1"
 
 
 def test_board_bg_endpoint_validates_key():

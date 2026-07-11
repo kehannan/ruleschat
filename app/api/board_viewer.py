@@ -42,10 +42,15 @@ _preview_hits: dict = {}         # ip -> deque[timestamps]
 
 
 def _client_ip(request: Request) -> str:
-    """Extract real IP, respecting X-Forwarded-For from nginx."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """Extract real IP from X-Real-IP, which nginx sets from $remote_addr.
+
+    Never trust X-Forwarded-For here: nginx appends to the client-supplied
+    value, so its first entry is attacker-controlled and would let anyone
+    dodge the per-IP preview rate limit with a spoofed header.
+    """
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
     return (request.client.host if request.client else None) or "unknown"
 
 
