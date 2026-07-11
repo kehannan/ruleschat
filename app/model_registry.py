@@ -31,25 +31,30 @@ class ModelSpec:
     agentic: bool
     price_in: float
     price_out: float
+    admin_only: bool = False  # hidden from (and rejected for) non-admin users
 
 
 MODELS: tuple = (
     #         key               label                       slug                   chat   demo   agentic  $in    $out
     ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  True,  True,  True,    2.50,  15.00),
     ModelSpec("gpt-5.6-luna",   "gpt-5.6-luna · ¢/new",     None,                  True,  True,  True,    1.00,  6.00),
-    ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  True,  False, True,    2.50,  15.00),
+    ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  True,  False, True,    2.50,  15.00,
+              True),  # admin_only — too expensive for general use
     ModelSpec("muse-spark-1.1", "muse-spark-1.1 · ¢/new",   "meta/muse-spark-1.1", True,  True,  True,    1.25,  4.25),
 )
 
 
-def specs_for(surface: str) -> List[ModelSpec]:
+def specs_for(surface: str, is_admin: bool = False) -> List[ModelSpec]:
     """Models visible on a surface: 'chat' or 'demo', in dropdown order."""
     flag = "in_chat" if surface == "chat" else "in_demo"
-    return [m for m in MODELS if getattr(m, flag)]
+    return [
+        m for m in MODELS
+        if getattr(m, flag) and (is_admin or not m.admin_only)
+    ]
 
 
-def allowed_keys(surface: str) -> Set[str]:
-    return {m.key for m in specs_for(surface)}
+def allowed_keys(surface: str, is_admin: bool = False) -> Set[str]:
+    return {m.key for m in specs_for(surface, is_admin=is_admin)}
 
 
 def by_key(key: str) -> Optional[ModelSpec]:

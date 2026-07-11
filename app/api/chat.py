@@ -194,7 +194,9 @@ def ruleschat(request: Request):
         context = get_base_context(request, user)
         context["cost_per_1m_input"] = float(os.getenv("COST_PER_1M_INPUT", "0.25"))
         context["cost_per_1m_output"] = float(os.getenv("COST_PER_1M_OUTPUT", "1.00"))
-        context["models"] = model_registry.specs_for("chat")
+        context["models"] = model_registry.specs_for(
+            "chat", is_admin=(user.email == os.getenv("ADMIN_EMAIL"))
+        )
         context["model_pricing"] = model_registry.pricing_table()
         context["agentic_models"] = model_registry.agentic_keys()
         return templates.TemplateResponse("ruleschat.html", context)
@@ -493,7 +495,8 @@ async def websocket_chat(websocket: WebSocket):
                     
                     # Validate against the model registry (app/model_registry.py
                     # is the one table to edit when adding/removing models).
-                    if selected_model in model_registry.allowed_keys("chat"):
+                    is_admin_user = user.email == os.getenv("ADMIN_EMAIL")
+                    if selected_model in model_registry.allowed_keys("chat", is_admin=is_admin_user):
                         model_override = model_registry.resolve(selected_model)
                     else:
                         model_override = None
