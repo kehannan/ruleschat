@@ -62,6 +62,8 @@ templates = Jinja2Templates(directory="templates")
 DEMO_PER_IP_LIMIT = 5
 DEMO_GLOBAL_LIMIT = 250
 DEMO_MAX_CHUNKS = 20
+DEMO_MAX_MESSAGE_CHARS = 2000
+DEMO_MAX_OUTPUT_TOKENS = 2000
 DEMO_MODEL = "gpt-5.4"
 WEBSOCKET_PING_INTERVAL = 30
 
@@ -238,6 +240,15 @@ async def websocket_demo(websocket: WebSocket):
                 if not message:
                     continue
 
+                # Cap input size before touching the rate limit or the API —
+                # unbounded text is a direct input-token cost lever.
+                if len(message) > DEMO_MAX_MESSAGE_CHARS:
+                    await websocket.send_text(json.dumps({
+                        "type": "error",
+                        "message": f"Question too long — please keep it under {DEMO_MAX_MESSAGE_CHARS:,} characters.",
+                    }))
+                    continue
+
                 # Cap + validate + save attached images before touching the rate limit
                 MAX_DEMO_IMAGES_PER_MESSAGE = 3
                 image_paths: list[str] = []
@@ -349,6 +360,7 @@ async def websocket_demo(websocket: WebSocket):
                         return_timing=True,
                         model=model,
                         max_chunks=DEMO_MAX_CHUNKS,
+                        max_output_tokens=DEMO_MAX_OUTPUT_TOKENS,
                         image_paths=image_paths or None,
                         board_state=board_state,
                         vsav_state=vsav_state,

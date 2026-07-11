@@ -34,6 +34,7 @@ class OpenAIResponsesClient:
         tools: Optional[List[Dict[str, Any]]] = None,
         previous_response_id: Optional[str] = None,
         tool_choice: Optional[Any] = None,
+        max_output_tokens: Optional[int] = None,
     ):
         """
         Create a Responses API response.
@@ -46,6 +47,8 @@ class OpenAIResponsesClient:
             temperature: Temperature setting (omit for models that don't support it)
             tools: List of tools (file_search, web_search)
             previous_response_id: Optional ID of previous response for multi-turn
+            max_output_tokens: Hard cap on generated tokens (cost brake for
+                public/unauthenticated callers)
 
         Returns:
             Response object (streaming or non-streaming)
@@ -64,6 +67,8 @@ class OpenAIResponsesClient:
         }
         if temperature is not None:
             kwargs["temperature"] = temperature
+        if max_output_tokens is not None:
+            kwargs["max_output_tokens"] = max_output_tokens
 
         # Add previous_response_id if provided
         if previous_response_id:
@@ -82,7 +87,8 @@ class OpenAIResponsesClient:
         instructions: str,
         temperature: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
-        previous_response_id: Optional[str] = None
+        previous_response_id: Optional[str] = None,
+        max_output_tokens: Optional[int] = None,
     ):
         """
         Stream a Responses API response and allow access to the final accumulated response.
@@ -112,6 +118,8 @@ class OpenAIResponsesClient:
         }
         if temperature is not None:
             kwargs["temperature"] = temperature
+        if max_output_tokens is not None:
+            kwargs["max_output_tokens"] = max_output_tokens
         if previous_response_id:
             kwargs["previous_response_id"] = previous_response_id
 
