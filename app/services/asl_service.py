@@ -140,6 +140,24 @@ def _batch_status_label(calls: List[Dict[str, Any]]) -> str:
     return " · ".join(parts) if parts else "Working on the answer"
 
 
+def _agentic_debug_dump(record: Dict[str, Any]) -> None:
+    """Append one JSON line to the file named by AGENTIC_DEBUG_LOG, if set.
+
+    Captures what the INFO log can't: the full message transcript the model
+    saw (system prompt, tool calls, tool outputs) and cite-check draft vs
+    revised text. Never raises — debugging must not break answers.
+    """
+    path = os.getenv("AGENTIC_DEBUG_LOG")
+    if not path:
+        return
+    try:
+        record = {"ts": round(time.time(), 3), **record}
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    except Exception as e:
+        logging.error("agentic debug dump failed: %s", e)
+
+
 def _lookup_tools_available() -> bool:
     """True when the extracted rulebook store exists on this deployment."""
     try:
@@ -502,6 +520,7 @@ Your response:"""
         use_verification: bool = False,
         use_agentic: bool = False,
         max_chunks: Optional[int] = None,
+        max_output_tokens: Optional[int] = None,
         image_paths: Optional[List[str]] = None,
         board_state: Optional[str] = None,
         vsav_state: Optional[Dict[str, Any]] = None,
@@ -532,6 +551,7 @@ Your response:"""
             use_verification=use_verification,
             use_agentic=use_agentic,
             max_chunks=max_chunks,
+            max_output_tokens=max_output_tokens,
             image_paths=image_paths,
             board_state=board_state,
             vsav_state=vsav_state,
@@ -572,6 +592,14 @@ Your response:"""
             if not ctx["sections"]:
                 info["skipped"] = "draft cites no known sections"
                 logging.info("🔎 cite-check skipped: draft cites no known sections")
+                _agentic_debug_dump({
+                    "kind": "cite_check",
+                    "question": question,
+                    "model": str(model),
+                    "draft": draft,
+                    "revised": None,
+                    "info": info,
+                })
                 return draft, info
 
             prompt = build_revision_prompt(question, draft, ctx)
@@ -611,10 +639,26 @@ Your response:"""
                 "🔎 cite-check: %d sections (%d cross-refs), revised=%s (%sms)",
                 len(ctx["sections"]), len(ctx["cross_refs"]), info["revised"], info["ms"],
             )
+            _agentic_debug_dump({
+                "kind": "cite_check",
+                "question": question,
+                "model": str(model),
+                "draft": draft,
+                "revised": revised,
+                "info": info,
+            })
             return (revised or draft), info
         except Exception as e:
             logging.error("cite-check failed; keeping draft: %s", e)
             info["error"] = str(e)
+            _agentic_debug_dump({
+                "kind": "cite_check",
+                "question": question,
+                "model": str(model),
+                "draft": draft,
+                "revised": None,
+                "info": info,
+            })
             return draft, info
 
     def _get_answer_impl(
@@ -628,6 +672,7 @@ Your response:"""
         use_verification: bool = False,
         use_agentic: bool = False,
         max_chunks: Optional[int] = None,
+        max_output_tokens: Optional[int] = None,
         image_paths: Optional[List[str]] = None,
         board_state: Optional[str] = None,
         vsav_state: Optional[Dict[str, Any]] = None,
@@ -827,6 +872,8 @@ Your response:"""
             effective_temp = temperature if supports_temp else None
             if effective_temp is not None:
                 api_kwargs["temperature"] = effective_temp
+            if max_output_tokens is not None:
+                api_kwargs["max_output_tokens"] = max_output_tokens
 
             if stream:
                 if use_agentic:
@@ -842,6 +889,7 @@ Your response:"""
                         return_timing=return_timing,
                         tool_context=tool_context,
                         max_iterations=MAX_ITER_WITH_LOOKUP if lookup_enabled else MAX_ITER_DEFAULT,
+                        max_output_tokens=max_output_tokens,
                     )
                 # Use stream_response for true streaming with final response access
                 stream_manager = self.client.stream_response(**api_kwargs)
@@ -910,6 +958,7 @@ Your response:"""
         whole call is synchronous), unlike the OpenAI streaming path where
         timing_data fills in during iteration.
         """
+        provider_label = "Meta" if model.startswith("meta/") else "OpenRouter"
         # 1. Retrieval — OpenAI vector store search.
         retrieval_start = time.time()
         chunks = retrieve_chunks(
@@ -920,7 +969,7 @@ Your response:"""
         )
         context_block = format_chunks_as_context(chunks)
         retrieval_ms = (time.time() - retrieval_start) * 1000
-        logging.info(f"[RAG Latency] OpenRouter retrieval: {retrieval_ms:.1f}ms ({len(chunks)} chunks)")
+        logging.info(f"🔍 [RAG Latency] {provider_label} retrieval: {retrieval_ms:.1f}ms ({len(chunks)} chunks)")
 
         # 2. Build messages with retrieved context baked into the system prompt.
         sys_with_context = instructions
@@ -957,7 +1006,7 @@ Your response:"""
         inference_ms = (time.time() - inference_start) * 1000
         total_ms = retrieval_ms + inference_ms
         logging.info(
-            f"[RAG Latency] OpenRouter inference: {inference_ms:.1f}ms · total {total_ms:.1f}ms"
+            f"[RAG Latency] {provider_label} inference: {inference_ms:.1f}ms · total {total_ms:.1f}ms"
         )
 
         text = (response.choices[0].message.content or "").strip()
@@ -978,9 +1027,9 @@ Your response:"""
         input_tokens = _u("prompt_tokens", "input_tokens")
         output_tokens = _u("completion_tokens", "output_tokens")
         if usage is not None and input_tokens == 0 and output_tokens == 0:
-            logging.warning(f"OpenRouter usage missing tokens — raw usage: {usage!r}")
+            logging.warning(f"{provider_label} usage missing tokens — raw usage: {usage!r}")
         else:
-            logging.info(f"📊 Tokens (OpenRouter): {input_tokens} in / {output_tokens} out")
+            logging.info(f"📊 Tokens ({provider_label}): {input_tokens} in / {output_tokens} out")
 
         timing_data: Dict[str, Any] = {
             "retrieval_ms": round(retrieval_ms, 1),
@@ -1049,6 +1098,10 @@ Your response:"""
         """
         import json as json_module
 
+        # Meta-prefixed models share this code path but hit the Meta Model API
+        # directly (see _chat_client_for) — label logs with the real provider.
+        provider_label = "Meta" if model.startswith("meta/") else "OpenRouter"
+
         # 1. Retrieval — client-side, identical to the plain OpenRouter path.
         retrieval_start = time.time()
         chunks = retrieve_chunks(
@@ -1060,8 +1113,8 @@ Your response:"""
         context_block = format_chunks_as_context(chunks)
         retrieval_ms = (time.time() - retrieval_start) * 1000
         logging.info(
-            f"[RAG Latency] OpenRouter(agentic) retrieval: {retrieval_ms:.1f}ms "
-            f"({len(chunks)} chunks)"
+            f"🔍 [RAG Latency] {provider_label}(agentic) retrieval: {retrieval_ms:.1f}ms "
+            f"({len(chunks)} chunks baked into system prompt)"
         )
 
         sys_with_context = instructions
@@ -1102,7 +1155,7 @@ Your response:"""
                 yield {"status": "Searching the rulebook"}
                 for iteration in range(max_iterations):
                     logging.info(
-                        f"🔄 OpenRouter agentic(stream) iteration {iteration + 1}/{max_iterations}"
+                        f"🔄 {provider_label} agentic(stream) iteration {iteration + 1}/{max_iterations}"
                     )
                     call_kwargs: Dict[str, Any] = {
                         "model": provider_model,
@@ -1159,7 +1212,7 @@ Your response:"""
                         if tail:
                             yield tail
                         logging.info(
-                            f"✅ OpenRouter agentic(stream) completed after {iteration + 1} iteration(s)"
+                            f"✅ {provider_label} agentic(stream) completed after {iteration + 1} iteration(s)"
                         )
                         break
 
@@ -1198,8 +1251,18 @@ Your response:"""
                             "content": output,
                         })
                 else:
-                    logging.warning("⚠️ OpenRouter agentic(stream) max iterations reached")
+                    logging.warning(f"⚠️ {provider_label} agentic(stream) max iterations reached")
 
+                _agentic_debug_dump({
+                    "kind": "agentic_stream",
+                    "path": provider_label.lower(),
+                    "question": question,
+                    "model": model,
+                    "force_tool": force_tool,
+                    "tools_called": called,
+                    "messages": messages,
+                    "final_text": turn_text_raw,
+                })
                 if return_timing:
                     inf_ms = (time.time() - inference_t0) * 1000
                     timing_data.update({
@@ -1216,7 +1279,7 @@ Your response:"""
 
         inference_start = time.time()
         for iteration in range(max_iterations):
-            logging.info(f"🔄 OpenRouter agentic iteration {iteration + 1}/{max_iterations}")
+            logging.info(f"🔄 {provider_label} agentic iteration {iteration + 1}/{max_iterations}")
 
             # Force the named function on the FIRST turn only; later turns use
             # "auto" so the model can stop calling tools and emit the answer.
@@ -1250,7 +1313,7 @@ Your response:"""
             if not tool_calls:
                 final_text = (msg.content or "").strip()
                 logging.info(
-                    f"✅ OpenRouter agentic loop completed after {iteration + 1} iteration(s)"
+                    f"✅ {provider_label} agentic loop completed after {iteration + 1} iteration(s)"
                 )
                 break
 
@@ -1291,18 +1354,28 @@ Your response:"""
                     "content": output,
                 })
         else:
-            logging.warning("⚠️ OpenRouter agentic max iterations reached")
+            logging.warning(f"⚠️ {provider_label} agentic max iterations reached")
             # final_text stays as the last assistant content (possibly empty).
 
+        _agentic_debug_dump({
+            "kind": "agentic",
+            "path": provider_label.lower(),
+            "question": question,
+            "model": model,
+            "force_tool": force_tool,
+            "tools_called": tools_called,
+            "messages": messages,
+            "final_text": final_text,
+        })
         inference_ms = (time.time() - inference_start) * 1000
         total_ms = retrieval_ms + inference_ms
         logging.info(
-            f"[RAG Latency] OpenRouter(agentic) inference: {inference_ms:.1f}ms · "
+            f"[RAG Latency] {provider_label}(agentic) inference: {inference_ms:.1f}ms · "
             f"total {total_ms:.1f}ms · tools={tools_called or 'none'}"
         )
         if total_input_tokens or total_output_tokens:
             logging.info(
-                f"📊 Tokens (OpenRouter agentic): {total_input_tokens} in / "
+                f"📊 Tokens ({provider_label} agentic): {total_input_tokens} in / "
                 f"{total_output_tokens} out"
             )
 
@@ -1457,6 +1530,7 @@ Your response:"""
         return_timing: bool,
         max_iterations: int = 5,
         tool_context: Optional[Dict[str, Any]] = None,
+        max_output_tokens: Optional[int] = None,
     ) -> Tuple[Generator[str, None, None], Any]:
         """
         Agentic answer that preserves streaming: resolve any tool calls, then
@@ -1493,6 +1567,8 @@ Your response:"""
             total_output_tokens = 0
             rag_sources: List[Dict[str, Any]] = []
             tools_called: List[str] = []
+            transcript: List[Dict[str, Any]] = []
+            answer_raw = ""
 
             for iteration in range(max_iterations):
                 # Progress event for the UI pill. Only turn 0 sets a label
@@ -1508,17 +1584,23 @@ Your response:"""
                     temperature=temperature,
                     tools=tools,
                     previous_response_id=prev_id,
+                    max_output_tokens=max_output_tokens,
                 )
                 with stream_manager as stream:
                     for event in stream:
                         etype = getattr(event, "type", None)
                         if file_search_complete_time is None and etype == "response.file_search_call.completed":
                             file_search_complete_time = time.time()
+                            logging.info(
+                                "🔍 file_search completed (server-side baseline retrieval, "
+                                f"{(file_search_complete_time - api_call_start_time) * 1000:.0f}ms)"
+                            )
                         if etype == "response.output_text.delta":
                             delta = getattr(event, "delta", None)
                             if delta:
                                 if first_delta_time is None:
                                     first_delta_time = time.time()
+                                answer_raw += delta
                                 cleaned = stripper.feed(delta)
                                 if cleaned:
                                     yield cleaned
@@ -1563,10 +1645,26 @@ Your response:"""
                         "call_id": fc["call_id"],
                         "output": output_json,
                     })
+                transcript.append({
+                    "iteration": iteration + 1,
+                    "tool_calls": calls,
+                    "tool_outputs": [r["output"] for r in function_results],
+                })
                 current_input = function_results
             else:
                 logging.warning("⚠️ Agentic(stream) reached max_iterations=%d", max_iterations)
 
+            _agentic_debug_dump({
+                "kind": "agentic_stream",
+                "path": "openai",
+                "question": input_data,
+                "model": model,
+                "instructions": instructions,
+                "tools_called": tools_called,
+                "transcript": transcript,
+                "final_text": answer_raw,
+                "rag_sources": rag_sources,
+            })
             if return_timing:
                 stream_end_time = time.time()
                 for i, r in enumerate(rag_sources, 1):
@@ -1645,9 +1743,24 @@ Your response:"""
         total_input_tokens = 0
         total_output_tokens = 0
         tools_called: List[str] = []
+        # Per-turn record for AGENTIC_DEBUG_LOG. The Responses API chains turns
+        # server-side via previous_response_id, so unlike the OpenRouter path
+        # there is no local messages list to dump — build the equivalent here.
+        transcript: List[Dict[str, Any]] = []
 
         def _result(text):
             text = _strip_citation_markers(text)
+            _agentic_debug_dump({
+                "kind": "agentic",
+                "path": "openai",
+                "question": question,
+                "model": model,
+                "force_tool": force_tool,
+                "instructions": instructions,
+                "tools_called": tools_called,
+                "transcript": transcript,
+                "final_text": text,
+            })
             if not return_timing:
                 return text
             elapsed = (time.time() - api_call_start_time) * 1000
@@ -1772,6 +1885,13 @@ Your response:"""
                         "call_id": call_id,
                         "output": json_module.dumps({"error": str(e)})
                     })
+
+            transcript.append({
+                "iteration": iteration + 1,
+                "text": final_text,
+                "tool_calls": function_calls,
+                "tool_outputs": [r["output"] for r in function_results],
+            })
 
             # Set input_data to function results for next iteration
             input_data = function_results

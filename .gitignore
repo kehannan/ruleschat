@@ -230,3 +230,4 @@ design_handoff/
 
 # Extracted rulebook text (copyrighted; built by scripts/extract_rulebook_sections.py)
 data/rulebook/
+debug_agentic.jsonl
