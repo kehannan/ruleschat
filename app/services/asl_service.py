@@ -30,6 +30,7 @@ from app.asl.tools import (
     execute_tool,
 )
 from app.asl import rules_lookup
+from app.core.observability import Observation, start_trace, trim_messages, trim_text
 
 _IMAGE_MIME_BY_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 
@@ -156,6 +157,46 @@ def _agentic_debug_dump(record: Dict[str, Any]) -> None:
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
     except Exception as e:
         logging.error("agentic debug dump failed: %s", e)
+
+
+def _start_answer_trace(
+    name: str,
+    question: str,
+    model: str,
+    trace_ctx: Optional[Dict[str, Any]],
+    **metadata: Any,
+) -> Observation:
+    """Open the root Langfuse observation for one answered question."""
+    ctx = trace_ctx or {}
+    return start_trace(
+        name,
+        input=question,
+        user_id=ctx.get("user_id"),
+        session_id=ctx.get("session_id"),
+        tags=ctx.get("tags"),
+        metadata={"model": model, **metadata},
+        as_type="agent" if "agentic" in name else "span",
+    )
+
+
+def _traced_execute_tool(
+    trace: Observation,
+    name: str,
+    args: Dict[str, Any],
+    tool_context: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """execute_tool wrapped in a Langfuse tool span (no-op when tracing is off).
+
+    Raises exactly like execute_tool — callers keep their own error handling.
+    """
+    obs = trace.child(name, as_type="tool", input=args)
+    try:
+        result = execute_tool(name, args, context=tool_context)
+    except Exception as e:
+        obs.end(level="ERROR", status_message=str(e))
+        raise
+    obs.end(output=trim_text(json.dumps(result)))
+    return result
 
 
 def _lookup_tools_available() -> bool:
@@ -313,6 +354,30 @@ _MODEL_OPENROUTER_DEFAULTS: Dict[str, Dict[str, Dict[str, Any]]] = {
 }
 
 
+def _require_choices(response: Any) -> None:
+    """Raise with the real provider error when a completion has no choices.
+
+    OpenRouter reports upstream provider failures as an error payload inside an
+    HTTP 200 (e.g. {"error": {"message": "Upstream error ...", "code": 502}}).
+    The OpenAI SDK parses that into a ChatCompletion with choices=None, so
+    `response.choices[0]` would raise a bare TypeError and mask the message.
+    """
+    if getattr(response, "choices", None):
+        return
+    err = getattr(response, "error", None)
+    detail = None
+    if isinstance(err, dict):
+        detail = err.get("message") or json.dumps(err)
+    elif err is not None:
+        detail = getattr(err, "message", None) or str(err)
+    if not detail:
+        try:
+            detail = json.dumps(response.model_dump())
+        except Exception:
+            detail = repr(response)
+    raise RuntimeError(f"OpenRouter returned no completion choices: {detail}")
+
+
 def _openrouter_reasoning_config(model: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Build OpenRouter's `reasoning` control from env, a per-model default, or None.
 
@@ -399,6 +464,12 @@ class ASLService:
             logging.info("OpenRouter client initialized (/-prefixed model names route here)")
         if self.meta_client:
             logging.info("Meta Model API client initialized (meta/-prefixed model names route here)")
+        if not _lookup_tools_available():
+            logging.warning(
+                "⚠️ Extracted rulebook store missing (data/rulebook/sections.json) — "
+                "agentic lookup tools (get_section/search_rules) and the cite-verification "
+                "prompt are DISABLED on this deployment. Build or copy the store to enable them."
+            )
 
     def _chat_client_for(self, model: str):
         """Resolve a '/'-routed model to (client, provider_model_id).
@@ -420,7 +491,7 @@ class ASLService:
                 "is not set on this deployment."
             )
         return self.openrouter_client, model
-    
+
     def _verify_answer(
         self, 
         question: str, 
@@ -528,8 +599,12 @@ Your response:"""
         auto_route_tools: bool = False,
         route_model: str = "gpt-4.1-mini",
         use_cite_check: bool = False,
+        trace_ctx: Optional[Dict[str, Any]] = None,
     ):
         """Public entry point. See _get_answer_impl for the full contract.
+
+        trace_ctx optionally attributes the Langfuse trace: keys user_id,
+        session_id, tags (all optional). No-op when tracing is unconfigured.
 
         use_cite_check adds the deterministic cite-check pass (non-streaming
         only): code extracts the sections the draft answer cites, fetches
@@ -558,6 +633,7 @@ Your response:"""
             force_tool=force_tool,
             auto_route_tools=auto_route_tools,
             route_model=route_model,
+            trace_ctx=trace_ctx,
         )
         if not use_cite_check:
             return result
@@ -619,6 +695,7 @@ Your response:"""
                     reasoning=_openrouter_reasoning_config(model) if is_openrouter else None,
                     provider=_openrouter_provider_config(model) if is_openrouter else None,
                 )
+                _require_choices(resp)
                 revised = (resp.choices[0].message.content or "").strip()
             else:
                 supports_temp = not str(model).startswith("gpt-5")
@@ -679,6 +756,7 @@ Your response:"""
         force_tool: Optional[str] = None,
         auto_route_tools: bool = False,
         route_model: str = "gpt-4.1-mini",
+        trace_ctx: Optional[Dict[str, Any]] = None,
     ):
         """
         Get an answer to an ASL question.
@@ -818,6 +896,7 @@ Your response:"""
                         tools_chat=tools_chat,
                         max_iterations=MAX_ITER_WITH_LOOKUP if lookup_enabled else MAX_ITER_DEFAULT,
                         stream=stream,
+                        trace_ctx=trace_ctx,
                     )
                 return self._openrouter_answer(
                     question=question,
@@ -828,6 +907,7 @@ Your response:"""
                     api_call_start_time=api_call_start_time,
                     stream=stream,
                     return_timing=return_timing,
+                    trace_ctx=trace_ctx,
                 )
 
             # Build tools - base tools
@@ -890,13 +970,23 @@ Your response:"""
                         tool_context=tool_context,
                         max_iterations=MAX_ITER_WITH_LOOKUP if lookup_enabled else MAX_ITER_DEFAULT,
                         max_output_tokens=max_output_tokens,
+                        question=question,
+                        trace_ctx=trace_ctx,
                     )
                 # Use stream_response for true streaming with final response access
+                root_trace = _start_answer_trace(
+                    "answer.plain", question, model, trace_ctx, path="openai", stream=True
+                )
+                generation = root_trace.child(
+                    "llm", as_type="generation", model=model, input=trim_text(question)
+                )
                 stream_manager = self.client.stream_response(**api_kwargs)
                 return self._handle_streaming_response(
                     stream_manager,
                     api_call_start_time,
-                    return_timing
+                    return_timing,
+                    trace=root_trace,
+                    generation=generation,
                 )
             else:
                 # Non-streaming mode
@@ -914,19 +1004,41 @@ Your response:"""
                         return_timing=return_timing,
                         force_tool=force_tool,
                         max_iterations=MAX_ITER_WITH_LOOKUP if lookup_enabled else MAX_ITER_DEFAULT,
+                        trace_ctx=trace_ctx,
                     )
                 else:
                     # Standard non-streaming
                     api_kwargs["stream"] = False
-                    response = self.client.create_response(**api_kwargs)
-                    return self._handle_non_streaming_response(
-                        response,
-                        api_call_start_time,
-                        question,
-                        model,
-                        temperature,
-                        use_verification
+                    root_trace = _start_answer_trace(
+                        "answer.plain", question, model, trace_ctx, path="openai", stream=False
                     )
+                    generation = root_trace.child(
+                        "llm", as_type="generation", model=model, input=trim_text(question)
+                    )
+                    try:
+                        response = self.client.create_response(**api_kwargs)
+                        usage = getattr(response, "usage", None)
+                        generation.end(
+                            output=trim_text(extract_response_text(response)),
+                            usage_details={
+                                "input": getattr(usage, "input_tokens", 0) or 0,
+                                "output": getattr(usage, "output_tokens", 0) or 0,
+                            } if usage else None,
+                        )
+                        text = self._handle_non_streaming_response(
+                            response,
+                            api_call_start_time,
+                            question,
+                            model,
+                            temperature,
+                            use_verification
+                        )
+                        root_trace.end(output=trim_text(text))
+                        return text
+                    except Exception as e:
+                        generation.end(level="ERROR", status_message=str(e))
+                        root_trace.end(level="ERROR", status_message=str(e))
+                        raise
                 
         except Exception as e:
             error_msg = f"Error getting response: {str(e)}"
@@ -943,6 +1055,7 @@ Your response:"""
         api_call_start_time: float,
         stream: bool,
         return_timing: bool,
+        trace_ctx: Optional[Dict[str, Any]] = None,
     ):
         """
         OpenRouter path: client-side retrieval + non-streaming inference.
@@ -959,8 +1072,12 @@ Your response:"""
         timing_data fills in during iteration.
         """
         provider_label = "Meta" if model.startswith("meta/") else "OpenRouter"
+        root_trace = _start_answer_trace(
+            "answer.plain", question, model, trace_ctx, path=provider_label.lower()
+        )
         # 1. Retrieval — OpenAI vector store search.
         retrieval_start = time.time()
+        retrieval_obs = root_trace.child("retrieval", as_type="retriever", input=question)
         chunks = retrieve_chunks(
             self.retrieval_client,
             self.config.all_vector_store_ids,
@@ -969,6 +1086,7 @@ Your response:"""
         )
         context_block = format_chunks_as_context(chunks)
         retrieval_ms = (time.time() - retrieval_start) * 1000
+        retrieval_obs.end(output={"chunks": len(chunks)})
         logging.info(f"🔍 [RAG Latency] {provider_label} retrieval: {retrieval_ms:.1f}ms ({len(chunks)} chunks)")
 
         # 2. Build messages with retrieved context baked into the system prompt.
@@ -994,21 +1112,34 @@ Your response:"""
         # models even though real answers are ~1K tokens.
         chat_client, provider_model = self._chat_client_for(model)
         is_openrouter = chat_client is self.openrouter_client
-        response = chat_client.create_chat(
+        generation = root_trace.child(
+            "llm",
+            as_type="generation",
             model=provider_model,
-            messages=messages,
-            stream=False,
-            temperature=temperature,
-            max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
-            reasoning=_openrouter_reasoning_config(model) if is_openrouter else None,
-            provider=_openrouter_provider_config(model) if is_openrouter else None,
+            input=trim_messages(messages),
+            model_parameters={"temperature": temperature},
         )
+        try:
+            response = chat_client.create_chat(
+                model=provider_model,
+                messages=messages,
+                stream=False,
+                temperature=temperature,
+                max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
+                reasoning=_openrouter_reasoning_config(model) if is_openrouter else None,
+                provider=_openrouter_provider_config(model) if is_openrouter else None,
+            )
+        except Exception as e:
+            generation.end(level="ERROR", status_message=str(e))
+            root_trace.end(level="ERROR", status_message=str(e))
+            raise
         inference_ms = (time.time() - inference_start) * 1000
         total_ms = retrieval_ms + inference_ms
         logging.info(
             f"[RAG Latency] {provider_label} inference: {inference_ms:.1f}ms · total {total_ms:.1f}ms"
         )
 
+        _require_choices(response)
         text = (response.choices[0].message.content or "").strip()
         usage = getattr(response, "usage", None)
         # OpenRouter normalizes to OpenAI's prompt_tokens/completion_tokens, but
@@ -1030,6 +1161,12 @@ Your response:"""
             logging.warning(f"{provider_label} usage missing tokens — raw usage: {usage!r}")
         else:
             logging.info(f"📊 Tokens ({provider_label}): {input_tokens} in / {output_tokens} out")
+
+        generation.end(
+            output=trim_text(text),
+            usage_details={"input": input_tokens, "output": output_tokens},
+        )
+        root_trace.end(output=trim_text(text))
 
         timing_data: Dict[str, Any] = {
             "retrieval_ms": round(retrieval_ms, 1),
@@ -1070,6 +1207,7 @@ Your response:"""
         max_iterations: int = 5,
         tools_chat: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
+        trace_ctx: Optional[Dict[str, Any]] = None,
     ):
         """
         Agentic OpenRouter path: client-side retrieval + a Chat Completions
@@ -1101,9 +1239,14 @@ Your response:"""
         # Meta-prefixed models share this code path but hit the Meta Model API
         # directly (see _chat_client_for) — label logs with the real provider.
         provider_label = "Meta" if model.startswith("meta/") else "OpenRouter"
+        root_trace = _start_answer_trace(
+            "answer.agentic", question, model, trace_ctx,
+            path=provider_label.lower(), force_tool=force_tool, stream=stream,
+        )
 
         # 1. Retrieval — client-side, identical to the plain OpenRouter path.
         retrieval_start = time.time()
+        retrieval_obs = root_trace.child("retrieval", as_type="retriever", input=question)
         chunks = retrieve_chunks(
             self.retrieval_client,
             self.config.all_vector_store_ids,
@@ -1112,6 +1255,7 @@ Your response:"""
         )
         context_block = format_chunks_as_context(chunks)
         retrieval_ms = (time.time() - retrieval_start) * 1000
+        retrieval_obs.end(output={"chunks": len(chunks)})
         logging.info(
             f"🔍 [RAG Latency] {provider_label}(agentic) retrieval: {retrieval_ms:.1f}ms "
             f"({len(chunks)} chunks baked into system prompt)"
@@ -1172,6 +1316,14 @@ Your response:"""
                             {"type": "function", "function": {"name": force_tool}}
                             if force_tool and iteration == 0 else "auto"
                         )
+                    gen_obs = root_trace.child(
+                        f"llm.iter{iteration + 1}",
+                        as_type="generation",
+                        model=provider_model,
+                        input=trim_messages(messages),
+                        model_parameters={"temperature": temperature, "max_tokens": max_tokens},
+                    )
+                    iter_in0, iter_out0 = in_tok, out_tok
                     resp_stream = chat_client.create_chat(**call_kwargs)
 
                     # Forward text deltas live; assemble tool-call fragments
@@ -1208,6 +1360,10 @@ Your response:"""
 
                     # No tool calls → the text just streamed was the answer.
                     if not tc_acc:
+                        gen_obs.end(
+                            output=trim_text(turn_text_raw),
+                            usage_details={"input": in_tok - iter_in0, "output": out_tok - iter_out0},
+                        )
                         tail = stripper.flush()
                         if tail:
                             yield tail
@@ -1217,6 +1373,16 @@ Your response:"""
                         break
 
                     calls = [tc_acc[i] for i in sorted(tc_acc)]
+                    gen_obs.end(
+                        output={
+                            "text": trim_text(turn_text_raw),
+                            "tool_calls": [
+                                {"name": fc["name"], "arguments": trim_text(fc["arguments"], 1000)}
+                                for fc in calls
+                            ],
+                        },
+                        usage_details={"input": in_tok - iter_in0, "output": out_tok - iter_out0},
+                    )
                     yield {"status": _batch_status_label(calls)}
                     messages.append({
                         "role": "assistant",
@@ -1240,7 +1406,7 @@ Your response:"""
                             args = json_module.loads(fc["arguments"]) if fc["arguments"] else {}
                             logging.info(f"  📞 {fc['name']}({args})")
                             output = json_module.dumps(
-                                execute_tool(fc["name"], args, context=tool_context)
+                                _traced_execute_tool(root_trace, fc["name"], args, tool_context)
                             )
                         except Exception as e:
                             logging.error(f"  ❌ Tool error: {e}")
@@ -1263,6 +1429,14 @@ Your response:"""
                     "messages": messages,
                     "final_text": turn_text_raw,
                 })
+                root_trace.end(
+                    output=trim_text(turn_text_raw),
+                    metadata={
+                        "tools_called": called,
+                        "input_tokens": in_tok,
+                        "output_tokens": out_tok,
+                    },
+                )
                 if return_timing:
                     inf_ms = (time.time() - inference_t0) * 1000
                     timing_data.update({
@@ -1274,7 +1448,16 @@ Your response:"""
                         "tools_called": called,
                     })
 
-            generator = stream_generator()
+            def traced_generator():
+                # Ends the trace even when the client disconnects mid-stream;
+                # root_trace.end is idempotent, so normal completion (which
+                # ends it with the final output above) wins.
+                try:
+                    yield from stream_generator()
+                finally:
+                    root_trace.end()
+
+            generator = traced_generator()
             return (generator, timing_data) if return_timing else generator
 
         inference_start = time.time()
@@ -1299,23 +1482,52 @@ Your response:"""
                     {"type": "function", "function": {"name": force_tool}}
                     if force_tool and iteration == 0 else "auto"
                 )
-            response = chat_client.create_chat(**call_kwargs)
+            gen_obs = root_trace.child(
+                f"llm.iter{iteration + 1}",
+                as_type="generation",
+                model=provider_model,
+                input=trim_messages(messages),
+                model_parameters={"temperature": temperature, "max_tokens": max_tokens},
+            )
+            try:
+                response = chat_client.create_chat(**call_kwargs)
+            except Exception as e:
+                gen_obs.end(level="ERROR", status_message=str(e))
+                root_trace.end(level="ERROR", status_message=str(e))
+                raise
 
             usage = getattr(response, "usage", None)
+            iter_usage = {
+                "input": (getattr(usage, "prompt_tokens", 0) or 0) if usage else 0,
+                "output": (getattr(usage, "completion_tokens", 0) or 0) if usage else 0,
+            }
             if usage is not None:
                 total_input_tokens += getattr(usage, "prompt_tokens", 0) or 0
                 total_output_tokens += getattr(usage, "completion_tokens", 0) or 0
 
+            _require_choices(response)
             msg = response.choices[0].message
             tool_calls = getattr(msg, "tool_calls", None) or []
 
             # No tool calls → final answer.
             if not tool_calls:
                 final_text = (msg.content or "").strip()
+                gen_obs.end(output=trim_text(final_text), usage_details=iter_usage)
                 logging.info(
                     f"✅ {provider_label} agentic loop completed after {iteration + 1} iteration(s)"
                 )
                 break
+
+            gen_obs.end(
+                output={
+                    "text": trim_text(msg.content or ""),
+                    "tool_calls": [
+                        {"name": tc.function.name, "arguments": trim_text(tc.function.arguments, 1000)}
+                        for tc in tool_calls
+                    ],
+                },
+                usage_details=iter_usage,
+            )
 
             # Append the assistant turn (with its tool_calls) verbatim, then a
             # tool message per call — the Chat Completions tool protocol.
@@ -1342,7 +1554,7 @@ Your response:"""
                 try:
                     args = json_module.loads(args_raw) if isinstance(args_raw, str) else (args_raw or {})
                     logging.info(f"  📞 {name}({args})")
-                    result = execute_tool(name, args, context=tool_context)
+                    result = _traced_execute_tool(root_trace, name, args, tool_context)
                     output = json_module.dumps(result)
                     logging.info(f"  ✅ Result: {output[:100]}...")
                 except Exception as e:
@@ -1367,6 +1579,14 @@ Your response:"""
             "messages": messages,
             "final_text": final_text,
         })
+        root_trace.end(
+            output=trim_text(final_text),
+            metadata={
+                "tools_called": tools_called,
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+            },
+        )
         inference_ms = (time.time() - inference_start) * 1000
         total_ms = retrieval_ms + inference_ms
         logging.info(
@@ -1395,15 +1615,22 @@ Your response:"""
         self,
         stream_manager,
         api_call_start_time: float,
-        return_timing: bool
+        return_timing: bool,
+        trace: Optional[Observation] = None,
+        generation: Optional[Observation] = None,
     ) -> Tuple[Generator[str, None, None], Optional[Dict[str, Any]]]:
         """
         Handle streaming response (true streaming + final response capture).
-        
+
+        trace/generation are optional Langfuse handles opened by the caller;
+        they are ended here once the stream finishes (with output + usage).
+
         Returns:
             Tuple of (stream_generator, timing_data) if return_timing=True
             Otherwise (stream_generator, empty list)
         """
+        trace = trace if trace is not None else Observation(None)
+        generation = generation if generation is not None else Observation(None)
         def _extract_rag_sources_from_final(final_response) -> list:
             """Extract vector store results from final response.output."""
             output = getattr(final_response, "output", None)
@@ -1451,6 +1678,7 @@ Your response:"""
             first_event_time = None
             file_search_complete_time = None
             first_delta_time = None
+            answer_raw = ""
             stripper = _CitationStripper()
 
             with stream_manager as stream:
@@ -1477,6 +1705,7 @@ Your response:"""
                     if hasattr(event, 'type') and event.type == 'response.output_text.delta':
                         delta = getattr(event, 'delta', None)
                         if delta:
+                            answer_raw += delta
                             cleaned = stripper.feed(delta)
                             if cleaned:
                                 yield cleaned
@@ -1488,6 +1717,7 @@ Your response:"""
 
                 # After stream completes, extract RAG sources from final response
                 stream_end_time = time.time()
+                lf_usage = None
                 if return_timing:
                     timing_data.update(compute_timing_metrics(
                         api_call_start_time,
@@ -1507,12 +1737,28 @@ Your response:"""
                         if hasattr(final, 'usage') and final.usage:
                             timing_data["input_tokens"] = getattr(final.usage, 'input_tokens', 0)
                             timing_data["output_tokens"] = getattr(final.usage, 'output_tokens', 0)
+                            lf_usage = {
+                                "input": timing_data["input_tokens"] or 0,
+                                "output": timing_data["output_tokens"] or 0,
+                            }
                             logging.info(f"📊 Tokens: {timing_data['input_tokens']} in / {timing_data['output_tokens']} out")
                     except Exception as e:
                         logging.warning(f"⚠️ Failed to extract RAG sources from final response: {e}", exc_info=True)
                         timing_data["rag_sources"] = []
 
-        generator = stream_generator()
+                generation.end(output=trim_text(answer_raw), usage_details=lf_usage)
+                trace.end(output=trim_text(answer_raw))
+
+        def traced_generator():
+            # Ends the trace even when the client disconnects mid-stream;
+            # end() is idempotent, so normal completion wins.
+            try:
+                yield from stream_generator()
+            finally:
+                generation.end()
+                trace.end()
+
+        generator = traced_generator()
         if return_timing:
             # Note: timing_data will be populated after generator is fully consumed
             # The caller must consume the generator first, then timing_data will be available
@@ -1531,6 +1777,8 @@ Your response:"""
         max_iterations: int = 5,
         tool_context: Optional[Dict[str, Any]] = None,
         max_output_tokens: Optional[int] = None,
+        question: Optional[str] = None,
+        trace_ctx: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Generator[str, None, None], Any]:
         """
         Agentic answer that preserves streaming: resolve any tool calls, then
@@ -1556,6 +1804,20 @@ Your response:"""
         import json as json_module
 
         timing_data: Dict[str, Any] = {}
+        root_trace = _start_answer_trace(
+            "answer.agentic",
+            question if question is not None else (input_data if isinstance(input_data, str) else ""),
+            model, trace_ctx, path="openai", stream=True,
+        )
+
+        def _gen_input(current_input):
+            """Trace-safe view of a turn's input (str, function results, or multimodal)."""
+            if isinstance(current_input, str):
+                return trim_text(current_input)
+            try:
+                return trim_text(json_module.dumps(current_input, default=str))
+            except Exception:
+                return None
 
         def stream_generator():
             prev_id: Optional[str] = None
@@ -1577,6 +1839,14 @@ Your response:"""
                 # tool results (the tools themselves finish in ~1ms).
                 if iteration == 0:
                     yield {"status": "Searching the rulebook"}
+                gen_obs = root_trace.child(
+                    f"llm.iter{iteration + 1}",
+                    as_type="generation",
+                    model=model,
+                    input=_gen_input(current_input),
+                    model_parameters={"temperature": temperature},
+                )
+                turn_text_start = len(answer_raw)
                 stream_manager = self.client.stream_response(
                     model=model,
                     input=current_input,
@@ -1608,6 +1878,10 @@ Your response:"""
 
                 prev_id = getattr(final, "id", None)
                 usage = getattr(final, "usage", None)
+                iter_usage = {
+                    "input": (getattr(usage, "input_tokens", 0) or 0) if usage else 0,
+                    "output": (getattr(usage, "output_tokens", 0) or 0) if usage else 0,
+                }
                 if usage:
                     total_input_tokens += getattr(usage, "input_tokens", 0) or 0
                     total_output_tokens += getattr(usage, "output_tokens", 0) or 0
@@ -1616,12 +1890,26 @@ Your response:"""
 
                 calls = _output_function_calls(output)
                 if not calls:
+                    gen_obs.end(
+                        output=trim_text(answer_raw[turn_text_start:]),
+                        usage_details=iter_usage,
+                    )
                     logging.info("🤖 Agentic(stream) finished after %d iteration(s)", iteration + 1)
                     tail = stripper.flush()
                     if tail:
                         yield tail
                     break
 
+                gen_obs.end(
+                    output={
+                        "text": trim_text(answer_raw[turn_text_start:]),
+                        "tool_calls": [
+                            {"name": c["name"], "arguments": trim_text(c.get("arguments"), 1000)}
+                            for c in calls
+                        ],
+                    },
+                    usage_details=iter_usage,
+                )
                 tools_called.extend(c["name"] for c in calls)
                 logging.info(
                     "🔧 Agentic(stream) iter %d: executing %d tool call(s): %s",
@@ -1635,7 +1923,7 @@ Your response:"""
                         args = json_module.loads(raw) if isinstance(raw, str) else (raw or {})
                         logging.info("  📞 %s(%s)", fc["name"], args)
                         output_json = json_module.dumps(
-                            execute_tool(fc["name"], args, context=tool_context)
+                            _traced_execute_tool(root_trace, fc["name"], args, tool_context)
                         )
                     except Exception as e:
                         logging.error("  ❌ Tool error in %s: %s", fc.get("name"), e)
@@ -1665,6 +1953,14 @@ Your response:"""
                 "final_text": answer_raw,
                 "rag_sources": rag_sources,
             })
+            root_trace.end(
+                output=trim_text(answer_raw),
+                metadata={
+                    "tools_called": tools_called,
+                    "input_tokens": total_input_tokens,
+                    "output_tokens": total_output_tokens,
+                },
+            )
             if return_timing:
                 stream_end_time = time.time()
                 for i, r in enumerate(rag_sources, 1):
@@ -1679,7 +1975,15 @@ Your response:"""
                     "tools_called": tools_called,
                 })
 
-        generator = stream_generator()
+        def traced_generator():
+            # Ends the trace even when the client disconnects mid-stream;
+            # root_trace.end is idempotent, so normal completion wins.
+            try:
+                yield from stream_generator()
+            finally:
+                root_trace.end()
+
+        generator = traced_generator()
         if return_timing:
             return generator, timing_data
         return generator, []
@@ -1721,6 +2025,7 @@ Your response:"""
         tool_context: Optional[Dict[str, Any]] = None,
         return_timing: bool = False,
         force_tool: Optional[str] = None,
+        trace_ctx: Optional[Dict[str, Any]] = None,
     ):
         """
         Handle agentic response with multi-turn tool execution loop.
@@ -1736,6 +2041,11 @@ Your response:"""
         import json as json_module
 
         logging.info("🤖 Starting agentic response loop...")
+
+        root_trace = _start_answer_trace(
+            "answer.agentic", question, model, trace_ctx,
+            path="openai", force_tool=force_tool, stream=False,
+        )
 
         # Track previous response ID for context
         previous_response_id = None
@@ -1761,6 +2071,14 @@ Your response:"""
                 "transcript": transcript,
                 "final_text": text,
             })
+            root_trace.end(
+                output=trim_text(text),
+                metadata={
+                    "tools_called": tools_called,
+                    "input_tokens": total_input_tokens,
+                    "output_tokens": total_output_tokens,
+                },
+            )
             if not return_timing:
                 return text
             elapsed = (time.time() - api_call_start_time) * 1000
@@ -1782,34 +2100,51 @@ Your response:"""
             tc = ({"type": "function", "name": force_tool}
                   if force_tool and iteration == 0 else None)
 
-            # Make API call (use previous_response_id if available)
-            if previous_response_id:
-                response = self.client.create_response(
-                    model=model,
-                    input=input_data,
-                    previous_response_id=previous_response_id,
-                    instructions=instructions,
-                    temperature=temperature,
-                    stream=False,
-                    tools=tools,
-                    tool_choice=tc,
-                )
-            else:
-                response = self.client.create_response(
-                    model=model,
-                    input=input_data,
-                    instructions=instructions,
-                    temperature=temperature,
-                    stream=False,
-                    tools=tools,
-                    tool_choice=tc,
-                )
-            
+            gen_obs = root_trace.child(
+                f"llm.iter{iteration + 1}",
+                as_type="generation",
+                model=model,
+                input=trim_text(input_data if isinstance(input_data, str)
+                                else json_module.dumps(input_data, default=str)),
+                model_parameters={"temperature": temperature},
+            )
+            try:
+                # Make API call (use previous_response_id if available)
+                if previous_response_id:
+                    response = self.client.create_response(
+                        model=model,
+                        input=input_data,
+                        previous_response_id=previous_response_id,
+                        instructions=instructions,
+                        temperature=temperature,
+                        stream=False,
+                        tools=tools,
+                        tool_choice=tc,
+                    )
+                else:
+                    response = self.client.create_response(
+                        model=model,
+                        input=input_data,
+                        instructions=instructions,
+                        temperature=temperature,
+                        stream=False,
+                        tools=tools,
+                        tool_choice=tc,
+                    )
+            except Exception as e:
+                gen_obs.end(level="ERROR", status_message=str(e))
+                root_trace.end(level="ERROR", status_message=str(e))
+                raise
+
             # Store response ID for next iteration
             previous_response_id = getattr(response, "id", None)
 
             # Accumulate token usage across the loop
             usage = getattr(response, "usage", None)
+            iter_usage = {
+                "input": (getattr(usage, "input_tokens", 0) or 0) if usage else 0,
+                "output": (getattr(usage, "output_tokens", 0) or 0) if usage else 0,
+            }
             if usage is not None:
                 total_input_tokens += getattr(usage, "input_tokens", 0) or 0
                 total_output_tokens += getattr(usage, "output_tokens", 0) or 0
@@ -1840,6 +2175,17 @@ Your response:"""
             
             tools_called.extend(fc["name"] for fc in function_calls if fc.get("name"))
 
+            gen_obs.end(
+                output={
+                    "text": trim_text(final_text),
+                    "tool_calls": [
+                        {"name": fc.get("name"), "arguments": trim_text(fc.get("arguments"), 1000)}
+                        for fc in function_calls
+                    ],
+                } if function_calls else trim_text(final_text),
+                usage_details=iter_usage,
+            )
+
             # If no function calls, we have our final answer
             if not function_calls:
                 logging.info(f"✅ Agentic loop completed after {iteration + 1} iterations")
@@ -1869,7 +2215,7 @@ Your response:"""
                 try:
                     args = json_module.loads(args_raw) if isinstance(args_raw, str) else args_raw
                     logging.info(f"  📞 {name}({args})")
-                    result = execute_tool(name, args, context=tool_context)
+                    result = _traced_execute_tool(root_trace, name, args, tool_context)
                     result_json = json_module.dumps(result)
 
                     function_results.append({

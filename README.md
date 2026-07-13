@@ -108,6 +108,8 @@ Required variables:
 
 Optional (only needed for routed models in the registry): `META_API_KEY` (Meta Model API), `OPENROUTER_API_KEY` (OpenRouter). `ADAPTIVE_RAG_CHUNKS` tunes the thorough-mode chunk baseline (default 5).
 
+Optional tracing ([Langfuse](https://cloud.langfuse.com)): set `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` (and `LANGFUSE_HOST` if not EU cloud) to trace every answered question — agent iterations, tool calls, and token usage per LLM call. Unset = tracing off; `LANGFUSE_ENABLED=false` force-disables it.
+
 ### 3. Set up the vector stores
 
 You need to upload the ASL rulebook PDF to OpenAI and create a vector store (and, optionally, a second store for the ASL Q&A/errata compilation). See [docs/RESPONSES_API_README.md](docs/RESPONSES_API_README.md) for details.

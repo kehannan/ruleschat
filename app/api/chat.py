@@ -540,6 +540,11 @@ async def websocket_chat(websocket: WebSocket):
                         vsav_state=vsav_state,
                         use_agentic=agentic_enabled,
                         max_chunks=adaptive_chunks,
+                        trace_ctx={
+                            "user_id": user.email,
+                            "session_id": str(conversation_id) if conversation_id else None,
+                            "tags": ["chat"],
+                        },
                     )
                     
                     logging.info("🔄 Streaming response from OpenAI...")

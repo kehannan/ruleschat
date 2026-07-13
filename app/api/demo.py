@@ -365,6 +365,7 @@ async def websocket_demo(websocket: WebSocket):
                         board_state=board_state,
                         vsav_state=vsav_state,
                         use_agentic=bool(vsav_paths),
+                        trace_ctx={"tags": ["demo"]},
                     )
 
                     full_response = ""
