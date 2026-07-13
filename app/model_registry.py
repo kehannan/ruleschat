@@ -41,6 +41,8 @@ MODELS: tuple = (
     ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  True,  False, True,    2.50,  15.00,
               True),  # admin_only — too expensive for general use
     ModelSpec("muse-spark-1.1", "muse-spark-1.1 · ¢/new",   "meta/muse-spark-1.1", True,  True,  True,    1.25,  4.25),
+    ModelSpec("deepseek-v4-flash", "deepseek-v4-flash · <¢/slower", "deepseek/deepseek-v4-flash",
+              True,  True,  True,    0.077, 0.15),
 )
 
 
