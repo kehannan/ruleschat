@@ -54,7 +54,12 @@ def get_langfuse():
             _client = Langfuse(
                 public_key=public_key,
                 secret_key=secret_key,
-                host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+                # v4 name is LANGFUSE_BASE_URL; accept the older LANGFUSE_HOST too.
+                base_url=(
+                    os.getenv("LANGFUSE_BASE_URL")
+                    or os.getenv("LANGFUSE_HOST")
+                    or "https://cloud.langfuse.com"
+                ),
                 environment=os.getenv("LANGFUSE_TRACING_ENVIRONMENT"),
             )
             logging.info("📡 Langfuse tracing enabled")
