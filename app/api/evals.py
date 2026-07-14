@@ -108,9 +108,11 @@ async def usage_daily(db: Session = Depends(get_db)):
         "gpt-5-mini", "gpt-4.1-mini", "gpt-5.4", "gpt-5.4-mini",
         "gpt-5.6-luna", "gpt-5.6-terra",
         "meta/muse-spark-1.1",
+        "deepseek/deepseek-v4-flash",
     }
     USAGE_DISPLAY = {
         "meta/muse-spark-1.1": "muse-spark-1.1",
+        "deepseek/deepseek-v4-flash": "deepseek-v4-flash",
     }
 
     messages = (
@@ -422,7 +424,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         # (all Easy rows, then Medium, then untiered); within a tier, models
         # run "frontier → cheap". deepseek-v3 sits with the cheaper tier
         # (it's the first OpenRouter-routed model in the table).
-        MODEL_ORDER = ["Fable", "Sonnet 5", "gpt-5.4", "muse-spark-1.1", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
+        MODEL_ORDER = ["Fable", "Sonnet 5", "gpt-5.4", "muse-spark-1.1", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v4-flash", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
 
         # Models with no live production traffic: cost & time shown in the
         # table are ESTIMATED from the eval run (per-question token volume of
@@ -433,7 +435,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
             "Sonnet 5": ("~11¢", "~15s"),
             "muse-spark-1.1": ("~7¢", "~27s"),
         }
-        MODEL_VIA_OPENROUTER = {"deepseek-v3", "mercury-2"}
+        MODEL_VIA_OPENROUTER = {"deepseek-v3", "deepseek-v4-flash", "mercury-2"}
         TIER_SORT = {"Easy": 0, "Medium": 1, "—": 2}
 
         rows_map = {}
@@ -500,16 +502,17 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         # live traffic exists in that mode, so an empty mode never renders an
         # all-dash row. A later eval run in that mode supersedes it (the real
         # row covers the mode, so no placeholder is added).
-        LIVE_COST_MODELS = ["gpt-5.4", "muse-spark-1.1"]
+        LIVE_COST_MODELS = ["gpt-5.4", "muse-spark-1.1", "deepseek-v4-flash"]
         if filter_to_present:
             for m in LIVE_COST_MODELS:
                 model_rows = [r for r in table_rows if r["model"] == m]
-                if not model_rows:
-                    continue
                 for agentic_mode in (False, True):
                     if any(bool(r.get("agentic")) == agentic_mode for r in model_rows):
                         continue
-                    anchor = max(i for i, r in enumerate(table_rows) if r["model"] == m)
+                    # Under the model's last real row; models with no eval
+                    # rows at all (traffic-only, eval pending) go at the end.
+                    indices = [i for i, r in enumerate(table_rows) if r["model"] == m]
+                    anchor = max(indices) if indices else len(table_rows) - 1
                     table_rows.insert(anchor + 1, {
                         "model": m, "tier": "—", "acc": {}, "file_id": None,
                         "date": None, "estimated": False,
@@ -586,6 +589,7 @@ def load_eval_results(file_id=None, use_human_review=False):
 # (e.g. `deepseek/deepseek-v3.2`); the public table shortens to `deepseek-v3`.
 OPENROUTER_DISPLAY = {
     "deepseek/deepseek-v3.2": "deepseek-v3",
+    "deepseek/deepseek-v4-flash": "deepseek-v4-flash",
     "inception/mercury-2": "mercury-2",
 }
 

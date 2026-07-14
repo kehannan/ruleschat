@@ -131,7 +131,7 @@
         {% endif %}
 
         {% if table_rows is defined %}
-        {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2', 'muse-spark-1.1': 'musespark'} %}
+        {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'deepseek-v4-flash': 'dsv4flash', 'mercury-2': 'mercury2', 'muse-spark-1.1': 'musespark'} %}
         {% set ns = namespace(cost_ids_done=[]) %}
         <table class="compare-table">
           <thead>
@@ -303,7 +303,7 @@
 // One fetch against /api/usage/daily powers two things: (a) the cost/time cells
 // in the comparison table above, and (b) the two Chart.js line charts in
 // Section 03 below. Keeping it in a single .then() avoids a second round-trip.
-const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'muse-spark-1.1': 'musespark' };
+const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'muse-spark-1.1': 'musespark', 'deepseek-v4-flash': 'dsv4flash' };
 
 // Maximally-separable hues for the line series. Blaze is reserved for the
 // frontier baseline (the hero line); the rest are functional hues + a neutral
@@ -316,6 +316,7 @@ const MODEL_COLORS = {
   'muse-spark-1.1': '#3F84F2',  // blue
   'gpt-5.6-luna':   '#E5443F',  // red
   'gpt-4.1-mini':   '#7A859B',  // steel — legacy
+  'deepseek-v4-flash': '#12A594',  // teal
 };
 function colorFor(model, idx) { return MODEL_COLORS[model] || DS_PALETTE[idx % DS_PALETTE.length]; }
 const IMAGE_DASH = [4, 3];                                  // image variants render dashed
