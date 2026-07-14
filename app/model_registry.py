@@ -46,13 +46,22 @@ MODELS: tuple = (
 )
 
 
+# Demo dropdown order (cheap → expensive; first entry is the default
+# selection). Chat keeps the MODELS tuple order. Keys not listed here
+# sort after the listed ones, in MODELS order.
+DEMO_ORDER = ("deepseek-v4-flash", "muse-spark-1.1", "gpt-5.6-luna", "gpt-5.4")
+
+
 def specs_for(surface: str, is_admin: bool = False) -> List[ModelSpec]:
     """Models visible on a surface: 'chat' or 'demo', in dropdown order."""
     flag = "in_chat" if surface == "chat" else "in_demo"
-    return [
+    specs = [
         m for m in MODELS
         if getattr(m, flag) and (is_admin or not m.admin_only)
     ]
+    if surface == "demo":
+        specs.sort(key=lambda m: DEMO_ORDER.index(m.key) if m.key in DEMO_ORDER else len(DEMO_ORDER))
+    return specs
 
 
 def allowed_keys(surface: str, is_admin: bool = False) -> Set[str]:
