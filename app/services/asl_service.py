@@ -596,8 +596,6 @@ Your response:"""
         board_state: Optional[str] = None,
         vsav_state: Optional[Dict[str, Any]] = None,
         force_tool: Optional[str] = None,
-        auto_route_tools: bool = False,
-        route_model: str = "gpt-4.1-mini",
         use_cite_check: bool = False,
         trace_ctx: Optional[Dict[str, Any]] = None,
     ):
@@ -631,8 +629,6 @@ Your response:"""
             board_state=board_state,
             vsav_state=vsav_state,
             force_tool=force_tool,
-            auto_route_tools=auto_route_tools,
-            route_model=route_model,
             trace_ctx=trace_ctx,
         )
         if not use_cite_check:
@@ -754,8 +750,6 @@ Your response:"""
         board_state: Optional[str] = None,
         vsav_state: Optional[Dict[str, Any]] = None,
         force_tool: Optional[str] = None,
-        auto_route_tools: bool = False,
-        route_model: str = "gpt-4.1-mini",
         trace_ctx: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -863,24 +857,10 @@ Your response:"""
                     )
                 if use_agentic:
                     # Agentic OpenRouter: same IFT/CC calculator loop the OpenAI
-                    # path uses, but over Chat Completions function calling. The
-                    # auto-router forces the right calculator on the first turn
-                    # (these models, like gpt-5.4, rarely call it unprompted).
-                    #
-                    # When auto-routing, the classifier decides per question:
-                    #   ift_attack / cc_attack → calc + lookup tools, force that one
-                    #   none                   → lookup tools only, no calc, no force
+                    # path uses, but over Chat Completions function calling.
                     # Lookup tools (get_section + search_rules) are exposed on
                     # every agentic call when the extracted store is built.
                     tools_chat = calc_tool_schemas(chat=True)
-                    if auto_route_tools and not force_tool:
-                        from app.asl.tool_router import classify_tool
-                        force_tool = classify_tool(question, model=route_model)
-                        if force_tool:
-                            logging.info(f"🧭 Auto-routed to tool: {force_tool}")
-                        else:
-                            tools_chat = []
-                            logging.info("🧭 Auto-routed to: none (no calculators forced)")
                     if lookup_enabled:
                         tools_chat = tools_chat + lookup_tool_schemas(chat=True)
                     return self._openrouter_agentic_answer(
@@ -929,14 +909,7 @@ Your response:"""
                 logging.info(f"🤖 Agentic mode enabled - added {len(tools) - 1} function tools"
                              + (" (with parsed .vsav state in tool context)" if vsav_state else "")
                              + (" (+ get_section lookup)" if lookup_enabled else ""))
-                # Auto-route calc questions to the right calculator (force it on
-                # the first turn). gpt-5.4 rarely calls these tools on its own.
-                if auto_route_tools and not force_tool:
-                    from app.asl.tool_router import classify_tool
-                    force_tool = classify_tool(question, model=route_model)
-                    if force_tool:
-                        logging.info(f"🧭 Auto-routed to tool: {force_tool}")
-            
+
             # Build common API kwargs — some models (e.g. gpt-5-mini) don't support temperature
             api_kwargs = {
                 "model": model,
