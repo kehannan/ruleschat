@@ -131,7 +131,7 @@
         {% endif %}
 
         {% if table_rows is defined %}
-        {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2'} %}
+        {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'mercury-2': 'mercury2', 'muse-spark-1.1': 'musespark'} %}
         {% set ns = namespace(cost_ids_done=[]) %}
         <table class="compare-table">
           <thead>
@@ -151,32 +151,41 @@
             {% for row in table_rows %}
             {% set acc = row.acc %}
             {% set est = row.estimated %}
-            <tr>
+            {% set rid = mid.get(row.model) %}
+            {% set mode_suffix = '-agentic' if row.agentic else '' %}
+            {% set mode_key = row.model ~ mode_suffix %}
+            <tr{% if row.live_only and rid %} id="tbl-row-{{ rid }}{{ mode_suffix }}" hidden{% endif %}>
               <td class="col-model">
                 {{ row.model }}
                 {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
                 {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
                 {% if row.agentic %}<div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>{% endif %}
+                {% if row.live_only %}<div class="model-sub" title="No eval run in this mode — cost &amp; timing from live production traffic">live traffic only</div>{% endif %}
               </td>
               <td>{{ row.tier }}</td>
               {% if 'recall' in acc %}
                 {% set rc = acc['recall'] %}
                 <td class="acc {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
-              {% else %}<td>—</td>{% endif %}
+              {% else %}<td>—{% if row.live_only %}<sup>&Dagger;</sup>{% endif %}</td>{% endif %}
               {% if 'calc' in acc %}
                 {% set cc = acc['calc'] %}
                 <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
-              {% else %}<td>—</td>{% endif %}
+              {% else %}<td>—{% if row.live_only %}<sup>&Dagger;</sup>{% endif %}</td>{% endif %}
               {% if row.file_id %}
                 <td class="acc {% if row.false_refusals %}cell-mid{% endif %}">{{ row.false_refusal_pct }}%</td>
               {% else %}<td>—</td>{% endif %}
-              {% if row.est_cost and row.file_id %}
+              {% if rid and mode_key not in ns.cost_ids_done %}
+                {% set ns.cost_ids_done = ns.cost_ids_done + [mode_key] %}
+                {% if row.est_cost %}
+                <td id="tbl-cost-{{ rid }}{{ mode_suffix }}" class="acc cell-bad">{{ row.est_cost }}<sup>&dagger;</sup></td>
+                <td id="tbl-time-{{ rid }}{{ mode_suffix }}" class="acc cell-bad">{{ row.est_time }}<sup>&dagger;</sup></td>
+                {% else %}
+                <td id="tbl-cost-{{ rid }}{{ mode_suffix }}">—</td>
+                <td id="tbl-time-{{ rid }}{{ mode_suffix }}">—</td>
+                {% endif %}
+              {% elif row.est_cost and row.file_id %}
                 <td class="acc cell-bad">{{ row.est_cost }}<sup>&dagger;</sup></td>
                 <td class="acc cell-bad">{{ row.est_time }}<sup>&dagger;</sup></td>
-              {% elif row.model in mid and row.model not in ns.cost_ids_done %}
-                {% set ns.cost_ids_done = ns.cost_ids_done + [row.model] %}
-                <td id="tbl-cost-{{ mid[row.model] }}">—</td>
-                <td id="tbl-time-{{ mid[row.model] }}">—</td>
               {% else %}
                 <td>—</td>
                 <td>—</td>
@@ -205,13 +214,26 @@
           answer failures.
         </p>
         <p class="table-footnote">
-          <sup>&dagger;</sup> Fable, Sonnet 5, and muse-spark-1.1 have no live
-          production traffic —
-          their cost and time are <strong>estimated from the eval run</strong>
+          <sup>&dagger;</sup> No live production traffic in this row's mode —
+          cost and time are <strong>estimated from the eval run</strong>
           (the model's API pricing applied to the per-question token volume;
-          response time approximated from retrieval plus an inference proxy),
-          not measured from live usage like the other rows.
+          response time approximated from retrieval plus an inference proxy).
+          The cell switches to live numbers automatically once traffic exists.
         </p>
+        <p class="table-footnote">
+          <strong>Cost &amp; time match the row's mode</strong> — rows badged
+          <em>agentic tools</em> show averages from live agentic (tool-using)
+          turns; unbadged rows from plain text turns. Hover a live cell for
+          the sample size.
+        </p>
+        {% if table_rows | selectattr('live_only') | list %}
+        <p class="table-footnote">
+          <sup>&Dagger;</sup> No eval has been run in this mode — the row
+          exists to show live cost and timing (e.g. what tool use adds in
+          production). Accuracy for this model was measured in its other
+          row.
+        </p>
+        {% endif %}
         {% if is_archive %}
         <p class="table-footnote">
           <strong>Caveat —</strong> deepseek-v3 and mercury-2 make two API
@@ -281,7 +303,7 @@
 // One fetch against /api/usage/daily powers two things: (a) the cost/time cells
 // in the comparison table above, and (b) the two Chart.js line charts in
 // Section 03 below. Keeping it in a single .then() avoids a second round-trip.
-const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini' };
+const MODEL_ID_MAP = { 'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'muse-spark-1.1': 'musespark' };
 
 // Maximally-separable hues for the line series. Blaze is reserved for the
 // frontier baseline (the hero line); the rest are functional hues + a neutral
@@ -354,29 +376,40 @@ fetch('/api/usage/daily')
   .then(data => {
     if (!data.models || data.models.length === 0) return;
 
-    // (a) Table cells. Agentic + image variants are split into their own
-    // chart series; the table row reflects baseline (text, non-agentic) cost.
+    // (a) Table cells. Cost/time is matched to the row's mode: baseline
+    // series fill the plain ids, "(agentic)" series fill the -agentic ids
+    // (rows whose eval ran with tools). Image variants stay chart-only.
+    // Live-only placeholder rows ship hidden; they're revealed here once
+    // their mode actually has live traffic.
     data.models.forEach(variant => {
       const s = data.series[variant];
-      if (s.is_image || s.is_agentic) return;
+      if (s.is_image) return;
       const id = MODEL_ID_MAP[s.base_model];
       if (!id) return;
+      const suffix = s.is_agentic ? '-agentic' : '';
       let totalCost = 0, costCount = 0, totalTime = 0, timeCount = 0;
       s.cost.forEach(v => { if (v != null && v > 0) { totalCost += v; costCount++; } });
       s.total_time_s.forEach(v => { if (v != null && v > 0) { totalTime += v; timeCount++; } });
-      const costEl = document.getElementById('tbl-cost-' + id);
-      const timeEl = document.getElementById('tbl-time-' + id);
+      const costEl = document.getElementById('tbl-cost-' + id + suffix);
+      const timeEl = document.getElementById('tbl-time-' + id + suffix);
+      const sampleNote = 'live production usage · n=' + s.n;
       // Cost/latency are sourced from live production usage on both the main
       // and /evals/v1.0 pages — always populate from /api/usage/daily.
       if (costEl && costCount > 0) {
         const avgCostCents = (totalCost / costCount) * 100;
         costEl.textContent = avgCostCents.toFixed(2) + '¢';
         costEl.className = 'acc ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
+        costEl.title = sampleNote;
       }
       if (timeEl && timeCount > 0) {
         const avgTime = totalTime / timeCount;
         timeEl.textContent = avgTime.toFixed(1) + 's';
         timeEl.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
+        timeEl.title = sampleNote;
+      }
+      if (costCount > 0 || timeCount > 0) {
+        const rowEl = document.getElementById('tbl-row-' + id + suffix);
+        if (rowEl) rowEl.hidden = false;
       }
     });
 
