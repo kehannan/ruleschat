@@ -529,8 +529,8 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         MAIN_TABLE_ROWS = [
             ("deepseek-v4-flash", "Easy", True),
             ("deepseek-v4-flash", "Easy", False),
-            ("deepseek-v4-flash", "Medium", True),
             ("Fable", "Easy", False),
+            ("deepseek-v4-flash", "Medium", True),
             ("Fable", "Medium", False),
         ]
         if filter_to_present:
