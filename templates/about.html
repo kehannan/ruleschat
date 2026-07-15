@@ -246,10 +246,16 @@
             slow even for veterans.
           </p>
           <p>
-            A frontier model answers most rules questions well — at roughly ten
-            cents a question. The experiment: how much retrieval and tool
-            scaffolding does it take before a model a tenth of that price is
-            trustworthy at the table? Results, including the failures, are on the
+            A frontier model answers most rules questions well — at 25–30
+            cents a question. The experiment: how much tool scaffolding does
+            it take before a model nearly a hundred times cheaper is
+            trustworthy at the table?
+          </p>
+          <p>
+            So far: on easy questions, an open-source model with agentic
+            tools reaches 100% recall and 86% calculation accuracy at about
+            0.4¢ per query. On a harder medium set, a real gap to the
+            frontier remains. Results, including the failures, are on the
             <a class="inline-link" href="{{ url_for('evals') }}">evals page</a>.
           </p>
         </div>
@@ -272,7 +278,10 @@
           <p>
             FastAPI on Digital Ocean; answers stream over a WebSocket. The core
             is the loop below: the model asks for exactly the rules it needs,
-            code fetches them, and the loop repeats until it can answer.
+            code fetches them, and the loop repeats until it can answer. On the
+            <a class="inline-link" href="{{ url_for('evals') }}">evals</a>,
+            this loop is worth about 30 points on calculation questions
+            compared to plain retrieval.
           </p>
         </div>
 
@@ -428,8 +437,8 @@
         <h2 class="about-h2">Where rules end and<br /><em>arithmetic</em> begins.</h2>
         <div class="about-prose">
           <p>
-            Rules questions split into retrieval (<em>which rule applies?</em>)
-            and arithmetic (<em>what does it compute to?</em>). LLMs are good at
+            Rules questions split into retrieval ("which rule applies?")
+            and arithmetic ("what does it compute to?"). LLMs are good at
             the first and unreliable at the second — the same model that cites
             the right rules will quietly drop a +1 DRM. So the math lives in
             code, in four tools the model must call instead of deriving by hand:
@@ -501,7 +510,7 @@
         <div class="about-prose">
           <p>
             Vector search finds the rule; the failures come from the rule
-            <em>next to</em> it — a qualifier in a cross-referenced section that
+            next to it — a qualifier in a cross-referenced section that
             never entered the context. So the rulebook was made addressable:
             2,781 numbered sections plus ~2,400 official Q&amp;A entries,
             exposed two ways:
@@ -523,7 +532,7 @@
             <div>
               <div class="stage-title">Cite-check · code-driven verification</div>
               <div class="stage-body">
-                After a draft answer, <em>code</em> — not the model — extracts
+                After a draft answer, code — not the model — extracts
                 every cited section, fetches its exact text, and forces one
                 revision turn against it.
               </div>
