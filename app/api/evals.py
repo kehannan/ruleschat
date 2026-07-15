@@ -456,12 +456,15 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         LEGACY_HARNESS_FILES = {"eval_gpt54_easyAB_v1.1_reviewed"}
         TIER_SORT = {"Easy": 0, "Medium": 1, "—": 2}
 
+        # Rows are keyed by (model, tier, mode) — the same model+tier can
+        # legitimately have both an agentic and a non-agentic run (e.g. the
+        # deepseek easy set), and they must stay separate rows.
         rows_map = {}
         for run in eval_runs:
             m = run["model"]
             tier = run.get("eval_tier", "—")
             qt = run["question_type"].lower()
-            key = (m, tier)
+            key = (m, tier, bool(run.get("agentic")))
             if key not in rows_map:
                 date_label = None
                 if run.get("date"):
@@ -485,28 +488,26 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     "agentic": bool(run.get("agentic")),
                     "legacy_harness": run["file_id"] in LEGACY_HARNESS_FILES,
                 }
-            elif run.get("agentic"):
-                rows_map[key]["agentic"] = True
             # eval_runs is sorted newest-first, so the first value seen per
-            # (model, tier, qtype) is the latest run's accuracy.
+            # (model, tier, mode, qtype) is the latest run's accuracy.
             if qt not in rows_map[key]["acc"]:
                 rows_map[key]["acc"][qt] = round(run["pass_pct"])
 
         def _row_sort(key):
-            m, tier = key
+            m, tier, agentic = key
             m_idx = MODEL_ORDER.index(m) if m in MODEL_ORDER else len(MODEL_ORDER)
-            return (TIER_SORT.get(tier, 99), m_idx)
+            return (TIER_SORT.get(tier, 99), m_idx, agentic)
 
         row_order = sorted(rows_map.keys(), key=_row_sort)
         if not filter_to_present:
             # Archive page keeps the full fixed model grid even without data.
             # Fable postdates the v1.0 archive, so it's not padded in.
-            present = {m for m, _ in rows_map.keys()}
+            present = {k[0] for k in rows_map.keys()}
             for m in MODEL_ORDER:
                 if m in ESTIMATED_FROM_EVAL:
                     continue  # Fable / Sonnet 5 / muse-spark postdate the v1.0 archive
                 if m not in present:
-                    rows_map[(m, "—")] = {
+                    rows_map[(m, "—", False)] = {
                         "model": m, "tier": "—", "acc": {}, "file_id": None,
                         "date": None, "estimated": False,
                         "via_openrouter": m in MODEL_VIA_OPENROUTER,
