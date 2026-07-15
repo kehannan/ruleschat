@@ -158,7 +158,8 @@
             <tr>
               <td class="col-model">
                 {{ row.model }}
-                {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
+                {% if is_archive and loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
+                {% if not is_archive and row.model == 'Fable' %}<div class="frontier">frontier reference</div>{% endif %}
                 {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
                 {% if is_archive and row.agentic %}
                 <div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>
