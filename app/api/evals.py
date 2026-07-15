@@ -434,6 +434,9 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
             "Fable": ("~30¢", "~20s"),
             "Sonnet 5": ("~11¢", "~15s"),
             "muse-spark-1.1": ("~7¢", "~27s"),
+            # From the eval run's performance block: 42.9k in + 1.7k out
+            # tokens/q at $0.077/$0.15 per 1M = 0.36¢; avg response 29.7s.
+            "deepseek-v4-flash": ("~0.4¢", "~30s"),
         }
         MODEL_VIA_OPENROUTER = {"deepseek-v3", "deepseek-v4-flash", "mercury-2"}
         TIER_SORT = {"Easy": 0, "Medium": 1, "—": 2}
