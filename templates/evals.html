@@ -141,7 +141,7 @@
               <th>Eval</th>
               <th>Recall</th>
               <th>Calc</th>
-              <th>False Refusal</th>
+              {% if is_archive %}<th>False Refusal</th>{% endif %}
               <th>Cost / q</th>
               <th>Avg time</th>
               <th>Date run</th>
@@ -159,8 +159,7 @@
               <td class="col-model">
                 {{ row.model }}
                 {% if is_archive and loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
-                {% if not is_archive and row.model == 'Fable' %}<div class="frontier">frontier reference</div>{% endif %}
-                {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
+                {% if is_archive and row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
                 {% if is_archive and row.agentic %}
                 <div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>
                 {% endif %}
@@ -171,15 +170,17 @@
               <td>{{ row.tier }}</td>
               {% if 'recall' in acc %}
                 {% set rc = acc['recall'] %}
-                <td class="acc {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+                <td class="acc{% if is_archive %} {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
               {% else %}<td>—{% if row.live_only %}<sup>&Dagger;</sup>{% endif %}</td>{% endif %}
               {% if 'calc' in acc %}
                 {% set cc = acc['calc'] %}
-                <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+                <td class="acc{% if is_archive %} {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
               {% else %}<td>—{% if row.live_only %}<sup>&Dagger;</sup>{% endif %}</td>{% endif %}
-              {% if row.file_id %}
+              {% if is_archive %}
+                {% if row.file_id %}
                 <td class="acc {% if row.false_refusals %}cell-mid{% endif %}">{{ row.false_refusal_pct }}%</td>
-              {% else %}<td>—</td>{% endif %}
+                {% else %}<td>—</td>{% endif %}
+              {% endif %}
               {% if is_archive %}
                 {% if rid and mode_key not in ns.cost_ids_done %}
                   {% set ns.cost_ids_done = ns.cost_ids_done + [mode_key] %}
@@ -221,6 +222,7 @@
           lookup tools.
           {% endif %}
         </p>
+        {% if is_archive %}
         <p class="table-footnote">
           <strong>False Refusal —</strong> the provider's content filter
           rejected the question outright (wargame terminology misread as
@@ -228,6 +230,7 @@
           still count in the accuracy denominators but are not scored as
           answer failures.
         </p>
+        {% endif %}
         {% if not is_archive %}
         <p class="table-footnote">
           <strong>Cost / q &amp; Avg time</strong> — each cell shows two
@@ -421,18 +424,24 @@ fetch('/api/usage/daily')
       const sampleNote = 'live production usage · n=' + s.n;
       const fmtCents = v => (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2)) + '¢';
       const fmtSecs = v => (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + 's';
+      // Color classes are archive-only (there the id sits on the <td>);
+      // main-page cells stay uncolored — the id is on the inner <span>.
       if (costEl && costCount > 0) {
         const avgCostCents = (totalCost / costCount) * 100;
         costEl.textContent = fmtCents(avgCostCents);
         const cell = costEl.closest('td') || costEl;
-        cell.className = 'acc ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
+        if (costEl.tagName === 'TD') {
+          cell.className = 'acc ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
+        }
         cell.title = sampleNote;
       }
       if (timeEl && timeCount > 0) {
         const avgTime = totalTime / timeCount;
         timeEl.textContent = fmtSecs(avgTime);
         const cell = timeEl.closest('td') || timeEl;
-        cell.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
+        if (timeEl.tagName === 'TD') {
+          cell.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
+        }
         cell.title = sampleNote;
       }
     });
