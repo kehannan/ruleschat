@@ -90,108 +90,59 @@
   </div>
 </section>
 
-<!-- ─── PIPELINE ─── -->
+<!-- ─── THE AGENT LOOP ─── -->
 <section class="section no-border" id="features">
   <div class="wrap">
     <div class="pipeline-head">
       <div>
-        <div class="eyebrow"><span class="dot"></span><span>The pipeline</span></div>
-        <h2 class="col-head">How it <em>works</em>.</h2>
+        <div class="eyebrow"><span class="dot"></span><span>The agent loop</span></div>
+        <h2 class="col-head">The model shows its work.</h2>
       </div>
     </div>
 
-    <div class="pipeline">
-      <div class="pipe-flow">
-        <article class="pipe-node">
-          <div class="hex-wrap">
-            <svg viewBox="0 0 88 100">
-              <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
-            </svg>
-            <span class="num">i</span>
-          </div>
-          <div class="step-label">Stage 01 · Retrieval</div>
-          <h3><em>RAG</em> over the rulebook</h3>
-          <p>
-            Each question is routed through OpenRouter to one of several
-            models, which pulls relevant chunks from a vector store of the
-            rulebook.
-          </p>
-          <div class="tech"><span>OpenRouter</span><span>file_search</span><span>multi-model</span></div>
-        </article>
-
-        <article class="pipe-node">
-          <div class="hex-wrap">
-            <svg viewBox="0 0 88 100">
-              <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
-            </svg>
-            <span class="num">ii</span>
-          </div>
-          <div class="step-label">Stage 02 · Grounding</div>
-          <h3><em>Cited</em> answers</h3>
-          <p>
-            Every claim links to a rule section, and clicking a citation like
-            <span class="cite">A4.34</span> opens the rulebook PDF to that
-            page in-browser.
-          </p>
-          <div class="tech"><span>section_pages.json</span><span>pdf.js</span></div>
-        </article>
-
-        <article class="pipe-node">
-          <div class="hex-wrap">
-            <svg viewBox="0 0 88 100">
-              <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
-            </svg>
-            <span class="num">iii</span>
-          </div>
-          <div class="step-label">Stage 03 · Agentic</div>
-          <h3>Tools, then <em>verification</em></h3>
-          <p>
-            The model works in a loop: deterministic IFT / CC calculators do
-            the arithmetic, a lookup tool fetches the exact text (plus
-            official Q&amp;A) of any rule before it's cited, and a cite-check
-            pass re-reads every cited section and corrects the draft.
-          </p>
-          <div class="tech"><span>function calling</span><span>get_section</span><span>cite-check</span></div>
-        </article>
-
-        <article class="pipe-node">
-          <div class="hex-wrap">
-            <svg viewBox="0 0 88 100">
-              <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
-            </svg>
-            <span class="num">iv</span>
-          </div>
-          <div class="step-label">Stage 04 · Evaluation</div>
-          <h3>LLM-as-a-<em>judge</em></h3>
-          <p>
-            A zero-shot AI judge scores each response Pass / Fail / Needs
-            Review against expected answers, with manual review before
-            results are published.
-          </p>
-          <div class="tech"><span>structured output</span><span>eval rubric</span></div>
-        </article>
-
-        <article class="pipe-node">
-          <div class="hex-wrap">
-            <svg viewBox="0 0 88 100">
-              <polygon points="44,4 82,26 82,74 44,96 6,74 6,26"
-                       fill="var(--paper-2)" stroke="var(--ink)" stroke-width="1.2"/>
-            </svg>
-            <span class="num">v</span>
-          </div>
-          <div class="step-label">Stage 05 · Improvement</div>
-          <h3>Curate &amp; <em>retrain</em></h3>
-          <p>
-            Strong Q&amp;A pairs feed eval datasets and fine-tuning corpora;
-            weak ones become test cases.
-          </p>
-          <div class="tech"><span>SFT corpus</span><span>eval set</span></div>
-        </article>
+    <div class="agent-grid">
+      <div class="agent-prose">
+        <p>
+          Every question goes to an agent with a toolbelt: rulebook search,
+          exact section lookup (with official Q&amp;A and errata), and
+          deterministic combat calculators. The model decides per question
+          which tools to use, and keeps looking things up until it has the
+          rule text in hand.
+        </p>
+        <p>
+          Answers cite their sources. Clicking a citation like
+          <span class="cite">A8.2</span> opens the rulebook PDF to that page,
+          and a cite-check pass can re-read every cited section against the
+          draft before it ships.
+        </p>
+        <p>
+          The payoff is measurable: on the
+          <a href="{{ url_for('evals') }}" class="inline-link">evals</a>,
+          giving the model tools is worth about 30 points on calculation
+          questions.
+        </p>
+        <div class="tech agent-tools">
+          <span>search_rules</span><span>get_section</span><span>ift_attack</span><span>cc_attack</span><span>cite-check</span>
+        </div>
       </div>
+
+      <figure class="trace-card">
+        <figcaption>ABRIDGED TRACE · EASY EVAL Q59 · DEEPSEEK-V4-FLASH</figcaption>
+        <div class="trace-q">Q: A 16-firepower Defensive First Fire attack on a hex has a LOS that goes through two grain hexes. What is the Residual Fire Power in the attacked hex?</div>
+        <div class="trace-line"><span class="t-calc">ift_attack</span><span class="t-args">(16 FP, hindrance +2)</span> <span class="t-note">halve to 8, drop two columns</span></div>
+        <div class="trace-line"><span class="t-call">get_section</span><span class="t-args">("A8.2")</span> <span class="t-note">Residual FP = half the column used</span></div>
+        <div class="trace-line"><span class="t-call">get_section</span><span class="t-args">("A8.26")</span> <span class="t-note">one column per +1 hindrance DRM</span></div>
+        <div class="trace-line"><span class="t-call">search_rules</span><span class="t-args">("grain LOS hindrance")</span> <span class="t-note">confirms +1 per grain hex</span></div>
+        <div class="trace-a">A: 4 Residual FP — the 16 FP attack is halved to 8 (A8.2), then reduced two columns for the grain hindrances (A8.26). <span class="t-verdict">judged pass</span></div>
+      </figure>
+    </div>
+
+    <div class="agent-after">
+      <span class="aa-step">then an LLM judge scores every answer</span>
+      <span class="aa-arrow">→</span>
+      <span class="aa-step">human review settles the close calls</span>
+      <span class="aa-arrow">→</span>
+      <span class="aa-step">strong Q&amp;A pairs feed the eval and fine-tuning sets</span>
     </div>
   </div>
 </section>

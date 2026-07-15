@@ -495,6 +495,90 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   border-radius: 2px;
 }
 
+/* Agent loop section (home) */
+.agent-grid {
+  display: grid;
+  grid-template-columns: 5fr 7fr;
+  gap: 48px;
+  align-items: start;
+}
+.agent-prose p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  margin: 0 0 14px;
+}
+.agent-tools {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .02em;
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-top: 18px;
+}
+.agent-tools span {
+  padding: 2px 8px;
+  background: var(--paper-2);
+  border: 1px solid var(--hair);
+  border-radius: 2px;
+}
+.trace-card {
+  margin: 0;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 6px 6px 0 var(--hair-2);
+  padding: 18px 20px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.9;
+  overflow-x: auto;
+}
+.trace-card figcaption {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--hair);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.trace-q { color: var(--ink-2); margin-bottom: 8px; }
+.trace-line { white-space: nowrap; }
+.trace-line .t-call { color: var(--accent); font-weight: 500; }
+.trace-line .t-calc { color: var(--field); font-weight: 500; }
+.trace-line .t-args { color: var(--ink-2); }
+.trace-line .t-note { color: var(--muted); }
+.trace-line .t-note::before { content: "· "; }
+.trace-a {
+  border-top: 1px solid var(--hair);
+  margin-top: 10px;
+  padding-top: 10px;
+  color: var(--ink);
+}
+.trace-a .t-verdict {
+  color: var(--pass);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.agent-after {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hair);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  display: flex; gap: 12px; flex-wrap: wrap;
+  letter-spacing: .02em;
+}
+.agent-after .aa-arrow { color: var(--accent-soft); }
+@media (max-width: 900px) {
+  .agent-grid { grid-template-columns: 1fr; gap: 28px; }
+  .trace-card { font-size: 11.5px; }
+}
+
 /* ═════════════════════════════════════════════════════════════
    LOGIN
    ═════════════════════════════════════════════════════════════ */
