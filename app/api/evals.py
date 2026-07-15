@@ -497,26 +497,24 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
             row_order = sorted(rows_map.keys(), key=_row_sort)
         table_rows = [rows_map[k] for k in row_order]
 
-        # Live-only rows: for these models, cost/time comes from live traffic
-        # split by mode (baseline vs agentic). If a mode has live traffic but
-        # no eval run, append a placeholder row under the model's last real
-        # row — accuracy blank (‡ footnote), cost/time filled client-side from
-        # /api/usage/daily. The row ships hidden and JS reveals it only when
-        # live traffic exists in that mode, so an empty mode never renders an
-        # all-dash row. A later eval run in that mode supersedes it (the real
-        # row covers the mode, so no placeholder is added).
-        LIVE_COST_MODELS = ["gpt-5.4", "muse-spark-1.1", "deepseek-v4-flash"]
+        # Main-page table: a curated model set, each shown in BOTH modes —
+        # "no tools" (plain RAG) and "with tools" (production agentic loop,
+        # model self-selects calculators). Modes with no eval run yet get a
+        # visible placeholder row (accuracy blank, ‡ footnote); its cost/time
+        # cells fill client-side from live traffic when that mode has any.
+        # A later eval run in that mode supersedes the placeholder. Rows are
+        # grouped per model (mode, then tier) rather than the tier-first
+        # ordering the archive keeps. Other models' eval files still load
+        # (detail pages, prose links) — they just don't get a table row.
+        MAIN_TABLE_MODELS = ["Fable", "gpt-5.4", "muse-spark-1.1", "deepseek-v4-flash"]
         if filter_to_present:
-            for m in LIVE_COST_MODELS:
+            table_rows = [r for r in table_rows if r["model"] in MAIN_TABLE_MODELS]
+            for m in MAIN_TABLE_MODELS:
                 model_rows = [r for r in table_rows if r["model"] == m]
                 for agentic_mode in (False, True):
                     if any(bool(r.get("agentic")) == agentic_mode for r in model_rows):
                         continue
-                    # Under the model's last real row; models with no eval
-                    # rows at all (traffic-only, eval pending) go at the end.
-                    indices = [i for i, r in enumerate(table_rows) if r["model"] == m]
-                    anchor = max(indices) if indices else len(table_rows) - 1
-                    table_rows.insert(anchor + 1, {
+                    table_rows.append({
                         "model": m, "tier": "—", "acc": {}, "file_id": None,
                         "date": None, "estimated": False,
                         "via_openrouter": m in MODEL_VIA_OPENROUTER,
@@ -524,6 +522,11 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         "false_refusals": 0, "false_refusal_pct": 0,
                         "agentic": agentic_mode, "live_only": True,
                     })
+            table_rows.sort(key=lambda r: (
+                MAIN_TABLE_MODELS.index(r["model"]),
+                bool(r.get("agentic")),
+                TIER_SORT.get(r["tier"], 99),
+            ))
 
         # Legacy per-model keys, still used by Section 01 prose links (and kept
         # for any external consumers). model_latest_file prefers the Easy-tier

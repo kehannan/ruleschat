@@ -127,7 +127,7 @@
         {% if is_archive %}
         <p class="table-caption">TABLE 01 — 200+ questions, human-verified · cost &amp; timing from live production chat</p>
         {% else %}
-        <p class="table-caption">TABLE 01 — 85-question easy + 60-question medium evals, human-reviewed · cost &amp; timing from live production usage</p>
+        <p class="table-caption">TABLE 01 — 85-question easy + 60-question medium evals, human-reviewed · each model with and without agentic tools · cost &amp; timing from live production usage</p>
         {% endif %}
 
         {% if table_rows is defined %}
@@ -154,13 +154,16 @@
             {% set rid = mid.get(row.model) %}
             {% set mode_suffix = '-agentic' if row.agentic else '' %}
             {% set mode_key = row.model ~ mode_suffix %}
-            <tr{% if row.live_only and rid %} id="tbl-row-{{ rid }}{{ mode_suffix }}" hidden{% endif %}>
+            <tr>
               <td class="col-model">
                 {{ row.model }}
                 {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
                 {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
-                {% if row.agentic %}<div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>{% endif %}
-                {% if row.live_only %}<div class="model-sub" title="No eval run in this mode — cost &amp; timing from live production traffic">live traffic only</div>{% endif %}
+                {% if not is_archive %}
+                <div class="model-sub" {% if row.agentic %}title="Production agentic loop — the model decides per question which rulebook lookups / calculators to run"{% else %}title="Plain RAG — retrieved rulebook context only, no tool calls"{% endif %}>{{ 'with tools' if row.agentic else 'no tools' }}</div>
+                {% elif row.agentic %}
+                <div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>
+                {% endif %}
               </td>
               <td>{{ row.tier }}</td>
               {% if 'recall' in acc %}
@@ -220,18 +223,19 @@
           response time approximated from retrieval plus an inference proxy).
           The cell switches to live numbers automatically once traffic exists.
         </p>
+        {% if not is_archive %}
         <p class="table-footnote">
-          <strong>Cost &amp; time match the row's mode</strong> — rows badged
-          <em>agentic tools</em> show averages from live agentic (tool-using)
-          turns; unbadged rows from plain text turns. Hover a live cell for
+          <strong>Cost &amp; time match the row's mode</strong> — <em>with
+          tools</em> rows show averages from live agentic (tool-using) turns;
+          <em>no tools</em> rows from plain text turns. Hover a live cell for
           the sample size.
         </p>
+        {% endif %}
         {% if table_rows | selectattr('live_only') | list %}
         <p class="table-footnote">
-          <sup>&Dagger;</sup> No eval has been run in this mode — the row
-          exists to show live cost and timing (e.g. what tool use adds in
-          production). Accuracy for this model was measured in its other
-          row.
+          <sup>&Dagger;</sup> Not yet evaluated in this mode — accuracy is
+          unmeasured, not zero. Cost and time fill in from live production
+          traffic once that mode has any.
         </p>
         {% endif %}
         {% if is_archive %}
@@ -380,8 +384,6 @@ fetch('/api/usage/daily')
     // (a) Table cells. Cost/time is matched to the row's mode: baseline
     // series fill the plain ids, "(agentic)" series fill the -agentic ids
     // (rows whose eval ran with tools). Image variants stay chart-only.
-    // Live-only placeholder rows ship hidden; they're revealed here once
-    // their mode actually has live traffic.
     data.models.forEach(variant => {
       const s = data.series[variant];
       if (s.is_image) return;
@@ -407,10 +409,6 @@ fetch('/api/usage/daily')
         timeEl.textContent = avgTime.toFixed(1) + 's';
         timeEl.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
         timeEl.title = sampleNote;
-      }
-      if (costCount > 0 || timeCount > 0) {
-        const rowEl = document.getElementById('tbl-row-' + id + suffix);
-        if (rowEl) rowEl.hidden = false;
       }
     });
 
