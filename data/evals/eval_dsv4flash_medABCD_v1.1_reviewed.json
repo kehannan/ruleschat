@@ -21,12 +21,26 @@
     "needs_review": 11
    },
    "with_human_review": {
-    "pass": 46,
+    "pass": 49,
     "fail": 11,
-    "pending_review": 3,
+    "pending_review": 0,
     "eval_error": 0
    },
    "by_question_type": {
+    "recall": {
+     "ai_judge": {
+      "pass": 31,
+      "fail": 8,
+      "needs_review": 6
+     },
+     "with_human_review": {
+      "pass": 37,
+      "fail": 8,
+      "pending_review": 0,
+      "eval_error": 0
+     },
+     "total": 45
+    },
     "calc": {
      "ai_judge": {
       "pass": 8,
@@ -40,20 +54,6 @@
       "eval_error": 0
      },
      "total": 15
-    },
-    "recall": {
-     "ai_judge": {
-      "pass": 31,
-      "fail": 8,
-      "needs_review": 6
-     },
-     "with_human_review": {
-      "pass": 34,
-      "fail": 8,
-      "pending_review": 3,
-      "eval_error": 0
-     },
-     "total": 45
     }
    }
   },
@@ -295,9 +295,12 @@
    "llm_confidence": 0.88,
    "llm_reasoning": "[Explanation] The model gets the core point right: the A10.51 'ignore' exception applies to buildings, not woods, and a unit starting in a woods hex may still leave it. However, the expected answer includes additional key routing nuances: routing THROUGH a single-hex woods when it is not the starting hex, cases where the hex becomes untenable, routing to an adjacent building, and continuing through consecutive woods/building hexes until MF runs out. The model only gives the main idea and general normal-routing language, so it misses several specific concepts from the expected answer.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:18:24.439053",
+   "human_override_applied": true
   },
   {
    "question": "Under A23.4 and A23.6, when a unit throws a demolition charge (thrown DC) and the throwing unit is CX, does the +1 DRM for CX apply to both the DR for the Target Location and the DR for the Thrower's Location, or only to the Target Location?",
@@ -394,9 +397,12 @@
    "llm_confidence": 0.94,
    "llm_reasoning": "[Explanation] The model correctly states the main rule from A4.7: a unit normally cannot both advance into an adjacent hex and also enter a pillbox in that same APh because the pillbox is a separate Location. However, it misses the key exception from the expected answer: a bunker/pillbox connected by trench per B30.8 can be advanced into directly from an adjacent hex. Since the central rule is right but an important exception is omitted, the response is partial.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:18:40.789505",
+   "human_override_applied": true
   },
   {
    "question": "If a carrier infantry stand sets up outside its vehicle and the vehicle is abandoned/scrounged at scenario start, is that vehicle treated as a wreck or can it be concealed at the scenario start?",
@@ -763,9 +769,12 @@
    "llm_confidence": 0.94,
    "llm_reasoning": "[Explanation] The response correctly gives the central ruling that the AFV is never held in Melee and that ordinary fire into the Melee affects the squad, not the AFV. However, it omits a key concept from the expected answer: exceptions where attacks that affect the entire Location (such as OBA or Area Target Type) would affect both the squad and the AFV, and it also does not mention the possible Sniper hit on the CE crew. So the main idea is right, but the full scope is incomplete.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:19:07.303165",
+   "human_override_applied": true
   },
   {
    "question": "A bogged fully-tracked AFV has created a partial Trailbreak in a woods hex. May another friendly vehicle use that partial Trailbreak to ease its own movement or Bog Check into that hex?",
