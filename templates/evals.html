@@ -78,35 +78,38 @@
   </div>
 </header>
 
-<!-- ─── 01 · THE ANSWER (latest page only) ─── -->
+<!-- ─── 01 · FINDINGS (latest page only) ─── -->
 {% if not is_archive %}
 <section class="section">
   <div class="wrap">
     <div class="ev-grid">
       <div class="ev-label">
         <div class="eyebrow"><span class="num">01</span></div>
-        <div class="ev-title">The answer</div>
+        <div class="ev-title">Findings</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Accurate — but not <em>cheap</em>.</h2>
-        {% set fable_fid = (model_latest_file.get('Fable') if model_latest_file is defined else None) %}
-        {% set gpt54_fid = (model_latest_file.get('gpt-5.4') if model_latest_file is defined else None) %}
+        <h2 class="h-section">Cheap when it's easy — <em>a gap when it's hard</em>.</h2>
+        {% set ds_rows = (table_rows | selectattr('model', 'equalto', 'deepseek-v4-flash') | list) if table_rows is defined else [] %}
+        {% set ds_easy_ag = ds_rows | selectattr('tier', 'equalto', 'Easy') | selectattr('agentic') | list | first %}
+        {% set ds_med = ds_rows | selectattr('tier', 'equalto', 'Medium') | list | first %}
         {% set fable_med = (table_rows | selectattr('model', 'equalto', 'Fable') | selectattr('tier', 'equalto', 'Medium') | list | first) if table_rows is defined else None %}
         <p class="lede">
-          Fable can answer an
-          {% if fable_fid %}<a href="{{ url_for('evals_detail', file_id=fable_fid) }}?judge=human" class="inline-link">easy eval</a>{% else %}easy eval{% endif %}
-          with <strong>98.8% accuracy</strong> and a harder
-          {% if fable_med %}<a href="{{ url_for('evals_detail', file_id=fable_med.file_id) }}?judge=human" class="inline-link">medium eval</a>{% else %}medium eval{% endif %}
-          with <strong>93.3%</strong> — scoring 100% on calculation questions in
-          both — but at a cost of about <strong>25–30¢ per query</strong>.
+          <strong>1.</strong> Open-source models with agentic tools can answer
+          easy rules questions for <strong>less than a cent</strong> —
+          deepseek-v4-flash scored <strong>100% recall / 86% calculation</strong>
+          on the
+          {% if ds_easy_ag and ds_easy_ag.file_id %}<a href="{{ url_for('evals_detail', file_id=ds_easy_ag.file_id) }}?judge=human" class="inline-link">easy eval</a>{% else %}easy eval{% endif %}
+          at about <strong>0.4¢ per query</strong>.
         </p>
         <p class="lede">
-          A more cost-effective model,
-          {% if gpt54_fid %}<a href="{{ url_for('evals_detail', file_id=gpt54_fid) }}?judge=human" class="inline-link">GPT-5.4</a>{% else %}GPT-5.4{% endif %},
-          has <strong>~85% accuracy</strong> (90% recall, 80% calculation) at a
-          cost of about <strong>6¢ per query</strong>. There are
-          <a href="{{ url_for('evals_v1') }}" class="inline-link">cheaper and slower models</a>
-          with slightly worse performance.
+          <strong>2.</strong> On a
+          {% if ds_med and ds_med.file_id %}<a href="{{ url_for('evals_detail', file_id=ds_med.file_id) }}?judge=human" class="inline-link">medium-hard eval</a>{% else %}medium-hard eval{% endif %}
+          a real gap opens between open-source and frontier models — in both
+          directions.
+          {% if fable_med and fable_med.file_id %}<a href="{{ url_for('evals_detail', file_id=fable_med.file_id) }}?judge=human" class="inline-link">Fable</a>{% else %}Fable{% endif %}
+          holds <strong>91% recall / 100% calculation</strong> against
+          deepseek's <strong>82% / 80%</strong>, but at roughly
+          <strong>50&times; the cost</strong> (~30¢ vs 0.57¢ per query).
         </p>
       </div>
     </div>
