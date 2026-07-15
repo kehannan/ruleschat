@@ -137,6 +137,7 @@
           <thead>
             <tr>
               <th class="col-model">Model</th>
+              {% if not is_archive %}<th>Agentic</th>{% endif %}
               <th>Eval</th>
               <th>Recall</th>
               <th>Calc</th>
@@ -159,12 +160,13 @@
                 {{ row.model }}
                 {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
                 {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
-                {% if not is_archive %}
-                <div class="model-sub" {% if row.legacy_harness %}title="Older harness: calculators were classifier-forced on calc questions only; recall answers came from a plain-RAG run"{% elif row.agentic %}title="Production agentic loop — the model decides per question which rulebook lookups / calculators to run"{% else %}title="Plain RAG — retrieved rulebook context only, no tool calls"{% endif %}>{{ 'with tools' if row.agentic else 'no tools' }}{% if row.legacy_harness %}<sup>&sect;</sup>{% endif %}</div>
-                {% elif row.agentic %}
+                {% if is_archive and row.agentic %}
                 <div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>
                 {% endif %}
               </td>
+              {% if not is_archive %}
+              <td {% if row.legacy_harness %}title="Older harness: calculators were classifier-forced on calc questions only; recall answers came from a plain-RAG run"{% elif row.agentic %}title="Production agentic loop — the model decides per question which rulebook lookups / calculators to run"{% else %}title="Plain RAG — retrieved rulebook context only, no tool calls"{% endif %}>{{ 'yes' if row.agentic else 'no' }}{% if row.legacy_harness %}<sup>&sect;</sup>{% endif %}</td>
+              {% endif %}
               <td>{{ row.tier }}</td>
               {% if 'recall' in acc %}
                 {% set rc = acc['recall'] %}
@@ -177,21 +179,22 @@
               {% if row.file_id %}
                 <td class="acc {% if row.false_refusals %}cell-mid{% endif %}">{{ row.false_refusal_pct }}%</td>
               {% else %}<td>—</td>{% endif %}
-              {% if rid and mode_key not in ns.cost_ids_done %}
-                {% set ns.cost_ids_done = ns.cost_ids_done + [mode_key] %}
-                {% if row.est_cost %}
-                <td id="tbl-cost-{{ rid }}{{ mode_suffix }}" class="acc cell-bad">{{ row.est_cost }}<sup>&dagger;</sup></td>
-                <td id="tbl-time-{{ rid }}{{ mode_suffix }}" class="acc cell-bad">{{ row.est_time }}<sup>&dagger;</sup></td>
+              {% if is_archive %}
+                {% if rid and mode_key not in ns.cost_ids_done %}
+                  {% set ns.cost_ids_done = ns.cost_ids_done + [mode_key] %}
+                  <td id="tbl-cost-{{ rid }}{{ mode_suffix }}">—</td>
+                  <td id="tbl-time-{{ rid }}{{ mode_suffix }}">—</td>
                 {% else %}
-                <td id="tbl-cost-{{ rid }}{{ mode_suffix }}">—</td>
-                <td id="tbl-time-{{ rid }}{{ mode_suffix }}">—</td>
+                  <td>—</td>
+                  <td>—</td>
                 {% endif %}
-              {% elif row.est_cost and row.file_id %}
-                <td class="acc cell-bad">{{ row.est_cost }}<sup>&dagger;</sup></td>
-                <td class="acc cell-bad">{{ row.est_time }}<sup>&dagger;</sup></td>
+              {% elif rid and mode_key not in ns.cost_ids_done %}
+                {% set ns.cost_ids_done = ns.cost_ids_done + [mode_key] %}
+                <td class="acc">{{ row.eval_cost or '—' }}&thinsp;/&thinsp;<span id="tbl-cost-{{ rid }}{{ mode_suffix }}">—</span></td>
+                <td class="acc">{{ row.eval_time or '—' }}&thinsp;/&thinsp;<span id="tbl-time-{{ rid }}{{ mode_suffix }}">—</span></td>
               {% else %}
-                <td>—</td>
-                <td>—</td>
+                <td class="acc">{{ row.eval_cost or '—' }}&thinsp;/&thinsp;—</td>
+                <td class="acc">{{ row.eval_time or '—' }}&thinsp;/&thinsp;—</td>
               {% endif %}
               <td class="col-date">{{ row.date or '—' }}</td>
               <td class="col-action">
@@ -224,19 +227,17 @@
           still count in the accuracy denominators but are not scored as
           answer failures.
         </p>
-        <p class="table-footnote">
-          <sup>&dagger;</sup> No live production traffic in this row's mode —
-          cost and time are <strong>estimated from the eval run</strong>
-          (the model's API pricing applied to the per-question token volume;
-          response time approximated from retrieval plus an inference proxy).
-          The cell switches to live numbers automatically once traffic exists.
-        </p>
         {% if not is_archive %}
         <p class="table-footnote">
-          <strong>Cost &amp; time match the row's mode</strong> — <em>with
-          tools</em> rows show averages from live agentic (tool-using) turns;
-          <em>no tools</em> rows from plain text turns. Hover a live cell for
-          the sample size.
+          <strong>Cost / q &amp; Avg time</strong> — each cell shows two
+          numbers: <em>eval run&thinsp;/&thinsp;live production</em>. The
+          first is measured from the eval itself (the run's token volume at
+          the model's API pricing; wall-clock response time). The second is
+          the average across live chat turns in that row's mode — agentic
+          rows draw only from tool-using turns, non-agentic rows only from
+          plain turns; hover it for the sample size. An em dash means that
+          measurement doesn't exist yet. Fable's eval-side numbers are
+          approximations (its runner doesn't record token usage).
         </p>
         {% endif %}
         {% if table_rows | selectattr('live_only') | list %}
@@ -411,22 +412,27 @@ fetch('/api/usage/daily')
       let totalCost = 0, costCount = 0, totalTime = 0, timeCount = 0;
       s.cost.forEach(v => { if (v != null && v > 0) { totalCost += v; costCount++; } });
       s.total_time_s.forEach(v => { if (v != null && v > 0) { totalTime += v; timeCount++; } });
+      // Main-page cells are "<eval> / <span id=…>" pairs — the span holds the
+      // live side. Archive cells keep the id on the <td> itself; closest('td')
+      // resolves to the right element for styling either way.
       const costEl = document.getElementById('tbl-cost-' + id + suffix);
       const timeEl = document.getElementById('tbl-time-' + id + suffix);
       const sampleNote = 'live production usage · n=' + s.n;
-      // Cost/latency are sourced from live production usage on both the main
-      // and /evals/v1.0 pages — always populate from /api/usage/daily.
+      const fmtCents = v => (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2)) + '¢';
+      const fmtSecs = v => (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + 's';
       if (costEl && costCount > 0) {
         const avgCostCents = (totalCost / costCount) * 100;
-        costEl.textContent = avgCostCents.toFixed(2) + '¢';
-        costEl.className = 'acc ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
-        costEl.title = sampleNote;
+        costEl.textContent = fmtCents(avgCostCents);
+        const cell = costEl.closest('td') || costEl;
+        cell.className = 'acc ' + (avgCostCents <= 0.5 ? 'cell-good' : avgCostCents <= 3 ? 'cell-mid' : 'cell-bad');
+        cell.title = sampleNote;
       }
       if (timeEl && timeCount > 0) {
         const avgTime = totalTime / timeCount;
-        timeEl.textContent = avgTime.toFixed(1) + 's';
-        timeEl.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
-        timeEl.title = sampleNote;
+        timeEl.textContent = fmtSecs(avgTime);
+        const cell = timeEl.closest('td') || timeEl;
+        cell.className = 'acc ' + (avgTime <= 7 ? 'cell-good' : avgTime <= 12 ? 'cell-mid' : 'cell-bad');
+        cell.title = sampleNote;
       }
     });
 

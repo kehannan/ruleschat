@@ -319,6 +319,11 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         r.get("tools_called") for r in eval_data.get("results", [])
                     )
 
+                    # Whole-run measured tokens/latency — the "eval" side of
+                    # the table's cost/time pair (Anthropic runs have zeroed
+                    # token counts, handled downstream by the estimate map).
+                    run_performance = metadata.get("performance")
+
                     # Create rows for each question type (Human Review only)
                     if by_question_type:
                         # Create separate row for each question type
@@ -347,6 +352,8 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                                 "false_refusals": false_refusals,
                                 "false_refusal_pct": false_refusal_pct,
                                 "agentic": is_agentic_run,
+                                "performance": run_performance,
+                                "run_total": total,
                             })
                     else:
                         # Fallback: single row with overall stats if no question type breakdown
@@ -373,6 +380,8 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                             "false_refusals": false_refusals,
                             "false_refusal_pct": false_refusal_pct,
                             "agentic": is_agentic_run,
+                            "performance": run_performance,
+                            "run_total": total,
                         })
                 # Handle legacy list format
                 elif isinstance(eval_data, list) and eval_data:
@@ -426,18 +435,16 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         # (it's the first OpenRouter-routed model in the table).
         MODEL_ORDER = ["Fable", "Sonnet 5", "gpt-5.4", "muse-spark-1.1", "gpt-5.4-mini", "gpt-5-mini", "deepseek-v4-flash", "deepseek-v3", "gpt-4.1-mini", "mercury-2"]
 
-        # Models with no live production traffic: cost & time shown in the
-        # table are ESTIMATED from the eval run (per-question token volume of
-        # the same 85-q / 20-chunk config, priced at the model's API rates;
-        # time = retrieval + an inference proxy), not measured live.
+        # Fallback "eval side" cost/time for runs whose performance block
+        # has no usable token counts (the Anthropic runner didn't capture
+        # usage): hand-derived from the run's token volume at API pricing,
+        # with time approximated from retrieval + an inference proxy.
         ESTIMATED_FROM_EVAL = {
             "Fable": ("~30¢", "~20s"),
             "Sonnet 5": ("~11¢", "~15s"),
-            "muse-spark-1.1": ("~7¢", "~27s"),
-            # From the eval run's performance block: 42.9k in + 1.7k out
-            # tokens/q at $0.077/$0.15 per 1M = 0.36¢; avg response 29.7s.
-            "deepseek-v4-flash": ("~0.4¢", "~30s"),
         }
+        # USD per 1M tokens for pricing an eval run's measured tokens.
+        EVAL_PRICES = {m.key: (m.price_in, m.price_out) for m in model_registry.MODELS}
         MODEL_VIA_OPENROUTER = {"deepseek-v3", "deepseek-v4-flash", "mercury-2"}
 
         # Runs from before the current agentic harness (model self-selects
@@ -462,13 +469,17 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         date_label = datetime.strptime(run["date"], "%Y-%m-%d").strftime("%b %-d")
                     except (ValueError, TypeError):
                         pass
-                est_cost, est_time = ESTIMATED_FROM_EVAL.get(m, (None, None))
+                eval_cost, eval_time = _eval_run_cost_time(
+                    run.get("performance"), run.get("run_total"), EVAL_PRICES.get(m)
+                )
+                if not eval_cost and not eval_time:
+                    eval_cost, eval_time = ESTIMATED_FROM_EVAL.get(m, (None, None))
                 rows_map[key] = {
                     "model": m, "tier": tier, "acc": {},
                     "file_id": run["file_id"], "date": date_label,
                     "estimated": bool(run.get("estimated")),
                     "via_openrouter": m in MODEL_VIA_OPENROUTER,
-                    "est_cost": est_cost, "est_time": est_time,
+                    "eval_cost": eval_cost, "eval_time": eval_time,
                     "false_refusals": run.get("false_refusals", 0),
                     "false_refusal_pct": run.get("false_refusal_pct", 0),
                     "agentic": bool(run.get("agentic")),
@@ -499,7 +510,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         "model": m, "tier": "—", "acc": {}, "file_id": None,
                         "date": None, "estimated": False,
                         "via_openrouter": m in MODEL_VIA_OPENROUTER,
-                        "est_cost": None, "est_time": None,
+                        "eval_cost": None, "eval_time": None,
                         "false_refusals": 0, "false_refusal_pct": 0,
                         "agentic": False,
                     }
@@ -527,7 +538,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                         "model": m, "tier": "—", "acc": {}, "file_id": None,
                         "date": None, "estimated": False,
                         "via_openrouter": m in MODEL_VIA_OPENROUTER,
-                        "est_cost": None, "est_time": None,
+                        "eval_cost": None, "eval_time": None,
                         "false_refusals": 0, "false_refusal_pct": 0,
                         "agentic": agentic_mode, "live_only": True,
                     })
@@ -607,6 +618,39 @@ OPENROUTER_DISPLAY = {
     "deepseek/deepseek-v4-flash": "deepseek-v4-flash",
     "inception/mercury-2": "mercury-2",
 }
+
+
+def _eval_run_cost_time(perf, total_questions, prices):
+    """The "eval side" of the table's cost/time pair, from a run's measured
+    performance block: (cost-per-question string, avg-time string).
+
+    Returns (None, None) when the block is missing or its token counts are
+    zeroed (the Anthropic runner doesn't capture usage — those runs also have
+    bogus sub-4s timings, so time is only trusted alongside real tokens).
+    Cost additionally needs `prices` = (USD/1M in, USD/1M out).
+    """
+    if not perf or not total_questions:
+        return None, None
+    in_tokens = perf.get("total_input_tokens") or 0
+    out_tokens = perf.get("total_output_tokens") or 0
+    if not in_tokens:
+        return None, None
+
+    time_s = (perf.get("avg_response_time_ms") or 0) / 1000
+    time_str = None
+    if time_s > 0:
+        time_str = f"{time_s:.0f}s" if time_s >= 10 else f"{time_s:.1f}s"
+
+    cost_str = None
+    if prices:
+        cents = (in_tokens * prices[0] + out_tokens * prices[1]) / 1_000_000 / total_questions * 100
+        if cents >= 10:
+            cost_str = f"{cents:.0f}¢"
+        elif cents >= 1:
+            cost_str = f"{cents:.1f}¢"
+        else:
+            cost_str = f"{cents:.2f}¢"
+    return cost_str, time_str
 
 
 def _eval_tier(eval_name: str) -> str:
