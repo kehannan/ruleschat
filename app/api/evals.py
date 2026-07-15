@@ -439,6 +439,14 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
             "deepseek-v4-flash": ("~0.4¢", "~30s"),
         }
         MODEL_VIA_OPENROUTER = {"deepseek-v3", "deepseek-v4-flash", "mercury-2"}
+
+        # Runs from before the current agentic harness (model self-selects
+        # from the full toolset over adaptive RAG). The gpt-5.4 easy run is a
+        # composite: calc questions used the since-retired gpt-4.1-mini
+        # classifier to FORCE calculator calls, recall answers were reused
+        # from a plain-RAG run, and retrieval was server-side file_search.
+        # Badged § in the table — not directly comparable to AUTOROUTE rows.
+        LEGACY_HARNESS_FILES = {"eval_gpt54_easyAB_v1.1_reviewed"}
         TIER_SORT = {"Easy": 0, "Medium": 1, "—": 2}
 
         rows_map = {}
@@ -464,6 +472,7 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
                     "false_refusals": run.get("false_refusals", 0),
                     "false_refusal_pct": run.get("false_refusal_pct", 0),
                     "agentic": bool(run.get("agentic")),
+                    "legacy_harness": run["file_id"] in LEGACY_HARNESS_FILES,
                 }
             elif run.get("agentic"):
                 rows_map[key]["agentic"] = True

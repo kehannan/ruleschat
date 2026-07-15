@@ -160,7 +160,7 @@
                 {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
                 {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
                 {% if not is_archive %}
-                <div class="model-sub" {% if row.agentic %}title="Production agentic loop — the model decides per question which rulebook lookups / calculators to run"{% else %}title="Plain RAG — retrieved rulebook context only, no tool calls"{% endif %}>{{ 'with tools' if row.agentic else 'no tools' }}</div>
+                <div class="model-sub" {% if row.legacy_harness %}title="Older harness: calculators were classifier-forced on calc questions only; recall answers came from a plain-RAG run"{% elif row.agentic %}title="Production agentic loop — the model decides per question which rulebook lookups / calculators to run"{% else %}title="Plain RAG — retrieved rulebook context only, no tool calls"{% endif %}>{{ 'with tools' if row.agentic else 'no tools' }}{% if row.legacy_harness %}<sup>&sect;</sup>{% endif %}</div>
                 {% elif row.agentic %}
                 <div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>
                 {% endif %}
@@ -205,9 +205,17 @@
         </table>
 
         <p class="table-footnote">
+          {% if is_archive %}
           <strong>Note —</strong> all runs use the same retrieval configuration:
           ~20k token RAG input per question, 20 chunks retrieved per query from
           a vector store of the 700-page rulebook.
+          {% else %}
+          <strong>Retrieval —</strong> <em>no tools</em> rows get ~20k tokens
+          of rulebook context per question (20 chunks from a vector store of
+          the 700-page rulebook). <em>with tools</em> rows start from a
+          5-chunk baseline and the model fetches more sections itself via
+          lookup tools.
+          {% endif %}
         </p>
         <p class="table-footnote">
           <strong>False Refusal —</strong> the provider's content filter
@@ -236,6 +244,16 @@
           <sup>&Dagger;</sup> Not yet evaluated in this mode — accuracy is
           unmeasured, not zero. Cost and time fill in from live production
           traffic once that mode has any.
+        </p>
+        {% endif %}
+        {% if table_rows | selectattr('legacy_harness') | list %}
+        <p class="table-footnote">
+          <sup>&sect;</sup> Older tool harness (Jun 16): a classifier
+          force-called the combat calculators on calculation questions, and
+          the recall answers were reused from a plain-RAG run. The other
+          <em>with tools</em> rows let the model choose its own rulebook
+          lookups and calculators on every question, so this row isn't
+          directly comparable.
         </p>
         {% endif %}
         {% if is_archive %}
