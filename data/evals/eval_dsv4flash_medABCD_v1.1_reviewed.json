@@ -21,9 +21,9 @@
     "needs_review": 11
    },
    "with_human_review": {
-    "pass": 39,
-    "fail": 10,
-    "pending_review": 11,
+    "pass": 46,
+    "fail": 11,
+    "pending_review": 3,
     "eval_error": 0
    },
    "by_question_type": {
@@ -34,9 +34,9 @@
       "needs_review": 5
      },
      "with_human_review": {
-      "pass": 8,
-      "fail": 2,
-      "pending_review": 5,
+      "pass": 12,
+      "fail": 3,
+      "pending_review": 0,
       "eval_error": 0
      },
      "total": 15
@@ -48,9 +48,9 @@
       "needs_review": 6
      },
      "with_human_review": {
-      "pass": 31,
+      "pass": 34,
       "fail": 8,
-      "pending_review": 6,
+      "pending_review": 3,
       "eval_error": 0
      },
      "total": 45
@@ -911,9 +911,12 @@
    "llm_confidence": 0.92,
    "llm_reasoning": "[Explanation] The model gets the central point right: an AFV can Bounding First Fire at the start of its MPh before spending any MP, and it correctly mentions the possibility of a DEFENDER Gun Duel and that movement may continue afterward. However, it misses two key consequences from the expected answer: (1) the vehicle cannot simply remain there afterward because it must use all of its MP by MPh end, and (2) all normal ordnance TH DRMs still apply, including Bounding Fire Cases B & C with the specific turreted/non-turreted penalties; it instead implies only Case C and says it avoids C1/C2, without clearly stating the full expected DRM treatment. It also omits the expected point that a non-stabilized Gun loses Acquisition for Bounding/Motion fire.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:05:34.474340",
+   "human_override_applied": true
   },
   {
    "question": "A target AFV has been in the firer's LOS continuously since the previous turn and then makes only a Starting MP expenditure. Does the firer pay the Case J \"lost LOS\" To-Hit penalty, and is the target yet a moving target?",
@@ -968,9 +971,12 @@
    "llm_confidence": 0.88,
    "llm_reasoning": "[Explanation] The response gets the main idea that AF is not otherwise used in resolving a mortar ATT hit and that mortars resolve on the IFT, not via normal TK tables. However, it misses the key expected criterion for the -1: it should apply only if every printed AF on all facings/aspects, including turret, is <= 4. Instead, it says 'worst armor factor (AF) is <= 4,' which is ambiguous and does not clearly capture that any single AF of 5+ voids the DRM regardless of the hit facing. It also adds extra discussion about OT/unarmored cases that does not answer the core question.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "fail",
+   "final_evaluation": "fail",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:06:53.907396",
+   "human_override_applied": true
   },
   {
    "question": "A gun has a large (Area) acquisition on a hex. The target later loses concealment and leaves the hex. Can the firer bracket the large acquisition down to a small acquisition and fire at the unit in its new hex?",
@@ -1275,9 +1281,12 @@
    "llm_confidence": 0.72,
    "llm_reasoning": "[Explanation] The response gets the central rule right: an unfired ATR/SW held by a unit already under Final Fire may still be used as FPF Non-CC Reaction Fire during an overrun, and it correctly says ATR cannot use Subsequent First Fire or Intensive Fire. However, it overstates the rule by saying the squad 'must use an as-yet-unfired ATR' rather than that it may use such a SW if available/appropriate. That wording introduces a meaningful inaccuracy even though the main concepts match the expected answer.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "D7.221 says \"must use\"",
+   "review_timestamp": "2026-07-15T07:09:49.763114",
+   "human_override_applied": true
   },
   {
    "question": "If a vehicle declares an Overrun but becomes Immobile or is destroyed before the OVR resolves, how much FP does the OVR deliver?",
@@ -1366,9 +1375,12 @@
    "llm_confidence": 0.86,
    "llm_reasoning": "[Calculation] The question asks whether rider inherent FP is halved or quartered if the vehicle has moved or is in Motion. The model gives the correct final answer for that condition: quartered. However, the expected answer also includes the baseline distinction that stationary riders fire at half FP, plus related rider restrictions/context (no SW, +1 CC DR). Since the model correctly answers the asked fact but omits some expected contextual elements, this is best graded as partial rather than fully correct under the strict fact standard with missing supporting completeness.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:10:13.064238",
+   "human_override_applied": true
   },
   {
    "question": "A squad dismounts (unloads) from a moving tank that paid 1 MP to stop. How many MF does unloading cost the squad, and can it claim CX while still aboard?",
@@ -1393,9 +1405,12 @@
    "llm_confidence": 0.97,
    "llm_reasoning": "[Calculation] This is a fact/calculation question requiring the total MF cost and a yes/no on CX. The model correctly states that the squad cannot claim CX while aboard, matching A4.5. However, it gives the unloading cost as only 1 MF and fails to provide the required total of 2 MF in this case (1 MF already spent from the stop MP counting toward FRU usage + 1 MF to unload). Because the final value does not match the expected answer, it cannot be fully correct.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:10:47.903247",
+   "human_override_applied": true
   },
   {
    "question": "May a passenger-carrying vehicle drive into an enemy-occupied hex and unload its passengers there, and does it matter if the enemy infantry are broken?",
@@ -1428,9 +1443,12 @@
    "llm_confidence": 0.9,
    "llm_reasoning": "[Explanation] The model gets the main rule right: PRC may unload in an enemy-occupied hex, with the Bypass exception and CC counter, which matches the core expected answer. However, it mishandles the significance of broken enemy infantry. The expected answer says it does not matter for legality; broken enemy simply rout away later, while Good Order enemy could CC-Reaction Fire. The model says it 'matters significantly' and adds claims about broken infantry not attacking in CC, which overstates the distinction and shifts away from the expected point. Core idea is mostly right, but a key concept is misstated.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:11:30.053388",
+   "human_override_applied": true
   },
   {
    "question": "Can an AFV that starts the MPh Buttoned-Up go CE, move, and then voluntarily go BU again all in the same MPh?",
@@ -1557,9 +1575,12 @@
    "llm_confidence": 0.83,
    "llm_reasoning": "[Explanation] The response correctly states the key points that a Bog Check is required for an in-hex VCA change in a wooden building and that the +3 half-MP entry DRM does not apply. However, it misses the expected specific consequence that on a failed check the VCA change does not occur because the Bog Check must be passed first. Instead it emphasizes the vehicle becoming bogged/immobile, which is true but incomplete relative to the asked outcome.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:11:58.594763",
+   "human_override_applied": true
   },
   {
    "question": "May a dug-in, non-turreted AFV change its Vehicle CA?",
@@ -1614,9 +1635,12 @@
    "llm_confidence": 0.72,
    "llm_reasoning": "[Explanation] The model gives the main correct answer: an AFV does not have to fire all its weapons before another unit fires, and it can fire MGs, allow another unit to fire, then fire the MA later in the phase. It also mentions the same-hex restriction from D3.51. However, it adds an inaccurate/generalized claim that all of the vehicle's weapons must fire in the same phase, whereas the expected answer says there is generally no such rule in normal fire phases and highlights Bounding First Fire as the relevant restriction. Because the core conclusion matches but the supporting rule statement is overstated/misleading, this is only partial.",
    "ai_evaluation": "needs_review",
-   "human_override": null,
-   "final_evaluation": "needs_review",
-   "judge_model": "gpt-5.4"
+   "human_override": "pass",
+   "final_evaluation": "pass",
+   "judge_model": "gpt-5.4",
+   "human_notes": "",
+   "review_timestamp": "2026-07-15T07:12:21.132970",
+   "human_override_applied": true
   }
  ]
 }
