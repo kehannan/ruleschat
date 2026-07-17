@@ -189,12 +189,11 @@ async def get_admin_user(
     """Require admin user for certain routes."""
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Check if user is admin (you can define admin logic here)
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if admin_email and current_user.email != admin_email:
+
+    from app.services.user_service import is_admin
+    if not is_admin(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     return current_user
 
 

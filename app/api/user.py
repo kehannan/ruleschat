@@ -14,7 +14,7 @@ from app.models import User
 from app.models.chat import ChatMessage, ChatConversation
 from app.models.config import SiteConfig
 from app.api.demo import is_demo_enabled, set_demo_enabled
-from app.services.user_service import update_user_profile, get_user_by_email, delete_user
+from app.services.user_service import update_user_profile, get_user_by_email, delete_user, is_admin
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -22,11 +22,10 @@ templates = Jinja2Templates(directory="templates")
 
 def get_base_context(request: Request, user: User = None, db=None):
     """Get base template context."""
-    import os
     context = {"request": request, "user": user, "demo_enabled": is_demo_enabled()}
     if user:
         context["user_email"] = user.email
-        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+        context["is_admin"] = is_admin(user)
     return context
 
 
@@ -152,10 +151,7 @@ async def admin_dashboard(
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     
-    # Check if user is admin
-    import os
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if user.email != admin_email:
+    if not is_admin(user):
         return RedirectResponse(url="/", status_code=303)
     
     # Get all users and invitations
@@ -203,8 +199,7 @@ async def admin_toggle_demo_mode(
     """Toggle demo mode on/off (admin only)."""
     if not user:
         return RedirectResponse(url="/login", status_code=303)
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if user.email != admin_email:
+    if not is_admin(user):
         return RedirectResponse(url="/", status_code=303)
 
     set_demo_enabled(enabled == "true", db)
@@ -224,10 +219,7 @@ async def admin_create_test_user(
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     
-    # Check if user is admin
-    import os
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if user.email != admin_email:
+    if not is_admin(user):
         return RedirectResponse(url="/", status_code=303)
     
     # Check if user already exists
@@ -263,8 +255,7 @@ async def admin_delete_user(
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if user.email != admin_email:
+    if not is_admin(user):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     # Don't let the admin delete their own account.
@@ -290,8 +281,7 @@ async def admin_logs(
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if user.email != admin_email:
+    if not is_admin(user):
         return RedirectResponse(url="/", status_code=303)
 
     from app.models.demo import DemoMessage

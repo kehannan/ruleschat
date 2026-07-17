@@ -50,12 +50,11 @@ except Exception as e:
 
 def get_base_context(request: Request, user=None):
     """Get base template context."""
-    import os
     from app.api.demo import is_demo_enabled
     context = {"request": request, "user": user, "demo_enabled": is_demo_enabled()}
     if user:
         context["user_email"] = user.email
-        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+        context["is_admin"] = is_admin(user)
     return context
 
 
@@ -155,7 +154,7 @@ def get_demo_upload(
     user: User = Depends(require_user),
 ):
     """Admin-only retrieval of a demo (anonymous) uploaded image."""
-    if user.email != os.getenv("ADMIN_EMAIL"):
+    if not is_admin(user):
         raise HTTPException(status_code=403, detail="Forbidden")
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")

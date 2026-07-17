@@ -15,11 +15,11 @@ templates = Jinja2Templates(directory="templates")
 
 def get_base_context(request: Request, user: User = None):
     """Get base template context."""
-    import os
+    from app.services.user_service import is_admin
     context = {"request": request, "user": user}
     if user:
         context["user_email"] = user.email
-        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+        context["is_admin"] = is_admin(user)
     return context
 
 
