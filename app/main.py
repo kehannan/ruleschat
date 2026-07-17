@@ -98,6 +98,47 @@ _migrate_image_path_to_paths("demo_messages")
 _ensure_column("chat_messages", "vsav_paths", "vsav_paths JSON")
 _ensure_column("demo_messages", "vsav_paths", "vsav_paths JSON")
 
+# Access-control groups: users.group_id references groups(id).
+_ensure_column("users", "group_id", "group_id INTEGER REFERENCES groups(id)")
+
+
+def _seed_groups():
+    """Ensure the 'admin' and 'users' groups exist and every user is in one.
+
+    The ADMIN_EMAIL account goes in 'admin'; any user without a group
+    (pre-existing rows) is backfilled into 'users'. New registrations get
+    'users' at creation (see user_service.create_user). Idempotent.
+    """
+    from app.database import SessionLocal
+    from app.models import Group
+
+    db = SessionLocal()
+    try:
+        groups = {}
+        for name in ("admin", "users"):
+            group = db.query(Group).filter(Group.name == name).first()
+            if not group:
+                group = Group(name=name)
+                db.add(group)
+                db.flush()
+                logging.info(f"Created group '{name}'")
+            groups[name] = group
+
+        admin_email = os.getenv("ADMIN_EMAIL")
+        if admin_email:
+            db.query(User).filter(User.email == admin_email).update(
+                {User.group_id: groups["admin"].id}, synchronize_session=False
+            )
+        db.query(User).filter(User.group_id.is_(None)).update(
+            {User.group_id: groups["users"].id}, synchronize_session=False
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+_seed_groups()
+
 # Load runtime config from DB
 from app.api.demo import load_demo_enabled_from_db, is_demo_enabled
 load_demo_enabled_from_db()

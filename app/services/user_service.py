@@ -1,7 +1,17 @@
 """User service for database operations."""
 from sqlalchemy.orm import Session
-from app.models import User
+from app.models import User, Group
 from typing import Optional
+
+
+def get_group_by_name(db: Session, name: str) -> Optional[Group]:
+    """Get a group by name ('admin' or 'users')."""
+    return db.query(Group).filter(Group.name == name).first()
+
+
+def is_admin(user: Optional[User]) -> bool:
+    """Whether the user belongs to the 'admin' group."""
+    return bool(user and user.group and user.group.name == "admin")
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
@@ -15,8 +25,14 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
 
 
 def create_user(db: Session, email: str, hashed_password: str, api_key: str = None) -> User:
-    """Create a new user."""
-    user = User(email=email, hashed_password=hashed_password, api_key=api_key)
+    """Create a new user. New accounts land in the 'users' group."""
+    users_group = get_group_by_name(db, "users")
+    user = User(
+        email=email,
+        hashed_password=hashed_password,
+        api_key=api_key,
+        group_id=users_group.id if users_group else None,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

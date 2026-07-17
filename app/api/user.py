@@ -238,17 +238,12 @@ async def admin_create_test_user(
             status_code=303
         )
     
-    # Create new user
+    # Create new user (lands in the 'users' group via the service).
     from app.core.auth import get_password_hash
+    from app.services.user_service import create_user
     hashed_password = get_password_hash(password)
-    
-    new_user = User(
-        email=email,
-        hashed_password=hashed_password
-    )
-    db.add(new_user)
-    db.commit()
-    
+    create_user(db, email, hashed_password)
+
     return RedirectResponse(
         url="/admin?message=Test user created successfully&message_type=success",
         status_code=303

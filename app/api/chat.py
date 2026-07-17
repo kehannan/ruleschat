@@ -16,7 +16,7 @@ from openai import OpenAI
 from app import model_registry
 from app.config import ASL_SYSTEM_INSTRUCTIONS, DEFAULT_MODEL, TEMPERATURE, WEBSOCKET_PING_INTERVAL
 from app.core.auth import SECRET_KEY, ALGORITHM, require_user
-from app.services.user_service import get_user_by_email
+from app.services.user_service import get_user_by_email, is_admin
 from app.services.asl_service import get_asl_service
 from app.services.chat_history_service import get_chat_history_service
 from app.services.chat_log_service import append_chat_log
@@ -134,8 +134,7 @@ def get_upload(
     """Auth-gated retrieval of an uploaded image. Owner-only, with admin bypass."""
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
-    is_admin = user.email == os.getenv("ADMIN_EMAIL")
-    if is_admin:
+    if is_admin(user):
         conv = get_chat_history_service().get_conversation_any_owner(db, conversation_id)
     else:
         conv = get_chat_history_service().get_conversation(db, conversation_id, user.id)
@@ -194,9 +193,7 @@ def ruleschat(request: Request):
         context = get_base_context(request, user)
         context["cost_per_1m_input"] = float(os.getenv("COST_PER_1M_INPUT", "0.25"))
         context["cost_per_1m_output"] = float(os.getenv("COST_PER_1M_OUTPUT", "1.00"))
-        context["models"] = model_registry.specs_for(
-            "chat", is_admin=(user.email == os.getenv("ADMIN_EMAIL"))
-        )
+        context["models"] = model_registry.specs_for("chat", is_admin=is_admin(user))
         context["model_pricing"] = model_registry.pricing_table()
         context["agentic_models"] = model_registry.agentic_keys()
         return templates.TemplateResponse("ruleschat.html", context)
@@ -495,7 +492,7 @@ async def websocket_chat(websocket: WebSocket):
                     
                     # Validate against the model registry (app/model_registry.py
                     # is the one table to edit when adding/removing models).
-                    is_admin_user = user.email == os.getenv("ADMIN_EMAIL")
+                    is_admin_user = is_admin(user)
                     if selected_model in model_registry.allowed_keys("chat", is_admin=is_admin_user):
                         model_override = model_registry.resolve(selected_model)
                     else:
