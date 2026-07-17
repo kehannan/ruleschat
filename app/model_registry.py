@@ -45,6 +45,8 @@ MODELS: tuple = (
     ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  True,  True,  True,    2.50,  15.00),
     ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  True,  False, True,    2.50,  15.00,
               True),  # admin_only — too expensive for general use
+    ModelSpec("kimi-k3",        "kimi-k3 · ¢¢/new",         "moonshotai/kimi-k3",  True,  False, True,    3.00,  15.00,
+              True),  # admin_only — admin-group trial before general release
 )
 
 

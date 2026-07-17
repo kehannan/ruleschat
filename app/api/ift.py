@@ -6,7 +6,6 @@ Infantry Fire Table probability calculator — deterministic, no LLM.
   POST /api/ift/attack           → full attack builder (units → FP → DRM →
                                    distribution → target effects)
 """
-import os
 from typing import List, Optional
 
 from fastapi import APIRouter, Request, Depends, Query
@@ -62,8 +61,9 @@ async def ift_page(request: Request, user=Depends(get_current_user)):
         "ift_table": get_table(),
     }
     if user:
+        from app.services.user_service import is_admin
         context["user_email"] = user.email
-        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+        context["is_admin"] = is_admin(user)
     return templates.TemplateResponse("ift.html", context)
 
 

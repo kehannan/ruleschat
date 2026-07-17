@@ -39,7 +39,7 @@
         <script>
           (function() {
             const isLoggedIn = {% if user_email is defined and user_email %}true{% else %}false{% endif %};
-            const isAdmin = {% if admin_email is defined and user_email == admin_email %}true{% else %}false{% endif %};
+            const isAdmin = {% if is_admin is defined and is_admin %}true{% else %}false{% endif %};
 
             document.querySelectorAll('[data-require-login="true"]').forEach(el => {
               if (!isLoggedIn) el.style.display = 'none';

@@ -32,11 +32,11 @@ class InvitationCreate(BaseModel):
 
 
 def require_admin(user: User) -> None:
-    """Raise unless the request is from the configured admin user."""
+    """Raise unless the request is from a user in the 'admin' group."""
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if not admin_email or user.email != admin_email:
+    from app.services.user_service import is_admin
+    if not is_admin(user):
         raise HTTPException(status_code=403, detail="Admin access required")
 
 

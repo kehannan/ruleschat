@@ -52,8 +52,9 @@ async def evals_page(request: Request, user = Depends(get_current_user)):
     from app.api.demo import is_demo_enabled
     context = {"request": request, "demo_enabled": is_demo_enabled()}
     if user:
+        from app.services.user_service import is_admin
         context["user_email"] = user.email
-        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+        context["is_admin"] = is_admin(user)
 
     eval_data = load_eval_runs()
     context.update(eval_data)
@@ -68,8 +69,9 @@ async def evals_v1_page(request: Request, user = Depends(get_current_user)):
     from app.api.demo import is_demo_enabled
     context = {"request": request, "demo_enabled": is_demo_enabled()}
     if user:
+        from app.services.user_service import is_admin
         context["user_email"] = user.email
-        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+        context["is_admin"] = is_admin(user)
 
     v1_dir = _get_evals_dir() / "v1.0"
     eval_data = load_eval_runs(evals_dir=v1_dir, filter_to_present=False)
@@ -84,8 +86,9 @@ async def evals_detail_page(request: Request, file_id: str = None, judge: str = 
     """Display detailed evaluation results page."""
     context = {"request": request}
     if user:
+        from app.services.user_service import is_admin
         context["user_email"] = user.email
-        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+        context["is_admin"] = is_admin(user)
     
     use_human_review = judge.lower() == "human"
     eval_data = load_eval_results(file_id, use_human_review=use_human_review)

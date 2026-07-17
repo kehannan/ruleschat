@@ -130,8 +130,9 @@ async def demo_page(request: Request):
                 try:
                     user = get_user_by_email(db, email)
                     if user:
+                        from app.services.user_service import is_admin
                         context["user_email"] = user.email
-                        context["admin_email"] = os.getenv("ADMIN_EMAIL")
+                        context["is_admin"] = is_admin(user)
                 finally:
                     db.close()
         except JWTError:

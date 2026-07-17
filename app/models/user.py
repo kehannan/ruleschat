@@ -1,17 +1,34 @@
 """User and related database models."""
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
 from app.database import Base
+
+
+class Group(Base):
+    """Access-control group. Two groups exist: 'admin' and 'users'.
+
+    Seeded at startup (see _seed_groups in app/main.py); every user belongs
+    to exactly one group. Admin-only features key off membership in 'admin'.
+    """
+    __tablename__ = "groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
 
 
 class User(Base):
     """User model for authentication and profile."""
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String)
     api_key = Column(String, unique=True, index=True, nullable=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    # lazy="joined": user objects are often returned from short-lived sessions
+    # (see get_current_user_from_request), so the group must load with the user.
+    group = relationship("Group", lazy="joined")
 
 
 class Invitation(Base):
