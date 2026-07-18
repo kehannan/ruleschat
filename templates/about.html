@@ -135,45 +135,6 @@
   }
   .site .about-section.alt .stage-list .stage-body .mono { background: var(--paper); }
 
-  /* Definition-list style hardness items. */
-  .site .hard-list {
-    display: grid;
-    gap: 0;
-    margin-top: 18px;
-  }
-  .site .hard-list .row {
-    display: grid;
-    grid-template-columns: 160px 1fr;
-    gap: 24px;
-    padding: 14px 0;
-    border-top: 1px solid var(--hair);
-  }
-  .site .hard-list .term {
-    font-family: var(--display);
-    font-style: normal;
-    font-weight: 600;
-    font-size: 17px;
-    color: var(--accent);
-  }
-  .site .hard-list .body {
-    font-size: 14.5px;
-    line-height: 1.55;
-    color: var(--ink-2);
-  }
-
-  .site .about-links {
-    list-style: none;
-    padding: 0;
-    margin: 18px 0 0;
-    display: grid;
-    gap: 8px;
-  }
-  .site .about-links li {
-    font-size: 14.5px;
-    line-height: 1.55;
-    color: var(--ink-2);
-  }
-
   /* Architecture schematic */
   .site .arch-figure {
     margin: 28px 0 32px;
@@ -206,12 +167,29 @@
   .site .arch-figure .ab-flow-d { stroke: var(--ink); stroke-opacity: 0.55; fill: none; stroke-width: 1.2; stroke-dasharray: 4 4; }
   .site .arch-figure .ab-hr { stroke: var(--hair); stroke-width: 1; }
   .site .arch-figure .ab-loop { font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; fill: var(--accent); }
+  .site .arch-figure .ab-tool { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.04em; fill: var(--accent); }
+
+  /* Stats footer for the trace card (card styles are global) */
+  .site .trace-card { margin: 28px 0 32px; }
+  .site .trace-stats {
+    border-top: 1px solid var(--hair);
+    margin-top: 10px;
+    padding-top: 10px;
+    display: flex;
+    gap: 6px 22px;
+    flex-wrap: wrap;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .site .trace-stats .t-verdict { color: var(--pass); }
 
   @media (max-width: 720px) {
     .site .about-row { grid-template-columns: 1fr; gap: 18px; }
     .site .about-rail { display: flex; align-items: baseline; gap: 12px; }
     .site .about-rail .rail-title { margin-top: 0; }
-    .site .hard-list .row { grid-template-columns: 1fr; gap: 4px; }
   }
 </style>
 {% endblock %}
@@ -318,11 +296,12 @@
             <text class="ab-sub" x="700" y="140">writes the answer</text>
 
             <!-- RULEBOOK & TOOLS -->
-            <rect class="ab-box" x="350" y="260" width="180" height="96"/>
-            <text class="ab-title" x="366" y="288">RULEBOOK &amp; TOOLS</text>
-            <line class="ab-hr" x1="366" y1="300" x2="514" y2="300"/>
-            <text class="ab-sub" x="366" y="322">2,781 exact sections</text>
-            <text class="ab-sub" x="366" y="340">ift / cc calculators</text>
+            <rect class="ab-box" x="310" y="252" width="290" height="118"/>
+            <text class="ab-title" x="326" y="280">RULEBOOK &amp; TOOLS</text>
+            <line class="ab-hr" x1="326" y1="292" x2="584" y2="292"/>
+            <text class="ab-sub" x="326" y="314">2,781 exact sections · ~2,400 official Q&amp;A</text>
+            <text class="ab-tool" x="326" y="334">search_rules · get_section</text>
+            <text class="ab-tool" x="326" y="352">ift_attack · resolve_attack · resolve_cc</text>
 
             <!-- Browser <-> Server -->
             <line class="ab-flow" x1="196" y1="88" x2="346" y2="88" marker-end="url(#ah)"/>
@@ -332,18 +311,37 @@
 
             <!-- Agentic loop: server <-> model <-> tools, in accent -->
             <line class="ab-flow-a" x1="530" y1="88" x2="680" y2="88" marker-end="url(#ah-a)"/>
-            <text class="ab-lbl-a" x="548" y="80">RULES + TOOL DEFS</text>
+            <text class="ab-lbl-a" x="540" y="80">1 · RULES + TOOL DEFS</text>
             <line class="ab-flow-a" x1="684" y1="132" x2="534" y2="132" marker-end="url(#ah-a)"/>
-            <text class="ab-lbl-a" x="566" y="152">TOOL CALLS</text>
-            <path class="ab-flow-a" d="M 415 156 L 415 256" marker-end="url(#ah-a)"/>
-            <path class="ab-flow-a" d="M 465 256 L 465 156" marker-end="url(#ah-a)"/>
-            <text class="ab-lbl-a" x="288" y="210">FETCH · COMPUTE</text>
+            <text class="ab-lbl-a" x="558" y="152">2 · TOOL CALLS</text>
+            <path class="ab-flow-a" d="M 415 156 L 415 248" marker-end="url(#ah-a)"/>
+            <path class="ab-flow-a" d="M 465 248 L 465 156" marker-end="url(#ah-a)"/>
+            <text class="ab-lbl-a" x="266" y="210">3 · FETCH · COMPUTE</text>
 
-            <text class="ab-loop" x="560" y="212">AGENTIC LOOP</text>
-            <text class="ab-lbl-a" x="560" y="230">repeats until the model stops</text>
-            <text class="ab-lbl-a" x="560" y="246">calling tools and answers</text>
+            <text class="ab-loop" x="628" y="212">AGENTIC LOOP</text>
+            <text class="ab-lbl-a" x="628" y="230">1 → 2 → 3, repeating until the</text>
+            <text class="ab-lbl-a" x="628" y="246">model stops calling tools and answers</text>
           </svg>
           <figcaption>The model asks for exactly the rules it needs; code fetches or computes them; repeat until it answers.</figcaption>
+        </figure>
+
+        <div class="about-prose">
+          <p>
+            Here is one real run from the eval set — twelve tool calls to
+            settle a one-line stacking question, because the answer is
+            spread across three chapters of the rulebook:
+          </p>
+        </div>
+
+        <figure class="trace-card">
+          <figcaption>ABRIDGED TRACE · EASY EVAL Q1 · DEEPSEEK-V4-FLASH</figcaption>
+          <div class="trace-q">Q: Can I set up a half squad, MMG and leader in a steeple?</div>
+          <div class="trace-line"><span class="t-call">search_rules</span><span class="t-args"> ×2</span> <span class="t-note">steeple stacking lives in B31</span></div>
+          <div class="trace-line"><span class="t-call">get_section</span><span class="t-args">("B31.21", …) ×4</span> <span class="t-note">limit: one HS-equivalent — and no Guns</span></div>
+          <div class="trace-line"><span class="t-call">search_rules</span><span class="t-args"> ×3</span> <span class="t-note">is an MMG a Gun or a Support Weapon?</span></div>
+          <div class="trace-line"><span class="t-call">get_section</span><span class="t-args">("C2.1", "A5.4", …) ×3</span> <span class="t-note">½&Prime; counter = SW; SW have no stacking limit</span></div>
+          <div class="trace-a">A: Yes — the half squad fills the limit, the leader counts as zero (A5.5), and an MMG is a SW, not a Gun.</div>
+          <div class="trace-stats"><span>12 tool calls</span><span>156k tokens in</span><span>63 s</span><span class="t-verdict">judged pass</span></div>
         </figure>
 
         <ol class="stage-list">
@@ -395,42 +393,12 @@
   </div>
 </section>
 
-<!-- 03 · Attach a .vsav save -->
+<!-- 03 · Deterministic answers -->
 <section class="about-section">
   <div class="wrap-narrow">
     <div class="about-row">
       <div class="about-rail">
         <div class="num-eyebrow"><span class="num">03</span></div>
-        <div class="rail-title">Attach a .vsav</div>
-      </div>
-      <div>
-        <h2 class="about-h2">Pasting in your<br /><em>board state</em>.</h2>
-        <div class="about-prose">
-          <p>
-            VASL, the online client for ASL, writes each game to a
-            <span class="mono">.vsav</span> save — a machine-readable snapshot
-            of the board. Attach one and the server parses it into a plain-text
-            <span class="mono">BOARD STATE</span> block: every unit, its hex,
-            its state flags and markers, and the terrain it stands on.
-          </p>
-          <p>
-            The model treats that block as ground truth — exact parsed data
-            beats any screenshot — which removes misread counters, wrong
-            stacking, and mistaken terrain from the answer. Try it in the
-            <a class="inline-link" href="{{ url_for('demo') }}">demo</a>.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- 04 · Deterministic answers -->
-<section class="about-section alt">
-  <div class="wrap-narrow">
-    <div class="about-row">
-      <div class="about-rail">
-        <div class="num-eyebrow"><span class="num">04</span></div>
         <div class="rail-title">Deterministic</div>
       </div>
       <div>
@@ -470,9 +438,9 @@
             <div>
               <div class="stage-title"><span class="mono">resolve_attack</span> · Save-driven fire</div>
               <div class="stage-body">
-                A whole fire attack computed from an attached
-                <span class="mono">.vsav</span> — every modifier derived from
-                the file, returned as an itemized ledger.
+                A whole fire attack computed from an attached VASL
+                <span class="mono">.vsav</span> save — every modifier derived
+                from the file, returned as an itemized ledger.
               </div>
             </div>
           </li>
@@ -498,11 +466,11 @@
   </div>
 </section>
 
-<section class="about-section">
+<section class="about-section alt">
   <div class="wrap-narrow">
     <div class="about-row">
       <div class="about-rail">
-        <div class="num-eyebrow"><span class="num">05</span></div>
+        <div class="num-eyebrow"><span class="num">04</span></div>
         <div class="rail-title">Verified</div>
       </div>
       <div>
@@ -539,81 +507,6 @@
             </div>
           </li>
         </ol>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- 05 · What makes this hard -->
-<section class="about-section alt">
-  <div class="wrap-narrow">
-    <div class="about-row">
-      <div class="about-rail">
-        <div class="num-eyebrow"><span class="num">06</span></div>
-        <div class="rail-title">Hardness</div>
-      </div>
-      <div>
-        <h2 class="about-h2">Where this domain bites the<br /><em>standard RAG playbook</em>.</h2>
-        <div class="hard-list">
-          <div class="row">
-            <div class="term">Scale</div>
-            <div class="body">Over a million tokens — no context window holds it.</div>
-          </div>
-          <div class="row">
-            <div class="term">Cross-references</div>
-            <div class="body">Complete answers need several non-adjacent sections at once.</div>
-          </div>
-          <div class="row">
-            <div class="term">Multimodal content</div>
-            <div class="body">Maps, counters, and tables that text retrieval loses.</div>
-          </div>
-          <div class="row">
-            <div class="term">Precision</div>
-            <div class="body">Miss one exception and the gameplay is wrong.</div>
-          </div>
-          <div class="row">
-            <div class="term">Calculation</div>
-            <div class="body">Many questions chain table lookups retrieval can't resolve — hence the tools.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- 06 · About ASL -->
-<section class="about-section">
-  <div class="wrap-narrow">
-    <div class="about-row">
-      <div class="about-rail">
-        <div class="num-eyebrow"><span class="num">07</span></div>
-        <div class="rail-title">About ASL</div>
-      </div>
-      <div>
-        <h2 class="about-h2">A 1985 hex-and-counter<br /><em>tactical wargame</em>.</h2>
-        <div class="about-prose">
-          <p>
-            Advanced Squad Leader is a WW2 tactical hex-and-counter wargame,
-            published by Avalon Hill in 1985 and now by Multi-Man Publishing.
-            Most play today happens online over
-            <a class="inline-link" href="https://vassalengine.org/" target="_blank" rel="noopener noreferrer">VASSAL</a>
-            and <a class="inline-link" href="https://vasl.info/" target="_blank" rel="noopener noreferrer">VASL</a>.
-          </p>
-        </div>
-        <ul class="about-links">
-          <li>
-            <a class="inline-link" href="https://en.wikipedia.org/wiki/Advanced_Squad_Leader" target="_blank" rel="noopener noreferrer">Wikipedia entry</a>
-            — background and history
-          </li>
-          <li>
-            <a class="inline-link" href="https://vasl.info/" target="_blank" rel="noopener noreferrer">VASL</a>
-            — the online client that produces the <span class="mono">.vsav</span> saves this app reads
-          </li>
-          <li>
-            <a class="inline-link" href="https://www.multimanpublishing.com/" target="_blank" rel="noopener noreferrer">Multi-Man Publishing</a>
-            — current publisher of ASL
-          </li>
-        </ul>
       </div>
     </div>
   </div>
