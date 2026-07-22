@@ -209,6 +209,94 @@
   .site #connection-status.disconnected { color: var(--fail); }
   .site #connection-status.disconnected .pip { background: var(--fail); }
 
+  /* Admin-only "show logging" row + Langfuse trace drill-down modal.
+     The modal shell reuses the pdf-modal chrome classes, but those reference
+     design-system vars this page doesn't define — so the trace modal sets
+     its own opaque surfaces from the editorial palette (--paper/--ink/--hair). */
+  .site .trace-row { margin-top: 10px; }
+  .site .trace-row button, .site .trace-status button {
+    background: transparent;
+    border: 1px solid var(--hair); border-radius: 2px;
+    color: var(--muted);
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    padding: 3px 8px; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .site .trace-row button:hover, .site .trace-status button:hover {
+    border-color: var(--hair-2); color: var(--ink);
+  }
+  .site #trace-modal .pdf-modal-content {
+    background: var(--paper);
+    border-color: var(--hair);
+  }
+  .site #trace-modal .pdf-modal-header {
+    background: var(--paper-2);
+    border-bottom-color: var(--hair);
+  }
+  .site #trace-modal .pdf-modal-header h3 { color: var(--ink); }
+  .site #trace-modal .pdf-modal-close { color: var(--muted); border-color: var(--hair); }
+  .site #trace-modal .pdf-modal-close:hover {
+    background: var(--paper-2); color: var(--ink); border-color: var(--hair-2);
+  }
+  .site .trace-modal-body {
+    flex: 1; overflow: auto;
+    padding: 16px 20px;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink);
+    background: var(--paper);
+  }
+  .site .trace-status { padding: 24px; text-align: center; color: var(--muted); }
+  .site .trace-status button { margin-left: 10px; }
+  .site .trace-meta {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    padding-bottom: 12px; margin-bottom: 12px;
+    border-bottom: 1px solid var(--hair);
+    color: var(--muted); font-size: 11px;
+  }
+  .site .trace-meta a { color: var(--accent); }
+  .site .trace-children {
+    margin-left: 13px;
+    border-left: 1px solid var(--hair);
+    padding-left: 9px;
+  }
+  .site .trace-node-row {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 4px 6px;
+    border-radius: 2px; cursor: pointer;
+  }
+  .site .trace-node-row:hover { background: var(--paper-2); }
+  .site .trace-node-row .t-caret { width: 10px; flex: none; color: var(--muted); }
+  .site .trace-node-row .t-name { font-weight: 600; }
+  .site .trace-node-row.error .t-name { color: var(--fail); }
+  .site .trace-node-row .t-type {
+    font-size: 9px; letter-spacing: .08em;
+    padding: 1px 5px;
+    border: 1px solid var(--hair); border-radius: 2px;
+    color: var(--muted);
+  }
+  .site .trace-node-row .t-type.generation { color: var(--accent); border-color: var(--accent); }
+  .site .trace-node-row .t-type.tool { color: var(--pass); border-color: var(--pass); }
+  .site .trace-node-row .t-metrics { margin-left: auto; color: var(--muted); white-space: nowrap; }
+  .site .trace-node-detail {
+    margin: 2px 0 8px 22px;
+    padding: 8px 10px;
+    background: var(--paper-2);
+    border: 1px solid var(--hair); border-radius: 2px;
+    font-size: 11px;
+  }
+  .site .trace-node-detail .t-label {
+    color: var(--muted);
+    text-transform: uppercase; letter-spacing: .1em; font-size: 9px;
+  }
+  .site .trace-node-detail pre {
+    margin: 4px 0 10px;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 240px; overflow: auto;
+    color: var(--ink-2);
+  }
+  .site .trace-node-detail pre:last-child { margin-bottom: 0; }
+
   /* Visual board viewer styles live in site-design-system.css (shared
      with the demo page). */
 
@@ -314,6 +402,20 @@
     </div>
   </div>
 </div>
+
+{% if is_admin %}
+<!-- Langfuse trace viewer modal (admin only) — shell reuses pdf-modal chrome -->
+<div id="trace-modal" class="pdf-modal" style="display: none;">
+  <div class="pdf-modal-backdrop" onclick="closeTraceModal()"></div>
+  <div class="pdf-modal-content">
+    <div class="pdf-modal-header">
+      <h3>Answer <em>trace</em></h3>
+      <button class="pdf-modal-close" onclick="closeTraceModal()" title="Close" aria-label="Close">×</button>
+    </div>
+    <div id="trace-modal-body" class="trace-modal-body"></div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -524,6 +626,9 @@
           if (contentEl) finalizeMessage(contentEl);
           if (msg.conversation_id) currentConversationId = msg.conversation_id;
           if (msg.timing) displayLatencyTimeline(msg.timing);
+          if (msg.timing && msg.timing.trace_id && typeof attachTraceButton === 'function') {
+            attachTraceButton(msg.timing.trace_id);
+          }
           scrollChatBottom();
           return;
         }
@@ -659,4 +764,194 @@
     setupWebSocket();
   });
 </script>
+
+{% if is_admin %}
+<script>
+  // Admin-only Langfuse trace viewer — "show logging" on each answered
+  // question, backed by GET /api/admin/traces/{id}. All DOM is built with
+  // createElement/textContent: trace payloads contain model I/O and must
+  // never be interpreted as HTML.
+  function attachTraceButton(traceId) {
+    const assistants = document.querySelectorAll('.msg.assistant');
+    const msgEl = assistants[assistants.length - 1];
+    if (!msgEl || msgEl.querySelector('.trace-row')) return;
+    const row = document.createElement('div');
+    row.className = 'trace-row';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'show logging';
+    btn.onclick = () => openTraceModal(traceId);
+    row.appendChild(btn);
+    msgEl.appendChild(row);
+  }
+
+  function openTraceModal(traceId) {
+    document.getElementById('trace-modal').style.display = 'flex';
+    loadTrace(traceId);
+  }
+
+  function closeTraceModal() {
+    document.getElementById('trace-modal').style.display = 'none';
+  }
+
+  function traceStatusEl(text, retryTraceId) {
+    const div = document.createElement('div');
+    div.className = 'trace-status';
+    div.appendChild(document.createTextNode(text));
+    if (retryTraceId) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'retry';
+      btn.onclick = () => loadTrace(retryTraceId);
+      div.appendChild(btn);
+    }
+    return div;
+  }
+
+  async function loadTrace(traceId) {
+    const body = document.getElementById('trace-modal-body');
+    body.replaceChildren(traceStatusEl('Loading trace…'));
+    try {
+      const r = await fetch(`/api/admin/traces/${encodeURIComponent(traceId)}`);
+      if (r.status === 404) {
+        body.replaceChildren(traceStatusEl(
+          'Trace not available yet — Langfuse ingests in the background. Give it a few seconds.',
+          traceId));
+        return;
+      }
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        body.replaceChildren(traceStatusEl(err.detail || `Failed to load trace (HTTP ${r.status})`));
+        return;
+      }
+      renderTrace(await r.json(), body);
+    } catch (e) {
+      body.replaceChildren(traceStatusEl(`Failed to load trace: ${e.message}`, traceId));
+    }
+  }
+
+  function fmtDuration(ms) {
+    if (ms == null) return '';
+    return ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
+  }
+
+  function fmtTokens(node) {
+    if (node.input_tokens == null && node.output_tokens == null) return '';
+    return `${node.input_tokens ?? 0}→${node.output_tokens ?? 0} tok`;
+  }
+
+  function prettyVal(v) {
+    return typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+  }
+
+  function renderTrace(trace, body) {
+    body.replaceChildren();
+
+    const meta = document.createElement('div');
+    meta.className = 'trace-meta';
+    const parts = [
+      trace.name,
+      trace.timestamp ? new Date(trace.timestamp).toLocaleTimeString() : null,
+      trace.latency_s != null ? trace.latency_s.toFixed(1) + ' s total' : null,
+      trace.tags && trace.tags.length ? trace.tags.join(', ') : null,
+    ].filter(Boolean);
+    for (const p of parts) {
+      const span = document.createElement('span');
+      span.textContent = p;
+      meta.appendChild(span);
+    }
+    if (trace.langfuse_url) {
+      const a = document.createElement('a');
+      a.href = trace.langfuse_url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'open in Langfuse ↗';
+      meta.appendChild(a);
+    }
+    body.appendChild(meta);
+
+    if (!trace.observations || !trace.observations.length) {
+      body.appendChild(traceStatusEl('Trace found, but no observations yet.', trace.id));
+      return;
+    }
+    for (const node of trace.observations) body.appendChild(renderTraceNode(node));
+  }
+
+  function renderTraceNode(node) {
+    const wrap = document.createElement('div');
+
+    const row = document.createElement('div');
+    row.className = 'trace-node-row' + (node.level === 'ERROR' ? ' error' : '');
+
+    const caret = document.createElement('span');
+    caret.className = 't-caret';
+    caret.textContent = '▸';
+    row.appendChild(caret);
+
+    const name = document.createElement('span');
+    name.className = 't-name';
+    name.textContent = node.name || '(unnamed)';
+    row.appendChild(name);
+
+    const type = document.createElement('span');
+    type.className = 't-type ' + (node.type || '').toLowerCase();
+    type.textContent = node.type || 'SPAN';
+    row.appendChild(type);
+
+    if (node.model) {
+      const model = document.createElement('span');
+      model.textContent = node.model;
+      row.appendChild(model);
+    }
+
+    const metrics = document.createElement('span');
+    metrics.className = 't-metrics';
+    metrics.textContent = [fmtDuration(node.duration_ms), fmtTokens(node)].filter(Boolean).join(' · ');
+    row.appendChild(metrics);
+
+    wrap.appendChild(row);
+
+    const detail = document.createElement('div');
+    detail.className = 'trace-node-detail';
+    detail.style.display = 'none';
+    const sections = [
+      ['status', node.status_message],
+      ['input', node.input],
+      ['output', node.output],
+      ['metadata', node.metadata],
+    ];
+    let hasDetail = false;
+    for (const [label, value] of sections) {
+      if (value == null || (typeof value === 'object' && !Object.keys(value).length)) continue;
+      hasDetail = true;
+      const lab = document.createElement('div');
+      lab.className = 't-label';
+      lab.textContent = label;
+      detail.appendChild(lab);
+      const pre = document.createElement('pre');
+      pre.textContent = prettyVal(value);
+      detail.appendChild(pre);
+    }
+    if (hasDetail) {
+      wrap.appendChild(detail);
+      row.onclick = () => {
+        const open = detail.style.display !== 'none';
+        detail.style.display = open ? 'none' : 'block';
+        caret.textContent = open ? '▸' : '▾';
+      };
+    } else {
+      caret.textContent = '·';
+      row.style.cursor = 'default';
+    }
+
+    if (node.children && node.children.length) {
+      const kids = document.createElement('div');
+      kids.className = 'trace-children';
+      for (const child of node.children) kids.appendChild(renderTraceNode(child));
+      wrap.appendChild(kids);
+    }
+    return wrap;
+  }
+</script>
+{% endif %}
 {% endblock %}

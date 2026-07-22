@@ -3,6 +3,7 @@ import os
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Optional
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, Depends, HTTPException
@@ -277,6 +278,34 @@ async def delete_conversation(conversation_id: int, request: Request):
         return {"status": "deleted"}
     finally:
         db.close()
+
+
+@router.get("/api/admin/traces/{trace_id}")
+async def get_langfuse_trace(trace_id: str, request: Request):
+    """Admin-only: fetch one Langfuse trace as a nested observation tree.
+
+    Backs the "show logging" drill-down in the chat UI. 404 means the trace
+    isn't queryable yet (Langfuse ingests asynchronously) — the client may
+    retry after a few seconds.
+    """
+    user = get_current_user_from_request(request)
+    if not user or not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", trace_id):
+        raise HTTPException(status_code=400, detail="Invalid trace id")
+
+    from app.core.observability import TraceNotFound, fetch_trace_tree
+
+    try:
+        # The Langfuse client is blocking — keep it off the event loop.
+        return await asyncio.to_thread(fetch_trace_tree, trace_id)
+    except TraceNotFound:
+        raise HTTPException(
+            status_code=404,
+            detail="Trace not available yet — Langfuse ingests asynchronously; retry shortly.",
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 # ============================================================================

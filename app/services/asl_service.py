@@ -1156,6 +1156,8 @@ Your response:"""
             # still be clickable client-side via makeSectionReferencesClickable.
             "rag_sources": [],
         }
+        if root_trace.trace_id:
+            timing_data["trace_id"] = root_trace.trace_id
 
         if stream:
             def one_shot_generator():
@@ -1262,6 +1264,8 @@ Your response:"""
 
         if stream:
             timing_data: Dict[str, Any] = {}
+            if root_trace.trace_id:
+                timing_data["trace_id"] = root_trace.trace_id
 
             def stream_generator():
                 in_tok = 0
@@ -1646,6 +1650,8 @@ Your response:"""
 
         # Use a mutable dict to capture timing data from the generator closure
         timing_data: Dict[str, Any] = {} if return_timing else {}
+        if trace.trace_id:
+            timing_data["trace_id"] = trace.trace_id
 
         def stream_generator():
             first_event_time = None
@@ -1782,6 +1788,8 @@ Your response:"""
             question if question is not None else (input_data if isinstance(input_data, str) else ""),
             model, trace_ctx, path="openai", stream=True,
         )
+        if root_trace.trace_id:
+            timing_data["trace_id"] = root_trace.trace_id
 
         def _gen_input(current_input):
             """Trace-safe view of a turn's input (str, function results, or multimodal)."""

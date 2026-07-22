@@ -112,6 +112,13 @@ class Observation:
         self._obs = obs
         self._ended = False
 
+    @property
+    def trace_id(self) -> Optional[str]:
+        """Langfuse trace ID of this observation, or None when tracing is off."""
+        if self._obs is None:
+            return None
+        return getattr(self._obs, "trace_id", None)
+
     def child(self, name: str, as_type: str = "span", **kwargs) -> "Observation":
         if self._obs is None:
             return Observation(None)
@@ -191,3 +198,95 @@ def flush() -> None:
             client.flush()
         except Exception as e:
             logging.warning(f"Langfuse flush failed: {e}")
+
+
+class TraceNotFound(Exception):
+    """Trace ID unknown to Langfuse — usually not ingested yet (async export)."""
+
+
+def _iso(dt: Any) -> Optional[str]:
+    try:
+        return dt.isoformat() if dt is not None else None
+    except Exception:
+        return None
+
+
+def _duration_ms(start: Any, end: Any) -> Optional[float]:
+    try:
+        if start is None or end is None:
+            return None
+        return round((end - start).total_seconds() * 1000, 1)
+    except Exception:
+        return None
+
+
+def fetch_trace_tree(trace_id: str) -> Dict[str, Any]:
+    """Fetch one trace from the Langfuse API as a JSON-ready dict.
+
+    Observations come back flat; they are nested here into a tree via
+    parent_observation_id (children sorted by start time) so the frontend
+    renders without knowing Langfuse's schema.
+
+    Raises RuntimeError when tracing is unconfigured, TraceNotFound when the
+    trace isn't queryable yet (ingestion is async — retryable).
+    """
+    client = get_langfuse()
+    if client is None:
+        raise RuntimeError("Langfuse is not configured on this deployment")
+
+    from langfuse.api.core.api_error import ApiError
+
+    try:
+        trace = client.api.trace.get(trace_id)
+    except ApiError as e:
+        if e.status_code == 404:
+            raise TraceNotFound(trace_id) from e
+        raise RuntimeError(f"Langfuse API error (HTTP {e.status_code})") from e
+
+    nodes: Dict[str, Dict[str, Any]] = {}
+    for obs in trace.observations or []:
+        usage = getattr(obs, "usage", None)
+        nodes[obs.id] = {
+            "id": obs.id,
+            "parent_id": obs.parent_observation_id,
+            "name": obs.name,
+            "type": (obs.type or "SPAN").upper(),
+            "start_time": _iso(obs.start_time),
+            "duration_ms": _duration_ms(obs.start_time, obs.end_time),
+            "model": obs.model,
+            "input_tokens": getattr(usage, "input", None) if usage else None,
+            "output_tokens": getattr(usage, "output", None) if usage else None,
+            "level": obs.level,
+            "status_message": obs.status_message,
+            "input": obs.input,
+            "output": obs.output,
+            "metadata": obs.metadata,
+            "children": [],
+        }
+
+    roots: List[Dict[str, Any]] = []
+    for node in nodes.values():
+        parent = nodes.get(node["parent_id"])
+        (parent["children"] if parent else roots).append(node)
+    for node in list(nodes.values()) + [{"children": roots}]:
+        node["children"].sort(key=lambda n: n["start_time"] or "")
+
+    base_url = (
+        os.getenv("LANGFUSE_BASE_URL")
+        or os.getenv("LANGFUSE_HOST")
+        or "https://cloud.langfuse.com"
+    ).rstrip("/")
+    html_path = getattr(trace, "html_path", None)
+
+    return {
+        "id": trace.id,
+        "name": trace.name,
+        "timestamp": _iso(trace.timestamp),
+        "latency_s": getattr(trace, "latency", None),
+        "user_id": trace.user_id,
+        "session_id": trace.session_id,
+        "tags": trace.tags,
+        "metadata": trace.metadata,
+        "langfuse_url": (base_url + html_path) if html_path else None,
+        "observations": roots,
+    }
