@@ -73,9 +73,9 @@ _counts: dict = {}
 
 def _demo_limit() -> int:
     try:
-        return int(os.getenv("SCENARIOS_DEMO_LIMIT", "8"))
+        return int(os.getenv("SCENARIOS_DEMO_LIMIT", "5"))
     except ValueError:
-        return 8
+        return 5
 
 
 def _client(request) -> str:
@@ -162,6 +162,7 @@ async def scenarios_demo(request: Request, user: User = Depends(get_current_user
         "models": _providers.models_for_dropdown()[:1],
         "pricing": _providers.pricing(), "coverage": _tools.coverage(),
         "demo": True, "remaining": _remaining(request), "daily_limit": _demo_limit(),
+        "imported_summary": _tools.imported_summary(),
         "signed_in": user is not None, "allowed": is_admin(user),
         "ws_path": "/scenarios-demo/ws", "login_url": "/login",
     })
