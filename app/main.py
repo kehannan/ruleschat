@@ -180,6 +180,16 @@ app.include_router(ift.router, tags=["ift"])
 app.include_router(board_viewer.router, tags=["board-viewer"])
 app.include_router(invite.router, tags=["invite"])
 
+# The scenario collection lives in a separate project; these routes only exist
+# when SCENARIOS_DIR points at a checkout of it. Absent, ruleschat runs exactly
+# as before rather than failing to boot over an optional feature.
+from app.api import scenarios as _scenarios  # noqa: E402
+if _scenarios.available():
+    app.include_router(_scenarios.router, tags=["scenarios"])
+    logging.info("scenario routes enabled from %s", _scenarios.SCENARIOS_DIR)
+else:
+    logging.info("SCENARIOS_DIR not set or invalid — scenario routes disabled")
+
 
 # Admin dependency
 async def get_admin_user(
