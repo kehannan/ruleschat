@@ -117,4 +117,20 @@ numbers."""
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-4o")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
 WEBSOCKET_PING_INTERVAL = int(os.getenv("WEBSOCKET_PING_INTERVAL", "30"))
-STREAMING_DELAY = float(os.getenv("STREAMING_DELAY", "0.01")) 
+STREAMING_DELAY = float(os.getenv("STREAMING_DELAY", "0.01"))
+
+# Sign-in cookie scope.
+#
+# Set COOKIE_DOMAIN to ".ruleschat.com" and the session cookie is sent to every
+# subdomain, which is how a sibling app (scenarios.ruleschat.com) can accept the
+# same login. Left unset, the cookie stays host-only — correct for localhost and
+# for any deployment with nothing else on the domain.
+#
+# Whatever this is, it must be identical on set and delete: a cookie written with
+# a domain cannot be cleared by a delete without one, and logout would silently
+# stop working.
+COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN") or None
+
+# Send the cookie over HTTPS only. Defaults on; set COOKIE_SECURE=0 for local
+# development over plain HTTP, where a secure cookie is never stored at all.
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "1") not in ("0", "false", "False") 

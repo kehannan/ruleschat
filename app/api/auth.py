@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.config import COOKIE_DOMAIN, COOKIE_SECURE
 from app.core.auth import create_access_token, verify_password, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.database import get_db
 from app.services.user_service import get_user_by_email
@@ -51,6 +52,8 @@ def do_login(
         value=token,
         httponly=True,
         samesite="Lax",
+        domain=COOKIE_DOMAIN,
+        secure=COOKIE_SECURE,
         max_age=3600 * ACCESS_TOKEN_EXPIRE_MINUTES
     )
     return response
@@ -60,6 +63,8 @@ def do_login(
 def logout():
     """Log out user."""
     response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    response.delete_cookie("access_token")
+    # The domain must match the one it was set with, or the browser treats this
+    # as a different cookie and the real one survives the logout.
+    response.delete_cookie("access_token", domain=COOKIE_DOMAIN)
     return response
 
