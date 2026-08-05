@@ -60,6 +60,7 @@ if available():
     _templates.env.globals.update(
         base="/scenarios", list_url="/scenarios",
         chat_url="/scenarios/chat", demo_url="/scenarios-demo",
+        design_url="/scenarios-design",
     )
     _DB = _root / "inventory" / "inventory.db"
 
@@ -165,6 +166,18 @@ async def scenarios_demo(request: Request, user: User = Depends(get_current_user
         "imported_summary": _tools.imported_summary(),
         "signed_in": user is not None, "allowed": is_admin(user),
         "ws_path": "/scenarios-demo/ws", "login_url": "/login",
+    })
+
+
+@router.get("/scenarios-design", name="scenarios_design", response_class=HTMLResponse)
+async def scenarios_design(request: Request):
+    """How the collection was built and what is in it. Open to anyone.
+
+    Explains the method and the measured accuracy; carries no card data, so it
+    sits alongside the demo rather than behind the login.
+    """
+    return _templates.TemplateResponse("design.html", {
+        "request": request, "active_page": "design", "s": _tools.design_stats(),
     })
 
 
