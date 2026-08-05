@@ -159,7 +159,7 @@ async def scenarios_demo(request: Request, user: User = Depends(get_current_user
     """Open to anyone — no login, capped per visitor per day."""
     return _templates.TemplateResponse("chat.html", {
         "request": request, "active_page": "demo",
-        "models": _providers.models_for_dropdown()[:1],
+        "models": [_providers.demo_model()],
         "pricing": _providers.pricing(), "coverage": _tools.coverage(),
         "demo": True, "remaining": _remaining(request), "daily_limit": _demo_limit(),
         "imported_summary": _tools.imported_summary(),
