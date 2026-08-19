@@ -19,7 +19,7 @@ from app.core.auth import get_current_user
 from app.services.user_service import update_user_profile, get_user_by_email
 
 # Import routers
-from app.api import auth, user, chat, evals, demo, ift, board_viewer, invite
+from app.api import auth, user, chat, evals, demo, ift, board_viewer, invite, ask
 
 # Load environment variables
 load_dotenv()
@@ -179,6 +179,7 @@ app.include_router(demo.router, tags=["demo"])
 app.include_router(ift.router, tags=["ift"])
 app.include_router(board_viewer.router, tags=["board-viewer"])
 app.include_router(invite.router, tags=["invite"])
+app.include_router(ask.router, tags=["ask"])
 
 # The scenario collection lives in a separate project; these routes only exist
 # when SCENARIOS_DIR points at a checkout of it. Absent, ruleschat runs exactly

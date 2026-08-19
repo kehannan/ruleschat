@@ -1,14 +1,30 @@
-# AskRuleschat — VASL module extension (Phase 0 spike)
+# AskRuleschat — VASL module extension
 
 A VASSAL module extension (`.vmdx`) for VASL that adds an **Ask LLM** toolbar
-button. Phase 0 scope: prove the live-game → `.vsav` → ruleschat-parser
-pipeline end to end. Clicking the button snapshots the current game with
-`GameState.saveGame(File)` and POSTs the bytes (as a base64 data URL, the
-same payload shape the website uses) to `POST /api/vsav/preview`, then shows
-the HTTP status and a manifest summary in a dialog.
+button. It opens a dialog where the player types a question; the extension
+snapshots the current game with `GameState.saveGame(File)` and sends
+question + save + player side to ruleschat's `POST /api/ask`, then shows
+the answer. With no game loaded it still works as a plain rules Q&A.
 
-No LLM question yet — that is Phase 1 (`POST /api/ask` with per-user API
-keys and `perspective_side` fog-of-war masking).
+## Credentials (one field, auto-detected by the server)
+
+- **ruleschat account key** — minted on the ruleschat `/profile` page.
+  LLM calls run on the server's provider keys; usage is capped per day
+  (`ASK_DAILY_LIMIT`, default 50).
+- **OpenRouter pass-through** — the user's own `sk-or-...` key. Generation
+  is billed to their OpenRouter account; the server's OpenAI key is used
+  only for retrieval. The key is per-request only, never stored. The model
+  field must then be an OpenRouter slug (e.g. `deepseek/deepseek-v4-flash`,
+  the default).
+
+## Fog of war
+
+The request carries `PlayerRoster.getMySide()` (VASL: "Axis"/"Allied") and
+the VASSAL user id. The server resolves a perspective side — exact match
+against the save's unit sides first, then the save's player→side map — and
+masks the opponent's concealed units to "?" and drops their HIP units. An
+unresolvable side masks BOTH sides' hidden units (fails closed, never
+leaks). Only a request with neither field gets the full-information view.
 
 ## Why this architecture
 
@@ -42,13 +58,12 @@ Bytecode targets `--release 11` to match what VASL itself ships
    the VASSAL Module Manager → *Add Extension*, which does the copy for you).
 3. Launch VASL. Accept the standard "this module contains custom code"
    warning for the new extension.
-4. Open any scenario or saved game, click **Ask LLM** in the toolbar,
-   then **Send board to server**.
-5. Expect `HTTP 200` and a piece count. `HTTP 429` means the 30/hour/IP
-   preview rate limit; `Connection refused` means the dev server isn't up.
+4. Open a scenario or saved game, click **Ask LLM**, fill in the API key
+   (ruleschat profile key or `sk-or-...`), type a question, hit Enter.
 
-The server URL is a persisted extension attribute (editable in the VASSAL
-extension editor; default `http://127.0.0.1:8000`).
+Server URL / API key / model are persisted extension attributes (defaults
+editable in the VASSAL extension editor) and editable per-session in the
+dialog itself.
 
 ## Structure
 
@@ -72,12 +87,12 @@ extension editor; default `http://127.0.0.1:8000`).
   `ObfuscatingOutputStream` + a zip with a `savedGame` entry).
 - Whether `saveGame` posts a "game saved" line to the chatter (cosmetic).
 
-## Phase 1 (next)
+## Later phases
 
-- Server: extract the shared vsav→parse→prompt orchestration out of
-  `app/api/chat.py`/`app/api/demo.py`, add `POST /api/ask`
-  (question + vsav + player side), authenticate against `User.api_key`
-  (minted by the existing `/generate-api-key`, currently checked by nothing).
-- Extension: question box + streamed answer pane, API-key setting stored in
-  VASSAL prefs, send the player's side so the server masks the opponent's
-  concealed/HIP units.
+- Streaming answers (the endpoint is one-shot; long agentic answers can
+  take a minute-plus — the dialog just waits with the button disabled).
+- Unify the site's two websocket orchestrations (`app/api/chat.py`,
+  `app/api/demo.py`) with `/api/ask` behind one shared service function.
+- Hash account API keys at rest (currently plaintext in the users table).
+- In-memory save building instead of `saveGame(File)` if the live test
+  shows side effects (see above).
