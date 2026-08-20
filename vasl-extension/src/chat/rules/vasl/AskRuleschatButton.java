@@ -58,6 +58,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private JPasswordField keyField;
   private JTextField modelField;
   private JTextField questionField;
+  private javax.swing.JCheckBox soloCheck;
   private JTextArea output;
   private JButton askButton;
 
@@ -128,6 +129,17 @@ public class AskRuleschatButton extends AbstractConfigurable {
       top.add((java.awt.Component) pair[1], gc);
       row++;
     }
+    // Solo: full-information view — no fog-of-war masking. Defaults on
+    // when the player hasn't joined a real side (solo/observer), off when
+    // they have (two-player: mask the opponent's hidden units).
+    final String side = PlayerRoster.isActive() ? PlayerRoster.getMySide() : null;
+    soloCheck = new javax.swing.JCheckBox(
+      "Solo game: full view (no hidden-unit masking)",
+      side == null || side.isEmpty() || "<observer>".equals(side));
+    gc.gridx = 1; gc.gridy = row; gc.weightx = 1;
+    top.add(soloCheck, gc);
+    row++;
+
     gc.gridx = 1; gc.gridy = row; gc.weightx = 0;
     gc.fill = GridBagConstraints.NONE;
     gc.anchor = GridBagConstraints.EAST;
@@ -185,15 +197,24 @@ public class AskRuleschatButton extends AbstractConfigurable {
       }
     }
     final File vsav = snapshot;
-    final String mySide = PlayerRoster.isActive() ? PlayerRoster.getMySide() : null;
-    final String playerId = GameModule.getUserId();
+    final boolean solo = soloCheck.isSelected();
+    final String mySide =
+      !solo && PlayerRoster.isActive() ? PlayerRoster.getMySide() : null;
+    // The "RealName" preference is the player's display name. Never use
+    // GameModule.getUserId() here — that is the VASSAL *password* pref
+    // (used internally as the ownership id) and must not leave the app.
+    final Object realName = solo ? null
+      : GameModule.getGameModule().getPrefs().getValue(GameModule.REAL_NAME);
+    final String playerId = realName == null ? null : realName.toString();
 
     askButton.setEnabled(false);
     append("");
     append("Q: " + question);
     append(vsav != null
-           ? "(board attached, side: " + (mySide != null ? mySide : "?")
-             + " / " + playerId + ") thinking..."
+           ? (solo
+              ? "(board attached, solo: full view) thinking..."
+              : "(board attached, side: " + (mySide != null ? mySide : "?")
+                + ") thinking...")
            : "(no game loaded - rules question only) thinking...");
 
     new SwingWorker<String, Void>() {
