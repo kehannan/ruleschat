@@ -115,7 +115,7 @@
 </section>
 
 <!-- ─── 02 · PASSWORD ─── -->
-<section class="section no-border">
+<section class="section">
   <div class="wrap-narrow">
     <div class="pf-grid">
       <div class="pf-label">
@@ -139,6 +139,39 @@
           </div>
           <div class="pf-actions">
             <button type="submit" class="btn btn-primary">Change password</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 03 · API KEY ─── -->
+<section class="section no-border">
+  <div class="wrap-narrow">
+    <div class="pf-grid">
+      <div class="pf-label">
+        <div class="eyebrow"><span class="num">03</span></div>
+        <div class="pf-title">API key</div>
+      </div>
+      <div class="pf-body">
+        <h2 class="h-section">Your API key.</h2>
+        <p>Authenticates external clients — the VASL "Ask LLM" extension —
+           against your account. Paste it into the extension's API key field.
+           Generating a new key replaces the old one immediately.</p>
+        {% if user.api_key %}
+        <div class="field">
+          <label for="api_key">Current key</label>
+          <input type="text" class="input" id="api_key" value="{{ user.api_key }}" readonly onclick="this.select()">
+        </div>
+        {% else %}
+        <p>No key yet.</p>
+        {% endif %}
+        <form method="post" action="{{ url_for('generate_api_key') }}">
+          <div class="pf-actions">
+            <button type="submit" class="btn btn-primary">
+              {{ 'Regenerate key' if user.api_key else 'Generate key' }}
+            </button>
           </div>
         </form>
       </div>
