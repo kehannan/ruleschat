@@ -18,6 +18,7 @@ mkdir -p build/classes dist
   $(find src -name '*.java')
 
 cp buildFile.xml build/classes/buildFile.xml
+cp extensiondata build/classes/extensiondata
 (cd build/classes && zip -q -r ../../dist/AskRuleschat.vmdx .)
 echo "Built dist/AskRuleschat.vmdx"
 unzip -l dist/AskRuleschat.vmdx

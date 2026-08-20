@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<data version="1">
+  <version>0.1.0</version>
+  <extra1/>
+  <extra2/>
+  <VassalVersion>3.7.22</VassalVersion>
+  <dateSaved>1755600000000</dateSaved>
+  <description>Ask ruleschat (LLM) about the current game</description>
+  <universal>true</universal>
+</data>
