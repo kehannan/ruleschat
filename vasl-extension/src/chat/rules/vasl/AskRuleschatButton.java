@@ -217,7 +217,11 @@ public class AskRuleschatButton extends AbstractConfigurable {
         }
         body.append('}');
 
+        // Pin HTTP/1.1: the default HTTP/2 client sends an h2c upgrade
+        // handshake on plain http:// URLs, and uvicorn drops the request
+        // body when it sees it (422 "body missing").
         final HttpClient client = HttpClient.newBuilder()
+          .version(HttpClient.Version.HTTP_1_1)
           .connectTimeout(Duration.ofSeconds(10))
           .build();
         final HttpRequest req = HttpRequest.newBuilder(
