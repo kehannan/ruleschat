@@ -180,7 +180,9 @@ SKI_ATTACK_DRM = 2            # E4.5
 SKI_DEFENDER_DRM = -2         # E4.5
 HERO_DRM = -1                 # A15.24
 
-_COMMISSAR_RE = re.compile(r"COM\b")
+# "ruCOM" (generic piece name, kept in `counter`) or "10-0 cmsr" (the piece's
+# printed face, now decoded by parse_vsav into the unit name).
+_COMMISSAR_RE = re.compile(r"COM\b|\bcmsr\b")
 # Counter-name suffixes: "1hs"/"2hs"/"Ghs", "Icr"/"Acr". No \b before the
 # letters — digits/letters give no word boundary ("1hs").
 _HS_RE = re.compile(r"hs\b", re.IGNORECASE)
@@ -337,7 +339,8 @@ def _cc_unit_type(unit: Dict[str, Any], cls: Dict[str, Any]) -> str:
 
 
 def _is_commissar(unit: Dict[str, Any]) -> bool:
-    return bool(_COMMISSAR_RE.search(unit.get("name") or ""))
+    return bool(_COMMISSAR_RE.search(unit.get("name") or "")
+                or _COMMISSAR_RE.search(unit.get("counter") or ""))
 
 
 # ----------------------------------------------------------------------------
@@ -533,7 +536,10 @@ def _cc_direction(
                 f"his leadership DRM to his own attack ({LEADERSHIP_RULE})."
             )
             continue
-        if _is_commissar(u):
+        if _is_commissar(u) and not cls["leadership"]:
+            # printed 9-0/10-0 (or face unknown): direction adds 0. A
+            # decoded 8+1 Commissar (A25.224) falls through to the normal
+            # leader path below and applies his printed DRM.
             drm_breakdown.append({
                 "label": (f"commissar {u.get('name')} directs: leadership "
                           "DRM 0 — a Commissar is a 9-0 or 10-0 leader "
@@ -549,8 +555,15 @@ def _cc_direction(
                 f"the attack, apply his printed DRM ({LEADERSHIP_RULE})."
             )
             continue
-        if best is None or cls["leadership"] < best:
-            best = cls["leadership"]
+        ld = cls["leadership"]
+        if u.get("wounded"):
+            ld += 1
+            warnings.append(
+                f"Leader {u.get('name')} is WOUNDED: his leadership DRM is "
+                f"worsened by one, {cls['leadership']:+d} -> {ld:+d} (A17.3)."
+            )
+        if best is None or ld < best:
+            best = ld
             best_name = u.get("name")
     if best is not None:
         if best > 0:

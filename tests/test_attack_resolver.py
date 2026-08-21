@@ -25,6 +25,9 @@ from app.asl.attack_resolver import (
 from app.asl.tools import TOOL_SCHEMAS, execute_tool
 from app.asl.tools import resolve_attack as resolve_attack_tool
 from app.services.vsav_service import parse_vsav
+from app.services.board_terrain import (
+    annotate_state_with_terrain, los_hexside_crossings,
+)
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "Hazmo-52-After-Finn-4.vsav"
 
@@ -668,6 +671,144 @@ def test_conditional_capability_note_surfaces_in_afph():
 # --------------------------------------------------------------------------- #
 # Runner
 # --------------------------------------------------------------------------- #
+
+
+# ---------------------------------------------------------------------------
+# Wall/hedge hexside TEM (B9) traced along the LOS on the board's LOS grid
+# ---------------------------------------------------------------------------
+
+J103_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "J103-After-RU-4.vsav"
+
+
+def _j103_state(**hexes):
+    """The J103 save (board r42, NoGrain SSR): real board geometry, with the
+    given hexes' stacks replaced by synthetic units."""
+    s = parse_vsav(J103_FIXTURE)
+    for k, units in hexes.items():
+        s["hexes"][k] = {"units": units, "markers": []}
+    annotate_state_with_terrain(s)
+    return s
+
+
+def test_los_hexside_crossings_board42():
+    """Board 42: the M2|M3 hedge lies across the N1->M3 LOS (a hexside of
+    the target); L2|M2 is the shared hedge hexside of adjacent hexes;
+    N1->N3 crosses nothing; K5->N1 crosses M2|M3 as an INTERVENING hexside;
+    F2|G2 is a wall."""
+    x = los_hexside_crossings("42", "N1", "M3")
+    assert [(c["terrain"], c["at_target"], c["at_firer"]) for c in x] == \
+        [("Hedge", True, False)], x
+    assert set(x[0]["between"]) == {"M2", "M3"}, x
+    x = los_hexside_crossings("42", "L2", "M2")
+    assert len(x) == 1 and x[0]["terrain"] == "Hedge" and x[0]["at_target"] \
+        and x[0]["at_firer"], x
+    assert los_hexside_crossings("42", "N1", "N3") == []
+    x = los_hexside_crossings("42", "K5", "N1")
+    assert x and not x[0]["at_target"] and not x[0]["at_firer"], x
+    x = los_hexside_crossings("42", "F2", "G2")
+    assert x and x[0]["terrain"] == "Wall" and x[0]["at_target"], x
+    # SSR NoHedges removes them; unknown board -> None (not traced)
+    assert los_hexside_crossings("42", "N1", "M3", ("NoHedges",)) == []
+    assert los_hexside_crossings("999", "A1", "B1") is None
+
+
+def test_hedge_hexside_tem_applied_when_los_enters_target_across_it():
+    """The live bug (VASL extension, 2026-08-21): 42-N1 (5-4-8 + LMG)
+    prep-fires at 42-M3 (orchard). The LOS enters M3 across the M2|M3
+    hedge, so the target gets hedge TEM +1 (B9.3). The resolver used to
+    answer DRM 0 with only a 'hedge TEM not auto-applied' caveat."""
+    s = _j103_state(**{
+        "42-N1": [_sq("5-4-8 SSAEsq", "German"), _sq("LMG", "German")],
+        "42-M3": [_sq("3-2-8 AEhs", "Russian"), _sq("HMG", "Russian")],
+    })
+    r = resolve_attack(s, "42-N1", "42-M3", "prep")
+    assert r["total_fp"] == 8 and r["column"] == 8, r
+    assert r["drm"] == 1, r["drm_breakdown"]
+    assert r["los_hexsides"] and r["los_hexsides"][0]["terrain"] == "Hedge", \
+        r["los_hexsides"]
+    tem = [d for d in r["drm_breakdown"] if "Hedge hexside TEM +1" in d["label"]]
+    assert tem and tem[0]["drm"] == 1 and "B9.3" in tem[0]["label"], \
+        r["drm_breakdown"]
+    assert not any("NOT auto-applied" in w for w in r["warnings"]), r["warnings"]
+    assert "EXCEPT wall/hedge" in r["assumptions"][0], r["assumptions"][0]
+    assert any("B9.31" in a for a in r["assumptions"]), r["assumptions"]
+
+
+def test_adjacent_fire_across_hedge_applies_tem_and_notes_wall_advantage():
+    s = _j103_state(**{
+        "42-L2": [_sq("2-4-8 SShs", "German"), _sq("LMG", "German")],
+        "42-M2": [_sq("2-2-8 hs", "Russian")],
+    })
+    r = resolve_attack(s, "42-L2", "42-M2", "defensive_first")
+    assert r["range"]["hexes"] == 1 and r["range"]["pbf"] == "pbf", r["range"]
+    assert r["drm"] == 1, r["drm_breakdown"]
+    assert any("Wall Advantage (B9.32)" in w for w in r["warnings"]), \
+        r["warnings"]
+
+
+def test_wall_hexside_tem_is_plus_2_and_not_cumulative_with_in_hex_tem():
+    """F2 -> G2 crosses the F2|G2 wall: +2 (B9.3), max()ed against G2's
+    in-hex TEM rather than added (B9.31)."""
+    s = _j103_state(**{
+        "42-F2": [_sq("4-6-7 1sq", "German")],
+        "42-G2": [_sq("4-4-7 1sq", "Russian")],
+    })
+    r = resolve_attack(s, "42-F2", "42-G2", "prep")
+    text = " | ".join(d["label"] for d in r["drm_breakdown"]) + " | " + \
+        " | ".join(r["assumptions"])
+    assert "Wall hexside TEM +2" in text, text
+    assert 2 <= r["drm"] <= 3, (r["drm"], r["drm_breakdown"])
+
+
+def test_intervening_hedge_warns_los_may_be_blocked():
+    s = _j103_state(**{
+        "42-K5": [_sq("4-4-7 1sq", "Russian")],
+        "42-N1": [_sq("4-6-7 1sq", "German")],
+    })
+    r = resolve_attack(s, "42-K5", "42-N1", "prep")
+    assert any("NEITHER the firing nor the target hex" in w and "B9.2" in w
+               for w in r["warnings"]), r["warnings"]
+    assert not any("hexside TEM" in d["label"] for d in r["drm_breakdown"]), \
+        r["drm_breakdown"]
+
+
+def test_no_board_data_keeps_plain_los_assumption():
+    """Synthetic board 57 state without terrain annotation: nothing traced,
+    los_hexsides is None and the original LOS caveat stands."""
+    hexes = {
+        "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "57-B4": {"units": [_sq("4-4-7 1sq", "Russian")], "markers": []},
+    }
+    r = resolve_attack(_mk_state(hexes), "57-B2", "57-B4", "prep")
+    # board 57 data may or may not be installed; either way the contract holds
+    if r["los_hexsides"] is None:
+        assert "EXCEPT" not in r["assumptions"][0], r["assumptions"][0]
+    else:
+        assert "EXCEPT wall/hedge" in r["assumptions"][0], r["assumptions"][0]
+
+
+def test_wounded_leader_direction_drm_worsened_by_one():
+    """A17.3: a wounded leader's leadership DRM is one worse. A wounded 9-1
+    directs at 0; a wounded 7-0 (Frantzen in the J103 save) would be +1 and
+    is assumed not to direct."""
+    s = _j103_state(**{
+        "42-N1": [_sq("4-6-7 1sq", "German"), _sq("9-1 ldr", "German", wounded=True)],
+        "42-N3": [_sq("4-4-7 1sq", "Russian")],
+    })
+    r = resolve_attack(s, "42-N1", "42-N3", "prep")
+    assert any("WOUNDED" in a and "A17.3" in a and "-1 -> +0" in a
+               for a in r["assumptions"]), r["assumptions"]
+    assert not any(d["label"].startswith("leadership direction") and d["drm"] == -1
+                   for d in r["drm_breakdown"]), r["drm_breakdown"]
+    s = _j103_state(**{
+        "42-N1": [_sq("4-6-7 1sq", "German"), _sq("7-0 ldr", "German", wounded=True)],
+        "42-N3": [_sq("4-4-7 1sq", "Russian")],
+    })
+    r = resolve_attack(s, "42-N1", "42-N3", "prep")
+    assert any("+0 -> +1" in a for a in r["assumptions"]), r["assumptions"]
+    assert any("+1 modifier" in w and "NOT to direct" in w for w in r["warnings"]), \
+        r["warnings"]
+
 
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

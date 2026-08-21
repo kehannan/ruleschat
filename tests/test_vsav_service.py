@@ -166,14 +166,14 @@ def test_stack_order_is_bottom_to_top():
 
 def test_per_unit_marker_attribution_by_stack_position():
     """A marker applies only to units BELOW it. 69-K7's stack is
-    (bottom -> top): FI Sniper, 2-2-8 Icr, Skis, ?, fiLDR, DC, Skis —
+    (bottom -> top): FI Sniper, 2-2-8 Icr, Skis, ?, fiLDR (9-0 ldr), DC, Skis —
     the fiLDR and DC sit ABOVE the "?" and must not pick it up. 57-H10's
     8-3-8 Esq is the TOP counter, above both Skis markers."""
     s = _state()
     k7 = {u["name"]: u for u in s["hexes"]["69-K7"]["units"]}
     assert "?" in k7["FI Sniper"]["markers"], k7["FI Sniper"]
     assert "?" in k7["2-2-8 Icr"]["markers"], k7["2-2-8 Icr"]
-    assert "?" not in k7["fiLDR"].get("markers", []), k7["fiLDR"]
+    assert "?" not in k7["9-0 ldr"].get("markers", []), k7["9-0 ldr"]
     assert "?" not in k7["DC"].get("markers", []), k7["DC"]
 
     h10 = {u["name"]: u for u in s["hexes"]["57-H10"]["units"]}
@@ -199,7 +199,7 @@ def test_ski_worn_vs_carried_decoded_from_marker_face():
     # The headline ground truth: G9 = carried (both sides).
     assert ski("57-G9", "2-4-8 1hs") == "carried"   # Finnish HS
     assert ski("57-G9", "2-3-7 1hs") == "carried"   # Russian HS
-    assert ski("57-G9", "ruCOM") == "carried"
+    assert ski("57-G9", "10-0 cmsr") == "carried"
     # More carried units.
     assert ski("57-H9", "6-4-8 1sq") == "carried"
     assert ski("57-H10", "6-4-8 1sq") == "carried"
@@ -213,7 +213,7 @@ def test_ski_worn_vs_carried_decoded_from_marker_face():
     # 69-K7 interleaves both: sniper/crew sit under the WORN marker, the
     # fiLDR/DC under the CARRIED one higher up (nearest-above wins).
     assert ski("69-K7", "2-2-8 Icr") == "worn"
-    assert ski("69-K7", "fiLDR") == "carried"
+    assert ski("69-K7", "9-0 ldr") == "carried"
 
 
 def test_ski_state_from_units_own_activate_skis_layer():
@@ -513,6 +513,47 @@ def test_terrain_missing_board_degrades_gracefully():
 # --------------------------------------------------------------------------- #
 # Runner
 # --------------------------------------------------------------------------- #
+
+
+J103_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "J103-After-RU-4.vsav"
+
+
+def test_leader_printed_values_decoded_from_identity_layer():
+    """Leader/commissar pieces are generic VASL pieces ('geLDR', 'ruCOM');
+    the printed Morale-Leadership face is the identity Layer level showing
+    (level names '10-3,10-2,9-2,9-1,8-1,8-0,7-0,6+1'). Ground truth from
+    the J103 save: Frantzen 7-0 (broken AND wounded), Katukov 8-1,
+    Borisov 10-0 commissar."""
+    s = parse_vsav(J103_FIXTURE)
+
+    def unit(hx, label):
+        return next(u for u in s["hexes"][hx]["units"]
+                    if u.get("label") == label)
+
+    frantzen = unit("42-L0", "Frantzen")
+    assert frantzen["name"] == "7-0 ldr", frantzen
+    assert frantzen["counter"] == "geLDR", frantzen
+    assert frantzen["side"] == "German", frantzen
+    assert frantzen.get("broken") and frantzen.get("wounded"), frantzen
+    assert frantzen["art"] == "ge/geL70.svg", frantzen
+    katukov = unit("42-K5", "Katukov")
+    assert katukov["name"] == "8-1 ldr" and not katukov.get("wounded"), katukov
+    borisov = unit("42-G2", "Borisov")
+    assert borisov["name"] == "10-0 cmsr" and borisov["counter"] == "ruCOM", \
+        borisov
+    # Hazmo fixture: same decode (fiLDR showing its 9-0 face)
+    k7 = _state()["hexes"]["69-K7"]["units"]
+    assert any(u["name"] == "9-0 ldr" and u.get("counter") == "fiLDR"
+               for u in k7), k7
+
+
+def test_render_shows_leader_values_and_wound():
+    s = parse_vsav(J103_FIXTURE)
+    txt = render_board_state(s)
+    l0 = next(l for l in txt.splitlines() if l.strip().startswith("42-L0"))
+    assert ("German 7-0 ldr (counter: geLDR) [BROKEN, wounded, "
+            "label: Frantzen]") in l0, l0
+
 
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

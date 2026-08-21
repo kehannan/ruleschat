@@ -50,9 +50,14 @@ plainly; anything encoded with less than full confidence is tagged
 #  V5. Graveyard TEM +1 (B18). Not verified locally.
 #  V6. Marketplace hexes treated as their building type (stone +3 / wooden
 #      +2); B23.733 lists exceptions we don't model.
-#  V7. Wall +2 / Hedge +1 are HEXSIDE TEM (B9.3x) that apply only when the
-#      fire crosses that hexside — never auto-applied here, warning only.
-#      Exact sub-rule id (B9.31?) not verified.
+#  V7. Wall +2 / Hedge +1 (Bocage as wall, B9.5) are HEXSIDE TEM (B9.3)
+#      applied only when the straight LOS enters the TARGET hex across that
+#      hexside — detected by tracing the LOS on the board's LOSData grid
+#      (board_terrain.los_hexside_crossings). Not cumulative with positive
+#      in-hex TEM (B9.31, higher applies). Wall Advantage (B9.32) and the
+#      road/gap exception (B9.3) are noted, not modeled. Cactus Hedge: note
+#      only. Same-level LOS across a wall/hedge hexside of NEITHER hex is a
+#      Half-Level obstacle (B9.2) — warned, not enforced.
 #  V8. MG usage limits (a squad firing >1 MG forfeits inherent FP, HS/crew
 #      firing a MG forfeits inherent FP — A9.1x): NOT enforced; a warning is
 #      emitted when the SW count exceeds the squad count. Rule id unverified.
@@ -164,6 +169,43 @@ _HEXSIDE_TERRAIN_NOTE = {
     "Hedge": "+1 only if the fire crosses the hedge hexside (B9.3)",
     "Bocage": "TEM only across the bocage hexside (B9.5)",
 }
+
+# Hexside TEM when the LOS enters the target hex across that hexside
+# (B9.3: wall +2, hedge +1; B9.5: bocage follows the wall rules).
+_HEXSIDE_TEM: Dict[str, Tuple[int, str]] = {
+    "Wall": (2, "B9.3"),
+    "Hedge": (1, "B9.3"),
+    "Bocage": (2, "B9.5"),
+}
+_LOS_CLEAR_ASSUMPTION = (
+    "LOS from the firing hex to the target hex is assumed CLEAR — there "
+    "is no LOS engine; obstacles/blind hexes are NOT checked (A6)."
+)
+_LOS_CLEAR_EXCEPT_HEXSIDES_ASSUMPTION = (
+    "LOS from the firing hex to the target hex is assumed CLEAR of terrain "
+    "obstacles — there is no full LOS engine; blind hexes/obstacles are "
+    "NOT checked (A6) — EXCEPT wall/hedge/bocage hexsides, which ARE traced "
+    "along the straight LOS on the board's LOS grid (B9) and reported "
+    "under los_hexsides."
+)
+
+
+def _los_hexsides(state: Dict[str, Any], base: str, flabel: str,
+                  tlabel: str):
+    """Wall/hedge hexsides crossed by the LOS (same board only), or None."""
+    from app.services import board_terrain  # local: avoids an import cycle
+    transforms = ()
+    for b in state.get("boards", []) or []:
+        bbase = b.get("base") or str(b.get("name", "")).lstrip("r")
+        if str(bbase) == str(base):
+            transforms = tuple(b.get("ssr_transforms") or ())
+            break
+    try:
+        return board_terrain.los_hexside_crossings(
+            str(base), flabel, tlabel, transforms)
+    except Exception as e:  # never let the trace break the resolution
+        logging.warning("los_hexside_crossings failed: %s", e)
+        return None
 
 # Entrenchments (B27): +2 TEM vs Direct Fire / on-board mortars
 # [+4 vs OBA/OVR, not modeled here]. Not cumulative with other positive TEM
@@ -484,8 +526,13 @@ def _unit_entrenchment(u: Dict[str, Any]) -> Optional[str]:
 # ----------------------------------------------------------------------------
 
 def _terrain_tem(hex_entry: Dict[str, Any], warnings: List[str],
-                 assumptions: List[str]) -> Tuple[int, str]:
-    """(TEM, label) for the target hex's terrain (no entrenchment)."""
+                 assumptions: List[str],
+                 hexside_checked: bool = False) -> Tuple[int, str]:
+    """(TEM, label) for the target hex's terrain (no entrenchment).
+
+    hexside_checked: the LOS was traced for wall/hedge hexsides, so a
+    hexside terrain showing up in the hex sample needs no generic warning.
+    """
     terr = hex_entry.get("terrain")
     if not terr:
         warnings.append(
@@ -496,10 +543,11 @@ def _terrain_tem(hex_entry: Dict[str, Any], warnings: List[str],
     best = (0, "B0 (TEC)", "Open Ground")
     for part in terr.get("parts", []):
         if part in _HEXSIDE_TERRAIN_NOTE:
-            warnings.append(
-                f"{part} present in the target hex: hexside TEM applies "
-                f"{_HEXSIDE_TERRAIN_NOTE[part]}; NOT auto-applied."
-            )
+            if not hexside_checked:
+                warnings.append(
+                    f"{part} present in the target hex: hexside TEM applies "
+                    f"{_HEXSIDE_TERRAIN_NOTE[part]}; NOT auto-applied."
+                )
             continue
         if "Building" in part or "Factory" in part or "Rowhouse" in part \
                 or "Market" in part:
@@ -564,8 +612,7 @@ def resolve_attack(
 
     warnings: List[str] = []
     assumptions: List[str] = [
-        "LOS from the firing hex to the target hex is assumed CLEAR — there "
-        "is no LOS engine; obstacles/blind hexes are NOT checked (A6).",
+        _LOS_CLEAR_ASSUMPTION,
         "LOS Hindrances in INTERVENING hexes (grain, brush, in-season "
         "orchard, SMOKE, wrecks: +1 each, B.6/A6.7) are NOT included — add "
         "them to the DRM manually if present along the path.",
@@ -607,6 +654,60 @@ def resolve_attack(
                 f"Could not compute cross-board range {fkey} -> {tkey} "
                 "(board metadata missing)."
             )
+
+    # ---- wall/hedge/bocage hexsides along the LOS (B9) ----
+    hexside_crossings = None
+    if fbase == tbase and fkey != tkey:
+        hexside_crossings = _los_hexsides(state, fbase, flabel, tlabel)
+    hexside_tem = 0
+    hexside_tem_label = None
+    if hexside_crossings is not None:
+        assumptions[0] = _LOS_CLEAR_EXCEPT_HEXSIDES_ASSUMPTION
+        for c in hexside_crossings:
+            terr = c["terrain"]
+            a, b = c["between"]
+            side_txt = f"{terr} hexside {a}|{b}"
+            if c["at_target"]:
+                if terr in _HEXSIDE_TEM:
+                    tem, rule = _HEXSIDE_TEM[terr]
+                    if tem > hexside_tem:
+                        hexside_tem = tem
+                        hexside_tem_label = (
+                            f"{terr} hexside TEM +{tem} ({rule}: the LOS "
+                            f"enters the target hex {tlabel} across its "
+                            f"{a}|{b} {terr.lower()} hexside)")
+                    if rng == 1:
+                        warnings.append(
+                            f"Adjacent fire across the {side_txt}: Wall "
+                            "Advantage (B9.32) matters — if the FIRER holds "
+                            "WA over this hexside and the target does not "
+                            "claim it, the target gets NO hexside TEM "
+                            "(B9.31). Assumed here: the target receives it.")
+                    assumptions.append(
+                        f"{side_txt} TEM applied per B9.3 (not cumulative "
+                        "with positive in-hex TEM — the higher applies, "
+                        "B9.31; if the LOS crosses it through a road/gap "
+                        "depiction the TEM applies only vs a non-moving "
+                        "target, B9.3; PRC never receive it).")
+                else:
+                    warnings.append(
+                        f"LOS enters the target hex across a {side_txt}: "
+                        "its hexside TEM is NOT auto-applied (not modeled) — "
+                        "check the terrain chapter and add it manually.")
+            elif c["at_firer"]:
+                assumptions.append(
+                    f"LOS leaves the firing hex across its own {side_txt}: "
+                    "no TEM for the target (B9.3 — the TEM belongs to the "
+                    "Location formed by that hexside) and no LOS block "
+                    "(B9.2 — the hexside is part of the viewing hex).")
+            else:
+                warnings.append(
+                    f"LOS crosses a {side_txt} that is part of NEITHER the "
+                    "firing nor the target hex: at the same level a "
+                    "wall/hedge hexside is a Half-Level obstacle that BLOCKS "
+                    "LOS (B9.2) — this attack may be impossible. The "
+                    "resolution below assumes LOS exists (e.g. an elevation "
+                    "advantage); verify on the map.")
 
     # ---- firing side ----
     units = [u for u in fentry.get("units", [])]
@@ -854,9 +955,16 @@ def resolve_attack(
                 "direction also prevents cowering (A7.9, A7.531)."
             )
             continue
-        if cls["leadership"] < leadership or not leader_directs:
-            leadership = min(leadership, cls["leadership"]) \
-                if leader_directs else cls["leadership"]
+        ld = cls["leadership"]
+        if u.get("wounded"):
+            ld += 1
+            assumptions.append(
+                f"Leader {u.get('name')} is WOUNDED: his leadership DRM is "
+                f"worsened by one, {cls['leadership']:+d} -> {ld:+d} "
+                "(A17.3); applied if he directs."
+            )
+        if not leader_directs or ld < leadership:
+            leadership = ld
             leader_directs = True
     if leader_directs and leadership > 0:
         # A positive-DRM leader would not normally be chosen to direct.
@@ -932,7 +1040,21 @@ def resolve_attack(
                                 for u in in_ent) else "Foxhole")
 
     terrain_tem_value, terrain_tem_label = _terrain_tem(
-        tentry, warnings, assumptions)
+        tentry, warnings, assumptions,
+        hexside_checked=hexside_crossings is not None)
+    if hexside_tem:
+        if hexside_tem > terrain_tem_value:
+            if terrain_tem_value > 0:
+                assumptions.append(
+                    f"In-hex TEM ({terrain_tem_label} +{terrain_tem_value}) "
+                    f"is superseded by the higher hexside TEM "
+                    f"+{hexside_tem} (B9.31, not cumulative).")
+            terrain_tem_value, terrain_tem_label = hexside_tem, hexside_tem_label
+        else:
+            assumptions.append(
+                f"{hexside_tem_label} is NOT cumulative with the target's "
+                f"in-hex TEM ({terrain_tem_label} +{terrain_tem_value}); the "
+                "in-hex TEM (equal or higher) applies (B9.31).")
 
     entrenched: Any = bool(in_ent) and not out_ent
     mixed = bool(in_ent) and bool(out_ent)
@@ -1165,6 +1287,10 @@ def resolve_attack(
             "pbf": pbf_mode,
             "note": pbf_note,
         },
+        # Wall/hedge/bocage hexsides crossed by the straight LOS (same-board
+        # only; None = not traced). Each: terrain, between (hex, hex),
+        # at_target, at_firer, t (0 firer .. 1 target).
+        "los_hexsides": hexside_crossings,
         "firers": firer_rows,
         "excluded": excluded,
         "total_fp": result.get("total_fp"),

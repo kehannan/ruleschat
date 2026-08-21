@@ -84,8 +84,8 @@ def test_g9_melee_russian_attack_is_3_to_2_kill_number_6():
     # NOT 1 total and NOT 3 for the SMC — the two contradictory LLM answers.
     rows = {a["name"]: a for a in fwd["attackers"]}
     assert rows["2-3-7 1hs"]["cc_fp"] == 2, rows
-    assert rows["ruCOM"]["cc_fp"] == 1, rows
-    assert any("A11.14" in s for s in rows["ruCOM"]["steps"]), rows["ruCOM"]
+    assert rows["10-0 cmsr"]["cc_fp"] == 1, rows
+    assert any("A11.14" in s for s in rows["10-0 cmsr"]["steps"]), rows["10-0 cmsr"]
     assert fwd["attack_fp"] == 3, fwd["attack_fp"]
 
     # The MMG must NOT add CC FP (A11.13).

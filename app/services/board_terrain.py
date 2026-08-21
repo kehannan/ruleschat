@@ -41,7 +41,7 @@ from functools import lru_cache
 from pathlib import Path
 
 # Hex geometry shared with the .vsav parser (same VASL geo-board constants).
-from app.services.vsav_service import DX, DY, LETTERS
+from app.services.vsav_service import DX, DY, LETTERS, board_xy_to_hex
 
 # Search order for board archives (file named e.g. "bd57").
 BOARD_SEARCH_DIRS = [
@@ -147,6 +147,8 @@ SSR_NAME_TRANSFORMS = {
     "PalmTrees": {"Orchard": "Palm Trees"},
     "HedgesToBocage": {"Hedge": "Bocage"},
     "WallsToBocage": {"Wall": "Bocage"},
+    "NoHedges": {"Hedge": "Open Ground"},
+    "NoWalls": {"Wall": "Open Ground"},
     "WallToCactus": {"Wall": "Cactus Hedge"},
     "HedgeToCactus": {"Hedge": "Cactus Hedge"},
     "LightWoods": {"Woods": "Light Woods"},
@@ -275,6 +277,86 @@ def _sample_hex(bd, hex_label):
             code = grid[idx + 1]
             terr[TERRAIN_NAMES.get(code, f"terrain code {code}")] += 1
     return terr, elev
+
+
+# Hexside terrain (B9): drawn along hex edges in the LOSData grid, so a hex
+# disc sample rarely sees it — it is found by tracing the LOS instead.
+HEXSIDE_TERRAIN_NAMES = ("Wall", "Hedge", "Bocage", "Cactus Hedge")
+
+# Pixels stepped back from either end of a hexside run to decide which two
+# hexes it separates (the run itself straddles the boundary).
+_CROSSING_PROBE_PX = 4
+_CROSSING_MERGE_GAP_PX = 2
+
+
+def los_hexside_crossings(board_base: str, from_label: str, to_label: str,
+                          ssr_transforms=()):
+    """Wall/hedge/bocage hexsides crossed by the straight LOS between two
+    hex centers of ONE board, read from the board's LOSData grid.
+
+    Returns a list (possibly empty) of dicts, in order from firer to target:
+      terrain   post-SSR name ("Hedge", "Wall", "Bocage", "Cactus Hedge")
+      between   (hex_before, hex_after) — the two hexes the run separates
+      at_target True if the LOS enters the target hex through it (B9.3 TEM
+                candidate: the hexside is part of the target hex)
+      at_firer  True if it is a hexside of the firing hex
+      t         fraction of the way from firer (0) to target (1)
+    Returns None when no board data is available. A trace along a hexspine
+    or through a vertex is reported as best-effort (see B9.2 for the
+    lengthwise case, which this does not distinguish).
+    """
+    bd = _load_board(str(board_base))
+    if bd is None:
+        return None
+    try:
+        (x0, y0), (x1, y1) = _hex_center(from_label), _hex_center(to_label)
+    except ValueError:
+        return None
+    from_label = from_label.upper()
+    to_label = to_label.upper()
+    gw, gh, grid = bd["grid_w"], bd["grid_h"], bd["grid"]
+    length = max(1.0, ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5)
+    n = int(length)  # ~1 px per step
+
+    def _pt(i):
+        f = min(max(i, 0), n) / n
+        return x0 + (x1 - x0) * f, y0 + (y1 - y0) * f
+
+    def _name_at(i):
+        x, y = _pt(i)
+        xi, yi = int(round(x)), int(round(y))
+        if not (0 <= xi < gw and 0 <= yi < gh):
+            return None
+        code = grid[(xi * gh + yi) * 2 + 1]
+        name = TERRAIN_NAMES.get(code, f"terrain code {code}")
+        name = apply_ssr_transforms(name, ssr_transforms)
+        return name if name in HEXSIDE_TERRAIN_NAMES else None
+
+    # runs of consecutive hexside pixels: [start, end, terrain]
+    runs = []
+    cur = None
+    for i in range(n + 1):
+        nm = _name_at(i)
+        if nm and cur and cur[2] == nm and i - cur[1] <= _CROSSING_MERGE_GAP_PX:
+            cur[1] = i
+        elif nm:
+            cur = [i, i, nm]
+            runs.append(cur)
+        elif cur and i - cur[1] > _CROSSING_MERGE_GAP_PX:
+            cur = None
+
+    out = []
+    for start, end, nm in runs:
+        bx, by = _pt(start - _CROSSING_PROBE_PX)
+        ax, ay = _pt(end + _CROSSING_PROBE_PX)
+        before = board_xy_to_hex(bx, by)
+        after = board_xy_to_hex(ax, ay)
+        at_target = after == to_label or before == to_label
+        at_firer = before == from_label or after == from_label
+        out.append(dict(terrain=nm, between=(before, after),
+                        at_target=at_target, at_firer=at_firer,
+                        t=round((start + end) / 2 / n, 3)))
+    return out
 
 
 def apply_ssr_transforms(name: str, transforms) -> str:

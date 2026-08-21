@@ -399,6 +399,14 @@ _CRUMB_KEYS = ("OldLocationName", "OldX", "OldY", "OldBoard", "OldMap",
 # strength string ("2-4-8 1hs", "6-4-8 1sq", "2-2-8 Icr", "2.5-3-7 ...").
 IDENTITY_NAME_RE = re.compile(r"^\d+(?:\.5)?-\d+-\d+\b")
 
+# Leader/commissar counters: the basic piece is a generic nationality piece
+# ("geLDR", "ruCOM") whose identity Layer carries the printed Morale-
+# Leadership faces ("10-3,10-2,9-2,9-1,8-1,8-0,7-0,6+1"); the Layer state
+# picks the face actually showing. The VASL name never changes, so the
+# printed values are only recoverable from that active level name.
+GENERIC_LEADER_BASE_RE = re.compile(r"^[a-z]{2}(LDR|COM)$")
+LEADER_IDENTITY_RE = re.compile(r"^\d+[+-]\d$")
+
 
 def parse_add_piece(line: str):
     """Parse one '+/id/type/state' AddPiece command -> piece or stack dict."""
@@ -521,6 +529,11 @@ def piece_dynamic_state(p):
                 flags["skis"] = "carried" if val >= 2 else "worn"
             elif "Bicycle" in t and val > 1:
                 flags["bicycle"] = True
+            elif (len(tf) > 1 and tf[1] == "Wound") or "Wound" in images:
+                # SMC "Wound" Layer (MS/WoundO.svg): level > 0 = wounded
+                # (A17.3: Morale Level and leadership DRM each worsened by 1)
+                if val > 0:
+                    flags["wounded"] = True
             # unit-identity layer: the ACTIVE level's name is a counter
             # identity — either the base piece name is among the level names
             # (ELR flip: '6-4-8 1sq,5-3-8 Gsq') or the active level name is
@@ -533,6 +546,18 @@ def piece_dynamic_state(p):
                     (p["name"] in lname_list
                      or IDENTITY_NAME_RE.match(lname_list[val - 1])):
                 effective_name = lname_list[val - 1]
+                imgs = [unescape(v).strip() for v in images.split(",")]
+                if val <= len(imgs) and imgs[val - 1]:
+                    effective_art = imgs[val - 1]
+            # leader identity layer: "geLDR" showing its "9-1" face -> the
+            # unit is named "9-1 ldr" (commissars "cmsr") so the printed
+            # morale/leadership survive into the board state and the
+            # attack/CC resolvers (which parse the leading "M-L" token).
+            elif 0 < val <= len(lname_list) and effective_name is None and \
+                    GENERIC_LEADER_BASE_RE.match(p["name"]) and \
+                    LEADER_IDENTITY_RE.match(lname_list[val - 1]):
+                kind = "cmsr" if p["name"].endswith("COM") else "ldr"
+                effective_name = f"{lname_list[val - 1]} {kind}"
                 imgs = [unescape(v).strip() for v in images.split(",")]
                 if val <= len(imgs) and imgs[val - 1]:
                     effective_art = imgs[val - 1]
@@ -969,7 +994,8 @@ def render_manifest(state: dict, background: dict = None) -> dict:
     )
 
 
-_FLAG_LABELS = (("broken", "BROKEN"), ("bicycle", "bicycle"))
+_FLAG_LABELS = (("broken", "BROKEN"), ("wounded", "wounded"),
+                ("bicycle", "bicycle"))
 
 
 def _unit_braces(u) -> str:
