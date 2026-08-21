@@ -35,7 +35,11 @@ class FakeService:
         self.calls.append({"question": question, "stream": stream, **kwargs,
                            "openrouter_client": self.openrouter_client})
         if stream:
-            return iter([{"status": "searching"}, "THE ", "ANSWER"])
+            gen = iter([{"status": "searching"}, "THE ", "ANSWER"])
+            # Mirror the real service: the OpenAI streaming paths return a
+            # (generator, timing_data) tuple; iterating the tuple itself
+            # would hand the endpoint a generator object as its first delta.
+            return (gen, {}) if kwargs.get("return_timing") else (gen, [])
         return "THE ANSWER"
 
 
@@ -176,6 +180,9 @@ def test_stream_endpoint_ndjson(client):
     assert lines[-1]["done"] is True
     assert lines[-1]["mode"] == "account"
     assert "remaining_today" in lines[-1]
+    # the endpoint must request timing and unwrap the (generator, timing) tuple
+    assert client.fake_service.calls[-1]["return_timing"] is True
+    assert not any("generator" in (l.get("delta") or "") for l in lines)
 
 
 def test_stream_auth_still_http_error(client):

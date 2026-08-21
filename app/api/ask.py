@@ -323,9 +323,13 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
     def gen():
         t0 = time.monotonic()
         try:
-            stream = ctx["service"].get_answer(
+            # Every streaming path of the service returns (generator,
+            # timing_data) when return_timing=True — the OpenAI paths return
+            # a 2-tuple even without it — so always ask for it and unwrap.
+            result = ctx["service"].get_answer(
                 ctx["question"],
                 stream=True,
+                return_timing=True,
                 model=ctx["model"],
                 max_output_tokens=ASK_MAX_OUTPUT_TOKENS,
                 board_state=ctx["board_state"],
@@ -333,7 +337,12 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                 use_agentic=bool(ctx["vsav_state"]),
                 trace_ctx=ctx["trace_ctx"],
             )
+            stream = result[0] if isinstance(result, tuple) else result
             for delta in stream:
+                if not isinstance(delta, (str, dict)):
+                    logging.error("ask: stream yielded %s, not text",
+                                  type(delta).__name__)
+                    continue
                 if isinstance(delta, dict):
                     yield json.dumps(
                         {"status": delta.get("status", "")}) + "\n"
