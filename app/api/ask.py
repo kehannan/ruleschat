@@ -251,6 +251,23 @@ def _board_summary(ctx: dict) -> Optional[dict]:
     }
 
 
+def _usage_fields(model: str, timing) -> Dict[str, Any]:
+    """tokens_in / tokens_out from the service's timing_data and the list-
+    price cost for the model (None when the model isn't in the registry)."""
+    timing = timing if isinstance(timing, dict) else {}
+    tin = timing.get("input_tokens")
+    tout = timing.get("output_tokens")
+    out: Dict[str, Any] = {
+        "tokens_in": int(tin) if tin is not None else None,
+        "tokens_out": int(tout) if tout is not None else None,
+        "cost_usd": None,
+    }
+    price = model_registry.price_for_model_id(model)
+    if price and tin is not None and tout is not None:
+        out["cost_usd"] = round((tin * price[0] + tout * price[1]) / 1e6, 4)
+    return out
+
+
 def _sanitize_llm_error(e: Exception, mode: str) -> HTTPException:
     # Bad pass-through key surfaces as a provider auth error; everything
     # else is a generic upstream failure. Never echo the key.
@@ -278,9 +295,10 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
 
     t0 = time.monotonic()
     try:
-        answer = service.get_answer(
+        result = service.get_answer(
             ctx["question"],
             stream=False,
+            return_timing=True,
             model=model,
             max_output_tokens=ASK_MAX_OUTPUT_TOKENS,
             board_state=board_state,
@@ -292,6 +310,10 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
         raise
     except Exception as e:
         raise _sanitize_llm_error(e, mode)
+    if isinstance(result, tuple):
+        answer, timing = result[0], result[1]
+    else:
+        answer, timing = result, {}
 
     result: Dict[str, Any] = {
         "answer": answer,
@@ -299,6 +321,7 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
         "mode": mode,
         "remaining_today": remaining,
         "elapsed_seconds": round(time.monotonic() - t0, 1),
+        **_usage_fields(model, timing),
     }
     board = _board_summary(ctx)
     if board is not None:
@@ -314,6 +337,8 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
     {"status": "..."}  agentic-loop progress (tool running, etc.)
     {"error": "..."}   mid-stream failure; the stream ends after it
     {"done": true, ...} final line with model/mode/remaining/board metadata
+                        plus tokens_in/tokens_out/cost_usd (list price; null
+                        when the model isn't in the pricing registry)
 
     Errors *before* the stream starts (auth, limits, bad vsav) are normal
     HTTP error responses, same as /api/ask.
@@ -338,6 +363,7 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                 trace_ctx=ctx["trace_ctx"],
             )
             stream = result[0] if isinstance(result, tuple) else result
+            timing = result[1] if isinstance(result, tuple) else {}
             for delta in stream:
                 if not isinstance(delta, (str, dict)):
                     logging.error("ask: stream yielded %s, not text",
@@ -358,6 +384,8 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
             "mode": ctx["mode"],
             "remaining_today": ctx["remaining"],
             "elapsed_seconds": round(time.monotonic() - t0, 1),
+            # timing_data is filled in by the service as the stream is consumed
+            **_usage_fields(ctx["model"], timing),
         }
         board = _board_summary(ctx)
         if board is not None:

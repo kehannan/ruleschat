@@ -92,7 +92,7 @@ import java.util.zip.ZipOutputStream;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.0";
+  static final String VERSION = "0.3.1";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -820,21 +820,46 @@ public class AskRuleschatButton extends AbstractConfigurable {
         }
       }
 
+      /** "gpt-5.4  ·  14.2s  ·  49,835 in / 1,057 out  ·  $0.14" */
       private String metaLine(String doneJson) {
         final StringBuilder sb = new StringBuilder();
         final String usedModel = Json.getString(doneJson, "model");
-        final String remaining = Json.getRaw(doneJson, "remaining_today");
         final String elapsed = Json.getRaw(doneJson, "elapsed_seconds");
+        final String tin = Json.getRaw(doneJson, "tokens_in");
+        final String tout = Json.getRaw(doneJson, "tokens_out");
+        final String cost = Json.getRaw(doneJson, "cost_usd");
         if (usedModel != null) {
           sb.append(usedModel);
         }
         if (elapsed != null) {
           sb.append("  ·  ").append(elapsed).append("s");
         }
-        if (remaining != null) {
-          sb.append("  ·  ").append(remaining).append(" questions left today");
+        if (tin != null && !"null".equals(tin) && tout != null && !"null".equals(tout)) {
+          sb.append("  ·  ").append(thousands(tin)).append(" in / ")
+            .append(thousands(tout)).append(" out");
+        }
+        if (cost != null && !"null".equals(cost)) {
+          try {
+            final double c = Double.parseDouble(cost);
+            sb.append("  ·  ").append(c < 0.01 && c > 0
+              ? String.format(java.util.Locale.US, "$%.3f", c)
+              : String.format(java.util.Locale.US, "$%.2f", c));
+          }
+          catch (NumberFormatException ignored) {
+            // leave cost off
+          }
         }
         return sb.toString();
+      }
+
+      private String thousands(String intText) {
+        try {
+          return String.format(java.util.Locale.US, "%,d",
+                               Long.parseLong(intText.trim()));
+        }
+        catch (NumberFormatException e) {
+          return intText;
+        }
       }
 
       @Override

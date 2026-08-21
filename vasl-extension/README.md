@@ -4,7 +4,7 @@ A VASSAL module extension (`.vmdx`) for VASL that adds an **Ask LLM** toolbar
 button opening a chat dialog styled after ruleschat.com (same palette,
 message layout and input dock): streaming answers rendered from Markdown,
 follow-up context (recent Q/A pairs ride along with each request), and
-agentic-tool progress shown inline. Each question ships an in-memory
+agentic-tool progress shown inline, and a footer per answer with model, latency, tokens in/out and list-price cost (from the server's `done` line). Each question ships an in-memory
 snapshot of the current game — the same bytes as a `.vsav` save, built via
 `GameModule.encode(GameState.getRestoreCommand())` + `ObfuscatingOutputStream`,
 so the module's save state, dirty flag, and last-save pointer are untouched.

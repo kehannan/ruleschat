@@ -85,5 +85,17 @@ def pricing_table() -> dict:
     return {m.key: {"input": m.price_in, "output": m.price_out} for m in MODELS}
 
 
+def price_for_model_id(model_id: Optional[str]):
+    """Provider model id ("gpt-5.4", "deepseek/deepseek-v4-flash") ->
+    (usd_per_1m_in, usd_per_1m_out), or None if not in the registry (e.g.
+    an arbitrary OpenRouter slug on the pass-through path)."""
+    if not model_id:
+        return None
+    for m in MODELS:
+        if model_id == m.key or (m.slug and model_id == m.slug):
+            return m.price_in, m.price_out
+    return None
+
+
 def agentic_keys() -> List[str]:
     return [m.key for m in MODELS if m.agentic]

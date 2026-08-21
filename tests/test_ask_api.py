@@ -34,12 +34,15 @@ class FakeService:
     def get_answer(self, question, stream=False, **kwargs):
         self.calls.append({"question": question, "stream": stream, **kwargs,
                            "openrouter_client": self.openrouter_client})
+        timing = {"input_tokens": 1200, "output_tokens": 300}
         if stream:
             gen = iter([{"status": "searching"}, "THE ", "ANSWER"])
             # Mirror the real service: the OpenAI streaming paths return a
             # (generator, timing_data) tuple; iterating the tuple itself
             # would hand the endpoint a generator object as its first delta.
-            return (gen, {}) if kwargs.get("return_timing") else (gen, [])
+            return (gen, timing) if kwargs.get("return_timing") else (gen, [])
+        if kwargs.get("return_timing"):
+            return "THE ANSWER", timing
         return "THE ANSWER"
 
 
@@ -183,6 +186,27 @@ def test_stream_endpoint_ndjson(client):
     # the endpoint must request timing and unwrap the (generator, timing) tuple
     assert client.fake_service.calls[-1]["return_timing"] is True
     assert not any("generator" in (l.get("delta") or "") for l in lines)
+    # tokens + list-price cost ride on the done line
+    assert lines[-1]["tokens_in"] == 1200 and lines[-1]["tokens_out"] == 300
+    assert lines[-1]["cost_usd"] is not None and lines[-1]["cost_usd"] > 0
+
+
+def test_non_stream_reports_tokens_and_cost(client):
+    r = client.post("/api/ask", json={"question": "hi"},
+                    headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["tokens_in"] == 1200 and j["tokens_out"] == 300
+    assert isinstance(j["cost_usd"], float) and j["cost_usd"] > 0
+
+
+def test_unknown_model_has_null_cost(client):
+    # OpenRouter pass-through with an arbitrary slug: tokens yes, price unknown
+    r = client.post("/api/ask", json={"question": "hi", "model": "vendor/unpriced-x"},
+                    headers={"Authorization": "Bearer sk-or-abc"})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["tokens_in"] == 1200 and j["cost_usd"] is None
 
 
 def test_stream_auth_still_http_error(client):
