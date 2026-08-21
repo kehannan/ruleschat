@@ -143,6 +143,7 @@ def resolve_attack(
             target_hex=target_hex,
             phase=phase,
             firing_unit_filter=firing_unit_filter,
+            native_los=(_context or {}).get("native_los"),
         )
     except ValueError as e:
         return {"error": str(e)}

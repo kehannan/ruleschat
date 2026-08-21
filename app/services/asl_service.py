@@ -613,6 +613,7 @@ Your response:"""
         image_paths: Optional[List[str]] = None,
         board_state: Optional[str] = None,
         vsav_state: Optional[Dict[str, Any]] = None,
+        native_los: Optional[Dict[str, Any]] = None,
         force_tool: Optional[str] = None,
         use_cite_check: bool = False,
         trace_ctx: Optional[Dict[str, Any]] = None,
@@ -848,6 +849,8 @@ Your response:"""
         }
         if vsav_state:
             tool_context["vsav_state"] = vsav_state
+        if native_los:
+            tool_context["native_los"] = native_los
 
         # Start timing for RAG latency measurement
         api_call_start_time = time.time()

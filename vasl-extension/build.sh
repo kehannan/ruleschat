@@ -8,12 +8,13 @@ cd "$(dirname "$0")"
 
 JAVAC="${JAVAC:-/opt/homebrew/opt/openjdk@21/bin/javac}"
 VASSAL_LIB="${VASSAL_LIB:-/Applications/VASSAL.app/Contents/Resources/Java}"
+VASL_MODULE="${VASL_MODULE:-$HOME/vasl/vasl-6.7.3.vmod}"
 
 rm -rf build dist
 mkdir -p build/classes dist
 
 "$JAVAC" --release 11 -Xlint:deprecation \
-  -cp "$VASSAL_LIB/*" \
+  -cp "$VASSAL_LIB/*:$VASL_MODULE" \
   -d build/classes \
   $(find src -name '*.java')
 

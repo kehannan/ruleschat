@@ -597,6 +597,7 @@ def resolve_attack(
     target_hex: str,
     phase: str = "prep",
     firing_unit_filter: Optional[str] = None,
+    native_los: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Resolve a fire attack between two hexes of a parsed .vsav state.
 
@@ -635,6 +636,32 @@ def resolve_attack(
         )
     fentry = state["hexes"][fkey]
     tentry = state["hexes"][tkey]
+
+    native_hindrance = 0
+    if native_los:
+        source = str(native_los.get("source", "")).upper()
+        target = str(native_los.get("target", "")).upper()
+        source_label = source.rsplit("-", 1)[-1]
+        target_label = target.rsplit("-", 1)[-1]
+        firing_label = fkey.upper().rsplit("-", 1)[-1]
+        target_key_label = tkey.upper().rsplit("-", 1)[-1]
+        if source_label == firing_label and target_label == target_key_label:
+            if native_los.get("blocked"):
+                raise ValueError("LOS is blocked" + (
+                    f": {native_los.get('reason')}" if native_los.get("reason") else ""))
+            try:
+                native_hindrance = max(0, int(native_los.get("hindrance", 0)))
+            except (TypeError, ValueError):
+                native_hindrance = 0
+            assumptions[0] = (
+                "LOS checked by VASL's native LOS engine using the open game "
+                "map, overlays, and counters."
+            )
+            if native_hindrance:
+                assumptions[1] = (
+                    f"VASL native LOS hindrance +{native_hindrance} applied "
+                    "to this attack."
+                )
 
     # ---- range ----
     fbase, flabel = _split_hex_key(fkey)
@@ -1033,6 +1060,11 @@ def resolve_attack(
     # target units split between in/out of the entrenchment, the attack is
     # resolved once per distinct final DRM (same FP column, different TEM).
     drm_breakdown: List[Dict[str, Any]] = []
+    if native_hindrance:
+        drm_breakdown.append({
+            "label": f"VASL native LOS hindrance (A6.7) +{native_hindrance}",
+            "drm": native_hindrance,
+        })
     t_markers = _all_hex_markers(tentry)
     in_ent = [u for u in t_units if _unit_entrenchment(u)]
     out_ent = [u for u in t_units if not _unit_entrenchment(u)]
@@ -1234,6 +1266,7 @@ def resolve_attack(
             afph=(phase == "advancing"),
             area_fire_halvings=area_fire_halvings,
             tem=grp["tem"],
+            hindrance=native_hindrance,
             leadership=leadership if leader_directs else 0,
             encircled_firer=encircled_firer,
             other_drm=other_drm,

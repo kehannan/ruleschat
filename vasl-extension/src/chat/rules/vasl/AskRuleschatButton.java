@@ -4,9 +4,14 @@ import VASSAL.Info;
 import VASSAL.build.AbstractConfigurable;
 import VASSAL.build.Buildable;
 import VASSAL.build.GameModule;
+import VASSAL.build.Configurable;
 import VASSAL.build.module.PlayerRoster;
 import VASSAL.build.module.documentation.HelpFile;
 import VASSAL.tools.io.ObfuscatingOutputStream;
+import VASL.build.module.ASLMap;
+import VASL.LOS.Map.Hex;
+import VASL.LOS.Map.LOSResult;
+import VASL.LOS.VASLGameInterface;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -77,6 +82,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * "Ask LLM" toolbar button: a chat dialog over ruleschat's streaming
@@ -93,7 +100,7 @@ import java.util.zip.ZipOutputStream;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.2";
+  static final String VERSION = "0.3.3";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -107,6 +114,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private static final String DEFAULT_URL = "https://ruleschat.com";
   private static final String DEFAULT_MODEL = "gpt-5.4";
   private static final int MAX_HISTORY_PAIRS = 6;
+  private static final Pattern HEX_REFERENCE = Pattern.compile(
+    "(?i)(?:\\b\\d+-)?([A-Z]+\\d+)");
 
   private static final ModelOption[] MODEL_OPTIONS = new ModelOption[] {
     new ModelOption(DEFAULT_MODEL, "GPT-5.4 (recommended)"),
@@ -715,6 +724,65 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return zip.toByteArray();
   }
 
+  private static ASLMap findAslMap(Configurable node) {
+    if (node instanceof ASLMap) {
+      return (ASLMap) node;
+    }
+    for (Configurable child : node.getConfigureComponents()) {
+      ASLMap found = findAslMap(child);
+      if (found != null) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  /** Ask VASL itself for LOS for the first two hex references in a question. */
+  private static String nativeLosForQuestion(String question, GameModule gm) {
+    String from = null;
+    String to = null;
+    Matcher matcher = HEX_REFERENCE.matcher(question);
+    while (matcher.find()) {
+      if (from == null) {
+        from = matcher.group(1).toUpperCase();
+      }
+      else {
+        to = matcher.group(1).toUpperCase();
+        break;
+      }
+    }
+    if (from == null || to == null || from.equals(to)) {
+      return null;
+    }
+    try {
+      ASLMap gameMap = findAslMap(gm);
+      if (gameMap == null || gameMap.getVASLMap() == null) {
+        return null;
+      }
+      VASL.LOS.Map.Map losMap = gameMap.getVASLMap();
+      Hex source = losMap.getHex(from);
+      Hex target = losMap.getHex(to);
+      if (source == null || target == null) {
+        return null;
+      }
+      VASLGameInterface game = new VASLGameInterface(gameMap, losMap);
+      game.updatePieces();
+      LOSResult result = new LOSResult();
+      losMap.LOS(source.getCenterLocation(), false, target.getCenterLocation(),
+                 false, result, game);
+      return "{\"source\":" + Json.quote(from)
+        + ",\"target\":" + Json.quote(to)
+        + ",\"blocked\":" + result.isBlocked()
+        + ",\"reason\":" + Json.quote(result.getReason() == null ? "" : result.getReason())
+        + ",\"hindrance\":" + result.getHindrance()
+        + ",\"range\":" + result.getRange() + "}";
+    }
+    catch (Exception e) {
+      System.err.println("AskRuleschat: native LOS unavailable: " + e);
+      return null;
+    }
+  }
+
   // --- ask flow ---------------------------------------------------------
 
   private void ask() {
@@ -736,6 +804,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
     final String base = pref(P_URL, DEFAULT_URL).replaceAll("/+$", "");
     final String model = modelForRequest(key, pref(P_MODEL, DEFAULT_MODEL));
+    final String nativeLos = nativeLosForQuestion(question, gm);
 
     byte[] snapshot = null;
     String snapshotError = null;
@@ -807,6 +876,9 @@ public class AskRuleschatButton extends AbstractConfigurable {
         }
         if (!model.isEmpty()) {
           body.append(",\"model\":").append(Json.quote(model));
+        }
+        if (nativeLos != null) {
+          body.append(",\"native_los\":").append(nativeLos);
         }
         if (!pastPairs.isEmpty()) {
           body.append(",\"history\":[");

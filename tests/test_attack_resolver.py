@@ -111,6 +111,31 @@ def test_hazmo_h9_prep_fires_at_h8():
     assert not any("E4.6" in w for w in r["warnings"]), r["warnings"]
 
 
+def test_native_vasl_los_hindrance_is_applied_and_block_stops_attack():
+    state = _mk_state({
+        "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "57-B3": {"units": [_sq("4-4-7 1sq", "Russian")], "markers": []},
+    })
+    result = resolve_attack(
+        state, "57-B2", "57-B3", native_los={
+            "source": "B2", "target": "B3", "blocked": False,
+            "hindrance": 1,
+        })
+    assert result["drm"] == 1
+    assert any("native LOS hindrance" in d["label"]
+               for d in result["drm_breakdown"])
+
+    try:
+        resolve_attack(state, "57-B2", "57-B3", native_los={
+            "source": "B2", "target": "B3", "blocked": True,
+            "reason": "Woods", "hindrance": 0,
+        })
+    except ValueError as e:
+        assert "LOS is blocked: Woods" in str(e)
+    else:
+        raise AssertionError("blocked native LOS must stop attack resolution")
+
+
 def test_worn_skier_firer_gets_e46_warning():
     # Synthetic: a worn-skis squad prep-firing — E4.6 forbids a Skier from
     # firing any Gun, ordnance SW, or MMG/HMG; the resolver warns (it does
