@@ -374,7 +374,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     questionField = new JTextArea(2, 40);
     questionField.setLineWrap(true);
     questionField.setWrapStyleWord(true);
-    questionField.setFont(new Font(UI_FONT, Font.PLAIN, 14));
+    questionField.setFont(new Font(UI_FONT, Font.PLAIN, 13));
     questionField.setForeground(INK);
     questionField.setBackground(FIELD_BG);
     questionField.setCaretColor(INK);
@@ -537,20 +537,20 @@ public class AskRuleschatButton extends AbstractConfigurable {
 
   private static String css() {
     return "body { background-color: #EEF1EF; color: #1E2A33; font-family: "
-      + UI_FONT + "; font-size: 14px; margin: 14px 20px 8px 20px; }\n"
+      + UI_FONT + "; font-size: 13px; margin: 14px 20px 8px 20px; }\n"
       + "p { margin: 0 0 9px 0; }\n"
-      + "h3 { font-size: 14px; margin: 12px 0 6px 0; color: #1E2A33; }\n"
+      + "h3 { font-size: 13px; margin: 12px 0 6px 0; color: #1E2A33; }\n"
       + "ul, ol { margin: 0 0 9px 20px; }\n"
       + "li { margin: 0 0 4px 0; }\n"
       + "a { color: #2E5C7E; }\n"
-      + "code { font-family: " + MONO_FONT + "; font-size: 12px; "
+      + "code { font-family: " + MONO_FONT + "; font-size: 11px; "
       + "background-color: #E2E7E5; }\n"
-      + "pre { font-family: " + MONO_FONT + "; font-size: 12px; "
+      + "pre { font-family: " + MONO_FONT + "; font-size: 11px; "
       + "background-color: #E2E7E5; margin: 0 0 9px 0; }\n"
       + "td.meta { font-family: " + MONO_FONT + "; font-size: 10px; "
       + "color: #6A757D; padding: 0 0 5px 0; }\n"
       + "td.bubble { background-color: #E2E7E5; padding: 10px 14px; "
-      + "font-size: 14px; color: #1E2A33; }\n"
+      + "font-size: 13px; color: #1E2A33; }\n"
       + "td.bubbleedge { background-color: #CFD6D5; }\n"
       + "td.content { padding: 0; }\n"
       + "p.status { font-family: " + MONO_FONT + "; font-size: 11px; "
@@ -563,11 +563,11 @@ public class AskRuleschatButton extends AbstractConfigurable {
       + "div.latrule { border-top: 1px solid #CFD6D5; margin: 10px 0 0 0; "
       + "font-size: 1px; }\n"
       + "td.gap { padding: 10px 0 0 0; }\n"
-      + "p.empty { font-size: 24px; color: #1E2A33; margin: 40px 0 0 0; }\n"
+      + "p.empty { font-size: 22px; color: #1E2A33; margin: 40px 0 0 0; }\n"
       + "p.emptysub { color: #6A757D; margin: 6px 0 0 0; }\n"
-      + "th { text-align: left; font-size: 12px; padding: 3px 8px; "
+      + "th { text-align: left; font-size: 11px; padding: 3px 8px; "
       + "background-color: #E2E7E5; }\n"
-      + "table.md td { font-size: 12px; padding: 3px 8px; }\n";
+      + "table.md td { font-size: 11px; padding: 3px 8px; }\n";
   }
 
   /** Rebuild the transcript HTML from the message model. */
