@@ -1,37 +1,60 @@
 package chat.rules.vasl;
 
+import VASSAL.Info;
 import VASSAL.build.AbstractConfigurable;
 import VASSAL.build.Buildable;
 import VASSAL.build.GameModule;
 import VASSAL.build.module.PlayerRoster;
 import VASSAL.build.module.documentation.HelpFile;
-import VASSAL.configure.StringConfigurer;
-import VASSAL.preferences.Prefs;
 import VASSAL.tools.io.ObfuscatingOutputStream;
 
+import javax.swing.AbstractAction;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
+import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.JTextPane;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
+import javax.swing.event.HyperlinkEvent;
+import javax.swing.text.html.HTMLEditorKit;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.awt.event.ActionEvent;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -42,65 +65,103 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /**
  * "Ask LLM" toolbar button: a chat dialog over ruleschat's streaming
- * POST /api/ask/stream. Each question ships an in-memory snapshot of the
+ * POST /api/ask/stream, styled after ruleschat.com (same palette, message
+ * layout and input dock). Each question ships an in-memory snapshot of the
  * current game (same bytes as a .vsav save, built without touching the
  * module's save state) plus recent Q/A pairs for follow-up context.
  *
  * Credentials (one field, auto-detected server-side): a ruleschat account
  * key from the /profile page, or the user's own OpenRouter "sk-or-..." key
  * (pass-through; billed to them, never stored). Settings persist in
- * VASSAL's preferences.
+ * AskRuleschat.properties in VASSAL's prefs directory — our own file, so
+ * they survive VASSAL restarts regardless of the module's Prefs lifecycle.
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  private static final String PREFS_CATEGORY = "Ask ruleschat";
-  private static final String P_URL = "AskRuleschatServerUrl";
-  private static final String P_KEY = "AskRuleschatApiKey";
-  private static final String P_MODEL = "AskRuleschatModel";
+  static final String VERSION = "0.3.0";
+
+  // --- settings (own properties file in VASSAL's prefs dir) ---------------
+  private static final String SETTINGS_FILE = "AskRuleschat.properties";
+  private static final String P_URL = "server.url";
+  private static final String P_KEY = "api.key";
+  private static final String P_MODEL = "model";
+  // 0.2.0 stored these in VASSAL's module Prefs; read once for migration.
+  private static final String LEGACY_URL = "AskRuleschatServerUrl";
+  private static final String LEGACY_KEY = "AskRuleschatApiKey";
+  private static final String LEGACY_MODEL = "AskRuleschatModel";
   private static final String DEFAULT_URL = "https://ruleschat.com";
   private static final int MAX_HISTORY_PAIRS = 6;
 
+  // --- palette: mirrors static/css/site-design-system.css -----------------
+  static final Color PAPER = new Color(0xEEF1EF);
+  static final Color PAPER2 = new Color(0xE2E7E5);
+  static final Color INK = new Color(0x1E2A33);
+  static final Color INK2 = new Color(0x3D4B56);
+  static final Color MUTED = new Color(0x6A757D);
+  static final Color HAIR = new Color(0xCFD6D5);
+  static final Color ACCENT = new Color(0x2E5C7E);
+  static final Color FAIL = new Color(0xA4453B);
+  static final Color FIELD_BG = new Color(0xF6F8F7);   // input frame
+  static final String UI_FONT =
+    pickFont("Archivo", "Helvetica Neue", "Helvetica", "Arial", "SansSerif");
+  static final String MONO_FONT =
+    pickFont("Spline Sans Mono", "SF Mono", "Menlo", "Monaco", "Monospaced");
+
+  private final Properties settings = new Properties();
+  private File settingsFile;
+
   private JButton launchButton;
   private JDialog dialog;
-  private JTextPane transcript;
-  private JTextField questionField;
-  private JButton askButton;
+  private JEditorPane transcript;
+  private JScrollPane scroll;
+  private JTextArea questionField;
+  private FlatButton askButton;
   private JCheckBox attachCheck;
   private JCheckBox soloCheck;
   private JLabel statusLabel;
+  private JLabel headerMeta;
 
+  /** Transcript model; the HTML view is re-rendered from it. */
+  final List<Message> messages = new ArrayList<>();
   private final List<String[]> history = new ArrayList<>();
 
-  private SimpleAttributeSet youStyle;
-  private SimpleAttributeSet botStyle;
-  private SimpleAttributeSet bodyStyle;
-  private SimpleAttributeSet metaStyle;
-  private SimpleAttributeSet errorStyle;
+  static final class Message {
+    final String role;        // "user" | "assistant"
+    final String time;
+    String model;
+    final StringBuilder text = new StringBuilder();
+    String status;            // live progress line while streaming
+    String error;
+    String latency;           // final meta line (model · seconds · quota)
+    boolean streaming;
+
+    Message(String role, String time) {
+      this.role = role;
+      this.time = time;
+    }
+  }
 
   public static String getConfigureTypeName() {
-    return "Ask ruleschat button";
+    return "Ask ruleschat (LLM) button";
   }
 
   @Override
   public void addTo(Buildable parent) {
-    final Prefs prefs = GameModule.getGameModule().getPrefs();
-    prefs.addOption(PREFS_CATEGORY,
-                    new StringConfigurer(P_URL, "Server URL:  ", DEFAULT_URL));
-    prefs.addOption(PREFS_CATEGORY,
-                    new StringConfigurer(P_KEY,
-                      "API key (ruleschat or sk-or-...):  ", ""));
-    prefs.addOption(PREFS_CATEGORY,
-                    new StringConfigurer(P_MODEL,
-                      "Model (blank = server default):  ", ""));
-
+    loadSettings();
     launchButton = new JButton("Ask LLM");
     launchButton.setToolTipText("Ask ruleschat about the rules or the current game");
     launchButton.addActionListener(e -> showDialog());
@@ -121,11 +182,103 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
   }
 
+  // --- settings ------------------------------------------------------------
+
+  private void loadSettings() {
+    try {
+      settingsFile = new File(Info.getPrefsDir(), SETTINGS_FILE);
+    }
+    catch (Exception e) {
+      settingsFile = new File(System.getProperty("user.home"),
+                              "." + SETTINGS_FILE);
+    }
+    if (settingsFile.isFile()) {
+      try (InputStream in = new FileInputStream(settingsFile)) {
+        settings.load(in);
+      }
+      catch (IOException e) {
+        System.err.println("AskRuleschat: could not read " + settingsFile + ": " + e);
+      }
+    }
+    // one-time migration from the 0.2.0 VASSAL-prefs keys
+    if (pref(P_KEY, "").isEmpty()) {
+      final String k = legacyPref(LEGACY_KEY);
+      if (k != null && !k.isEmpty()) {
+        settings.setProperty(P_KEY, k);
+        final String u = legacyPref(LEGACY_URL);
+        if (u != null && !u.isEmpty()) {
+          settings.setProperty(P_URL, u);
+        }
+        final String m = legacyPref(LEGACY_MODEL);
+        if (m != null && !m.isEmpty()) {
+          settings.setProperty(P_MODEL, m);
+        }
+        saveSettings();
+      }
+    }
+  }
+
+  private static String legacyPref(String key) {
+    try {
+      final GameModule gm = GameModule.getGameModule();
+      if (gm == null || gm.getPrefs() == null) {
+        return null;
+      }
+      final String s = gm.getPrefs().getStoredValue(key);
+      return s == null ? null : s.trim();
+    }
+    catch (Exception e) {
+      return null;
+    }
+  }
+
+  private void saveSettings() {
+    if (settingsFile == null) {
+      return;
+    }
+    try {
+      final File dir = settingsFile.getParentFile();
+      if (dir != null && !dir.isDirectory()) {
+        dir.mkdirs();
+      }
+      try (OutputStream out = new FileOutputStream(settingsFile)) {
+        settings.store(out, "Ask ruleschat (VASL extension) settings");
+      }
+    }
+    catch (IOException e) {
+      System.err.println("AskRuleschat: could not write " + settingsFile + ": " + e);
+      if (dialog != null) {
+        JOptionPane.showMessageDialog(dialog,
+          "Settings could not be saved to\n" + settingsFile + "\n" + e,
+          "Ask ruleschat", JOptionPane.WARNING_MESSAGE);
+      }
+    }
+  }
+
   private String pref(String key, String dflt) {
-    final Object v = GameModule.getGameModule().getPrefs().getValue(key);
-    final String s = v == null ? "" : v.toString().trim();
+    final String v = settings.getProperty(key);
+    final String s = v == null ? "" : v.trim();
     return s.isEmpty() ? dflt : s;
   }
+
+  static String pickFont(String... candidates) {
+    try {
+      final Set<String> avail = new HashSet<>(Arrays.asList(
+        GraphicsEnvironment.getLocalGraphicsEnvironment()
+          .getAvailableFontFamilyNames()));
+      for (String c : candidates) {
+        if (avail.contains(c)) {
+          return c;
+        }
+      }
+    }
+    catch (Exception ignored) {
+      // headless or restricted environment: fall through
+    }
+    return candidates[candidates.length - 1];
+  }
+
+  // --- dialog ---------------------------------------------------------------
 
   private void showDialog() {
     if (dialog == null) {
@@ -133,130 +286,353 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
     dialog.setVisible(true);
     dialog.toFront();
+    if (pref(P_KEY, "").isEmpty()) {
+      showSettings();
+    }
     questionField.requestFocusInWindow();
   }
 
-  private void buildStyles() {
-    youStyle = new SimpleAttributeSet();
-    StyleConstants.setBold(youStyle, true);
-    StyleConstants.setForeground(youStyle, new Color(0x1A, 0x56, 0x8A));
-
-    botStyle = new SimpleAttributeSet();
-    StyleConstants.setBold(botStyle, true);
-    StyleConstants.setForeground(botStyle, new Color(0x2E, 0x6B, 0x2E));
-
-    bodyStyle = new SimpleAttributeSet();
-
-    metaStyle = new SimpleAttributeSet();
-    StyleConstants.setItalic(metaStyle, true);
-    StyleConstants.setForeground(metaStyle, Color.GRAY);
-
-    errorStyle = new SimpleAttributeSet();
-    StyleConstants.setForeground(errorStyle, new Color(0xB0, 0x20, 0x20));
-  }
-
   private void buildDialog() {
-    buildStyles();
     dialog = new JDialog(GameModule.getGameModule().getPlayerWindow(),
                          "Ask ruleschat");
-    dialog.setLayout(new BorderLayout(6, 6));
-
-    transcript = new JTextPane();
-    transcript.setEditable(false);
-    final JScrollPane scroll = new JScrollPane(transcript);
-    scroll.setPreferredSize(new Dimension(680, 440));
-    dialog.add(scroll, BorderLayout.CENTER);
-
-    final JPanel south = new JPanel(new BorderLayout(4, 4));
-
-    final JPanel inputRow = new JPanel(new BorderLayout(4, 4));
-    questionField = new JTextField();
-    questionField.addActionListener(e -> ask());
-    inputRow.add(questionField, BorderLayout.CENTER);
-    askButton = new JButton("Ask");
-    askButton.addActionListener(e -> ask());
-    inputRow.add(askButton, BorderLayout.EAST);
-    south.add(inputRow, BorderLayout.NORTH);
-
-    final JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
-    attachCheck = new JCheckBox("Attach board", true);
-    attachCheck.setToolTipText("Send a snapshot of the current game with the question");
-    controls.add(attachCheck);
     final String side = PlayerRoster.isActive() ? PlayerRoster.getMySide() : null;
-    soloCheck = new JCheckBox("Solo: full view",
-      side == null || side.isEmpty() || "<observer>".equals(side));
-    soloCheck.setToolTipText("No hidden-unit masking. Uncheck in a two-player "
-                             + "game so your opponent's concealed/HIP units stay hidden.");
-    controls.add(soloCheck);
-    final JButton settings = new JButton("Settings...");
-    settings.addActionListener(e -> showSettings());
-    controls.add(settings);
-    statusLabel = new JLabel(" ");
-    controls.add(statusLabel);
-    south.add(controls, BorderLayout.SOUTH);
-
-    dialog.add(south, BorderLayout.SOUTH);
+    final boolean solo = side == null || side.isEmpty() || "<observer>".equals(side);
+    dialog.setContentPane(buildContent(solo));
     dialog.pack();
+    dialog.setMinimumSize(new Dimension(560, 420));
     dialog.setLocationRelativeTo(GameModule.getGameModule().getPlayerWindow());
   }
 
+  /** The whole UI as one panel (no window), so it can also be rendered
+   *  off-screen for previews. */
+  JPanel buildContent(boolean soloDefault) {
+    final JPanel root = new JPanel(new BorderLayout());
+    root.setBackground(PAPER);
+    root.setPreferredSize(new Dimension(780, 640));
+
+    // -- header bar (site topbar: ink background, wordmark, settings) --
+    final JPanel header = new JPanel(new BorderLayout());
+    header.setBackground(INK);
+    header.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 12));
+    final JLabel brand = new JLabel("ASL Ruleschat");
+    brand.setFont(new Font(UI_FONT, Font.BOLD, 15));
+    brand.setForeground(Color.WHITE);
+    final JLabel sub = new JLabel("  ·  ask about the rules or the current game");
+    sub.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
+    sub.setForeground(new Color(0xA9B4BC));
+    final JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    left.setOpaque(false);
+    left.add(brand);
+    left.add(sub);
+    header.add(left, BorderLayout.WEST);
+    final JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+    right.setOpaque(false);
+    headerMeta = new JLabel();
+    headerMeta.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
+    headerMeta.setForeground(new Color(0xA9B4BC));
+    right.add(headerMeta);
+    final FlatButton settingsBtn = new FlatButton("Settings", null, Color.WHITE,
+                                                  new Color(0x5A6770));
+    settingsBtn.addActionListener(e -> showSettings());
+    right.add(settingsBtn);
+    header.add(right, BorderLayout.EAST);
+    root.add(header, BorderLayout.NORTH);
+
+    // -- transcript --
+    transcript = new JEditorPane();
+    transcript.setEditorKit(new HTMLEditorKit());
+    transcript.setEditable(false);
+    transcript.setBackground(PAPER);
+    transcript.setBorder(BorderFactory.createEmptyBorder());
+    transcript.addHyperlinkListener(e -> {
+      if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED
+          && e.getURL() != null) {
+        try {
+          Desktop.getDesktop().browse(e.getURL().toURI());
+        }
+        catch (Exception ignored) {
+          // no browser available
+        }
+      }
+    });
+    scroll = new JScrollPane(transcript);
+    scroll.setBorder(BorderFactory.createEmptyBorder());
+    scroll.getViewport().setBackground(PAPER);
+    scroll.getVerticalScrollBar().setUnitIncrement(16);
+    root.add(scroll, BorderLayout.CENTER);
+
+    // -- input dock --
+    final JPanel dock = new JPanel(new BorderLayout(0, 8));
+    dock.setBackground(PAPER);
+    dock.setBorder(BorderFactory.createCompoundBorder(
+      BorderFactory.createMatteBorder(1, 0, 0, 0, HAIR),
+      BorderFactory.createEmptyBorder(12, 16, 12, 16)));
+
+    final JPanel frame = new JPanel(new BorderLayout(10, 0));
+    frame.setBackground(FIELD_BG);
+    frame.setBorder(frameBorder(INK2));
+    questionField = new JTextArea(2, 40);
+    questionField.setLineWrap(true);
+    questionField.setWrapStyleWord(true);
+    questionField.setFont(new Font(UI_FONT, Font.PLAIN, 14));
+    questionField.setForeground(INK);
+    questionField.setBackground(FIELD_BG);
+    questionField.setCaretColor(INK);
+    questionField.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+    final InputMap im = questionField.getInputMap(JComponent.WHEN_FOCUSED);
+    im.put(KeyStroke.getKeyStroke("ENTER"), "askruleschat-send");
+    im.put(KeyStroke.getKeyStroke("shift ENTER"), "insert-break");
+    questionField.getActionMap().put("askruleschat-send", new AbstractAction() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        ask();
+      }
+    });
+    questionField.addFocusListener(new FocusAdapter() {
+      @Override
+      public void focusGained(FocusEvent e) {
+        frame.setBorder(frameBorder(ACCENT));
+      }
+
+      @Override
+      public void focusLost(FocusEvent e) {
+        frame.setBorder(frameBorder(INK2));
+      }
+    });
+    frame.add(questionField, BorderLayout.CENTER);
+    askButton = new FlatButton("Send", ACCENT, Color.WHITE, null);
+    askButton.addActionListener(e -> ask());
+    final JPanel btnWrap = new JPanel(new BorderLayout());
+    btnWrap.setOpaque(false);
+    btnWrap.add(askButton, BorderLayout.SOUTH);
+    frame.add(btnWrap, BorderLayout.EAST);
+    dock.add(frame, BorderLayout.CENTER);
+
+    final JPanel controls = new JPanel(new BorderLayout());
+    controls.setOpaque(false);
+    final JPanel toggles = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
+    toggles.setOpaque(false);
+    attachCheck = styledCheck("Attach board", true,
+      "Send a snapshot of the current game with the question");
+    soloCheck = styledCheck("Solo: full view", soloDefault,
+      "No hidden-unit masking. Uncheck in a two-player game so your "
+      + "opponent's concealed/HIP units stay hidden.");
+    toggles.add(attachCheck);
+    toggles.add(soloCheck);
+    final JLabel hint = new JLabel("enter to send  ·  shift-enter for newline");
+    hint.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
+    hint.setForeground(MUTED);
+    toggles.add(hint);
+    controls.add(toggles, BorderLayout.WEST);
+    statusLabel = new JLabel();
+    statusLabel.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
+    statusLabel.setForeground(MUTED);
+    controls.add(statusLabel, BorderLayout.EAST);
+    dock.add(controls, BorderLayout.SOUTH);
+    root.add(dock, BorderLayout.SOUTH);
+
+    refreshHeaderMeta();
+    setStatus(null);
+    renderTranscript();
+    return root;
+  }
+
+  private static javax.swing.border.Border frameBorder(Color c) {
+    return BorderFactory.createCompoundBorder(
+      BorderFactory.createLineBorder(c, 1),
+      BorderFactory.createEmptyBorder(8, 10, 8, 8));
+  }
+
+  private static JCheckBox styledCheck(String text, boolean on, String tip) {
+    final JCheckBox cb = new JCheckBox(text, on);
+    cb.setOpaque(false);
+    cb.setFont(new Font(UI_FONT, Font.PLAIN, 12));
+    cb.setForeground(INK2);
+    cb.setToolTipText(tip);
+    return cb;
+  }
+
+  private void refreshHeaderMeta() {
+    if (headerMeta == null) {
+      return;
+    }
+    String host = pref(P_URL, DEFAULT_URL);
+    try {
+      final String h = URI.create(host).getHost();
+      if (h != null) {
+        host = h;
+      }
+    }
+    catch (Exception ignored) {
+      // keep raw
+    }
+    final String model = pref(P_MODEL, "");
+    final boolean hasKey = !pref(P_KEY, "").isEmpty();
+    headerMeta.setText(host + (model.isEmpty() ? "" : "  ·  " + model)
+                       + (hasKey ? "" : "  ·  no API key"));
+  }
+
   private void showSettings() {
-    final JTextField urlField = new JTextField(pref(P_URL, DEFAULT_URL), 28);
-    final JPasswordField keyField =
-      new JPasswordField(pref(P_KEY, ""), 28);
-    final JTextField modelField = new JTextField(pref(P_MODEL, ""), 28);
+    final JTextField urlField = new JTextField(pref(P_URL, DEFAULT_URL), 30);
+    final JPasswordField keyField = new JPasswordField(pref(P_KEY, ""), 30);
+    final JTextField modelField = new JTextField(pref(P_MODEL, ""), 30);
+    for (JTextField f : new JTextField[] {urlField, keyField, modelField}) {
+      f.setFont(new Font(MONO_FONT, Font.PLAIN, 12));
+    }
 
     final JPanel panel = new JPanel(new GridBagLayout());
     final GridBagConstraints gc = new GridBagConstraints();
-    gc.insets = new Insets(3, 4, 3, 4);
+    gc.insets = new Insets(4, 4, 4, 4);
     gc.fill = GridBagConstraints.HORIZONTAL;
     int row = 0;
     for (Object[] pair : new Object[][] {
-           {"Server:", urlField},
-           {"API key:", keyField},
-           {"Model:", modelField}}) {
+           {"Server", urlField},
+           {"API key", keyField},
+           {"Model", modelField}}) {
       gc.gridx = 0; gc.gridy = row; gc.weightx = 0;
-      panel.add(new JLabel((String) pair[0]), gc);
+      final JLabel l = new JLabel((String) pair[0]);
+      l.setFont(new Font(UI_FONT, Font.PLAIN, 12));
+      panel.add(l, gc);
       gc.gridx = 1; gc.weightx = 1;
-      panel.add((java.awt.Component) pair[1], gc);
+      panel.add((Component) pair[1], gc);
       row++;
     }
-    gc.gridx = 1; gc.gridy = row; gc.weightx = 1;
-    panel.add(new JLabel("<html><i>Key: generate on your ruleschat profile page, "
-      + "or use your own OpenRouter sk-or-... key.</i></html>"), gc);
+    gc.gridx = 0; gc.gridy = row; gc.gridwidth = 2; gc.weightx = 1;
+    final JLabel help = new JLabel("<html><div style='width:340px'>"
+      + "<b>API key</b>: generate one on your ruleschat profile page "
+      + "(ruleschat.com/profile), or use your own OpenRouter sk-or-... key "
+      + "(then Model must be an OpenRouter slug, blank = server default)."
+      + "<br><br><span style='color:#6A757D'>Saved to " + settingsFile
+      + " — you only enter this once.</span></div></html>");
+    help.setFont(new Font(UI_FONT, Font.PLAIN, 11));
+    panel.add(help, gc);
 
     final int ok = JOptionPane.showConfirmDialog(
       dialog, panel, "Ask ruleschat settings",
       JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
     if (ok == JOptionPane.OK_OPTION) {
-      final Prefs prefs = GameModule.getGameModule().getPrefs();
-      prefs.setValue(P_URL,
-                     urlField.getText().trim().replaceAll("/+$", ""));
-      prefs.setValue(P_KEY, new String(keyField.getPassword()).trim());
-      prefs.setValue(P_MODEL, modelField.getText().trim());
-      try {
-        prefs.save();
-      }
-      catch (IOException ignored) {
-        // saved on VASSAL exit anyway
-      }
+      settings.setProperty(P_URL,
+                           urlField.getText().trim().replaceAll("/+$", ""));
+      settings.setProperty(P_KEY, new String(keyField.getPassword()).trim());
+      settings.setProperty(P_MODEL, modelField.getText().trim());
+      saveSettings();
+      refreshHeaderMeta();
     }
   }
 
-  // --- transcript helpers (EDT only) -----------------------------------
-
-  private void appendText(String text, SimpleAttributeSet style) {
-    final StyledDocument doc = transcript.getStyledDocument();
-    try {
-      doc.insertString(doc.getLength(), text, style);
-    }
-    catch (Exception ignored) {
-    }
-    transcript.setCaretPosition(doc.getLength());
-  }
+  // --- transcript rendering (EDT only) ------------------------------------
 
   private void setStatus(String s) {
-    statusLabel.setText(s == null || s.isEmpty() ? " " : s);
+    if (statusLabel == null) {
+      return;
+    }
+    final boolean busy = s != null && !s.isEmpty();
+    statusLabel.setForeground(busy ? ACCENT : MUTED);
+    statusLabel.setText("●  " + (busy ? s : "ready"));
+  }
+
+  private static String now() {
+    return LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+  }
+
+  private static String css() {
+    return "body { background-color: #EEF1EF; color: #1E2A33; font-family: "
+      + UI_FONT + "; font-size: 14px; margin: 14px 20px 8px 20px; }\n"
+      + "p { margin: 0 0 9px 0; }\n"
+      + "h3 { font-size: 14px; margin: 12px 0 6px 0; color: #1E2A33; }\n"
+      + "ul, ol { margin: 0 0 9px 20px; }\n"
+      + "li { margin: 0 0 4px 0; }\n"
+      + "a { color: #2E5C7E; }\n"
+      + "code { font-family: " + MONO_FONT + "; font-size: 12px; "
+      + "background-color: #E2E7E5; }\n"
+      + "pre { font-family: " + MONO_FONT + "; font-size: 12px; "
+      + "background-color: #E2E7E5; margin: 0 0 9px 0; }\n"
+      + "td.meta { font-family: " + MONO_FONT + "; font-size: 10px; "
+      + "color: #6A757D; padding: 0 0 5px 0; }\n"
+      + "td.bubble { background-color: #E2E7E5; padding: 10px 14px; "
+      + "font-size: 14px; color: #1E2A33; }\n"
+      + "td.bubbleedge { background-color: #CFD6D5; }\n"
+      + "td.content { padding: 0; }\n"
+      + "p.status { font-family: " + MONO_FONT + "; font-size: 11px; "
+      + "color: #6A757D; margin: 4px 0 9px 0; }\n"
+      + "p.err { color: #A4453B; margin: 4px 0 9px 0; }\n"
+      + "td.lat { font-family: " + MONO_FONT + "; font-size: 10px; "
+      + "color: #6A757D; padding: 7px 0 0 0; }\n"
+      + "div.rule { border-top: 1px solid #CFD6D5; margin: 8px 0 12px 0; "
+      + "font-size: 1px; }\n"
+      + "div.latrule { border-top: 1px solid #CFD6D5; margin: 10px 0 0 0; "
+      + "font-size: 1px; }\n"
+      + "td.gap { padding: 10px 0 0 0; }\n"
+      + "p.empty { font-size: 24px; color: #1E2A33; margin: 40px 0 0 0; }\n"
+      + "p.emptysub { color: #6A757D; margin: 6px 0 0 0; }\n"
+      + "th { text-align: left; font-size: 12px; padding: 3px 8px; "
+      + "background-color: #E2E7E5; }\n"
+      + "table.md td { font-size: 12px; padding: 3px 8px; }\n";
+  }
+
+  /** Rebuild the transcript HTML from the message model. */
+  void renderTranscript() {
+    if (transcript == null) {
+      return;
+    }
+    final StringBuilder h = new StringBuilder();
+    h.append("<html><head><style>").append(css()).append("</style></head><body>");
+    if (messages.isEmpty()) {
+      h.append("<p class='empty'><b>Ask a rules question.</b></p>")
+       .append("<p class='emptysub'>With a game loaded and \"Attach board\" "
+               + "checked, the answer uses the exact units, positions and "
+               + "terrain on your map.</p>");
+    }
+    for (Message m : messages) {
+      if ("user".equals(m.role)) {
+        h.append("<table width='100%' cellspacing='0' cellpadding='0'>")
+         .append("<tr><td class='meta' align='right' colspan='2'>YOU &middot; ")
+         .append(m.time).append("</td></tr>")
+         .append("<tr><td width='22%'></td>")
+         .append("<td class='bubbleedge'><table width='100%' cellspacing='1' "
+                 + "cellpadding='0'><tr><td class='bubble'>")
+         .append(Md.escape(m.text.toString()).replace("\n", "<br>"))
+         .append("</td></tr></table></td></tr>")
+         .append("<tr><td class='gap' colspan='2'></td></tr></table>");
+      }
+      else {
+        h.append("<table width='100%' cellspacing='0' cellpadding='0'>")
+         .append("<tr><td class='meta'><font color='#2E5C7E'>ASSISTANT</font>"
+                 + " &middot; ").append(m.time);
+        if (m.model != null && !m.model.isEmpty()) {
+          h.append(" &middot; ").append(Md.escape(m.model));
+        }
+        h.append("</td></tr><tr><td class='content'>");
+        if (m.text.length() > 0) {
+          h.append(Md.toHtml(m.text.toString()));
+        }
+        if (m.streaming && m.status != null) {
+          h.append("<p class='status'>").append(Md.escape(m.status)).append("</p>");
+        }
+        if (m.error != null) {
+          h.append("<p class='err'>").append(Md.escape(m.error)).append("</p>");
+        }
+        h.append("</td></tr>");
+        if (m.latency != null) {
+          h.append("<tr><td><div class='latrule'></div>"
+                   + "<table width='100%' cellspacing='0' cellpadding='0'>"
+                   + "<tr><td class='lat'>").append(Md.escape(m.latency))
+           .append("</td></tr></table></td></tr>");
+        }
+        h.append("<tr><td class='gap'></td></tr></table>");
+      }
+    }
+    h.append("</body></html>");
+
+    final JScrollBar bar = scroll == null ? null : scroll.getVerticalScrollBar();
+    final boolean atBottom = bar == null
+      || bar.getValue() + bar.getVisibleAmount() >= bar.getMaximum() - 40;
+    final int keep = bar == null ? 0 : bar.getValue();
+    transcript.setText(h.toString());
+    if (bar != null) {
+      SwingUtilities.invokeLater(() ->
+        bar.setValue(atBottom ? bar.getMaximum() : keep));
+    }
   }
 
   // --- snapshot ---------------------------------------------------------
@@ -295,7 +671,10 @@ public class AskRuleschatButton extends AbstractConfigurable {
     if (key.isEmpty()) {
       showSettings();
       if (pref(P_KEY, "").isEmpty()) {
-        appendText("Set an API key in Settings first.\n", errorStyle);
+        final Message m = new Message("assistant", now());
+        m.error = "Set an API key in Settings first (top right).";
+        messages.add(m);
+        renderTranscript();
         return;
       }
     }
@@ -303,12 +682,13 @@ public class AskRuleschatButton extends AbstractConfigurable {
     final String model = pref(P_MODEL, "");
 
     byte[] snapshot = null;
+    String snapshotError = null;
     if (attachCheck.isSelected() && gm.getGameState().isGameStarted()) {
       try {
         snapshot = buildVsav(gm);
       }
       catch (Exception ex) {
-        appendText("Could not snapshot the game: " + ex + "\n", errorStyle);
+        snapshotError = "Could not snapshot the game: " + ex;
       }
     }
     final byte[] vsav = snapshot;
@@ -326,14 +706,23 @@ public class AskRuleschatButton extends AbstractConfigurable {
     questionField.setText("");
     questionField.setEnabled(false);
     askButton.setEnabled(false);
-    appendText("You\n", youStyle);
-    appendText(question + "\n\n", bodyStyle);
-    appendText("ruleschat\n", botStyle);
-    setStatus(vsav != null ? "sending board + question..." : "sending question...");
+
+    final Message userMsg = new Message("user", now());
+    userMsg.text.append(question);
+    messages.add(userMsg);
+    final Message bot = new Message("assistant", now());
+    bot.model = model.isEmpty() ? null : model;
+    bot.streaming = true;
+    bot.status = vsav != null ? "sending board + question…" : "sending question…";
+    if (snapshotError != null) {
+      bot.error = snapshotError;
+    }
+    messages.add(bot);
+    renderTranscript();
+    setStatus(bot.status);
 
     new SwingWorker<Void, String[]>() {
       private final StringBuilder answer = new StringBuilder();
-      private String finalKey = "answer";
 
       @Override
       protected Void doInBackground() {
@@ -453,35 +842,42 @@ public class AskRuleschatButton extends AbstractConfigurable {
         for (String[] c : chunks) {
           switch (c[0]) {
             case "delta":
-              appendText(c[1], bodyStyle);
-              setStatus("answering...");
+              bot.text.append(c[1]);
+              bot.status = "answering…";
               break;
             case "status":
-              setStatus(c[1]);
+              bot.status = c[1];
               break;
             case "error":
-              appendText(c[1] + "\n", errorStyle);
+              bot.error = c[1];
               break;
             case "meta":
-              appendText("\n" + c[1] + "\n\n", metaStyle);
+              bot.latency = c[1];
+              final String used = c[1].isEmpty() ? null : c[1].split("  ·  ")[0];
+              if (used != null && !used.isEmpty()) {
+                bot.model = used;
+              }
               break;
             default:
               break;
           }
         }
+        setStatus(bot.status);
+        renderTranscript();
       }
 
       @Override
       protected void done() {
+        bot.streaming = false;
+        bot.status = null;
         if (answer.length() > 0) {
           history.add(new String[] {question, answer.toString()});
           while (history.size() > MAX_HISTORY_PAIRS) {
             history.remove(0);
           }
-          // process() already rendered everything; just tidy spacing when
-          // the stream ended without a done line (e.g. mid-stream error).
         }
-        setStatus(" ");
+        renderTranscript();
+        setStatus(null);
         questionField.setEnabled(true);
         askButton.setEnabled(true);
         questionField.requestFocusInWindow();
@@ -502,6 +898,280 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
     catch (IOException e) {
       return "";
+    }
+  }
+
+  /** Flat, self-painted button (the Aqua L&F ignores setBackground). */
+  static final class FlatButton extends JButton {
+    private final Color bg;
+    private final Color fg;
+    private final Color outline;
+
+    FlatButton(String text, Color bg, Color fg, Color outline) {
+      super(text);
+      this.bg = bg;
+      this.fg = fg;
+      this.outline = outline;
+      setFont(new Font(UI_FONT, Font.BOLD, 12));
+      setForeground(fg);
+      setContentAreaFilled(false);
+      setBorderPainted(false);
+      setFocusPainted(false);
+      setOpaque(false);
+      setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+      setMargin(new Insets(0, 0, 0, 0));
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+      final FontMetrics fm = getFontMetrics(getFont());
+      return new Dimension(fm.stringWidth(getText()) + 28, fm.getHeight() + 14);
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+      final Graphics2D g2 = (Graphics2D) g.create();
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                          RenderingHints.VALUE_ANTIALIAS_ON);
+      g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+                          RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+      final int w = getWidth();
+      final int hgt = getHeight();
+      if (bg != null) {
+        Color c = bg;
+        if (!isEnabled()) {
+          c = new Color(0x9AA8B5);
+        }
+        else if (getModel().isPressed()) {
+          c = c.darker();
+        }
+        else if (getModel().isRollover()) {
+          c = c.brighter();
+        }
+        g2.setColor(c);
+        g2.fillRoundRect(0, 0, w, hgt, 4, 4);
+      }
+      if (outline != null) {
+        g2.setColor(getModel().isRollover() ? outline.brighter() : outline);
+        g2.drawRoundRect(0, 0, w - 1, hgt - 1, 4, 4);
+      }
+      g2.setColor(isEnabled() ? fg : new Color(0xEEF1EF));
+      g2.setFont(getFont());
+      final FontMetrics fm = g2.getFontMetrics();
+      final int tx = (w - fm.stringWidth(getText())) / 2;
+      final int ty = (hgt - fm.getHeight()) / 2 + fm.getAscent();
+      g2.drawString(getText(), tx, ty);
+      g2.dispose();
+    }
+  }
+
+  /** Minimal Markdown -> HTML for the subset the server's answers use:
+   *  paragraphs, **bold**, *italic*, `code`, headings, bullet/numbered
+   *  lists, --- rules, pipe tables, links, fenced code. Output targets
+   *  Swing's HTML 3.2 renderer (tables, font, simple CSS). */
+  static final class Md {
+    private Md() {}
+
+    static String escape(String s) {
+      final StringBuilder sb = new StringBuilder(s.length() + 16);
+      for (int i = 0; i < s.length(); i++) {
+        final char c = s.charAt(i);
+        switch (c) {
+          case '&': sb.append("&amp;"); break;
+          case '<': sb.append("&lt;"); break;
+          case '>': sb.append("&gt;"); break;
+          case '"': sb.append("&quot;"); break;
+          default: sb.append(c);
+        }
+      }
+      return sb.toString();
+    }
+
+    static String toHtml(String md) {
+      final String[] lines = md.replace("\r\n", "\n").split("\n", -1);
+      final StringBuilder out = new StringBuilder();
+      final StringBuilder para = new StringBuilder();
+      String list = null;          // "ul" | "ol" | null
+      boolean inCode = false;
+      final List<String[]> table = new ArrayList<>();
+      boolean tableHeaderDone = false;
+
+      for (int idx = 0; idx <= lines.length; idx++) {
+        final String raw = idx < lines.length ? lines[idx] : null;
+        final String line = raw == null ? "" : raw;
+        final String trimmed = line.trim();
+
+        // fenced code
+        if (raw != null && trimmed.startsWith("```")) {
+          flushPara(out, para);
+          list = closeList(out, list);
+          tableHeaderDone = flushTable(out, table, tableHeaderDone);
+          if (inCode) {
+            out.append("</pre>");
+          }
+          else {
+            out.append("<pre>");
+          }
+          inCode = !inCode;
+          continue;
+        }
+        if (inCode) {
+          out.append(escape(line)).append("\n");
+          continue;
+        }
+
+        // pipe table rows
+        if (raw != null && trimmed.startsWith("|") && trimmed.endsWith("|")
+            && trimmed.length() > 1) {
+          flushPara(out, para);
+          list = closeList(out, list);
+          final String inner = trimmed.substring(1, trimmed.length() - 1);
+          if (inner.matches("[\\s:\\-|]+")) {
+            tableHeaderDone = true;  // separator row: previous row is header
+            continue;
+          }
+          table.add(inner.split("\\|", -1));
+          continue;
+        }
+        else if (!table.isEmpty()) {
+          tableHeaderDone = flushTable(out, table, tableHeaderDone);
+        }
+
+        if (raw == null || trimmed.isEmpty()) {
+          flushPara(out, para);
+          list = closeList(out, list);
+          continue;
+        }
+        if (trimmed.matches("^(-{3,}|\\*{3,}|_{3,})$")) {
+          flushPara(out, para);
+          list = closeList(out, list);
+          out.append("<div class='rule'></div>");
+          continue;
+        }
+        if (trimmed.startsWith("#")) {
+          flushPara(out, para);
+          list = closeList(out, list);
+          out.append("<h3>")
+             .append(inline(trimmed.replaceFirst("^#+\\s*", "")))
+             .append("</h3>");
+          continue;
+        }
+        if (trimmed.matches("^[-*+]\\s+.*")) {
+          flushPara(out, para);
+          if (!"ul".equals(list)) {
+            list = closeList(out, list);
+            out.append("<ul>");
+            list = "ul";
+          }
+          out.append("<li>").append(inline(trimmed.replaceFirst("^[-*+]\\s+", "")))
+             .append("</li>");
+          continue;
+        }
+        if (trimmed.matches("^\\d+[.)]\\s+.*")) {
+          flushPara(out, para);
+          if (!"ol".equals(list)) {
+            list = closeList(out, list);
+            out.append("<ol>");
+            list = "ol";
+          }
+          out.append("<li>")
+             .append(inline(trimmed.replaceFirst("^\\d+[.)]\\s+", "")))
+             .append("</li>");
+          continue;
+        }
+        if (trimmed.startsWith(">")) {
+          flushPara(out, para);
+          list = closeList(out, list);
+          out.append("<p><i>").append(inline(trimmed.replaceFirst("^>\\s?", "")))
+             .append("</i></p>");
+          continue;
+        }
+        // continuation of a list item (indented text under a bullet)
+        if (list != null && line.startsWith("  ")) {
+          out.append(" ").append(inline(trimmed));
+          continue;
+        }
+        list = closeList(out, list);
+        if (para.length() > 0) {
+          para.append(' ');
+        }
+        para.append(trimmed);
+      }
+      if (inCode) {
+        out.append("</pre>");
+      }
+      return out.toString();
+    }
+
+    private static void flushPara(StringBuilder out, StringBuilder para) {
+      if (para.length() > 0) {
+        out.append("<p>").append(inline(para.toString())).append("</p>");
+        para.setLength(0);
+      }
+    }
+
+    private static String closeList(StringBuilder out, String list) {
+      if (list != null) {
+        out.append("</").append(list).append(">");
+      }
+      return null;
+    }
+
+    private static boolean flushTable(StringBuilder out, List<String[]> rows,
+                                      boolean headerDone) {
+      if (rows.isEmpty()) {
+        return false;
+      }
+      out.append("<table class='md' cellspacing='0' cellpadding='0' "
+                 + "border='0' width='100%'>");
+      for (int r = 0; r < rows.size(); r++) {
+        out.append("<tr>");
+        final boolean th = r == 0 && headerDone;
+        for (String cell : rows.get(r)) {
+          out.append(th ? "<th>" : "<td>").append(inline(cell.trim()))
+             .append(th ? "</th>" : "</td>");
+        }
+        out.append("</tr>");
+      }
+      out.append("</table><p></p>");
+      rows.clear();
+      return false;
+    }
+
+    /** Inline markup on one escaped line: code spans, bold, italic, links. */
+    static String inline(String s) {
+      // protect code spans first
+      final List<String> codes = new ArrayList<>();
+      final StringBuilder sb = new StringBuilder();
+      int i = 0;
+      while (i < s.length()) {
+        final char c = s.charAt(i);
+        if (c == '`') {
+          final int j = s.indexOf('`', i + 1);
+          if (j > i) {
+            codes.add(escape(s.substring(i + 1, j)));
+            sb.append("\u0000").append(codes.size() - 1).append("\u0000");
+            i = j + 1;
+            continue;
+          }
+        }
+        sb.append(c);
+        i++;
+      }
+      String t = escape(sb.toString());
+      // links [text](url)
+      t = t.replaceAll("\\[([^\\]]+)\\]\\((https?://[^)\\s]+)\\)",
+                       "<a href='$2'>$1</a>");
+      // bold / italic (bold first so ** isn't eaten by *)
+      t = t.replaceAll("\\*\\*(.+?)\\*\\*", "<b>$1</b>");
+      t = t.replaceAll("__(.+?)__", "<b>$1</b>");
+      t = t.replaceAll("(?<![\\w*])\\*(?!\\s)(.+?)(?<!\\s)\\*(?![\\w*])", "<i>$1</i>");
+      t = t.replaceAll("(?<![\\w_])_(?!\\s)(.+?)(?<!\\s)_(?![\\w_])", "<i>$1</i>");
+      // restore code spans
+      for (int k = 0; k < codes.size(); k++) {
+        t = t.replace("\u0000" + k + "\u0000", "<code>" + codes.get(k) + "</code>");
+      }
+      return t;
     }
   }
 
@@ -668,7 +1338,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
   }
 
-  // --- Configurable plumbing (settings live in VASSAL prefs, not here) --
+  // --- Configurable plumbing (settings live in our own file, not here) --
 
   @Override
   public String[] getAttributeNames() {

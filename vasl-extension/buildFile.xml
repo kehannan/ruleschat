@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<VASSAL.build.module.ModuleExtension version="0.2.0" module="VASL" moduleVersion="6.6.0" vassalVersion="3.6.0">
+<VASSAL.build.module.ModuleExtension version="0.3.0" module="VASL" moduleVersion="6.6.0" vassalVersion="3.6.0">
     <VASSAL.build.module.ExtensionElement target="">
         <chat.rules.vasl.AskRuleschatButton/>
     </VASSAL.build.module.ExtensionElement>
