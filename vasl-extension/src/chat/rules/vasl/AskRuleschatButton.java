@@ -19,6 +19,7 @@ import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
+import javax.swing.JComboBox;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
@@ -92,7 +93,7 @@ import java.util.zip.ZipOutputStream;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.1";
+  static final String VERSION = "0.3.2";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -104,7 +105,13 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private static final String LEGACY_KEY = "AskRuleschatApiKey";
   private static final String LEGACY_MODEL = "AskRuleschatModel";
   private static final String DEFAULT_URL = "https://ruleschat.com";
+  private static final String DEFAULT_MODEL = "gpt-5.4";
   private static final int MAX_HISTORY_PAIRS = 6;
+
+  private static final ModelOption[] MODEL_OPTIONS = new ModelOption[] {
+    new ModelOption(DEFAULT_MODEL, "GPT-5.4 (recommended)"),
+    new ModelOption("ox-alpha", "Ox Alpha (OpenRouter preview)")
+  };
 
   // --- palette: mirrors static/css/site-design-system.css -----------------
   static final Color PAPER = new Color(0xEEF1EF);
@@ -152,6 +159,21 @@ public class AskRuleschatButton extends AbstractConfigurable {
     Message(String role, String time) {
       this.role = role;
       this.time = time;
+    }
+  }
+
+  static final class ModelOption {
+    final String value;
+    final String label;
+
+    ModelOption(String value, String label) {
+      this.value = value;
+      this.label = label;
+    }
+
+    @Override
+    public String toString() {
+      return label;
     }
   }
 
@@ -230,6 +252,36 @@ public class AskRuleschatButton extends AbstractConfigurable {
     catch (Exception e) {
       return null;
     }
+  }
+
+  private static String normalizeModelPref(String model) {
+    final String m = model == null ? "" : model.trim();
+    if (m.isEmpty()) {
+      return DEFAULT_MODEL;
+    }
+    if ("stealth/ox-alpha".equals(m)) {
+      return "ox-alpha";
+    }
+    return m;
+  }
+
+  private static ModelOption optionForModel(String model) {
+    final String wanted = normalizeModelPref(model);
+    for (ModelOption opt : MODEL_OPTIONS) {
+      if (opt.value.equals(wanted)) {
+        return opt;
+      }
+    }
+    return MODEL_OPTIONS[0];
+  }
+
+  private static String modelForRequest(String apiKey, String modelPref) {
+    final String model = normalizeModelPref(modelPref);
+    if ("ox-alpha".equals(model) && apiKey != null
+        && apiKey.trim().startsWith("sk-or-")) {
+      return "stealth/ox-alpha";
+    }
+    return model;
   }
 
   private void saveSettings() {
@@ -466,7 +518,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     catch (Exception ignored) {
       // keep raw
     }
-    final String model = pref(P_MODEL, "");
+    final String model = normalizeModelPref(pref(P_MODEL, DEFAULT_MODEL));
     final boolean hasKey = !pref(P_KEY, "").isEmpty();
     headerMeta.setText(host + (model.isEmpty() ? "" : "  ·  " + model)
                        + (hasKey ? "" : "  ·  no API key"));
@@ -475,8 +527,10 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private void showSettings() {
     final JTextField urlField = new JTextField(pref(P_URL, DEFAULT_URL), 30);
     final JPasswordField keyField = new JPasswordField(pref(P_KEY, ""), 30);
-    final JTextField modelField = new JTextField(pref(P_MODEL, ""), 30);
-    for (JTextField f : new JTextField[] {urlField, keyField, modelField}) {
+    final JComboBox<ModelOption> modelBox = new JComboBox<>(MODEL_OPTIONS);
+    modelBox.setSelectedItem(optionForModel(pref(P_MODEL, DEFAULT_MODEL)));
+    modelBox.setFont(new Font(UI_FONT, Font.PLAIN, 12));
+    for (JTextField f : new JTextField[] {urlField, keyField}) {
       f.setFont(new Font(MONO_FONT, Font.PLAIN, 12));
     }
 
@@ -488,7 +542,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     for (Object[] pair : new Object[][] {
            {"Server", urlField},
            {"API key", keyField},
-           {"Model", modelField}}) {
+           {"Model", modelBox}}) {
       gc.gridx = 0; gc.gridy = row; gc.weightx = 0;
       final JLabel l = new JLabel((String) pair[0]);
       l.setFont(new Font(UI_FONT, Font.PLAIN, 12));
@@ -501,7 +555,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     final JLabel help = new JLabel("<html><div style='width:340px'>"
       + "<b>API key</b>: generate one on your ruleschat profile page "
       + "(ruleschat.com/profile), or use your own OpenRouter sk-or-... key "
-      + "(then Model must be an OpenRouter slug, blank = server default)."
+      + "(Ox Alpha is sent as its OpenRouter slug for pass-through keys)."
       + "<br><br><span style='color:#6A757D'>Saved to " + settingsFile
       + " — you only enter this once.</span></div></html>");
     help.setFont(new Font(UI_FONT, Font.PLAIN, 11));
@@ -514,7 +568,9 @@ public class AskRuleschatButton extends AbstractConfigurable {
       settings.setProperty(P_URL,
                            urlField.getText().trim().replaceAll("/+$", ""));
       settings.setProperty(P_KEY, new String(keyField.getPassword()).trim());
-      settings.setProperty(P_MODEL, modelField.getText().trim());
+      final ModelOption selected = (ModelOption) modelBox.getSelectedItem();
+      settings.setProperty(P_MODEL,
+                           selected == null ? DEFAULT_MODEL : selected.value);
       saveSettings();
       refreshHeaderMeta();
     }
@@ -679,7 +735,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
       }
     }
     final String base = pref(P_URL, DEFAULT_URL).replaceAll("/+$", "");
-    final String model = pref(P_MODEL, "");
+    final String model = modelForRequest(key, pref(P_MODEL, DEFAULT_MODEL));
 
     byte[] snapshot = null;
     String snapshotError = null;

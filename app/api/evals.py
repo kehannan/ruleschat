@@ -112,10 +112,12 @@ async def usage_daily(db: Session = Depends(get_db)):
         "gpt-5.6-luna", "gpt-5.6-terra",
         "meta/muse-spark-1.1",
         "deepseek/deepseek-v4-flash",
+        "stealth/ox-alpha",
     }
     USAGE_DISPLAY = {
         "meta/muse-spark-1.1": "muse-spark-1.1",
         "deepseek/deepseek-v4-flash": "deepseek-v4-flash",
+        "stealth/ox-alpha": "ox-alpha",
     }
 
     messages = (
@@ -621,6 +623,7 @@ OPENROUTER_DISPLAY = {
     "deepseek/deepseek-v3.2": "deepseek-v3",
     "deepseek/deepseek-v4-flash": "deepseek-v4-flash",
     "inception/mercury-2": "mercury-2",
+    "stealth/ox-alpha": "ox-alpha",
 }
 
 

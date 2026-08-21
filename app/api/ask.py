@@ -170,11 +170,15 @@ def _parse_vsav_data_url(data_url: str) -> dict:
 
 def _account_model(requested: Optional[str], user: User, has_vsav: bool) -> str:
     """Registry key -> provider model id, with the same forcing as the site."""
+    admin = is_admin(user)
+    if (
+        requested
+        and requested in model_registry.allowed_keys("chat", admin)
+        and (not has_vsav or model_registry.agentic_allowed(requested))
+    ):
+        return model_registry.resolve(requested)
     if has_vsav:
         return VSAV_MODEL
-    admin = is_admin(user)
-    if requested and requested in model_registry.allowed_keys("chat", admin):
-        return model_registry.resolve(requested)
     return model_registry.resolve(model_registry.specs_for("chat", admin)[0].key)
 
 

@@ -10,7 +10,7 @@ snapshot of the current game — the same bytes as a `.vsav` save, built via
 so the module's save state, dirty flag, and last-save pointer are untouched.
 With no game loaded (or "Attach board" unchecked) it is a plain rules Q&A.
 
-Settings (server URL, API key, model) live behind the **Settings** button in
+Settings (server URL, API key, model dropdown) live behind the **Settings** button in
 the header and are stored in **`AskRuleschat.properties` in VASSAL's prefs
 directory** (macOS: `~/Library/Application Support/VASSAL/prefs/`). That is
 our own file, written immediately on OK, so the key is entered once and
@@ -26,8 +26,7 @@ which did not persist them across sessions. Default server:
 - **OpenRouter pass-through** — the user's own `sk-or-...` key. Generation
   is billed to their OpenRouter account; the server's OpenAI key is used
   only for retrieval. The key is per-request only, never stored. The model
-  field must then be an OpenRouter slug (e.g. `deepseek/deepseek-v4-flash`,
-  the default).
+  dropdown sends Ox Alpha as `stealth/ox-alpha` for pass-through keys.
 
 ## Fog of war
 

@@ -40,6 +40,8 @@ MODELS: tuple = (
     #         key               label                       slug                   chat   demo   agentic  $in    $out
     ModelSpec("deepseek-v4-flash", "deepseek-v4-flash · <¢/slower", "deepseek/deepseek-v4-flash",
               True,  True,  True,    0.077, 0.15),
+    ModelSpec("ox-alpha",       "ox-alpha · free/preview", "stealth/ox-alpha",
+              True,  False, True,    0.00,  0.00),
     ModelSpec("muse-spark-1.1", "muse-spark-1.1 · ¢/new",   "meta/muse-spark-1.1", True,  True,  True,    1.25,  4.25),
     ModelSpec("gpt-5.6-luna",   "gpt-5.6-luna · ¢/new",     None,                  True,  True,  True,    1.00,  6.00),
     ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  True,  True,  True,    2.50,  15.00),

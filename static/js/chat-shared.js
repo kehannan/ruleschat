@@ -16,6 +16,7 @@ const MODEL_PRICING = {
     'gpt-5.6-terra':  { input: 2.50, output: 15.00 },
     'gpt-5.6-luna':   { input: 1.00, output: 6.00 },
     'muse-spark-1.1': { input: 1.25, output: 4.25 },
+    'ox-alpha':        { input: 0.00, output: 0.00 },
     'deepseek-v3':    { input: 0.27, output: 1.10 },
     'mercury-2':      { input: 0.25, output: 1.00 },
     'fable':          { input: 10.00, output: 50.00 },

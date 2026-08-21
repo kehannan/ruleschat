@@ -149,6 +149,19 @@ def test_vsav_flow_with_side(client):
     assert call["vsav_state"]["validation"]["n_matched"] == 71
 
 
+def test_vsav_account_key_honors_selected_agentic_registry_model(client):
+    r = client.post(
+        "/api/ask",
+        json={"question": "Resolve the CC in this hex",
+              "vsav": _vsav_data_url(), "model": "ox-alpha"},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["model"] == "stealth/ox-alpha"
+    call = client.fake_service.calls[-1]
+    assert call["model"] == "stealth/ox-alpha"
+    assert call["use_agentic"] is True
+
+
 def test_vsav_player_maps_to_side(client):
     # "finn_player" is in the fixture's player_sides -> Finnish
     r = client.post(
