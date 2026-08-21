@@ -385,6 +385,17 @@ def _require_choices(response: Any) -> None:
     raise RuntimeError(f"OpenRouter returned no completion choices: {detail}")
 
 
+def _openrouter_usage_cost(usage: Any) -> Optional[float]:
+    """Return OpenRouter's billed cost from a completion usage object."""
+    if usage is None:
+        return None
+    cost = usage.get("cost") if isinstance(usage, dict) else getattr(usage, "cost", None)
+    try:
+        return float(cost) if cost is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _openrouter_reasoning_config(model: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Build OpenRouter's `reasoning` control from env, a per-model default, or None.
 
@@ -1163,6 +1174,9 @@ Your response:"""
             # still be clickable client-side via makeSectionReferencesClickable.
             "rag_sources": [],
         }
+        provider_cost = _openrouter_usage_cost(usage)
+        if provider_cost is not None:
+            timing_data["provider_cost_usd"] = provider_cost
         if root_trace.trace_id:
             timing_data["trace_id"] = root_trace.trace_id
 
@@ -1264,6 +1278,8 @@ Your response:"""
         provider = _openrouter_provider_config(model) if is_openrouter else None
         total_input_tokens = 0
         total_output_tokens = 0
+        total_provider_cost_usd = 0.0
+        has_provider_cost = False
         tools_called: List[str] = []
         final_text = ""
 
@@ -1277,6 +1293,8 @@ Your response:"""
             def stream_generator():
                 in_tok = 0
                 out_tok = 0
+                provider_cost_usd = 0.0
+                has_provider_cost = False
                 called: List[str] = []
                 stripper = _CitationStripper()
                 inference_t0 = time.time()
@@ -1319,6 +1337,10 @@ Your response:"""
                         if usage is not None:
                             in_tok += getattr(usage, "prompt_tokens", 0) or 0
                             out_tok += getattr(usage, "completion_tokens", 0) or 0
+                            cost = _openrouter_usage_cost(usage)
+                            if cost is not None:
+                                provider_cost_usd += cost
+                                has_provider_cost = True
                         choices = getattr(chunk, "choices", None) or []
                         if not choices:
                             continue
@@ -1431,6 +1453,8 @@ Your response:"""
                         "output_tokens": out_tok,
                         "tools_called": called,
                     })
+                    if has_provider_cost:
+                        timing_data["provider_cost_usd"] = provider_cost_usd
 
             def traced_generator():
                 # Ends the trace even when the client disconnects mid-stream;
@@ -1488,6 +1512,10 @@ Your response:"""
             if usage is not None:
                 total_input_tokens += getattr(usage, "prompt_tokens", 0) or 0
                 total_output_tokens += getattr(usage, "completion_tokens", 0) or 0
+                cost = _openrouter_usage_cost(usage)
+                if cost is not None:
+                    total_provider_cost_usd += cost
+                    has_provider_cost = True
 
             _require_choices(response)
             msg = response.choices[0].message
@@ -1586,7 +1614,7 @@ Your response:"""
         final_text = _strip_citation_markers(final_text)
         if not return_timing:
             return final_text
-        return final_text, {
+        timing_data = {
             "response_time_ms": round(total_ms, 1),
             "retrieval_ms": round(retrieval_ms, 1),
             "inference_ms": round(inference_ms, 1),
@@ -1594,6 +1622,9 @@ Your response:"""
             "output_tokens": total_output_tokens,
             "tools_called": tools_called,
         }
+        if has_provider_cost:
+            timing_data["provider_cost_usd"] = total_provider_cost_usd
+        return final_text, timing_data
 
     def _handle_streaming_response(
         self,

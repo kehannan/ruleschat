@@ -256,8 +256,7 @@ def _board_summary(ctx: dict) -> Optional[dict]:
 
 
 def _usage_fields(model: str, timing) -> Dict[str, Any]:
-    """tokens_in / tokens_out from the service's timing_data and the list-
-    price cost for the model (None when the model isn't in the registry)."""
+    """Tokens plus provider-reported cost, falling back to registry pricing."""
     timing = timing if isinstance(timing, dict) else {}
     tin = timing.get("input_tokens")
     tout = timing.get("output_tokens")
@@ -266,6 +265,13 @@ def _usage_fields(model: str, timing) -> Dict[str, Any]:
         "tokens_out": int(tout) if tout is not None else None,
         "cost_usd": None,
     }
+    provider_cost = timing.get("provider_cost_usd")
+    if provider_cost is not None:
+        try:
+            out["cost_usd"] = round(float(provider_cost), 6)
+            return out
+        except (TypeError, ValueError):
+            pass
     price = model_registry.price_for_model_id(model)
     if price and tin is not None and tout is not None:
         out["cost_usd"] = round((tin * price[0] + tout * price[1]) / 1e6, 4)

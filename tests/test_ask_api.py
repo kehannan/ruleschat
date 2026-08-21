@@ -222,6 +222,15 @@ def test_unknown_model_has_null_cost(client):
     assert j["tokens_in"] == 1200 and j["cost_usd"] is None
 
 
+def test_provider_reported_cost_overrides_registry_estimate():
+    usage = ask_module._usage_fields(
+        "stealth/ox-alpha",
+        {"input_tokens": 1200, "output_tokens": 300,
+         "provider_cost_usd": 0.0123456},
+    )
+    assert usage["cost_usd"] == 0.012346
+
+
 def test_stream_auth_still_http_error(client):
     r = client.post("/api/ask/stream", json={"question": "hi"},
                     headers={"Authorization": "Bearer nope"})
