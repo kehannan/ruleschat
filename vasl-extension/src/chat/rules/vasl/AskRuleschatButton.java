@@ -5,62 +5,85 @@ import VASSAL.build.Buildable;
 import VASSAL.build.GameModule;
 import VASSAL.build.module.PlayerRoster;
 import VASSAL.build.module.documentation.HelpFile;
+import VASSAL.configure.StringConfigurer;
+import VASSAL.preferences.Prefs;
+import VASSAL.tools.io.ObfuscatingOutputStream;
 
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.SwingWorker;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.io.File;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
- * "Ask LLM" toolbar button: snapshots the current game with
- * GameState.saveGame(File) and asks ruleschat's POST /api/ask about it.
+ * "Ask LLM" toolbar button: a chat dialog over ruleschat's streaming
+ * POST /api/ask/stream. Each question ships an in-memory snapshot of the
+ * current game (same bytes as a .vsav save, built without touching the
+ * module's save state) plus recent Q/A pairs for follow-up context.
  *
- * Credentials (one field, auto-detected server-side):
- *   - a ruleschat account API key (minted on the /profile page), or
- *   - the user's own OpenRouter key ("sk-or-..."), in which case generation
- *     runs on their OpenRouter account (pass-through; never stored).
- *
- * Fog of war: the request carries PlayerRoster.getMySide() and the VASSAL
- * user id; the server masks the opponent's concealed/HIP units accordingly.
+ * Credentials (one field, auto-detected server-side): a ruleschat account
+ * key from the /profile page, or the user's own OpenRouter "sk-or-..." key
+ * (pass-through; billed to them, never stored). Settings persist in
+ * VASSAL's preferences.
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  public static final String SERVER_URL = "url";
-  public static final String API_KEY = "apikey";
-  public static final String MODEL = "model";
-
-  private String serverUrl = "http://127.0.0.1:8000";
-  private String apiKey = "";
-  private String model = "";
+  private static final String PREFS_CATEGORY = "Ask ruleschat";
+  private static final String P_URL = "AskRuleschatServerUrl";
+  private static final String P_KEY = "AskRuleschatApiKey";
+  private static final String P_MODEL = "AskRuleschatModel";
+  private static final String DEFAULT_URL = "https://ruleschat.com";
+  private static final int MAX_HISTORY_PAIRS = 6;
 
   private JButton launchButton;
   private JDialog dialog;
-  private JTextField urlField;
-  private JPasswordField keyField;
-  private JTextField modelField;
+  private JTextPane transcript;
   private JTextField questionField;
-  private javax.swing.JCheckBox soloCheck;
-  private JTextArea output;
   private JButton askButton;
+  private JCheckBox attachCheck;
+  private JCheckBox soloCheck;
+  private JLabel statusLabel;
+
+  private final List<String[]> history = new ArrayList<>();
+
+  private SimpleAttributeSet youStyle;
+  private SimpleAttributeSet botStyle;
+  private SimpleAttributeSet bodyStyle;
+  private SimpleAttributeSet metaStyle;
+  private SimpleAttributeSet errorStyle;
 
   public static String getConfigureTypeName() {
     return "Ask ruleschat button";
@@ -68,6 +91,16 @@ public class AskRuleschatButton extends AbstractConfigurable {
 
   @Override
   public void addTo(Buildable parent) {
+    final Prefs prefs = GameModule.getGameModule().getPrefs();
+    prefs.addOption(PREFS_CATEGORY,
+                    new StringConfigurer(P_URL, "Server URL:  ", DEFAULT_URL));
+    prefs.addOption(PREFS_CATEGORY,
+                    new StringConfigurer(P_KEY,
+                      "API key (ruleschat or sk-or-...):  ", ""));
+    prefs.addOption(PREFS_CATEGORY,
+                    new StringConfigurer(P_MODEL,
+                      "Model (blank = server default):  ", ""));
+
     launchButton = new JButton("Ask LLM");
     launchButton.setToolTipText("Ask ruleschat about the rules or the current game");
     launchButton.addActionListener(e -> showDialog());
@@ -88,6 +121,12 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
   }
 
+  private String pref(String key, String dflt) {
+    final Object v = GameModule.getGameModule().getPrefs().getValue(key);
+    final String s = v == null ? "" : v.toString().trim();
+    return s.isEmpty() ? dflt : s;
+  }
+
   private void showDialog() {
     if (dialog == null) {
       buildDialog();
@@ -97,106 +136,182 @@ public class AskRuleschatButton extends AbstractConfigurable {
     questionField.requestFocusInWindow();
   }
 
+  private void buildStyles() {
+    youStyle = new SimpleAttributeSet();
+    StyleConstants.setBold(youStyle, true);
+    StyleConstants.setForeground(youStyle, new Color(0x1A, 0x56, 0x8A));
+
+    botStyle = new SimpleAttributeSet();
+    StyleConstants.setBold(botStyle, true);
+    StyleConstants.setForeground(botStyle, new Color(0x2E, 0x6B, 0x2E));
+
+    bodyStyle = new SimpleAttributeSet();
+
+    metaStyle = new SimpleAttributeSet();
+    StyleConstants.setItalic(metaStyle, true);
+    StyleConstants.setForeground(metaStyle, Color.GRAY);
+
+    errorStyle = new SimpleAttributeSet();
+    StyleConstants.setForeground(errorStyle, new Color(0xB0, 0x20, 0x20));
+  }
+
   private void buildDialog() {
+    buildStyles();
     dialog = new JDialog(GameModule.getGameModule().getPlayerWindow(),
                          "Ask ruleschat");
-    dialog.setLayout(new BorderLayout(8, 8));
+    dialog.setLayout(new BorderLayout(6, 6));
 
-    final JPanel top = new JPanel(new GridBagLayout());
-    final GridBagConstraints gc = new GridBagConstraints();
-    gc.insets = new Insets(2, 4, 2, 4);
-    gc.fill = GridBagConstraints.HORIZONTAL;
-
-    urlField = new JTextField(serverUrl, 24);
-    keyField = new JPasswordField(apiKey, 24);
-    keyField.setToolTipText("ruleschat API key (from your profile page) "
-                            + "or your own OpenRouter key (sk-or-...)");
-    modelField = new JTextField(model, 24);
-    modelField.setToolTipText("Optional. Blank = server default. With an "
-                              + "OpenRouter key use a vendor/model slug.");
-    questionField = new JTextField(40);
-    questionField.addActionListener(e -> ask());
-
-    int row = 0;
-    for (Object[] pair : new Object[][] {
-           {"Server:", urlField},
-           {"API key:", keyField},
-           {"Model:", modelField},
-           {"Question:", questionField}}) {
-      gc.gridx = 0; gc.gridy = row; gc.weightx = 0;
-      top.add(new JLabel((String) pair[0]), gc);
-      gc.gridx = 1; gc.weightx = 1;
-      top.add((java.awt.Component) pair[1], gc);
-      row++;
-    }
-    // Solo: full-information view — no fog-of-war masking. Defaults on
-    // when the player hasn't joined a real side (solo/observer), off when
-    // they have (two-player: mask the opponent's hidden units).
-    final String side = PlayerRoster.isActive() ? PlayerRoster.getMySide() : null;
-    soloCheck = new javax.swing.JCheckBox(
-      "Solo game: full view (no hidden-unit masking)",
-      side == null || side.isEmpty() || "<observer>".equals(side));
-    gc.gridx = 1; gc.gridy = row; gc.weightx = 1;
-    top.add(soloCheck, gc);
-    row++;
-
-    gc.gridx = 1; gc.gridy = row; gc.weightx = 0;
-    gc.fill = GridBagConstraints.NONE;
-    gc.anchor = GridBagConstraints.EAST;
-    askButton = new JButton("Ask about the current game");
-    askButton.addActionListener(e -> ask());
-    top.add(askButton, gc);
-
-    dialog.add(top, BorderLayout.NORTH);
-
-    output = new JTextArea();
-    output.setEditable(false);
-    output.setLineWrap(true);
-    output.setWrapStyleWord(true);
-    final JScrollPane scroll = new JScrollPane(output);
-    scroll.setPreferredSize(new Dimension(640, 420));
+    transcript = new JTextPane();
+    transcript.setEditable(false);
+    final JScrollPane scroll = new JScrollPane(transcript);
+    scroll.setPreferredSize(new Dimension(680, 440));
     dialog.add(scroll, BorderLayout.CENTER);
 
+    final JPanel south = new JPanel(new BorderLayout(4, 4));
+
+    final JPanel inputRow = new JPanel(new BorderLayout(4, 4));
+    questionField = new JTextField();
+    questionField.addActionListener(e -> ask());
+    inputRow.add(questionField, BorderLayout.CENTER);
+    askButton = new JButton("Ask");
+    askButton.addActionListener(e -> ask());
+    inputRow.add(askButton, BorderLayout.EAST);
+    south.add(inputRow, BorderLayout.NORTH);
+
+    final JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+    attachCheck = new JCheckBox("Attach board", true);
+    attachCheck.setToolTipText("Send a snapshot of the current game with the question");
+    controls.add(attachCheck);
+    final String side = PlayerRoster.isActive() ? PlayerRoster.getMySide() : null;
+    soloCheck = new JCheckBox("Solo: full view",
+      side == null || side.isEmpty() || "<observer>".equals(side));
+    soloCheck.setToolTipText("No hidden-unit masking. Uncheck in a two-player "
+                             + "game so your opponent's concealed/HIP units stay hidden.");
+    controls.add(soloCheck);
+    final JButton settings = new JButton("Settings...");
+    settings.addActionListener(e -> showSettings());
+    controls.add(settings);
+    statusLabel = new JLabel(" ");
+    controls.add(statusLabel);
+    south.add(controls, BorderLayout.SOUTH);
+
+    dialog.add(south, BorderLayout.SOUTH);
     dialog.pack();
     dialog.setLocationRelativeTo(GameModule.getGameModule().getPlayerWindow());
   }
 
-  private void append(String line) {
-    output.append(line + "\n");
-    output.setCaretPosition(output.getDocument().getLength());
+  private void showSettings() {
+    final JTextField urlField = new JTextField(pref(P_URL, DEFAULT_URL), 28);
+    final JPasswordField keyField =
+      new JPasswordField(pref(P_KEY, ""), 28);
+    final JTextField modelField = new JTextField(pref(P_MODEL, ""), 28);
+
+    final JPanel panel = new JPanel(new GridBagLayout());
+    final GridBagConstraints gc = new GridBagConstraints();
+    gc.insets = new Insets(3, 4, 3, 4);
+    gc.fill = GridBagConstraints.HORIZONTAL;
+    int row = 0;
+    for (Object[] pair : new Object[][] {
+           {"Server:", urlField},
+           {"API key:", keyField},
+           {"Model:", modelField}}) {
+      gc.gridx = 0; gc.gridy = row; gc.weightx = 0;
+      panel.add(new JLabel((String) pair[0]), gc);
+      gc.gridx = 1; gc.weightx = 1;
+      panel.add((java.awt.Component) pair[1], gc);
+      row++;
+    }
+    gc.gridx = 1; gc.gridy = row; gc.weightx = 1;
+    panel.add(new JLabel("<html><i>Key: generate on your ruleschat profile page, "
+      + "or use your own OpenRouter sk-or-... key.</i></html>"), gc);
+
+    final int ok = JOptionPane.showConfirmDialog(
+      dialog, panel, "Ask ruleschat settings",
+      JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+    if (ok == JOptionPane.OK_OPTION) {
+      final Prefs prefs = GameModule.getGameModule().getPrefs();
+      prefs.setValue(P_URL,
+                     urlField.getText().trim().replaceAll("/+$", ""));
+      prefs.setValue(P_KEY, new String(keyField.getPassword()).trim());
+      prefs.setValue(P_MODEL, modelField.getText().trim());
+      try {
+        prefs.save();
+      }
+      catch (IOException ignored) {
+        // saved on VASSAL exit anyway
+      }
+    }
   }
+
+  // --- transcript helpers (EDT only) -----------------------------------
+
+  private void appendText(String text, SimpleAttributeSet style) {
+    final StyledDocument doc = transcript.getStyledDocument();
+    try {
+      doc.insertString(doc.getLength(), text, style);
+    }
+    catch (Exception ignored) {
+    }
+    transcript.setCaretPosition(doc.getLength());
+  }
+
+  private void setStatus(String s) {
+    statusLabel.setText(s == null || s.isEmpty() ? " " : s);
+  }
+
+  // --- snapshot ---------------------------------------------------------
+
+  /** Current game -> .vsav bytes, entirely in memory. Same format as
+   *  GameState.saveGame(File) (obfuscated command stream in a zip's
+   *  "savedGame" entry) but with no side effects on the module's save
+   *  state, dirty flag, or last-save pointer. EDT only. */
+  private static byte[] buildVsav(GameModule gm) throws IOException {
+    final String save = gm.encode(gm.getGameState().getRestoreCommand());
+    if (save == null) {
+      throw new IOException("could not serialize the game state");
+    }
+    final ByteArrayOutputStream obf = new ByteArrayOutputStream();
+    try (OutputStream o = new ObfuscatingOutputStream(obf)) {
+      o.write(save.getBytes(StandardCharsets.UTF_8));
+    }
+    final ByteArrayOutputStream zip = new ByteArrayOutputStream();
+    try (ZipOutputStream z = new ZipOutputStream(zip)) {
+      z.putNextEntry(new ZipEntry("savedGame"));
+      z.write(obf.toByteArray());
+      z.closeEntry();
+    }
+    return zip.toByteArray();
+  }
+
+  // --- ask flow ---------------------------------------------------------
 
   private void ask() {
     final GameModule gm = GameModule.getGameModule();
     final String question = questionField.getText().trim();
     if (question.isEmpty()) {
-      append("Type a question first.");
       return;
     }
-    final String key = new String(keyField.getPassword()).trim();
+    final String key = pref(P_KEY, "");
     if (key.isEmpty()) {
-      append("Enter an API key: generate one on your ruleschat profile page,"
-             + " or use your own OpenRouter key (sk-or-...).");
-      return;
+      showSettings();
+      if (pref(P_KEY, "").isEmpty()) {
+        appendText("Set an API key in Settings first.\n", errorStyle);
+        return;
+      }
     }
-    final String base = urlField.getText().trim().replaceAll("/+$", "");
-    final String modelChoice = modelField.getText().trim();
+    final String base = pref(P_URL, DEFAULT_URL).replaceAll("/+$", "");
+    final String model = pref(P_MODEL, "");
 
-    // Snapshot the game if one is in progress; a rules-only question
-    // without a game still works (no vsav attached).
-    File snapshot = null;
-    if (gm.getGameState().isGameStarted()) {
+    byte[] snapshot = null;
+    if (attachCheck.isSelected() && gm.getGameState().isGameStarted()) {
       try {
-        snapshot = File.createTempFile("ask-ruleschat-", ".vsav");
-        snapshot.deleteOnExit();
-        gm.getGameState().saveGame(snapshot);  // EDT: touches UI state
+        snapshot = buildVsav(gm);
       }
       catch (Exception ex) {
-        append("Could not snapshot the game: " + ex);
-        snapshot = null;
+        appendText("Could not snapshot the game: " + ex + "\n", errorStyle);
       }
     }
-    final File vsav = snapshot;
+    final byte[] vsav = snapshot;
     final boolean solo = soloCheck.isSelected();
     final String mySide =
       !solo && PlayerRoster.isActive() ? PlayerRoster.getMySide() : null;
@@ -204,28 +319,40 @@ public class AskRuleschatButton extends AbstractConfigurable {
     // GameModule.getUserId() here — that is the VASSAL *password* pref
     // (used internally as the ownership id) and must not leave the app.
     final Object realName = solo ? null
-      : GameModule.getGameModule().getPrefs().getValue(GameModule.REAL_NAME);
+      : gm.getPrefs().getValue(GameModule.REAL_NAME);
     final String playerId = realName == null ? null : realName.toString();
+    final List<String[]> pastPairs = new ArrayList<>(history);
 
+    questionField.setText("");
+    questionField.setEnabled(false);
     askButton.setEnabled(false);
-    append("");
-    append("Q: " + question);
-    append(vsav != null
-           ? (solo
-              ? "(board attached, solo: full view) thinking..."
-              : "(board attached, side: " + (mySide != null ? mySide : "?")
-                + ") thinking...")
-           : "(no game loaded - rules question only) thinking...");
+    appendText("You\n", youStyle);
+    appendText(question + "\n\n", bodyStyle);
+    appendText("ruleschat\n", botStyle);
+    setStatus(vsav != null ? "sending board + question..." : "sending question...");
 
-    new SwingWorker<String, Void>() {
+    new SwingWorker<Void, String[]>() {
+      private final StringBuilder answer = new StringBuilder();
+      private String finalKey = "answer";
+
       @Override
-      protected String doInBackground() throws Exception {
+      protected Void doInBackground() {
+        try {
+          runRequest();
+        }
+        catch (Exception ex) {
+          publish(new String[] {"error", "Request failed: "
+            + (ex.getCause() != null ? ex.getCause() : ex)});
+        }
+        return null;
+      }
+
+      private void runRequest() throws Exception {
         final StringBuilder body = new StringBuilder("{");
         body.append("\"question\":").append(Json.quote(question));
         if (vsav != null) {
-          final byte[] bytes = Files.readAllBytes(vsav.toPath());
           body.append(",\"vsav\":\"data:application/octet-stream;base64,")
-              .append(Base64.getEncoder().encodeToString(bytes)).append('"');
+              .append(Base64.getEncoder().encodeToString(vsav)).append('"');
         }
         if (mySide != null && !mySide.isEmpty()) {
           body.append(",\"side\":").append(Json.quote(mySide));
@@ -233,20 +360,31 @@ public class AskRuleschatButton extends AbstractConfigurable {
         if (playerId != null && !playerId.isEmpty()) {
           body.append(",\"player\":").append(Json.quote(playerId));
         }
-        if (!modelChoice.isEmpty()) {
-          body.append(",\"model\":").append(Json.quote(modelChoice));
+        if (!model.isEmpty()) {
+          body.append(",\"model\":").append(Json.quote(model));
+        }
+        if (!pastPairs.isEmpty()) {
+          body.append(",\"history\":[");
+          for (int i = 0; i < pastPairs.size(); i++) {
+            if (i > 0) {
+              body.append(',');
+            }
+            body.append('[').append(Json.quote(pastPairs.get(i)[0]))
+                .append(',').append(Json.quote(pastPairs.get(i)[1]))
+                .append(']');
+          }
+          body.append(']');
         }
         body.append('}');
 
-        // Pin HTTP/1.1: the default HTTP/2 client sends an h2c upgrade
-        // handshake on plain http:// URLs, and uvicorn drops the request
-        // body when it sees it (422 "body missing").
+        // HTTP/1.1 pinned: the default HTTP/2 client sends an h2c upgrade
+        // handshake on plain http:// URLs and uvicorn drops the body.
         final HttpClient client = HttpClient.newBuilder()
           .version(HttpClient.Version.HTTP_1_1)
           .connectTimeout(Duration.ofSeconds(10))
           .build();
         final HttpRequest req = HttpRequest.newBuilder(
-            URI.create(base + "/api/ask"))
+            URI.create(base + "/api/ask/stream"))
           .header("Content-Type", "application/json")
           .header("Authorization", "Bearer " + key)
           .timeout(Duration.ofSeconds(300))
@@ -254,51 +392,123 @@ public class AskRuleschatButton extends AbstractConfigurable {
                                                     StandardCharsets.UTF_8))
           .build();
 
-        final HttpResponse<String> resp =
-          client.send(req, HttpResponse.BodyHandlers.ofString());
-        final String respBody = resp.body() == null ? "" : resp.body();
+        final HttpResponse<InputStream> resp =
+          client.send(req, HttpResponse.BodyHandlers.ofInputStream());
         if (resp.statusCode() != 200) {
-          final String detail = Json.getString(respBody, "detail");
-          return "Error (HTTP " + resp.statusCode() + "): "
-                 + (detail != null ? detail : respBody);
+          final String err = readAll(resp.body());
+          final String detail = Json.getString(err, "detail");
+          publish(new String[] {"error", "Error (HTTP " + resp.statusCode()
+            + "): " + (detail != null ? detail : err)});
+          return;
         }
-        final String answer = Json.getString(respBody, "answer");
-        final String remaining = Json.getRaw(respBody, "remaining_today");
-        final String usedModel = Json.getString(respBody, "model");
-        final StringBuilder out = new StringBuilder();
-        out.append(answer != null ? answer : respBody);
-        out.append("\n---\n");
+        try (BufferedReader r = new BufferedReader(
+               new InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
+          String line;
+          while ((line = r.readLine()) != null) {
+            if (line.isEmpty()) {
+              continue;
+            }
+            final String delta = Json.getString(line, "delta");
+            if (delta != null) {
+              answer.append(delta);
+              publish(new String[] {"delta", delta});
+              continue;
+            }
+            final String status = Json.getString(line, "status");
+            if (status != null) {
+              publish(new String[] {"status", status});
+              continue;
+            }
+            final String error = Json.getString(line, "error");
+            if (error != null) {
+              publish(new String[] {"error", error});
+              return;
+            }
+            if (Json.getRaw(line, "done") != null) {
+              publish(new String[] {"meta", metaLine(line)});
+            }
+          }
+        }
+      }
+
+      private String metaLine(String doneJson) {
+        final StringBuilder sb = new StringBuilder();
+        final String usedModel = Json.getString(doneJson, "model");
+        final String remaining = Json.getRaw(doneJson, "remaining_today");
+        final String elapsed = Json.getRaw(doneJson, "elapsed_seconds");
         if (usedModel != null) {
-          out.append("model: ").append(usedModel);
+          sb.append(usedModel);
+        }
+        if (elapsed != null) {
+          sb.append("  ·  ").append(elapsed).append("s");
         }
         if (remaining != null) {
-          out.append("  |  questions left today: ").append(remaining);
+          sb.append("  ·  ").append(remaining).append(" questions left today");
         }
-        return out.toString();
+        return sb.toString();
+      }
+
+      @Override
+      protected void process(List<String[]> chunks) {
+        for (String[] c : chunks) {
+          switch (c[0]) {
+            case "delta":
+              appendText(c[1], bodyStyle);
+              setStatus("answering...");
+              break;
+            case "status":
+              setStatus(c[1]);
+              break;
+            case "error":
+              appendText(c[1] + "\n", errorStyle);
+              break;
+            case "meta":
+              appendText("\n" + c[1] + "\n\n", metaStyle);
+              break;
+            default:
+              break;
+          }
+        }
       }
 
       @Override
       protected void done() {
-        try {
-          append(get());
-        }
-        catch (Exception ex) {
-          final Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-          append("Request failed: " + cause);
-        }
-        finally {
-          askButton.setEnabled(true);
-          if (vsav != null) {
-            vsav.delete();
+        if (answer.length() > 0) {
+          history.add(new String[] {question, answer.toString()});
+          while (history.size() > MAX_HISTORY_PAIRS) {
+            history.remove(0);
           }
+          // process() already rendered everything; just tidy spacing when
+          // the stream ended without a done line (e.g. mid-stream error).
         }
+        setStatus(" ");
+        questionField.setEnabled(true);
+        askButton.setEnabled(true);
+        questionField.requestFocusInWindow();
       }
     }.execute();
   }
 
-  /** Just enough JSON for one flat request/response — no bundled library
+  private static String readAll(InputStream in) {
+    try (BufferedReader r = new BufferedReader(
+           new InputStreamReader(in, StandardCharsets.UTF_8))) {
+      final StringBuilder sb = new StringBuilder();
+      final char[] buf = new char[4096];
+      int n;
+      while ((n = r.read(buf)) != -1) {
+        sb.append(buf, 0, n);
+      }
+      return sb.toString();
+    }
+    catch (IOException e) {
+      return "";
+    }
+  }
+
+  /** Just enough JSON for flat request/response lines — no bundled library
    *  (the extension shares VASSAL's classloader; fewer classes, fewer
-   *  collision risks). */
+   *  collision risks). A real scanner: walks strings (with escapes) and
+   *  nesting, so field-name-like text inside the answer can't derail it. */
   static final class Json {
     private Json() {}
 
@@ -339,9 +549,6 @@ public class AskRuleschatButton extends AbstractConfigurable {
       return span == null ? null : json.substring(span[0], span[1]).trim();
     }
 
-    /** [start, end) of the named top-level field's value. A real scanner —
-     *  walks strings (with escapes) and nesting, so field-name-like text
-     *  inside the answer string can't derail the lookup. */
     private static int[] valueSpan(String json, String field) {
       int i = json.indexOf('{');
       if (i < 0) {
@@ -461,55 +668,30 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
   }
 
-  // --- Configurable plumbing -------------------------------------------
+  // --- Configurable plumbing (settings live in VASSAL prefs, not here) --
 
   @Override
   public String[] getAttributeNames() {
-    return new String[] { SERVER_URL, API_KEY, MODEL };
+    return new String[0];
   }
 
   @Override
   public String[] getAttributeDescriptions() {
-    return new String[] {
-      "ruleschat server URL:  ",
-      "API key (ruleschat account key or OpenRouter sk-or-...):  ",
-      "Model (blank = server default):  ",
-    };
+    return new String[0];
   }
 
   @Override
   public Class<?>[] getAttributeTypes() {
-    return new Class<?>[] { String.class, String.class, String.class };
+    return new Class<?>[0];
   }
 
   @Override
   public String getAttributeValueString(String key) {
-    if (SERVER_URL.equals(key)) {
-      return serverUrl;
-    }
-    if (API_KEY.equals(key)) {
-      return apiKey;
-    }
-    if (MODEL.equals(key)) {
-      return model;
-    }
     return null;
   }
 
   @Override
   public void setAttribute(String key, Object value) {
-    if (value == null) {
-      return;
-    }
-    if (SERVER_URL.equals(key)) {
-      serverUrl = value.toString().replaceAll("/+$", "");
-    }
-    else if (API_KEY.equals(key)) {
-      apiKey = value.toString().trim();
-    }
-    else if (MODEL.equals(key)) {
-      model = value.toString().trim();
-    }
   }
 
   @Override

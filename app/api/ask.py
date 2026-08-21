@@ -17,6 +17,7 @@ player id. If neither resolves against the save, a side that matches no
 unit still masks BOTH sides' hidden units (over-masking, never leaking).
 """
 import copy
+import json
 import logging
 import os
 import tempfile
@@ -25,6 +26,7 @@ from datetime import date
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import model_registry
@@ -55,12 +57,35 @@ VSAV_MODEL = "gpt-5.4"
 _usage: Dict[str, Any] = {"day": None, "counts": {}}
 
 
+ASK_MAX_HISTORY_CHARS = int(os.getenv("ASK_MAX_HISTORY_CHARS", "8000"))
+
+
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=ASK_MAX_QUESTION_CHARS)
     vsav: Optional[str] = None      # base64 data URL, same shape as the site
     side: Optional[str] = None      # perspective side name, e.g. "Russian"
     player: Optional[str] = None    # VASSAL player id, mapped via player_sides
     model: Optional[str] = None     # registry key (account) or vendor/slug (provider)
+    # Recent [question, answer] pairs from the client's transcript, oldest
+    # first. The endpoint itself is stateless; follow-up context rides along
+    # in the prompt.
+    history: Optional[list] = None
+
+
+def _question_with_history(question: str, history) -> str:
+    if not history:
+        return question
+    parts = []
+    for pair in list(history)[-6:]:
+        if not (isinstance(pair, (list, tuple)) and len(pair) == 2):
+            continue
+        parts.append(f"Q: {pair[0]}\nA: {pair[1]}")
+    if not parts:
+        return question
+    ctx = "\n\n".join(parts)[-ASK_MAX_HISTORY_CHARS:]
+    return ("Earlier exchanges in this conversation, for context only "
+            "(answer just the current question):\n"
+            + ctx + "\n\nCurrent question: " + question)
 
 
 def _lookup_user_by_key(key: str) -> Optional[User]:
@@ -153,10 +178,8 @@ def _account_model(requested: Optional[str], user: User, has_vsav: bool) -> str:
     return model_registry.resolve(model_registry.specs_for("chat", admin)[0].key)
 
 
-@router.post("/api/ask")
-def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
-    # Sync endpoint on purpose: get_answer blocks on the LLM SDK, and FastAPI
-    # runs plain-def endpoints on the threadpool.
+def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
+    """Everything both endpoints share: credential, limit, vsav, model."""
     mode, credential = _resolve_credential(authorization)
     if mode == "account":
         credential_id = f"user:{credential.id}"
@@ -203,10 +226,60 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
         )
         trace_ctx = {"tags": ["ask", "provider"]}
 
+    return {
+        "mode": mode,
+        "remaining": remaining,
+        "board_state": board_state,
+        "vsav_state": vsav_state,
+        "perspective": perspective,
+        "model": model,
+        "service": service,
+        "trace_ctx": trace_ctx,
+        "question": _question_with_history(payload.question, payload.history),
+    }
+
+
+def _board_summary(ctx: dict) -> Optional[dict]:
+    if ctx["vsav_state"] is None:
+        return None
+    val = ctx["vsav_state"].get("validation") or {}
+    return {
+        "hexes": len(ctx["vsav_state"].get("hexes", {})),
+        "validation": f"{val.get('n_matched', 0)}"
+                      f"/{val.get('n_breadcrumbs_checked', 0)}",
+        "perspective": ctx["perspective"],
+    }
+
+
+def _sanitize_llm_error(e: Exception, mode: str) -> HTTPException:
+    # Bad pass-through key surfaces as a provider auth error; everything
+    # else is a generic upstream failure. Never echo the key.
+    msg = str(e)
+    if mode == "provider" and ("401" in msg or "auth" in msg.lower()):
+        return HTTPException(status_code=401,
+                             detail="OpenRouter rejected the provided key")
+    logging.error("ask: LLM call failed: %s", e, exc_info=True)
+    return HTTPException(status_code=502, detail="The LLM call failed")
+
+
+@router.post("/api/ask")
+def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
+    # Sync endpoint on purpose: get_answer blocks on the LLM SDK, and FastAPI
+    # runs plain-def endpoints on the threadpool.
+    ctx = _prepare_ask(payload, authorization)
+    mode = ctx["mode"]
+    model = ctx["model"]
+    service = ctx["service"]
+    board_state = ctx["board_state"]
+    vsav_state = ctx["vsav_state"]
+    perspective = ctx["perspective"]
+    trace_ctx = ctx["trace_ctx"]
+    remaining = ctx["remaining"]
+
     t0 = time.monotonic()
     try:
         answer = service.get_answer(
-            payload.question,
+            ctx["question"],
             stream=False,
             model=model,
             max_output_tokens=ASK_MAX_OUTPUT_TOKENS,
@@ -218,14 +291,7 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
     except HTTPException:
         raise
     except Exception as e:
-        # Bad pass-through key surfaces as a provider auth error; everything
-        # else is a generic upstream failure. Never echo the key.
-        msg = str(e)
-        if mode == "provider" and ("401" in msg or "auth" in msg.lower()):
-            raise HTTPException(status_code=401,
-                                detail="OpenRouter rejected the provided key")
-        logging.error("ask: LLM call failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=502, detail="The LLM call failed")
+        raise _sanitize_llm_error(e, mode)
 
     result: Dict[str, Any] = {
         "answer": answer,
@@ -234,12 +300,59 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
         "remaining_today": remaining,
         "elapsed_seconds": round(time.monotonic() - t0, 1),
     }
-    if vsav_state is not None:
-        val = vsav_state.get("validation") or {}
-        result["board"] = {
-            "hexes": len(vsav_state.get("hexes", {})),
-            "validation": f"{val.get('n_matched', 0)}"
-                          f"/{val.get('n_breadcrumbs_checked', 0)}",
-            "perspective": perspective,
-        }
+    board = _board_summary(ctx)
+    if board is not None:
+        result["board"] = board
     return result
+
+
+@router.post("/api/ask/stream")
+def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None)):
+    """Streaming variant: NDJSON lines.
+
+    {"delta": "..."}   answer text chunk
+    {"status": "..."}  agentic-loop progress (tool running, etc.)
+    {"error": "..."}   mid-stream failure; the stream ends after it
+    {"done": true, ...} final line with model/mode/remaining/board metadata
+
+    Errors *before* the stream starts (auth, limits, bad vsav) are normal
+    HTTP error responses, same as /api/ask.
+    """
+    ctx = _prepare_ask(payload, authorization)
+
+    def gen():
+        t0 = time.monotonic()
+        try:
+            stream = ctx["service"].get_answer(
+                ctx["question"],
+                stream=True,
+                model=ctx["model"],
+                max_output_tokens=ASK_MAX_OUTPUT_TOKENS,
+                board_state=ctx["board_state"],
+                vsav_state=ctx["vsav_state"],
+                use_agentic=bool(ctx["vsav_state"]),
+                trace_ctx=ctx["trace_ctx"],
+            )
+            for delta in stream:
+                if isinstance(delta, dict):
+                    yield json.dumps(
+                        {"status": delta.get("status", "")}) + "\n"
+                elif delta:
+                    yield json.dumps({"delta": delta}) + "\n"
+        except Exception as e:
+            exc = _sanitize_llm_error(e, ctx["mode"])
+            yield json.dumps({"error": exc.detail}) + "\n"
+            return
+        done: Dict[str, Any] = {
+            "done": True,
+            "model": ctx["model"],
+            "mode": ctx["mode"],
+            "remaining_today": ctx["remaining"],
+            "elapsed_seconds": round(time.monotonic() - t0, 1),
+        }
+        board = _board_summary(ctx)
+        if board is not None:
+            done["board"] = board
+        yield json.dumps(done) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")

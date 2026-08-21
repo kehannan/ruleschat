@@ -1,10 +1,17 @@
 # AskRuleschat — VASL module extension
 
 A VASSAL module extension (`.vmdx`) for VASL that adds an **Ask LLM** toolbar
-button. It opens a dialog where the player types a question; the extension
-snapshots the current game with `GameState.saveGame(File)` and sends
-question + save + player side to ruleschat's `POST /api/ask`, then shows
-the answer. With no game loaded it still works as a plain rules Q&A.
+button opening a chat dialog: transcript pane, streaming answers, follow-up
+context (recent Q/A pairs ride along with each request), and agentic-tool
+progress in a status line. Each question ships an in-memory snapshot of the
+current game — the same bytes as a `.vsav` save, built via
+`GameModule.encode(GameState.getRestoreCommand())` + `ObfuscatingOutputStream`,
+so the module's save state, dirty flag, and last-save pointer are untouched.
+With no game loaded (or "Attach board" unchecked) it is a plain rules Q&A.
+
+Settings (server URL, API key, model) live behind the **Settings...** button
+and persist in VASSAL's preferences ("Ask ruleschat" tab). Default server:
+`https://ruleschat.com`.
 
 ## Credentials (one field, auto-detected by the server)
 
@@ -52,18 +59,22 @@ Bytecode targets `--release 11` to match what VASL itself ships
 
 ## Install & test
 
-1. Start the ruleschat dev server on `http://127.0.0.1:8000`.
-2. Copy `dist/AskRuleschat.vmdx` into the module's extensions folder
-   (e.g. `~/vasl/vasl-6.7.3_ext/` — created by right-clicking the module in
-   the VASSAL Module Manager → *Add Extension*, which does the copy for you).
-3. Launch VASL. Accept the standard "this module contains custom code"
+1. In the VASSAL Module Manager, right-click the VASL module ->
+   *Add Extension* -> pick `dist/AskRuleschat.vmdx`. If your VASL loads
+   extensions from a shared folder (e.g. `~/vasl/extensions/`), copy the
+   file there instead — check the startup log for which folder is read.
+2. Launch VASL and accept the standard "this module contains custom code"
    warning for the new extension.
-4. Open a scenario or saved game, click **Ask LLM**, fill in the API key
-   (ruleschat profile key or `sk-or-...`), type a question, hit Enter.
+3. Click **Ask LLM** -> **Settings...** -> paste your API key (generated on
+   your ruleschat profile page, or your own OpenRouter `sk-or-...` key).
+   Settings persist in VASSAL preferences.
+4. Open a scenario or saved game, type a question, hit Enter. Leave
+   "Attach board" checked to ask about the current position; check
+   "Solo: full view" in solo games (default when you haven't joined a
+   side), uncheck it in two-player games so hidden units stay hidden.
 
-Server URL / API key / model are persisted extension attributes (defaults
-editable in the VASSAL extension editor) and editable per-session in the
-dialog itself.
+Local development: run the dev server and set the Server URL to
+`http://127.0.0.1:8000` in Settings.
 
 ## Structure
 
@@ -78,21 +89,9 @@ dialog itself.
 - `build.sh` — javac + zip. No Maven; the only compile-time dependency is
   the local VASSAL install.
 
-## Known questions to verify in the live test
+## Later
 
-- Whether `saveGame(File)` updates the module's "last save file" pointer
-  (would make a later Ctrl+S silently target the temp file). If so, Phase 1
-  should switch to building the save bytes in memory
-  (`GameModule.encode(GameState.getRestoreCommand())` +
-  `ObfuscatingOutputStream` + a zip with a `savedGame` entry).
-- Whether `saveGame` posts a "game saved" line to the chatter (cosmetic).
-
-## Later phases
-
-- Streaming answers (the endpoint is one-shot; long agentic answers can
-  take a minute-plus — the dialog just waits with the button disabled).
 - Unify the site's two websocket orchestrations (`app/api/chat.py`,
   `app/api/demo.py`) with `/api/ask` behind one shared service function.
 - Hash account API keys at rest (currently plaintext in the users table).
-- In-memory save building instead of `saveGame(File)` if the live test
-  shows side effects (see above).
+- Optional: echo answers into the VASSAL chatter.

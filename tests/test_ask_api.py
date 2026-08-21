@@ -31,9 +31,11 @@ class FakeService:
         self.calls = []
         self.openrouter_client = "ENV_CLIENT"
 
-    def get_answer(self, question, **kwargs):
-        self.calls.append({"question": question, **kwargs,
+    def get_answer(self, question, stream=False, **kwargs):
+        self.calls.append({"question": question, "stream": stream, **kwargs,
                            "openrouter_client": self.openrouter_client})
+        if stream:
+            return iter([{"status": "searching"}, "THE ", "ANSWER"])
         return "THE ANSWER"
 
 
@@ -159,6 +161,46 @@ def test_bad_vsav_is_400(client):
               "vsav": "data:application/octet-stream;base64,AAAA"},
         headers={"Authorization": f"Bearer {FakeUser.api_key}"})
     assert r.status_code == 400
+
+
+# --- streaming + history ------------------------------------------------------
+
+def test_stream_endpoint_ndjson(client):
+    import json as _json
+    r = client.post("/api/ask/stream", json={"question": "hi"},
+                    headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200
+    lines = [_json.loads(l) for l in r.text.strip().split("\n")]
+    assert lines[0] == {"status": "searching"}
+    assert [l.get("delta") for l in lines[1:3]] == ["THE ", "ANSWER"]
+    assert lines[-1]["done"] is True
+    assert lines[-1]["mode"] == "account"
+    assert "remaining_today" in lines[-1]
+
+
+def test_stream_auth_still_http_error(client):
+    r = client.post("/api/ask/stream", json={"question": "hi"},
+                    headers={"Authorization": "Bearer nope"})
+    assert r.status_code == 401
+
+
+def test_history_prefixes_question(client):
+    r = client.post(
+        "/api/ask",
+        json={"question": "And with a leader?",
+              "history": [["What is the TEM of woods?", "+1 (B13.2)."]]},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200
+    q = client.fake_service.calls[-1]["question"]
+    assert q.startswith("Earlier exchanges")
+    assert "What is the TEM of woods?" in q
+    assert q.endswith("Current question: And with a leader?")
+
+
+def test_no_history_leaves_question_untouched(client):
+    client.post("/api/ask", json={"question": "plain"},
+                headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert client.fake_service.calls[-1]["question"] == "plain"
 
 
 # --- perspective resolution unit tests ---------------------------------------
