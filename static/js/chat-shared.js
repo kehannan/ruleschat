@@ -337,15 +337,98 @@ async function renderPage(pageNum) {
     const page     = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale });
     const canvas   = document.getElementById('pdf-canvas');
+    const pageWrap = document.getElementById('pdf-page');
     const ctx      = canvas.getContext('2d');
     const out      = devicePixelRatio;
     canvas.height  = Math.floor(viewport.height * out);
     canvas.width   = Math.floor(viewport.width * out);
     canvas.style.height = Math.floor(viewport.height) + 'px';
     canvas.style.width  = Math.floor(viewport.width) + 'px';
+    if (pageWrap) {
+        pageWrap.style.height = Math.floor(viewport.height) + 'px';
+        pageWrap.style.width  = Math.floor(viewport.width) + 'px';
+    }
     ctx.scale(out, out);
     await page.render({ canvasContext: ctx, viewport }).promise;
+    await renderPdfLinks(page, viewport);
     updatePageInfo();
+    updateControls();
+}
+
+async function renderPdfLinks(page, viewport) {
+    const layer = document.getElementById('pdf-link-layer');
+    if (!layer) return;
+
+    layer.replaceChildren();
+    layer.style.height = Math.floor(viewport.height) + 'px';
+    layer.style.width  = Math.floor(viewport.width) + 'px';
+
+    const annotations = await page.getAnnotations({ intent: 'display' });
+    for (const annotation of annotations) {
+        if (annotation.subtype !== 'Link' || !annotation.rect) continue;
+
+        const rect = viewport.convertToViewportRectangle(annotation.rect);
+        const left = Math.min(rect[0], rect[2]);
+        const top = Math.min(rect[1], rect[3]);
+        const width = Math.abs(rect[0] - rect[2]);
+        const height = Math.abs(rect[1] - rect[3]);
+        if (width <= 0 || height <= 0) continue;
+
+        const link = document.createElement('a');
+        link.className = 'pdf-link';
+        link.style.left = `${left}px`;
+        link.style.top = `${top}px`;
+        link.style.width = `${width}px`;
+        link.style.height = `${height}px`;
+        link.title = annotation.url || 'Open PDF link';
+        link.setAttribute('aria-label', link.title);
+
+        if (annotation.url || annotation.unsafeUrl) {
+            link.href = annotation.url || annotation.unsafeUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        } else if (annotation.dest) {
+            link.href = '#';
+            link.onclick = async (e) => {
+                e.preventDefault();
+                await navigateToPdfDestination(annotation.dest);
+            };
+        } else if (annotation.action) {
+            link.href = '#';
+            link.onclick = (e) => {
+                e.preventDefault();
+                handlePdfAction(annotation.action);
+            };
+        } else {
+            continue;
+        }
+
+        layer.appendChild(link);
+    }
+}
+
+async function navigateToPdfDestination(dest) {
+    if (!pdfDoc) return;
+    const explicitDest = typeof dest === 'string' ? await pdfDoc.getDestination(dest) : dest;
+    if (!explicitDest || !explicitDest[0]) return;
+
+    const pageRef = explicitDest[0];
+    currentPage = Number.isInteger(pageRef) ? pageRef + 1 : (await pdfDoc.getPageIndex(pageRef)) + 1;
+    await renderPage(currentPage);
+    document.getElementById('pdf-container').scrollTop = 0;
+}
+
+function handlePdfAction(action) {
+    if (action === 'NextPage') pdfNextPage();
+    if (action === 'PrevPage') pdfPrevPage();
+    if (action === 'FirstPage' && currentPage !== 1) {
+        currentPage = 1;
+        renderPage(currentPage);
+    }
+    if (action === 'LastPage' && currentPage !== totalPages) {
+        currentPage = totalPages;
+        renderPage(currentPage);
+    }
 }
 
 function updatePageInfo() {
@@ -364,9 +447,16 @@ function pdfZoomIn()   { scale += 0.5; renderPage(currentPage); updatePageInfo()
 function pdfZoomOut()  { if (scale > 1.0) { scale -= 0.5; renderPage(currentPage); updatePageInfo(); } }
 
 document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('pdf-modal');
+    const pdfOpen = modal && modal.style.display !== 'none';
     if (e.key === 'Escape') {
-        const modal = document.getElementById('pdf-modal');
-        if (modal && modal.style.display !== 'none') closePdfModal();
+        if (pdfOpen) closePdfModal();
+    } else if (pdfOpen && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        pdfPrevPage();
+    } else if (pdfOpen && e.key === 'ArrowRight') {
+        e.preventDefault();
+        pdfNextPage();
     }
 });
 

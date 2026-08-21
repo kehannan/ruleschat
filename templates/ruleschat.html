@@ -130,9 +130,8 @@
     background: var(--surface-card);
     border: 1px solid var(--border-hairline);
     border-radius: var(--radius-xl);
-    max-width: 1200px;
-    width: 100%;
-    max-height: 92vh;
+    width: min(calc(100vw - 48px), 1600px);
+    height: min(calc(100vh - 48px), 1100px);
     display: flex; flex-direction: column;
     box-shadow: var(--shadow-xl);
     overflow: hidden;
@@ -168,27 +167,52 @@
     background: var(--surface-card);
   }
   .site .pdf-controls {
-    display: flex; align-items: center; gap: 12px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border-hairline);
-    background: var(--bg-subtle);
-    font-family: var(--font-mono); font-size: 11px;
-    color: var(--text-secondary);
+    position: relative;
+    z-index: 20;
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 2px solid #c9bda7;
+    background: #f6f0e6;
+    font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+    color: #2f3437;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .18);
+  }
+  .site .pdf-controls #pdf-page-info,
+  .site .pdf-controls #pdf-zoom-level {
+    min-width: max-content;
+    color: #2f3437;
+  }
+  .site .pdf-controls #pdf-zoom-level {
+    padding: 7px 12px;
+    border: 1px solid #b8ab94;
+    border-radius: var(--radius-sm);
+    background: #fffaf2;
   }
   .site .pdf-controls button {
-    background: transparent; color: var(--text-primary);
-    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-    padding: 4px 10px;
-    font-family: var(--font-mono); font-size: 11px;
+    background: #fbf7ef;
+    color: #243039;
+    border: 1px solid #9a8d77;
+    border-radius: var(--radius-sm);
+    padding: 7px 14px;
+    min-width: 40px;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 800;
     letter-spacing: .04em; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
     transition: background var(--dur-fast) var(--ease-lock),
+                color var(--dur-fast) var(--ease-lock),
                 border-color var(--dur-fast) var(--ease-lock);
   }
   .site .pdf-controls button:hover:not(:disabled) {
-    background: var(--ink-800); border-color: var(--text-muted);
+    background: #243039;
+    color: #ffffff;
+    border-color: #243039;
   }
   .site .pdf-controls button:disabled {
-    opacity: .4; cursor: not-allowed;
+    background: #e7dfd2;
+    color: #827767;
+    border-color: #c5b9a6;
+    box-shadow: none;
+    opacity: 1; cursor: not-allowed;
   }
   .site .pdf-container {
     flex: 1;
@@ -197,7 +221,30 @@
     background: var(--surface-sunken);
     display: flex; justify-content: center;
   }
-  .site .pdf-container canvas { box-shadow: var(--shadow-md); }
+  .site .pdf-page {
+    position: relative;
+    flex: 0 0 auto;
+  }
+  .site .pdf-container canvas {
+    display: block;
+    box-shadow: var(--shadow-md);
+  }
+  .site .pdf-link-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .site .pdf-link {
+    position: absolute;
+    display: block;
+    pointer-events: auto;
+    cursor: pointer;
+    background: transparent;
+  }
+  .site .pdf-link:hover {
+    outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    outline-offset: 1px;
+  }
   .site .pdf-loading {
     padding: 24px;
     text-align: center;
@@ -388,15 +435,18 @@
     </div>
     <div class="pdf-modal-body">
       <div id="pdf-controls" class="pdf-controls">
-        <button id="pdf-prev" onclick="pdfPrevPage()" disabled>← Prev</button>
+        <button id="pdf-prev" onclick="pdfPrevPage()" disabled title="Previous page" aria-label="Previous page">← Prev</button>
         <span id="pdf-page-info">Page 1 of 1</span>
-        <button id="pdf-next" onclick="pdfNextPage()" disabled>Next →</button>
-        <button id="pdf-zoom-out" onclick="pdfZoomOut()">−</button>
+        <button id="pdf-next" onclick="pdfNextPage()" disabled title="Next page" aria-label="Next page">Next →</button>
+        <button id="pdf-zoom-out" onclick="pdfZoomOut()" title="Zoom out" aria-label="Zoom out">−</button>
         <span id="pdf-zoom-level">150%</span>
-        <button id="pdf-zoom-in" onclick="pdfZoomIn()">+</button>
+        <button id="pdf-zoom-in" onclick="pdfZoomIn()" title="Zoom in" aria-label="Zoom in">+</button>
       </div>
       <div id="pdf-container" class="pdf-container">
-        <canvas id="pdf-canvas"></canvas>
+        <div id="pdf-page" class="pdf-page">
+          <canvas id="pdf-canvas"></canvas>
+          <div id="pdf-link-layer" class="pdf-link-layer" aria-label="PDF links"></div>
+        </div>
       </div>
       <div id="pdf-loading" class="pdf-loading">Loading PDF…</div>
     </div>

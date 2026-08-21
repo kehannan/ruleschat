@@ -86,6 +86,10 @@ conda activate ruleschat-env
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# Test/browser tooling
+pip install -r requirements-dev.txt
+python -m playwright install chromium
 ```
 
 ### 2. Configure environment
@@ -159,10 +163,9 @@ See [deployment/QUICKSTART.md](deployment/QUICKSTART.md) for production setup (n
 ```bash
 # Unit tests (calculators, cite-check, rules lookup, vsav parsing, ...)
 # Each test file also runs standalone: python tests/test_cite_check.py
-python -m pytest tests/ -q
+python -m pytest tests/test_*.py -q
 
 # Mobile/responsive UI tests (requires Playwright + a running server)
-pip install playwright && python -m playwright install chromium
 python tests/test_mobile.py
 ```
 
