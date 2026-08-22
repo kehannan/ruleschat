@@ -835,6 +835,22 @@ def test_wounded_leader_direction_drm_worsened_by_one():
         r["warnings"]
 
 
+
+def test_execute_tool_drops_unknown_arguments():
+    """Seen live with ox-alpha: get_section's include_subsections passed to
+    resolve_attack. The dispatcher must drop it, not raise TypeError."""
+    hexes = {
+        "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "57-B4": {"units": [_sq("4-4-7 1sq", "Russian")], "markers": []},
+    }
+    r = execute_tool("resolve_attack",
+                     {"firing_hex": "57-B2", "target_hex": "57-B4",
+                      "include_subsections": True},
+                     context={"vsav_state": _mk_state(hexes)})
+    assert "error" not in r, r
+    assert r["total_fp"] == 4, r
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failures = 0

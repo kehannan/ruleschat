@@ -849,6 +849,23 @@ def execute_tool(
     """
     if tool_name not in TOOL_FUNCTIONS:
         raise ValueError(f"Unknown tool: {tool_name}")
+    fn = TOOL_FUNCTIONS[tool_name]
+    # Models occasionally carry a parameter from one tool into another (seen
+    # live with ox-alpha: get_section's include_subsections passed to
+    # resolve_attack). Drop anything the function doesn't accept rather than
+    # failing the whole tool call with a TypeError.
+    import inspect
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        params = None
+    if params is not None and not any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        dropped = [k for k in (arguments or {}) if k not in params]
+        if dropped:
+            logging.warning("%s: ignoring unknown argument(s) %s",
+                            tool_name, dropped)
+            arguments = {k: v for k, v in arguments.items() if k in params}
     if tool_name in CONTEXT_TOOLS:
-        return TOOL_FUNCTIONS[tool_name](**arguments, _context=context)
-    return TOOL_FUNCTIONS[tool_name](**arguments)
+        return fn(**arguments, _context=context)
+    return fn(**arguments)

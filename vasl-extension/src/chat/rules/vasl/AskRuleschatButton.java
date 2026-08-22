@@ -904,7 +904,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
             URI.create(base + "/api/ask/stream"))
           .header("Content-Type", "application/json")
           .header("Authorization", "Bearer " + key)
-          .timeout(Duration.ofSeconds(300))
+          .timeout(Duration.ofSeconds(600))
           .POST(HttpRequest.BodyPublishers.ofString(body.toString(),
                                                     StandardCharsets.UTF_8))
           .build();
