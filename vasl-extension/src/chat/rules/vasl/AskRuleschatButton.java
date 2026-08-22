@@ -56,6 +56,8 @@ import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -100,7 +102,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.4";
+  static final String VERSION = "0.3.5";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -152,6 +154,10 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private JTextField losTargetField;
   private JComboBox<Integer> losSourceLevel;
   private JComboBox<Integer> losTargetLevel;
+  private JButton losPickButton;
+  private boolean pickingLos;
+  private ASLMap pickerMap;
+  private MouseAdapter pickerListener;
   private JLabel statusLabel;
   private JLabel headerMeta;
 
@@ -206,6 +212,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
 
   @Override
   public void removeFrom(Buildable parent) {
+    stopLosPicker();
     if (launchButton != null) {
       GameModule.getGameModule().getToolBar().remove(launchButton);
       GameModule.getGameModule().getToolBar().revalidate();
@@ -501,6 +508,18 @@ public class AskRuleschatButton extends AbstractConfigurable {
     losControls.add(losTargetField);
     losTargetLevel = levelBox("Target level");
     losControls.add(losTargetLevel);
+    losPickButton = new JButton("Pick");
+    losPickButton.setToolTipText("Click firing Location, then target Location on the map");
+    losPickButton.addActionListener(e -> toggleLosPicker());
+    losControls.add(losPickButton);
+    final JButton swapLosButton = new JButton("Swap");
+    swapLosButton.setToolTipText("Swap firing and target Locations");
+    swapLosButton.addActionListener(e -> swapLosLocations());
+    losControls.add(swapLosButton);
+    final JButton clearLosButton = new JButton("Clear");
+    clearLosButton.setToolTipText("Clear selected LOS Locations");
+    clearLosButton.addActionListener(e -> clearLosLocations());
+    losControls.add(clearLosButton);
     controls.add(losControls, BorderLayout.CENTER);
     statusLabel = new JLabel();
     statusLabel.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
@@ -549,6 +568,78 @@ public class AskRuleschatButton extends AbstractConfigurable {
     box.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
     box.setToolTipText(tip);
     return box;
+  }
+
+  private void toggleLosPicker() {
+    if (pickingLos) {
+      stopLosPicker();
+      return;
+    }
+    pickerMap = findAslMap(GameModule.getGameModule());
+    if (pickerMap == null) {
+      setStatus("map unavailable for LOS pick");
+      return;
+    }
+    pickerListener = new MouseAdapter() {
+      @Override
+      public void mouseReleased(MouseEvent event) {
+        if (event.getButton() != MouseEvent.BUTTON1) {
+          return;
+        }
+        final String location = pickerMap.locationName(event.getPoint());
+        final Matcher m = HEX_REFERENCE.matcher(location == null ? "" : location);
+        String hex = null;
+        while (m.find()) {
+          hex = m.group(1).toUpperCase();
+        }
+        if (hex == null) {
+          setStatus("click a board hex");
+          return;
+        }
+        if (losSourceField.getText().trim().isEmpty()) {
+          losSourceField.setText(hex);
+          setStatus("select target Location");
+        }
+        else {
+          losTargetField.setText(hex);
+          stopLosPicker();
+          setStatus("LOS Locations selected");
+        }
+      }
+    };
+    pickerMap.addLocalMouseListener(pickerListener);
+    pickingLos = true;
+    losPickButton.setText("Cancel");
+    setStatus("select firing Location");
+  }
+
+  private void stopLosPicker() {
+    if (pickerMap != null && pickerListener != null) {
+      pickerMap.removeLocalMouseListener(pickerListener);
+    }
+    pickerMap = null;
+    pickerListener = null;
+    pickingLos = false;
+    if (losPickButton != null) {
+      losPickButton.setText("Pick");
+    }
+  }
+
+  private void swapLosLocations() {
+    final String source = losSourceField.getText();
+    losSourceField.setText(losTargetField.getText());
+    losTargetField.setText(source);
+    final Object level = losSourceLevel.getSelectedItem();
+    losSourceLevel.setSelectedItem(losTargetLevel.getSelectedItem());
+    losTargetLevel.setSelectedItem(level);
+  }
+
+  private void clearLosLocations() {
+    stopLosPicker();
+    losSourceField.setText("");
+    losTargetField.setText("");
+    losSourceLevel.setSelectedIndex(0);
+    losTargetLevel.setSelectedIndex(0);
   }
 
   private void refreshHeaderMeta() {
