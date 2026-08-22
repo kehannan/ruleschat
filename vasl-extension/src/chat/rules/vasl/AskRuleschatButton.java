@@ -105,7 +105,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.7";
+  static final String VERSION = "0.3.8";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -161,6 +161,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private boolean pickingLos;
   private ASLMap pickerMap;
   private MouseAdapter pickerListener;
+  private final List<String> firingStackNames = new ArrayList<>();
+  private final List<String> targetStackNames = new ArrayList<>();
   private final List<String> selectedFirerNames = new ArrayList<>();
   private final List<String> selectedTargetNames = new ArrayList<>();
   private JLabel statusLabel;
@@ -517,6 +519,16 @@ public class AskRuleschatButton extends AbstractConfigurable {
     losPickButton.setToolTipText("Click firing Location, then target Location on the map");
     losPickButton.addActionListener(e -> toggleLosPicker());
     losControls.add(losPickButton);
+    final JButton firerCountersButton = new JButton("Firer");
+    firerCountersButton.setToolTipText("Choose which counters in the firing stack attack");
+    firerCountersButton.addActionListener(e -> editStackSelection(
+      "Firing counters", firingStackNames, selectedFirerNames));
+    losControls.add(firerCountersButton);
+    final JButton targetCountersButton = new JButton("Target");
+    targetCountersButton.setToolTipText("Choose which counters in the target stack are attacked");
+    targetCountersButton.addActionListener(e -> editStackSelection(
+      "Target counters", targetStackNames, selectedTargetNames));
+    losControls.add(targetCountersButton);
     final JButton swapLosButton = new JButton("Swap");
     swapLosButton.setToolTipText("Swap firing and target Locations");
     swapLosButton.addActionListener(e -> swapLosLocations());
@@ -604,14 +616,17 @@ public class AskRuleschatButton extends AbstractConfigurable {
         if (losSourceField.getText().trim().isEmpty()) {
           losSourceField.setText(hex);
           selectedTargetNames.clear();
-          selectStack(event, selectedFirerNames);
+          targetStackNames.clear();
+          selectStack(event, firingStackNames);
+          selectAll(firingStackNames, selectedFirerNames);
           setStatus(selectedFirerNames.isEmpty()
             ? "no stack found; select target Location"
             : selectedFirerNames.size() + " counter(s) selected; select target Location");
         }
         else {
           losTargetField.setText(hex);
-          selectStack(event, selectedTargetNames);
+          selectStack(event, targetStackNames);
+          selectAll(targetStackNames, selectedTargetNames);
           stopLosPicker();
           setStatus(selectedTargetNames.isEmpty()
             ? "LOS Locations selected"
@@ -673,9 +688,49 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
   }
 
+  private static void selectAll(List<String> source, List<String> selected) {
+    selected.clear();
+    selected.addAll(source);
+  }
+
+  /** Allow a player to fire only part of a picked stack (for example, a
+   * squad and its LMG but not another squad sharing the Location). */
+  private void editStackSelection(String title, List<String> stackNames,
+                                  List<String> selectedNames) {
+    if (stackNames.isEmpty()) {
+      setStatus("pick the " + title.toLowerCase() + " on the map first");
+      return;
+    }
+    final JPanel choices = new JPanel();
+    choices.setLayout(new BoxLayout(choices, BoxLayout.Y_AXIS));
+    final List<JCheckBox> boxes = new ArrayList<>();
+    for (String name : stackNames) {
+      final JCheckBox box = new JCheckBox(name, selectedNames.contains(name));
+      box.setFont(new Font(UI_FONT, Font.PLAIN, 12));
+      box.setOpaque(false);
+      boxes.add(box);
+      choices.add(box);
+    }
+    final JScrollPane pane = new JScrollPane(choices);
+    pane.setPreferredSize(new Dimension(320, Math.min(300, 36 + stackNames.size() * 26)));
+    if (JOptionPane.showConfirmDialog(dialog, pane, title,
+        JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) {
+      return;
+    }
+    selectedNames.clear();
+    for (int i = 0; i < boxes.size(); i++) {
+      if (boxes.get(i).isSelected()) {
+        selectedNames.add(stackNames.get(i));
+      }
+    }
+    setStatus(selectedNames.size() + " " + title.toLowerCase() + " selected");
+  }
+
   private void swapLosLocations() {
     selectedFirerNames.clear();
     selectedTargetNames.clear();
+    firingStackNames.clear();
+    targetStackNames.clear();
     final String source = losSourceField.getText();
     losSourceField.setText(losTargetField.getText());
     losTargetField.setText(source);
@@ -688,6 +743,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
     stopLosPicker();
     selectedFirerNames.clear();
     selectedTargetNames.clear();
+    firingStackNames.clear();
+    targetStackNames.clear();
     losSourceField.setText("");
     losTargetField.setText("");
     losSourceLevel.setSelectedIndex(0);
