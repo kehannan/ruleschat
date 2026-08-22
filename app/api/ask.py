@@ -68,6 +68,7 @@ class AskRequest(BaseModel):
     model: Optional[str] = None     # registry key (account) or vendor/slug (provider)
     native_los: Optional[dict] = None  # VASL client's authoritative LOS result
     game_phase: Optional[str] = None   # current VASL phase-wheel phase
+    selected_firers: Optional[list[str]] = None  # counters chosen on the VASL map
     # Recent [question, answer] pairs from the client's transcript, oldest
     # first. The endpoint itself is stateless; follow-up context rides along
     # in the prompt.
@@ -244,6 +245,7 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
         "question": _question_with_history(payload.question, payload.history),
         "native_los": payload.native_los,
         "game_phase": payload.game_phase,
+        "selected_firers": payload.selected_firers,
     }
 
 
@@ -321,6 +323,7 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
             trace_ctx=trace_ctx,
             native_los=ctx["native_los"],
             game_phase=ctx["game_phase"],
+            selected_firers=ctx["selected_firers"],
         )
     except HTTPException:
         raise
@@ -379,6 +382,7 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                 trace_ctx=ctx["trace_ctx"],
                 native_los=ctx["native_los"],
                 game_phase=ctx["game_phase"],
+                selected_firers=ctx["selected_firers"],
             )
             stream = result[0] if isinstance(result, tuple) else result
             timing = result[1] if isinstance(result, tuple) else {}

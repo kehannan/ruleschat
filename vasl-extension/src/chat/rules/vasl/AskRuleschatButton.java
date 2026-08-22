@@ -7,6 +7,9 @@ import VASSAL.build.GameModule;
 import VASSAL.build.Configurable;
 import VASSAL.build.module.PlayerRoster;
 import VASSAL.build.module.documentation.HelpFile;
+import VASSAL.counters.GamePiece;
+import VASSAL.counters.PieceFinder;
+import VASSAL.counters.Stack;
 import VASSAL.tools.io.ObfuscatingOutputStream;
 import VASL.build.module.ASLMap;
 import VASL.LOS.Map.Hex;
@@ -102,7 +105,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.5";
+  static final String VERSION = "0.3.6";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -158,6 +161,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private boolean pickingLos;
   private ASLMap pickerMap;
   private MouseAdapter pickerListener;
+  private final List<String> selectedFirerNames = new ArrayList<>();
   private JLabel statusLabel;
   private JLabel headerMeta;
 
@@ -598,7 +602,10 @@ public class AskRuleschatButton extends AbstractConfigurable {
         }
         if (losSourceField.getText().trim().isEmpty()) {
           losSourceField.setText(hex);
-          setStatus("select target Location");
+          selectFiringStack(event);
+          setStatus(selectedFirerNames.isEmpty()
+            ? "no stack found; select target Location"
+            : selectedFirerNames.size() + " counter(s) selected; select target Location");
         }
         else {
           losTargetField.setText(hex);
@@ -625,7 +632,44 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
   }
 
+  /** Capture the source stack so a board-selected attack cannot include
+   * other counters in the hex. */
+  private void selectFiringStack(MouseEvent event) {
+    selectedFirerNames.clear();
+    try {
+      final GamePiece picked = pickerMap.findPiece(event.getPoint(), PieceFinder.PIECE_IN_STACK);
+      if (picked == null) {
+        return;
+      }
+      Stack stack = null;
+      if (picked instanceof Stack) {
+        stack = (Stack) picked;
+      }
+      else if (picked.getParent() instanceof Stack) {
+        stack = (Stack) picked.getParent();
+      }
+      if (stack != null) {
+        for (GamePiece piece : stack.asList()) {
+          addSelectedFirer(piece);
+        }
+      }
+      else {
+        addSelectedFirer(picked);
+      }
+    }
+    catch (Exception e) {
+      System.err.println("AskRuleschat: could not read selected firing stack: " + e);
+    }
+  }
+
+  private void addSelectedFirer(GamePiece piece) {
+    if (piece != null && piece.getName() != null && !piece.getName().trim().isEmpty()) {
+      selectedFirerNames.add(piece.getName().trim());
+    }
+  }
+
   private void swapLosLocations() {
+    selectedFirerNames.clear();
     final String source = losSourceField.getText();
     losSourceField.setText(losTargetField.getText());
     losTargetField.setText(source);
@@ -636,6 +680,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
 
   private void clearLosLocations() {
     stopLosPicker();
+    selectedFirerNames.clear();
     losSourceField.setText("");
     losTargetField.setText("");
     losSourceLevel.setSelectedIndex(0);
@@ -967,6 +1012,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
       losSourceLevel == null ? 0 : (Integer) losSourceLevel.getSelectedItem(),
       losTargetLevel == null ? 0 : (Integer) losTargetLevel.getSelectedItem());
     final String gamePhase = currentPhase(gm);
+    final List<String> pickedFirers = new ArrayList<>(selectedFirerNames);
 
     byte[] snapshot = null;
     String snapshotError = null;
@@ -1044,6 +1090,16 @@ public class AskRuleschatButton extends AbstractConfigurable {
         }
         if (gamePhase != null && !gamePhase.isEmpty()) {
           body.append(",\"game_phase\":").append(Json.quote(gamePhase));
+        }
+        if (!pickedFirers.isEmpty()) {
+          body.append(",\"selected_firers\":[");
+          for (int i = 0; i < pickedFirers.size(); i++) {
+            if (i > 0) {
+              body.append(',');
+            }
+            body.append(Json.quote(pickedFirers.get(i)));
+          }
+          body.append(']');
         }
         if (!pastPairs.isEmpty()) {
           body.append(",\"history\":[");

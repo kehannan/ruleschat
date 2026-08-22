@@ -615,6 +615,7 @@ Your response:"""
         vsav_state: Optional[Dict[str, Any]] = None,
         native_los: Optional[Dict[str, Any]] = None,
         game_phase: Optional[str] = None,
+        selected_firers: Optional[List[str]] = None,
         force_tool: Optional[str] = None,
         use_cite_check: bool = False,
         trace_ctx: Optional[Dict[str, Any]] = None,
@@ -650,6 +651,7 @@ Your response:"""
             vsav_state=vsav_state,
             native_los=native_los,
             game_phase=game_phase,
+            selected_firers=selected_firers,
             force_tool=force_tool,
             trace_ctx=trace_ctx,
         )
@@ -773,6 +775,7 @@ Your response:"""
         vsav_state: Optional[Dict[str, Any]] = None,
         native_los: Optional[Dict[str, Any]] = None,
         game_phase: Optional[str] = None,
+        selected_firers: Optional[List[str]] = None,
         force_tool: Optional[str] = None,
         trace_ctx: Optional[Dict[str, Any]] = None,
     ):
@@ -858,6 +861,8 @@ Your response:"""
             tool_context["native_los"] = native_los
         if game_phase:
             tool_context["game_phase"] = game_phase
+        if selected_firers:
+            tool_context["selected_firers"] = selected_firers
 
         # Start timing for RAG latency measurement
         api_call_start_time = time.time()

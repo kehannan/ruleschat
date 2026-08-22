@@ -136,6 +136,24 @@ def test_native_vasl_los_hindrance_is_applied_and_block_stops_attack():
         raise AssertionError("blocked native LOS must stop attack resolution")
 
 
+def test_selected_firers_limit_attack_to_clicked_stack():
+    state = _mk_state({
+        "57-B2": {"units": [
+            _sq("4-6-7 selected squad", "German"),
+            _sq("6-5-8 neighboring squad", "German"),
+        ], "markers": []},
+        "57-B3": {"units": [_sq("4-4-7 1sq", "Russian")], "markers": []},
+    })
+    result = resolve_attack(
+        state, "57-B2", "57-B3",
+        selected_firers=["4-6-7 selected squad"],
+    )
+    assert result["total_fp"] == 8  # selected 4 FP squad, doubled at PBF
+    assert any(e["name"] == "6-5-8 neighboring squad"
+               and e["reason"] == "not in the selected firing stack"
+               for e in result["excluded"])
+
+
 def test_resolve_attack_uses_vasl_phase_wheel_when_phase_is_omitted():
     state = _mk_state({
         "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},

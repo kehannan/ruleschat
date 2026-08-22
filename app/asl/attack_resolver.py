@@ -598,6 +598,7 @@ def resolve_attack(
     phase: str = "prep",
     firing_unit_filter: Optional[str] = None,
     native_los: Optional[Dict[str, Any]] = None,
+    selected_firers: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Resolve a fire attack between two hexes of a parsed .vsav state.
 
@@ -771,6 +772,8 @@ def resolve_attack(
 
     # ---- firer eligibility ----
     filt = (firing_unit_filter or "").strip().lower()
+    selected_names = [name.strip().lower() for name in (selected_firers or [])
+                      if isinstance(name, str) and name.strip()]
     firers: List[Dict[str, Any]] = []
     excluded: List[Dict[str, Any]] = []
     leaders: List[Dict[str, Any]] = []
@@ -792,8 +795,16 @@ def resolve_attack(
             skis_worn = True
         elif st == "carried":
             skis_carried = True
-        if filt and filt not in (u.get("name") or "").lower() \
-                and cls["kind"] != "leader":
+        unit_name = (u.get("name") or "").lower()
+        # A clicked VASL stack is authoritative: do not let neighboring
+        # counters in the source hex join the attack. Match both directions
+        # because VASSAL display names can include an extra counter suffix.
+        if selected_names and cls["kind"] != "leader" and not any(
+                chosen in unit_name or unit_name in chosen
+                for chosen in selected_names):
+            _exclude(u, "not in the selected firing stack")
+            continue
+        if filt and filt not in unit_name and cls["kind"] != "leader":
             _exclude(u, f"excluded by firing_unit_filter {firing_unit_filter!r}")
             continue
         if u.get("side") and u["side"] != firing_side:

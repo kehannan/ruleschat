@@ -143,6 +143,7 @@ def resolve_attack(
             target_hex=target_hex,
             phase=phase or _phase_from_vasl((_context or {}).get("game_phase")),
             firing_unit_filter=firing_unit_filter,
+            selected_firers=(_context or {}).get("selected_firers"),
             native_los=(_context or {}).get("native_los"),
         )
     except ValueError as e:
