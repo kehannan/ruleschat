@@ -1033,6 +1033,8 @@ def resolve_attack(
         warnings.append(
             f"Target hex {tkey} contains only {firing_side} (friendly) units."
         )
+    moved_target_count = sum(1 for u in t_units if u.get("moved"))
+    target_is_moving = bool(t_units) and moved_target_count == len(t_units)
 
     target_personnel: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
     for u in t_units:
@@ -1201,20 +1203,48 @@ def resolve_attack(
     if encircled_firer:
         drm_breakdown.append({"label": "encircled firer +1 (A7.7)", "drm": 1})
 
-    # FFMO/FFNAM are Defensive First Fire DRM vs MOVING units (A4.6) — never
-    # applicable to Prep/Advancing Fire, and the save records no movement.
+    # FFMO/FFNAM are Defensive First Fire DRM vs moving units (A4.6). VASL's
+    # moved trait is reset by its phase workflow, so it is meaningful here
+    # but deliberately ignored outside DFPh.
+    ffnam = False
+    ffmo = False
     if phase in ("prep", "advancing"):
         assumptions.append(
             "FFMO/FFNAM not applicable: they exist only in Defensive First "
             "Fire vs moving units (A4.6) — never in "
             f"{'Prep' if phase == 'prep' else 'Advancing'} Fire."
         )
-    else:
+    elif phase == "defensive_first" and target_is_moving:
+        ffnam = True
+        ffmo = True
+        assumptions.append(
+            "All selected target counters are marked moved in VASL: "
+            "FFNAM is applied and FFMO is attempted (A4.6; FFMO is "
+            "automatically negated by positive TEM or LOS hindrance)."
+        )
+        drm_breakdown.append({"label": "FFNAM (A4.6)", "drm": -1})
+        if len(tem_groups) > 1:
+            assumptions.append(
+                "Target counters have different TEM groups: FFMO is checked "
+                "separately in each group resolution below."
+            )
+        elif terrain_tem_value == 0 and native_hindrance == 0:
+            drm_breakdown.append({"label": "FFMO (A4.6)", "drm": -1})
+        else:
+            warnings.append(
+                "Target is marked moved, but FFMO is negated by positive "
+                "TEM or LOS hindrance (A4.6); FFNAM still applies."
+            )
+    elif phase == "defensive_first" and moved_target_count:
         warnings.append(
-            "Defensive fire phase: FFNAM (-1) / FFMO (-1) depend on the "
-            "target's movement, which the save does not record — NOT applied. "
-            "Add them via ift_attack if the target was moving (A4.6; FFMO is "
-            "negated by any hindrance or positive TEM)."
+            "Selected target stack mixes moved and unmoved counters: "
+            "FFNAM/FFMO are not auto-applied. Use the Target chooser to "
+            "ask about only the moving counters (A4.6)."
+        )
+    elif phase == "defensive_first":
+        warnings.append(
+            "Defensive First Fire: selected target counters are not marked "
+            "moved in VASL, so FFNAM/FFMO are not applied (A4.6)."
         )
 
     if "Encircled" in t_markers:
@@ -1289,6 +1319,8 @@ def resolve_attack(
             area_fire_halvings=area_fire_halvings,
             tem=grp["tem"],
             hindrance=native_hindrance,
+            ffnam=ffnam,
+            ffmo=ffmo,
             leadership=leadership if leader_directs else 0,
             encircled_firer=encircled_firer,
             other_drm=other_drm,
@@ -1360,7 +1392,8 @@ def resolve_attack(
                  "markers": u.get("markers") or [],
                  "entrenched_by": _unit_entrenchment(u),
                  "broken": bool(u.get("broken")),
-                 "concealed": bool(u.get("concealed_by"))}
+                 "concealed": bool(u.get("concealed_by")),
+                 "moved": bool(u.get("moved"))}
                 for u in t_units
             ],
             "terrain": (tentry.get("terrain") or {}).get("terrain"),

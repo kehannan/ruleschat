@@ -481,6 +481,34 @@ def test_phase_gating_no_ffmo_ffnam_in_prep():
         raise AssertionError("invalid phase should raise")
 
 
+def test_moved_target_gets_ffnam_and_ffmo_in_defensive_first_fire():
+    state = _mk_state({
+        "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "57-B3": {"units": [_sq("4-4-7 1sq", "Russian", moved=True)],
+                   "markers": []},
+    })
+    result = resolve_attack(state, "57-B2", "57-B3", phase="defensive_first")
+    labels = " | ".join(d["label"] for d in result["drm_breakdown"])
+    assert result["drm"] == -2, result["drm_breakdown"]
+    assert "FFNAM" in labels and "FFMO" in labels, labels
+    assert result["target"]["units"][0]["moved"] is True
+
+
+def test_moved_target_ffmo_is_negated_by_tem_but_ffnam_remains():
+    woods = {"terrain": "Woods", "parts": ["Woods"], "road": False,
+             "elevation": 0, "ssr_changed": {}}
+    state = _mk_state({
+        "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "57-B3": {"units": [_sq("4-4-7 1sq", "Russian", moved=True)],
+                   "markers": [], "terrain": woods},
+    })
+    result = resolve_attack(state, "57-B2", "57-B3", phase="defensive_first")
+    labels = " | ".join(d["label"] for d in result["drm_breakdown"])
+    assert result["drm"] == 0, result["drm_breakdown"]  # woods +1, FFNAM -1
+    assert "FFNAM" in labels and "FFMO" not in labels, labels
+    assert any("FFMO is negated" in w for w in result["warnings"])
+
+
 # --------------------------------------------------------------------------- #
 # (6) Broken / enemy units never fire
 # --------------------------------------------------------------------------- #

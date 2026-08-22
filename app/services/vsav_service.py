@@ -493,6 +493,12 @@ def piece_dynamic_state(p):
             v = s.split(";")[0].strip()
             if v and v != "null":
                 flags["concealed_by"] = unescape(v)
+        elif tid in ("moved", "markmoved"):
+            # VASL's per-piece moved trait is reset by the phase workflow.
+            # It is the authoritative snapshot signal for a target that is
+            # currently moving when Defensive First Fire is resolved.
+            if s.split(";", 1)[0].strip().lower() == "true":
+                flags["moved"] = True
         elif tid == "emb2":
             # Layer: tf[16] = comma-list of image names, tf[17] = level names
             try:
