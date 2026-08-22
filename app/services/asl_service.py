@@ -647,6 +647,7 @@ Your response:"""
             image_paths=image_paths,
             board_state=board_state,
             vsav_state=vsav_state,
+            native_los=native_los,
             force_tool=force_tool,
             trace_ctx=trace_ctx,
         )
@@ -768,6 +769,7 @@ Your response:"""
         image_paths: Optional[List[str]] = None,
         board_state: Optional[str] = None,
         vsav_state: Optional[Dict[str, Any]] = None,
+        native_los: Optional[Dict[str, Any]] = None,
         force_tool: Optional[str] = None,
         trace_ctx: Optional[Dict[str, Any]] = None,
     ):
