@@ -105,7 +105,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.6";
+  static final String VERSION = "0.3.7";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -162,6 +162,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private ASLMap pickerMap;
   private MouseAdapter pickerListener;
   private final List<String> selectedFirerNames = new ArrayList<>();
+  private final List<String> selectedTargetNames = new ArrayList<>();
   private JLabel statusLabel;
   private JLabel headerMeta;
 
@@ -602,15 +603,19 @@ public class AskRuleschatButton extends AbstractConfigurable {
         }
         if (losSourceField.getText().trim().isEmpty()) {
           losSourceField.setText(hex);
-          selectFiringStack(event);
+          selectedTargetNames.clear();
+          selectStack(event, selectedFirerNames);
           setStatus(selectedFirerNames.isEmpty()
             ? "no stack found; select target Location"
             : selectedFirerNames.size() + " counter(s) selected; select target Location");
         }
         else {
           losTargetField.setText(hex);
+          selectStack(event, selectedTargetNames);
           stopLosPicker();
-          setStatus("LOS Locations selected");
+          setStatus(selectedTargetNames.isEmpty()
+            ? "LOS Locations selected"
+            : "LOS Locations + " + selectedTargetNames.size() + " target counter(s) selected");
         }
       }
     };
@@ -632,10 +637,10 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
   }
 
-  /** Capture the source stack so a board-selected attack cannot include
-   * other counters in the hex. */
-  private void selectFiringStack(MouseEvent event) {
-    selectedFirerNames.clear();
+  /** Capture a clicked stack so attacks use its actual counters, rather
+   * than every unit in the same hex. */
+  private void selectStack(MouseEvent event, List<String> selectedNames) {
+    selectedNames.clear();
     try {
       final GamePiece picked = pickerMap.findPiece(event.getPoint(), PieceFinder.PIECE_IN_STACK);
       if (picked == null) {
@@ -650,26 +655,27 @@ public class AskRuleschatButton extends AbstractConfigurable {
       }
       if (stack != null) {
         for (GamePiece piece : stack.asList()) {
-          addSelectedFirer(piece);
+          addSelectedPiece(piece, selectedNames);
         }
       }
       else {
-        addSelectedFirer(picked);
+        addSelectedPiece(picked, selectedNames);
       }
     }
     catch (Exception e) {
-      System.err.println("AskRuleschat: could not read selected firing stack: " + e);
+      System.err.println("AskRuleschat: could not read selected stack: " + e);
     }
   }
 
-  private void addSelectedFirer(GamePiece piece) {
+  private void addSelectedPiece(GamePiece piece, List<String> selectedNames) {
     if (piece != null && piece.getName() != null && !piece.getName().trim().isEmpty()) {
-      selectedFirerNames.add(piece.getName().trim());
+      selectedNames.add(piece.getName().trim());
     }
   }
 
   private void swapLosLocations() {
     selectedFirerNames.clear();
+    selectedTargetNames.clear();
     final String source = losSourceField.getText();
     losSourceField.setText(losTargetField.getText());
     losTargetField.setText(source);
@@ -681,6 +687,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private void clearLosLocations() {
     stopLosPicker();
     selectedFirerNames.clear();
+    selectedTargetNames.clear();
     losSourceField.setText("");
     losTargetField.setText("");
     losSourceLevel.setSelectedIndex(0);
@@ -1013,6 +1020,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
       losTargetLevel == null ? 0 : (Integer) losTargetLevel.getSelectedItem());
     final String gamePhase = currentPhase(gm);
     final List<String> pickedFirers = new ArrayList<>(selectedFirerNames);
+    final List<String> pickedTargets = new ArrayList<>(selectedTargetNames);
 
     byte[] snapshot = null;
     String snapshotError = null;
@@ -1098,6 +1106,16 @@ public class AskRuleschatButton extends AbstractConfigurable {
               body.append(',');
             }
             body.append(Json.quote(pickedFirers.get(i)));
+          }
+          body.append(']');
+        }
+        if (!pickedTargets.isEmpty()) {
+          body.append(",\"selected_targets\":[");
+          for (int i = 0; i < pickedTargets.size(); i++) {
+            if (i > 0) {
+              body.append(',');
+            }
+            body.append(Json.quote(pickedTargets.get(i)));
           }
           body.append(']');
         }

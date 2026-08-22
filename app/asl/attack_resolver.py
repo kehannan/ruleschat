@@ -599,6 +599,7 @@ def resolve_attack(
     firing_unit_filter: Optional[str] = None,
     native_los: Optional[Dict[str, Any]] = None,
     selected_firers: Optional[List[str]] = None,
+    selected_targets: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Resolve a fire attack between two hexes of a parsed .vsav state.
 
@@ -1016,7 +1017,17 @@ def resolve_attack(
 
     # ---- target ----
     t_units = tentry.get("units", [])
+    selected_target_names = [name.strip().lower() for name in (selected_targets or [])
+                             if isinstance(name, str) and name.strip()]
+    if selected_target_names:
+        t_units = [u for u in t_units if any(
+            chosen in (u.get("name") or "").lower()
+            or (u.get("name") or "").lower() in chosen
+            for chosen in selected_target_names)]
     if not t_units:
+        if selected_target_names:
+            raise ValueError("The selected target stack does not match any "
+                             f"unit in target hex {tkey}.")
         raise ValueError(f"Target hex {tkey} contains no units in the save.")
     if all(u.get("side") == firing_side for u in t_units if u.get("side")):
         warnings.append(

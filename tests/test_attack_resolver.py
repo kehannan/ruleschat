@@ -154,6 +154,27 @@ def test_selected_firers_limit_attack_to_clicked_stack():
                for e in result["excluded"])
 
 
+def test_selected_targets_limit_tem_and_morale_to_clicked_stack():
+    woods = {"terrain": "Woods", "parts": ["Woods"], "road": False,
+             "elevation": 0, "ssr_changed": {}}
+    state = _mk_state({
+        "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "57-B3": {"units": [
+            _sq("4-4-7 foxhole squad", "Russian", entrenched_by="Foxhole"),
+            _sq("4-5-8 selected squad", "Russian"),
+        ], "markers": [], "terrain": woods},
+    })
+    result = resolve_attack(
+        state, "57-B2", "57-B3",
+        selected_targets=["4-5-8 selected squad"],
+    )
+    assert result["drm"] == 1  # selected target is not in the foxhole
+    assert result["target"]["entrenched"] is False
+    assert [u["name"] for u in result["target"]["units"]] == [
+        "4-5-8 selected squad"]
+    assert "morale 8" in " ".join(result["assumptions"])
+
+
 def test_resolve_attack_uses_vasl_phase_wheel_when_phase_is_omitted():
     state = _mk_state({
         "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
