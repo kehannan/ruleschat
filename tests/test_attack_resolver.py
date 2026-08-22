@@ -136,6 +136,18 @@ def test_native_vasl_los_hindrance_is_applied_and_block_stops_attack():
         raise AssertionError("blocked native LOS must stop attack resolution")
 
 
+def test_resolve_attack_uses_vasl_phase_wheel_when_phase_is_omitted():
+    state = _mk_state({
+        "57-B2": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "57-B3": {"units": [_sq("4-4-7 1sq", "Russian")], "markers": []},
+    })
+    result = resolve_attack_tool(
+        firing_hex="57-B2", target_hex="57-B3",
+        _context={"vsav_state": state, "game_phase": "AFPh"},
+    )
+    assert result["phase"] == "advancing"
+
+
 def test_worn_skier_firer_gets_e46_warning():
     # Synthetic: a worn-skis squad prep-firing — E4.6 forbids a Skier from
     # firing any Gun, ordnance SW, or MMG/HMG; the resolver warns (it does

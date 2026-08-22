@@ -100,7 +100,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.3";
+  static final String VERSION = "0.3.4";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -148,6 +148,10 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private FlatButton askButton;
   private JCheckBox attachCheck;
   private JCheckBox soloCheck;
+  private JTextField losSourceField;
+  private JTextField losTargetField;
+  private JComboBox<Integer> losSourceLevel;
+  private JComboBox<Integer> losTargetLevel;
   private JLabel statusLabel;
   private JLabel headerMeta;
 
@@ -485,6 +489,19 @@ public class AskRuleschatButton extends AbstractConfigurable {
     hint.setForeground(MUTED);
     toggles.add(hint);
     controls.add(toggles, BorderLayout.WEST);
+    final JPanel losControls = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+    losControls.setOpaque(false);
+    losControls.add(compactLabel("LOS"));
+    losSourceField = compactField("Source hex");
+    losControls.add(losSourceField);
+    losSourceLevel = levelBox("Source level");
+    losControls.add(losSourceLevel);
+    losControls.add(compactLabel("to"));
+    losTargetField = compactField("Target hex");
+    losControls.add(losTargetField);
+    losTargetLevel = levelBox("Target level");
+    losControls.add(losTargetLevel);
+    controls.add(losControls, BorderLayout.CENTER);
     statusLabel = new JLabel();
     statusLabel.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
     statusLabel.setForeground(MUTED);
@@ -511,6 +528,27 @@ public class AskRuleschatButton extends AbstractConfigurable {
     cb.setForeground(INK2);
     cb.setToolTipText(tip);
     return cb;
+  }
+
+  private static JLabel compactLabel(String text) {
+    final JLabel label = new JLabel(text);
+    label.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
+    label.setForeground(MUTED);
+    return label;
+  }
+
+  private static JTextField compactField(String tip) {
+    final JTextField field = new JTextField(5);
+    field.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
+    field.setToolTipText(tip);
+    return field;
+  }
+
+  private static JComboBox<Integer> levelBox(String tip) {
+    final JComboBox<Integer> box = new JComboBox<>(new Integer[] {0, 1, 2, 3, 4});
+    box.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
+    box.setToolTipText(tip);
+    return box;
   }
 
   private void refreshHeaderMeta() {
@@ -737,12 +775,21 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return null;
   }
 
-  /** Ask VASL itself for LOS for the first two hex references in a question. */
-  private static String nativeLosForQuestion(String question, GameModule gm) {
-    String from = null;
-    String to = null;
+  /** Ask VASL itself for LOS, using explicit Locations when selected. */
+  private static String nativeLosForQuestion(String question, GameModule gm,
+                                             String sourceOverride,
+                                             String targetOverride,
+                                             int sourceLevel, int targetLevel) {
+    String from = sourceOverride == null ? null : sourceOverride.trim().toUpperCase();
+    String to = targetOverride == null ? null : targetOverride.trim().toUpperCase();
+    if (from != null && from.isEmpty()) {
+      from = null;
+    }
+    if (to != null && to.isEmpty()) {
+      to = null;
+    }
     Matcher matcher = HEX_REFERENCE.matcher(question);
-    while (matcher.find()) {
+    while ((from == null || to == null) && matcher.find()) {
       if (from == null) {
         from = matcher.group(1).toUpperCase();
       }
@@ -768,19 +815,38 @@ public class AskRuleschatButton extends AbstractConfigurable {
       VASLGameInterface game = new VASLGameInterface(gameMap, losMap);
       game.updatePieces();
       LOSResult result = new LOSResult();
-      losMap.LOS(source.getCenterLocation(), false, target.getCenterLocation(),
+      VASL.LOS.Map.Location sourceLocation = source.getCenterLocation();
+      VASL.LOS.Map.Location targetLocation = target.getCenterLocation();
+      for (int i = 0; i < sourceLevel && sourceLocation.getUpLocation() != null; i++) {
+        sourceLocation = sourceLocation.getUpLocation();
+      }
+      for (int i = 0; i < targetLevel && targetLocation.getUpLocation() != null; i++) {
+        targetLocation = targetLocation.getUpLocation();
+      }
+      losMap.LOS(sourceLocation, false, targetLocation,
                  false, result, game);
       return "{\"source\":" + Json.quote(from)
         + ",\"target\":" + Json.quote(to)
         + ",\"blocked\":" + result.isBlocked()
         + ",\"reason\":" + Json.quote(result.getReason() == null ? "" : result.getReason())
         + ",\"hindrance\":" + result.getHindrance()
-        + ",\"range\":" + result.getRange() + "}";
+        + ",\"range\":" + result.getRange()
+        + ",\"source_level\":" + sourceLocation.getLevelInHex()
+        + ",\"target_level\":" + targetLocation.getLevelInHex() + "}";
     }
     catch (Exception e) {
       System.err.println("AskRuleschat: native LOS unavailable: " + e);
       return null;
     }
+  }
+
+  private static String currentPhase(GameModule gm) {
+    Object phase = gm.getProperty("PhaseName");
+    if (phase == null) {
+      ASLMap map = findAslMap(gm);
+      phase = map == null ? null : map.getProperty("PhaseName");
+    }
+    return phase == null ? null : phase.toString().trim();
   }
 
   // --- ask flow ---------------------------------------------------------
@@ -804,7 +870,12 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
     final String base = pref(P_URL, DEFAULT_URL).replaceAll("/+$", "");
     final String model = modelForRequest(key, pref(P_MODEL, DEFAULT_MODEL));
-    final String nativeLos = nativeLosForQuestion(question, gm);
+    final String nativeLos = nativeLosForQuestion(question, gm,
+      losSourceField == null ? null : losSourceField.getText(),
+      losTargetField == null ? null : losTargetField.getText(),
+      losSourceLevel == null ? 0 : (Integer) losSourceLevel.getSelectedItem(),
+      losTargetLevel == null ? 0 : (Integer) losTargetLevel.getSelectedItem());
+    final String gamePhase = currentPhase(gm);
 
     byte[] snapshot = null;
     String snapshotError = null;
@@ -879,6 +950,9 @@ public class AskRuleschatButton extends AbstractConfigurable {
         }
         if (nativeLos != null) {
           body.append(",\"native_los\":").append(nativeLos);
+        }
+        if (gamePhase != null && !gamePhase.isEmpty()) {
+          body.append(",\"game_phase\":").append(Json.quote(gamePhase));
         }
         if (!pastPairs.isEmpty()) {
           body.append(",\"history\":[");

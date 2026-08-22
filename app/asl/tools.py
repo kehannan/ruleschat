@@ -112,7 +112,7 @@ def ift_attack(
 def resolve_attack(
     firing_hex: str,
     target_hex: str,
-    phase: str = "prep",
+    phase: Optional[str] = None,
     firing_unit_filter: Optional[str] = None,
     _context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -141,7 +141,7 @@ def resolve_attack(
             state,
             firing_hex=firing_hex,
             target_hex=target_hex,
-            phase=phase,
+            phase=phase or _phase_from_vasl((_context or {}).get("game_phase")),
             firing_unit_filter=firing_unit_filter,
             native_los=(_context or {}).get("native_los"),
         )
@@ -153,6 +153,12 @@ def resolve_attack(
         result.get("total_fp"), result.get("column"), result.get("drm"),
     )
     return result
+
+
+def _phase_from_vasl(phase: Optional[str]) -> str:
+    """Map the VASL phase-wheel label to the resolver's fire-phase names."""
+    labels = {"PFPh": "prep", "AFPh": "advancing", "DFPh": "defensive_first"}
+    return labels.get((phase or "").strip(), "prep")
 
 
 def resolve_cc(
