@@ -58,6 +58,7 @@ _usage: Dict[str, Any] = {"day": None, "counts": {}}
 
 
 ASK_MAX_HISTORY_CHARS = int(os.getenv("ASK_MAX_HISTORY_CHARS", "8000"))
+ASK_MAX_RETRIEVAL_QUERY_CHARS = int(os.getenv("ASK_MAX_RETRIEVAL_QUERY_CHARS", "3900"))
 
 
 class AskRequest(BaseModel):
@@ -86,7 +87,19 @@ def _question_with_history(question: str, history) -> str:
         parts.append(f"Q: {pair[0]}\nA: {pair[1]}")
     if not parts:
         return question
-    ctx = "\n\n".join(parts)[-ASK_MAX_HISTORY_CHARS:]
+    prefix = (
+        "Earlier exchanges in this conversation, for context only "
+        "(answer just the current question):\n"
+    )
+    suffix = "\n\nCurrent question: " + question
+    ctx_budget = max(
+        0,
+        min(
+            ASK_MAX_HISTORY_CHARS,
+            ASK_MAX_RETRIEVAL_QUERY_CHARS - len(prefix) - len(suffix),
+        ),
+    )
+    ctx = "\n\n".join(parts)[-ctx_budget:] if ctx_budget else ""
     return ("Earlier exchanges in this conversation, for context only "
             "(answer just the current question):\n"
             + ctx + "\n\nCurrent question: " + question)

@@ -124,7 +124,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
 
   private static final ModelOption[] MODEL_OPTIONS = new ModelOption[] {
     new ModelOption(DEFAULT_MODEL, "GPT-5.4 (recommended)"),
-    new ModelOption("ox-alpha", "Ox Alpha (OpenRouter preview)")
+    new ModelOption("ox-alpha", "GLM 5.3 Flash (Ox successor)")
   };
 
   // --- palette: mirrors static/css/site-design-system.css -----------------
@@ -286,7 +286,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     if (m.isEmpty()) {
       return DEFAULT_MODEL;
     }
-    if ("stealth/ox-alpha".equals(m)) {
+    if ("stealth/ox-alpha".equals(m) || "z-ai/glm-5.3-flash".equals(m)) {
       return "ox-alpha";
     }
     return m;
@@ -306,7 +306,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     final String model = normalizeModelPref(modelPref);
     if ("ox-alpha".equals(model) && apiKey != null
         && apiKey.trim().startsWith("sk-or-")) {
-      return "stealth/ox-alpha";
+      return "z-ai/glm-5.3-flash";
     }
     return model;
   }
@@ -802,7 +802,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     final JLabel help = new JLabel("<html><div style='width:340px'>"
       + "<b>API key</b>: generate one on your ruleschat profile page "
       + "(ruleschat.com/profile), or use your own OpenRouter sk-or-... key "
-      + "(Ox Alpha is sent as its OpenRouter slug for pass-through keys)."
+      + "(GLM 5.3 Flash is sent as its OpenRouter slug for pass-through keys)."
       + "<br><br><span style='color:#6A757D'>Saved to " + settingsFile
       + " — you only enter this once.</span></div></html>");
     help.setFont(new Font(UI_FONT, Font.PLAIN, 11));

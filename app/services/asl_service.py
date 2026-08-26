@@ -347,15 +347,16 @@ def _strip_citation_markers(text: str) -> str:
 # hangs). effort=low keeps answers fast and accurate; sort=throughput steers to
 # fast, reliable providers.
 #
-# stealth/ox-alpha: OpenRouter marks reasoning as mandatory and defaults to max
-# effort. Keep interactive rules answers bounded by default; deployments can
-# still set OPENROUTER_REASONING_EFFORT=high|max for deeper evals.
+# z-ai/glm-5.3-flash: replacement for the retired stealth/ox-alpha preview.
+# OpenRouter marks reasoning as mandatory and defaults to max effort. Keep
+# interactive rules answers bounded by default; deployments can still set
+# OPENROUTER_REASONING_EFFORT=high|max for deeper evals.
 _MODEL_OPENROUTER_DEFAULTS: Dict[str, Dict[str, Dict[str, Any]]] = {
     "z-ai/glm-5.2": {
         "reasoning": {"effort": "low"},
         "provider": {"sort": "throughput"},
     },
-    "stealth/ox-alpha": {
+    "z-ai/glm-5.3-flash": {
         "reasoning": {"effort": "low"},
     },
 }

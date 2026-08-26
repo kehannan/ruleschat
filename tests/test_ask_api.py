@@ -156,9 +156,9 @@ def test_vsav_account_key_honors_selected_agentic_registry_model(client):
               "vsav": _vsav_data_url(), "model": "ox-alpha"},
         headers={"Authorization": f"Bearer {FakeUser.api_key}"})
     assert r.status_code == 200, r.text
-    assert r.json()["model"] == "stealth/ox-alpha"
+    assert r.json()["model"] == "z-ai/glm-5.3-flash"
     call = client.fake_service.calls[-1]
-    assert call["model"] == "stealth/ox-alpha"
+    assert call["model"] == "z-ai/glm-5.3-flash"
     assert call["use_agentic"] is True
 
 
@@ -224,7 +224,7 @@ def test_unknown_model_has_null_cost(client):
 
 def test_provider_reported_cost_overrides_registry_estimate():
     usage = ask_module._usage_fields(
-        "stealth/ox-alpha",
+        "z-ai/glm-5.3-flash",
         {"input_tokens": 1200, "output_tokens": 300,
          "provider_cost_usd": 0.0123456},
     )
@@ -248,6 +248,18 @@ def test_history_prefixes_question(client):
     assert q.startswith("Earlier exchanges")
     assert "What is the TEM of woods?" in q
     assert q.endswith("Current question: And with a leader?")
+
+
+def test_history_is_capped_for_vector_search(client):
+    long_history = [["q" * 1200, "a" * 1200] for _ in range(6)]
+    r = client.post(
+        "/api/ask",
+        json={"question": "Current?", "history": long_history},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200
+    q = client.fake_service.calls[-1]["question"]
+    assert len(q) <= ask_module.ASK_MAX_RETRIEVAL_QUERY_CHARS
+    assert q.endswith("Current question: Current?")
 
 
 def test_no_history_leaves_question_untouched(client):

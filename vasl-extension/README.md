@@ -26,7 +26,7 @@ which did not persist them across sessions. Default server:
 - **OpenRouter pass-through** — the user's own `sk-or-...` key. Generation
   is billed to their OpenRouter account; the server's OpenAI key is used
   only for retrieval. The key is per-request only, never stored. The model
-  dropdown sends Ox Alpha as `stealth/ox-alpha` for pass-through keys.
+  dropdown sends GLM 5.3 Flash as `z-ai/glm-5.3-flash` for pass-through keys.
 
 ## Fog of war
 
