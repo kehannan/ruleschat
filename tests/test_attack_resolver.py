@@ -136,6 +136,43 @@ def test_native_vasl_los_hindrance_is_applied_and_block_stops_attack():
         raise AssertionError("blocked native LOS must stop attack resolution")
 
 
+def test_bare_native_vasl_los_is_ignored_for_cross_board_attack():
+    state = _mk_state({
+        "04-T4": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "03-S1": {"units": [_sq("4-4-7 1sq", "Russian")], "markers": []},
+    })
+    state["boards"] = [
+        {"name": "r04", "base": "04", "slot": [0, 0], "reversed": True,
+         "crop": {"x": 0, "y": 0, "w": -1, "h": -1}, "ssr_transforms": []},
+        {"name": "r03", "base": "03", "slot": [0, 0], "reversed": True,
+         "crop": {"x": 0, "y": 0, "w": -1, "h": -1}, "ssr_transforms": []},
+    ]
+    result = resolve_attack(
+        state, "04-T4", "03-S1", native_los={
+            "source": "T4", "target": "S1", "blocked": True,
+            "reason": "wrong board terrain", "hindrance": 0,
+        })
+    assert result["total_fp"] == 4
+    assert any("Ignored VASL native LOS payload" in w
+               for w in result["warnings"])
+
+
+def test_qualified_native_vasl_los_still_blocks_cross_board_attack():
+    state = _mk_state({
+        "04-T4": {"units": [_sq("4-6-7 1sq", "German")], "markers": []},
+        "03-S1": {"units": [_sq("4-4-7 1sq", "Russian")], "markers": []},
+    })
+    try:
+        resolve_attack(state, "04-T4", "03-S1", native_los={
+            "source": "04-T4", "target": "03-S1", "blocked": True,
+            "reason": "woods", "hindrance": 0,
+        })
+    except ValueError as e:
+        assert "LOS is blocked: woods" in str(e)
+    else:
+        raise AssertionError("qualified blocked native LOS must stop attack")
+
+
 def test_selected_firers_limit_attack_to_clicked_stack():
     state = _mk_state({
         "57-B2": {"units": [

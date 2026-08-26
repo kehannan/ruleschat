@@ -473,6 +473,29 @@ def _split_hex_key(key: str) -> Tuple[str, str]:
     return base, label.upper()
 
 
+def _native_los_matches_attack(native_los: Dict[str, Any], fkey: str, tkey: str) -> bool:
+    """Return True only when a VASL LOS payload belongs to this exact attack.
+
+    Bare VASL hex labels are ambiguous on multi-board layouts. Treat them as
+    usable only for same-board attacks; cross-board attacks need board-qualified
+    endpoint ids from the client or the LOS could come from the wrong physical
+    pair of hexes.
+    """
+    source = str(native_los.get("source", "")).strip().upper()
+    target = str(native_los.get("target", "")).strip().upper()
+    if not source or not target:
+        return False
+    fk = fkey.upper()
+    tk = tkey.upper()
+    if source == fk and target == tk:
+        return True
+    fbase, flabel = _split_hex_key(fkey)
+    tbase, tlabel = _split_hex_key(tkey)
+    if source == flabel and target == tlabel and fbase == tbase:
+        return True
+    return False
+
+
 def _all_hex_markers(entry: Dict[str, Any]) -> set:
     """Every marker present in the hex: hex-level (unattributed) markers
     plus markers/entrenchments attributed to individual units by stack
@@ -641,13 +664,7 @@ def resolve_attack(
 
     native_hindrance = 0
     if native_los:
-        source = str(native_los.get("source", "")).upper()
-        target = str(native_los.get("target", "")).upper()
-        source_label = source.rsplit("-", 1)[-1]
-        target_label = target.rsplit("-", 1)[-1]
-        firing_label = fkey.upper().rsplit("-", 1)[-1]
-        target_key_label = tkey.upper().rsplit("-", 1)[-1]
-        if source_label == firing_label and target_label == target_key_label:
+        if _native_los_matches_attack(native_los, fkey, tkey):
             if native_los.get("blocked"):
                 raise ValueError("LOS is blocked" + (
                     f": {native_los.get('reason')}" if native_los.get("reason") else ""))
@@ -664,6 +681,11 @@ def resolve_attack(
                     f"VASL native LOS hindrance +{native_hindrance} applied "
                     "to this attack."
                 )
+        else:
+            warnings.append(
+                "Ignored VASL native LOS payload because its endpoints did not "
+                f"unambiguously match this attack ({fkey} -> {tkey})."
+            )
 
     # ---- range ----
     fbase, flabel = _split_hex_key(fkey)

@@ -55,8 +55,9 @@ checked against exactly the API that will load it).
 ./build.sh
 ```
 
-Produces `dist/AskRuleschat.vmdx`. Overrides: `JAVAC=...` and
-`VASSAL_LIB=...` (directory containing `Vengine.jar`).
+Produces `dist/AskRuleschat-<version>.vmdx` and a compatibility copy at
+`dist/AskRuleschat.vmdx`. Overrides: `JAVAC=...` and `VASSAL_LIB=...`
+(directory containing `Vengine.jar`).
 
 Bytecode targets `--release 11` to match what VASL itself ships
 (VASL 6.7.x builds with `--release 11` against vassal-app 3.7.x).
@@ -64,7 +65,7 @@ Bytecode targets `--release 11` to match what VASL itself ships
 ## Install & test
 
 1. In the VASSAL Module Manager, right-click the VASL module ->
-   *Add Extension* -> pick `dist/AskRuleschat.vmdx`. If your VASL loads
+   *Add Extension* -> pick `dist/AskRuleschat-<version>.vmdx`. If your VASL loads
    extensions from a shared folder (e.g. `~/vasl/extensions/`), copy the
    file there instead — check the startup log for which folder is read.
 2. Launch VASL and accept the standard "this module contains custom code"
