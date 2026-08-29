@@ -379,6 +379,31 @@ def test_long_range_halving_and_max_range():
         raise AssertionError("attack beyond double Normal Range should fail")
 
 
+def test_half_squad_manning_sw_does_not_add_inherent_fp():
+    s = _two_hex_state(
+        "57-B10",
+        firing_units=[_sq("2-4-7 1hs", "German"), _sq("LMG", "German")],
+    )
+    r = resolve_attack(s, "57-B2", "57-B10")
+    assert r["range"]["hexes"] == 8, r["range"]
+    assert r["total_fp"] == 3, r["firers"]
+    assert [f["name"] for f in r["firers"]] == ["LMG"]
+    assert any("manning a SW" in e["reason"] and "inherent FP" in e["reason"]
+               for e in r["excluded"]), r["excluded"]
+    lmg = r["firers"][0]
+    assert any("manned by 2-4-7 1hs" in n for n in lmg["notes"]), lmg["notes"]
+
+
+def test_squad_with_one_sw_keeps_inherent_fp():
+    s = _two_hex_state(
+        "57-B3",
+        firing_units=[_sq("4-6-7 1sq", "German"), _sq("LMG", "German")],
+    )
+    r = resolve_attack(s, "57-B2", "57-B3")
+    assert r["total_fp"] == 14, r["firers"]  # (4 + 3) x2 PBF
+    assert {f["name"] for f in r["firers"]} == {"4-6-7 1sq", "LMG"}
+
+
 def test_cross_board_range_warns():
     s = _state()
     keys = list(s["hexes"])

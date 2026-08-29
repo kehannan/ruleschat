@@ -58,9 +58,10 @@ plainly; anything encoded with less than full confidence is tagged
 #      road/gap exception (B9.3) are noted, not modeled. Cactus Hedge: note
 #      only. Same-level LOS across a wall/hedge hexside of NEITHER hex is a
 #      Half-Level obstacle (B9.2) — warned, not enforced.
-#  V8. MG usage limits (a squad firing >1 MG forfeits inherent FP, HS/crew
-#      firing a MG forfeits inherent FP — A9.1x): NOT enforced; a warning is
-#      emitted when the SW count exceeds the squad count. Rule id unverified.
+#  V8. MG usage limits (a squad firing >1 MG forfeits inherent FP): NOT
+#      enforced; a warning is emitted when the SW count exceeds the squad
+#      count. HS/crew firing a SW forfeits inherent FP and IS enforced.
+#      Rule id unverified.
 #  V9. Captured (enemy-nationality) SW fire at penalty (A21.11 ff.): never
 #      auto-fired here, warning only; rule id unverified. Note: "(r)"-model
 #      weapons drawn in the firer's own nationality art (e.g. Finnish
@@ -88,7 +89,7 @@ plainly; anything encoded with less than full confidence is tagged
 """
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.asl import ift, unit_capabilities
 
@@ -527,6 +528,15 @@ def ski_state(u: Dict[str, Any]) -> Optional[str]:
     return "worn" if "Skis" in (u.get("markers") or []) else None
 
 
+def _is_squad(cls: Dict[str, Any]) -> bool:
+    return cls.get("kind") == "personnel" and "sq" in (cls.get("detail") or "").lower()
+
+
+def _is_hs_or_crew(cls: Dict[str, Any]) -> bool:
+    detail = (cls.get("detail") or "").lower()
+    return cls.get("kind") == "personnel" and ("hs" in detail or "cr" in detail or "crew" in detail)
+
+
 def _unit_entrenchment(u: Dict[str, Any]) -> Optional[str]:
     """'Foxhole'/'Trench' if THIS unit is in one, else None.
 
@@ -882,11 +892,11 @@ def resolve_attack(
             "no valid attack."
         )
 
-    n_squads = sum(1 for _, c in personnel if c["detail"] and "sq" in c["detail"])
+    n_squads = sum(1 for _, c in personnel if _is_squad(c))
     if len(sws) > max(n_squads, 1):
         warnings.append(
             "More MG/SW than squads in the firing stack: MG usage limits "
-            "(firing extra MG forfeits inherent FP, A9.1x) are NOT enforced — "
+            "(firing extra MG forfeits inherent FP, A9.1x) are only partly enforced — "
             "totals may be optimistic."  # VERIFY (V8)
         )
 
@@ -915,12 +925,31 @@ def resolve_attack(
 
     ift_units: List[Dict[str, Any]] = []
     firer_rows: List[Dict[str, Any]] = []
+    consumed_personnel_ids: Set[int] = set()
+    sw_manning_notes: Dict[int, str] = {}
+
+    if sws and not any(_is_squad(c) for _, c in personnel):
+        manning = [(u, c) for u, c in personnel if _is_hs_or_crew(c)]
+        for idx, ((sw_unit, _sw_cls), (man_unit, man_cls)) in enumerate(zip(sws, manning)):
+            consumed_personnel_ids.add(id(man_unit))
+            sw_manning_notes[id(sw_unit)] = (
+                f"manned by {man_unit.get('name')} ({man_cls.get('detail')}); "
+                "that unit's inherent FP is not also used while firing the SW "
+                "(A9.1x)"
+            )
+        if len(sws) > len(manning):
+            warnings.append(
+                "More SW than available HS/crew manning units in the firing "
+                "stack; extra SW manning is not fully modeled."
+            )
 
     def _add_firer(u, cls, kind_label):
         markers = u.get("markers") or []
         notes: List[str] = []
         if cls.get("detail") and cls["kind"] == "sw":
             notes.append(cls["detail"])  # generic-values note, VERIFY (V1)
+        if id(u) in sw_manning_notes:
+            notes.append(sw_manning_notes[id(u)])
         pinned = "Pin" in markers if cls["kind"] == "personnel" else all_pinned
         if pinned and cls["kind"] == "sw":
             notes.append("manning unit pinned — MG fires as Area Fire "
@@ -987,6 +1016,12 @@ def resolve_attack(
         })
 
     for u, cls in personnel:
+        if id(u) in consumed_personnel_ids:
+            _exclude(
+                u,
+                "manning a SW — HS/crew cannot also use inherent FP (A9.1x)"
+            )
+            continue
         _add_firer(u, cls, "personnel")
     for u, cls in sws:
         _add_firer(u, cls, "sw")
