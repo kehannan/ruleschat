@@ -249,6 +249,12 @@
 {% endblock %}
 
 {% block main %}
+<style>
+  .ent-checks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+  .ent-check { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  .ent-check input { margin: 0; }
+  .ent-field label:first-child { display: block; }
+</style>
 {% set pending_invites = invitations | selectattr('used', 'equalto', False) | list | length if invitations is defined else 0 %}
 
 <div class="admin-wrap">
@@ -311,6 +317,14 @@
             <label for="inviteEmail">Email address</label>
             <input type="email" class="input" id="inviteEmail" placeholder="name@example.com" required>
           </div>
+          <div class="field ent-field">
+            <label>Section access</label>
+            <div class="ent-checks">
+              {% for key, label in features.items() %}
+              <label class="ent-check" title="{{ label }}"><input type="checkbox" name="entitlement" value="{{ key }}"> {{ key }}</label>
+              {% endfor %}
+            </div>
+          </div>
           <button type="submit" class="btn btn-primary">Send invitation</button>
         </form>
       </div>
@@ -329,7 +343,17 @@
           {% for user in users %}
           <div class="list-row">
             <div class="avatar">{{ (user.email or '?')[:1]|upper }}</div>
-            <div class="email">{{ user.email or 'Not set' }}</div>
+            <div class="email">{{ user.email or 'Not set' }}
+              <div class="ent-checks" data-user-id="{{ user.id }}">
+                {% if user.group and user.group.name == 'admin' %}
+                  <span class="ev-badge pass"><span class="glyph">★</span>ADMIN</span>
+                {% else %}
+                  {% for key, label in features.items() %}
+                  <label class="ent-check" title="{{ label }}"><input type="checkbox" value="{{ key }}" {% if key in user_features[user.id] %}checked{% endif %} onchange="saveEntitlements({{ user.id }}, this)"> {{ key }}</label>
+                  {% endfor %}
+                {% endif %}
+              </div>
+            </div>
             <div class="actions">
               <form method="post" action="/api/admin/user/{{ user.id }}" style="display:inline;" onsubmit="return deleteUserConfirm(event, this);">
                 <button type="submit" class="btn-link-danger">Delete</button>
@@ -355,7 +379,7 @@
             <div>
               <div class="email" style="margin-bottom: 4px;">{{ invite.email }}</div>
               <div style="font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); letter-spacing: .02em;">
-                created {{ invite.created_at.strftime('%b %d') }} · expires {{ invite.expires_at.strftime('%b %d') }}
+                created {{ invite.created_at.strftime('%b %d') }} · expires {{ invite.expires_at.strftime('%b %d') }}{% if invite_features[invite.id] %} · grants {{ invite_features[invite.id]|join(', ') }}{% endif %}
               </div>
             </div>
             <div class="actions">
@@ -424,11 +448,12 @@
 document.getElementById('inviteForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('inviteEmail').value;
+    const entitlements = [...document.querySelectorAll('#inviteForm input[name=entitlement]:checked')].map(i => i.value);
     try {
         const response = await fetch('/api/invite', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, entitlements }),
         });
         const data = await response.json();
         if (response.ok) {
@@ -441,6 +466,28 @@ document.getElementById('inviteForm').addEventListener('submit', async (e) => {
         alert('Error sending invitation');
     }
 });
+
+// One request per click: the row's checked boxes are the whole new set, so a
+// failed save reverts just the box that changed.
+async function saveEntitlements(userId, box) {
+    const row = box.closest('.ent-checks');
+    const features = [...row.querySelectorAll('input:checked')].map(i => i.value);
+    try {
+        const response = await fetch(`/api/admin/user/${userId}/entitlements`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ features }),
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            box.checked = !box.checked;
+            alert(data.detail || 'Error saving access');
+        }
+    } catch (error) {
+        box.checked = !box.checked;
+        alert('Error saving access');
+    }
+}
 
 async function resendInvitation(invitationId) {
     if (!confirm('Resend invitation email?')) return;

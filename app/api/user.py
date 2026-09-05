@@ -14,7 +14,8 @@ from app.models import User
 from app.models.chat import ChatMessage, ChatConversation
 from app.models.config import SiteConfig
 from app.api.demo import is_demo_enabled, set_demo_enabled
-from app.services.user_service import update_user_profile, get_user_by_email, delete_user, is_admin
+from app.services.user_service import update_user_profile, get_user_by_email, get_user_by_id, delete_user, is_admin
+from app.services.entitlements import FEATURES, features_for, set_features
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -177,9 +178,15 @@ async def admin_dashboard(
         .all()
     )
 
+    import json
+
     context = get_base_context(request, user)
     context["users"] = users
     context["invitations"] = invitations
+    # Section access, per user and per pending invitation (see entitlements.py).
+    context["features"] = FEATURES
+    context["user_features"] = {u.id: features_for(u) for u in users}
+    context["invite_features"] = {i.id: json.loads(i.entitlements or "[]") for i in invitations}
     context["message"] = request.query_params.get("message")
     context["message_type"] = request.query_params.get("message_type", "info")
     context["demo_today"] = demo_today
@@ -240,6 +247,34 @@ async def admin_create_test_user(
         url="/admin?message=Test user created successfully&message_type=success",
         status_code=303
     )
+
+
+@router.post("/api/admin/user/{user_id}/entitlements", name="admin_set_entitlements")
+async def admin_set_entitlements(
+    user_id: int,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Replace a user's section entitlements (admin only). Body: {"features": [...]}."""
+    from fastapi import HTTPException
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    target = get_user_by_id(db, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if is_admin(target):
+        raise HTTPException(status_code=400, detail="Admins hold every feature already")
+
+    features = payload.get("features") or []
+    if not isinstance(features, list):
+        raise HTTPException(status_code=400, detail="features must be a list")
+    granted = set_features(db, target, features, granted_by=user.id)
+    return {"features": sorted(granted)}
 
 
 @router.delete("/api/admin/user/{user_id}", name="admin_delete_user")

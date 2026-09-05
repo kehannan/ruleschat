@@ -29,6 +29,25 @@ class User(Base):
     # lazy="joined": user objects are often returned from short-lived sessions
     # (see get_current_user_from_request), so the group must load with the user.
     group = relationship("Group", lazy="joined")
+    # Same reason for entitlements: checked on every scenarios request after
+    # the session that loaded the user has closed.
+    entitlements = relationship(
+        "UserEntitlement", lazy="joined", cascade="all, delete-orphan",
+        foreign_keys="[UserEntitlement.user_id]")
+
+
+class UserEntitlement(Base):
+    """A feature a user may use beyond what their group grants.
+
+    Feature names and the rules live in app/services/entitlements.py. Admins
+    have no rows here; they hold every feature by group.
+    """
+    __tablename__ = "user_entitlements"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    feature = Column(String(64), primary_key=True)
+    granted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    granted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
 
 class Invitation(Base):
@@ -42,6 +61,9 @@ class Invitation(Base):
     expires_at = Column(DateTime, default=lambda: datetime.utcnow() + timedelta(days=7))
     used_at = Column(DateTime, nullable=True)
     used_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # JSON list of feature names granted when the invitation is redeemed
+    # (chosen on the admin page when it is sent). Null means none.
+    entitlements = Column(Text, nullable=True)
     
     @property
     def used(self):

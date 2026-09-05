@@ -101,6 +101,10 @@ _ensure_column("demo_messages", "vsav_paths", "vsav_paths JSON")
 # Access-control groups: users.group_id references groups(id).
 _ensure_column("users", "group_id", "group_id INTEGER REFERENCES groups(id)")
 
+# Feature grants chosen when an invitation is sent (see app/api/invite.py).
+# The user_entitlements table itself is new and comes from create_all.
+_ensure_column("invitations", "entitlements", "entitlements TEXT")
+
 
 def _seed_groups():
     """Ensure the 'admin' and 'users' groups exist and every user is in one.
@@ -304,7 +308,13 @@ async def register_complete(
     invitation.used_at = datetime.utcnow()
     invitation.used_by_user_id = user.id
     db.commit()
-    
+
+    # Section access chosen when the invitation was sent.
+    if invitation.entitlements:
+        import json
+        from app.services.entitlements import set_features
+        set_features(db, user, json.loads(invitation.entitlements))
+
     context = {"request": request}
     return templates.TemplateResponse("register_success.html", context)
 

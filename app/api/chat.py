@@ -52,10 +52,16 @@ except Exception as e:
 def get_base_context(request: Request, user=None):
     """Get base template context."""
     from app.api.demo import is_demo_enabled
+    from app.services.entitlements import features_for
     context = {"request": request, "user": user, "demo_enabled": is_demo_enabled()}
     if user:
         context["user_email"] = user.email
         context["is_admin"] = is_admin(user)
+    # Section access for the nav (base.html hides data-require-entitlement
+    # links the user lacks) and whether the scenarios checkout is present.
+    context["entitlements"] = features_for(user)
+    from app.api import scenarios as _scenarios
+    context["scenarios_enabled"] = _scenarios.available()
     return context
 
 

@@ -30,6 +30,7 @@
             <a href="{{ url_for('evals') }}" {% if active_page == 'evals' %}class="active"{% endif %}>Evals</a>
             <a href="{{ url_for('ruleschat') }}" data-require-login="true" class="nav-chat {% if active_page == 'chat' %}active{% endif %}">Chat</a>
             <a href="{{ url_for('profile_page') }}" data-require-login="true" class="nav-profile {% if active_page == 'profile' %}active{% endif %}">Profile</a>
+            {% if scenarios_enabled is defined and scenarios_enabled %}<a href="/scenarios" data-require-entitlement="scenarios" class="nav-scenarios {% if active_page == 'scenarios' %}active{% endif %}">Scenarios</a>{% endif %}
             <a href="{{ url_for('admin_dashboard') }}" data-require-admin="true" class="nav-admin {% if active_page == 'admin' %}active{% endif %}">Admin</a>
             <a href="{{ url_for('logout') }}" data-require-login="true" class="nav-logout">Logout</a>
             <a href="{{ url_for('login') }}" data-require-logout="true" class="nav-login {% if active_page == 'login' %}active{% endif %}">Login</a>
@@ -41,6 +42,11 @@
             const isLoggedIn = {% if user_email is defined and user_email %}true{% else %}false{% endif %};
             const isAdmin = {% if is_admin is defined and is_admin %}true{% else %}false{% endif %};
 
+            const entitlements = {{ (entitlements|list if entitlements is defined else []) | tojson }};
+
+            document.querySelectorAll('[data-require-entitlement]').forEach(el => {
+              if (!isAdmin && !entitlements.includes(el.dataset.requireEntitlement)) el.style.display = 'none';
+            });
             document.querySelectorAll('[data-require-login="true"]').forEach(el => {
               if (!isLoggedIn) el.style.display = 'none';
             });

@@ -11,8 +11,10 @@ checkout whose path is SCENARIOS_DIR. Unset, none of these routes are
 registered at all and ruleschat runs exactly as before — the feature is
 optional, and a missing checkout is a silent no-op rather than a boot failure.
 
-Access is ruleschat's own: the logged-in user and the `admin` group, no second
-allowlist and no shared secret. The demo needs neither.
+Access is ruleschat's own: the `scenarios` entitlement (see
+app/services/entitlements.py), which admins hold implicitly; the card scans
+need `scenarios.scans` on top. No second allowlist and no shared secret. The
+demo needs neither.
 """
 import asyncio
 import json
@@ -29,10 +31,10 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_entitlement
 from app.database import get_db
 from app.models import User
-from app.services.user_service import is_admin
+from app.services.entitlements import has
 
 router = APIRouter()
 
@@ -125,31 +127,27 @@ def _remaining(request) -> int:
 
 # ---------------------------------------------------------------------- pages
 
-def _deny(user: Optional[User]):
-    """Admin-only, matching how the admin dashboard guards itself."""
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-    if not is_admin(user):
-        return RedirectResponse(url="/", status_code=303)
-    return None
+# Pages redirect (anonymous → /login, signed in without access → the demo);
+# data routes answer 401/403. Scans are the publisher's artwork and sit behind
+# the tighter grant.
+_page = require_entitlement("scenarios", no_access_url="/scenarios-demo")
+_api = require_entitlement("scenarios", api=True)
+_scans = require_entitlement("scenarios.scans", api=True)
 
 
 @router.get("/scenarios", name="scenarios", response_class=HTMLResponse)
-async def scenarios_list(request: Request, user: User = Depends(get_current_user)):
-    if (deny := _deny(user)) is not None:
-        return deny
+async def scenarios_list(request: Request, user: User = Depends(_page)):
     with sqlite3.connect(f"file:{_DB}?mode=ro", uri=True) as con:
         extracted = [r[0] for r in con.execute("SELECT uid FROM scenario_facts")]
     return _templates.TemplateResponse("list.html", {
         "request": request, "active_page": "list",
         "facets": _serve.facets(), "extracted_uids": extracted,
+        "scans_allowed": has(user, "scenarios.scans"),
     })
 
 
 @router.get("/scenarios/chat", name="scenarios_chat", response_class=HTMLResponse)
-async def scenarios_chat(request: Request, user: User = Depends(get_current_user)):
-    if (deny := _deny(user)) is not None:
-        return deny
+async def scenarios_chat(request: Request, user: User = Depends(_page)):
     return _templates.TemplateResponse("chat.html", {
         "request": request, "active_page": "chat",
         "models": _providers.models_for_dropdown(), "pricing": _providers.pricing(),
@@ -167,7 +165,7 @@ async def scenarios_demo(request: Request, user: User = Depends(get_current_user
         "pricing": _providers.pricing(), "coverage": _tools.coverage(),
         "demo": True, "remaining": _remaining(request), "daily_limit": _demo_limit(),
         "imported_summary": _tools.imported_summary(),
-        "signed_in": user is not None, "allowed": is_admin(user),
+        "signed_in": user is not None, "allowed": has(user, "scenarios"),
         "ws_path": "/scenarios-demo/ws", "login_url": "/login",
     })
 
@@ -187,9 +185,7 @@ async def scenarios_design(request: Request):
 # ----------------------------------------------------------------- data + ws
 
 @router.get("/scenarios/api/list")
-async def scenarios_api(request: Request, user: User = Depends(get_current_user)):
-    if (deny := _deny(user)) is not None:
-        return deny
+async def scenarios_api(request: Request, user: User = Depends(_api)):
     return _serve.query(dict(request.query_params))
 
 
@@ -205,18 +201,14 @@ def _card_pdf(uid: str, inline: bool):
         "Content-Disposition": f'{disposition}; filename="{_serve.export_filename(row)}"'})
 
 
-# The card scans are the publisher's artwork. Admin only, never on the demo.
+# The card scans are the publisher's artwork: `scenarios.scans`, never the demo.
 @router.get("/scenarios/api/view")
-async def scenarios_view(uid: str, user: User = Depends(get_current_user)):
-    if (deny := _deny(user)) is not None:
-        return deny
+async def scenarios_view(uid: str, user: User = Depends(_scans)):
     return _card_pdf(uid, inline=True)
 
 
 @router.get("/scenarios/api/export")
-async def scenarios_export(uid: str, user: User = Depends(get_current_user)):
-    if (deny := _deny(user)) is not None:
-        return deny
+async def scenarios_export(uid: str, user: User = Depends(_scans)):
     return _card_pdf(uid, inline=False)
 
 
@@ -274,10 +266,10 @@ async def _run(websocket: WebSocket, demo: bool):
 
 @router.websocket("/scenarios/ws")
 async def scenarios_ws(websocket: WebSocket, db: Session = Depends(get_db)):
-    # The handshake carries the same cookies as the page, so the admin check
+    # The handshake carries the same cookies as the page, so the same check
     # runs here too — otherwise the demo page could open the unmetered socket.
     user = await get_current_user(websocket, db)
-    if not is_admin(user):
+    if not has(user, "scenarios"):
         await websocket.close(code=1008)
         return
     await _run(websocket, demo=False)

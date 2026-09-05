@@ -93,6 +93,32 @@ async def require_user(
     return current_user
 
 
+def require_entitlement(feature: str, api: bool = False, no_access_url: str = "/"):
+    """Dependency factory: the current user must hold `feature` (admins always do).
+
+    Page routes get a redirect — /login when anonymous, `no_access_url` when
+    signed in without the grant — so a shared link lands somewhere useful.
+    API routes (`api=True`) get 401/403 instead; a redirect to an HTML page is
+    no use to fetch(). Feature names live in app/services/entitlements.py.
+    """
+    from app.services.entitlements import has  # local: entitlements imports models
+
+    async def dependency(current_user: Optional[User] = Depends(get_current_user)) -> User:
+        if current_user is not None and has(current_user, feature):
+            return current_user
+        if api:
+            if current_user is None:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                    detail="Not authenticated")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail=f"Requires access to '{feature}'")
+        target = "/login" if current_user is None else no_access_url
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
+                            headers={"Location": target})
+
+    return dependency
+
+
 async def get_optional_user(
     request: Request,
     db: Session = Depends(get_db)

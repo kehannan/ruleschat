@@ -5,11 +5,13 @@ Invitations are stored in the `invitations` table keyed by a random `code`;
 the emailed link points at /register?code=<code>, which the registration flow
 consumes in app/main.py.
 """
+import json
 import os
 import logging
 import secrets
 import smtplib
 from datetime import datetime, timedelta
+from typing import List
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
@@ -21,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.database import get_db
 from app.models import User, Invitation
+from app.services.entitlements import FEATURES
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,8 @@ router = APIRouter()
 
 class InvitationCreate(BaseModel):
     email: EmailStr
+    # Feature names (app/services/entitlements.FEATURES) granted at registration.
+    entitlements: List[str] = []
 
 
 def require_admin(user: User) -> None:
@@ -116,17 +121,22 @@ async def create_invitation(
         Invitation.expires_at > datetime.utcnow(),
     ).first()
 
+    # Unknown names are dropped here so a stale form can't smuggle one in.
+    grants = json.dumps(sorted({f for f in payload.entitlements if f in FEATURES}))
+
     if existing:
         invitation = existing
+        invitation.entitlements = grants   # re-sending with different boxes wins
     else:
         invitation = Invitation(
             email=email,
             code=secrets.token_urlsafe(32),
             expires_at=datetime.utcnow() + timedelta(days=7),
+            entitlements=grants,
         )
         db.add(invitation)
-        db.commit()
-        db.refresh(invitation)
+    db.commit()
+    db.refresh(invitation)
 
     base_url = str(request.base_url)
     background_tasks.add_task(send_invitation_email, email, invitation.code, base_url)
