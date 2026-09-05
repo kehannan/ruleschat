@@ -9,9 +9,11 @@ section.html extends our base.html):
 
 The scenario data and its query tools live in a separate project. Rather than
 copy a thousand lines that would immediately drift, this imports them from a
-checkout whose path is SCENARIOS_DIR. Unset, none of these routes are
-registered at all and ruleschat runs exactly as before — the feature is
-optional, and a missing checkout is a silent no-op rather than a boot failure.
+checkout whose path is SCENARIOS_DIR, as the `scenario_db` package the
+checkout defines (loaded by path — nothing of it goes on sys.path, so its
+module names can't shadow ours). Unset, none of these routes are registered
+at all and ruleschat runs exactly as before — the feature is optional, and a
+missing checkout is a silent no-op rather than a boot failure.
 
 Access is ruleschat's own: the `scenarios` entitlement (see
 app/services/entitlements.py), which admins hold implicitly; the card scans
@@ -19,6 +21,7 @@ need `scenarios.scans` on top. No second allowlist and no shared secret. The
 demo needs neither.
 """
 import asyncio
+import importlib.util
 import json
 import os
 import sqlite3
@@ -45,18 +48,34 @@ SCENARIOS_DIR = os.getenv("SCENARIOS_DIR")
 
 def available() -> bool:
     """Whether the scenario project is present and importable."""
-    return bool(SCENARIOS_DIR and (Path(SCENARIOS_DIR) / "webapp" / "main.py").exists())
+    return bool(SCENARIOS_DIR and (Path(SCENARIOS_DIR) / "scenario_db" / "__init__.py").exists()
+                and (Path(SCENARIOS_DIR) / "webapp" / "main.py").exists())
+
+
+def _load_package(root: Path):
+    """Register the checkout's `scenario_db` package from its path.
+
+    Equivalent to `pip install -e` without the install step: the package's
+    own __init__ points its search path at the checkout, so
+    scenario_db.webapp.* and scenario_db.inventory.* resolve from there.
+    """
+    if "scenario_db" in sys.modules:
+        return
+    spec = importlib.util.spec_from_file_location(
+        "scenario_db", root / "scenario_db" / "__init__.py",
+        submodule_search_locations=[str(root)])
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["scenario_db"] = module
+    spec.loader.exec_module(module)
 
 
 if available():
     _root = Path(SCENARIOS_DIR).resolve()
-    for p in (_root / "webapp", _root / "inventory"):
-        if str(p) not in sys.path:
-            sys.path.insert(0, str(p))
-    import agent as _agent            # noqa: E402
-    import providers as _providers    # noqa: E402
-    import serve as _serve            # noqa: E402
-    import tools as _tools            # noqa: E402
+    _load_package(_root)
+    from scenario_db.webapp import agent as _agent            # noqa: E402
+    from scenario_db.webapp import providers as _providers    # noqa: E402
+    from scenario_db.webapp import tools as _tools            # noqa: E402
+    from scenario_db.inventory import serve as _serve         # noqa: E402
 
     _templates = Jinja2Templates(directory=str(_root / "webapp" / "templates"))
     # The pages extend ruleschat's base.html (via the checkout's section.html),

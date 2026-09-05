@@ -146,3 +146,20 @@ systemctl restart uvicorn
 | Nginx Config | `/etc/nginx/sites-available/aslrules` | Reverse proxy |
 | Service | systemd `uvicorn` | App process management |
 | SSL Certs | `/etc/letsencrypt/live/your-domain.com/` | TLS certificates |
+
+## Scenarios section (optional)
+
+The scenario collection is a separate checkout (`SCENARIOS_DIR` in `.env`,
+`/root/fastapi_app/scenarios` in prod). `deploy.sh` pulls it alongside the
+app; there is nothing to install — the app imports it by path.
+
+`scenarios.ruleschat.com` is a vanity name that redirects to
+`ruleschat.com/scenarios`. To enable it:
+
+```bash
+# 1. DNS: A record  scenarios.ruleschat.com -> server IP
+# 2. Cert: add the name to the existing certificate
+sudo certbot --nginx --expand -d ruleschat.com -d www.ruleschat.com -d scenarios.ruleschat.com
+# 3. nginx: the server blocks are already in deployment/nginx.conf
+sudo cp deployment/nginx.conf /etc/nginx/sites-available/aslrules && sudo nginx -t && sudo systemctl reload nginx
+```

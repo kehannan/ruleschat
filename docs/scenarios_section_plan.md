@@ -1,6 +1,6 @@
 # Scenarios as a ruleschat section — placement, permissions, integration
 
-**Status:** phases 1 and 2 implemented · 2026-09-05 (phase 3 open)
+**Status:** all three phases implemented · 2026-09-05 (vanity subdomain needs the DNS record and cert step in deployment/QUICKSTART.md)
 **Goal:** make the scenario collection a first-class section of ruleschat that
 invited non-admin users can be granted access to, with one login, one nav, and
 one deploy — and decide whether it lives at `ruleschat.com/scenarios` or
@@ -147,10 +147,12 @@ copy of the design system.
 4. **Demo quota.** Move the in-memory per-IP counter onto the `DemoUsage`
    table ruleschat's own demo already uses, so restarts don't reset it and the
    admin page shows both demos in one place.
-5. **Import hygiene (optional, later).** Replace the `sys.path.insert` with
-   `pip install -e $SCENARIOS_DIR` and a proper package name, so `import agent`
-   can't shadow anything in ruleschat. The DB and scans stay in the checkout as
-   data; only the code becomes a package.
+5. **Import hygiene.** Done without an install step: the checkout defines a
+   `scenario_db` package whose search path is the checkout root, so its code
+   is `scenario_db.webapp.*` and `scenario_db.inventory.*` with no files moved.
+   ruleschat loads that package by path (`importlib`, nothing on `sys.path`),
+   so `agent`, `tools`, `serve` can no longer shadow anything here. The DB and
+   scans stay in the checkout as data.
 
 ---
 
