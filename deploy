@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# Deploy ruleschat AND the scenarios section to production, from your laptop.
+#
+#   ./deploy            deploy what is on origin/main (both repos)
+#   ./deploy --push     push this repo's main first, then deploy
+#
+# Production is one server and one service. deployment/deploy.sh runs there:
+# it pulls this repo, pulls the scenarios checkout (SCENARIOS_DIR in the
+# server's .env), reinstalls deps if requirements changed, restarts
+# uvicorn, and health-checks. This wrapper only makes sure what you're about
+# to deploy has actually been pushed, then runs that script over ssh.
+#
+# The scenarios repo has the same wrapper; both do the same thing.
+set -euo pipefail
+
+HOST="mydigitalocean"                 # ssh alias, see CLAUDE.md
+APP_DIR="/root/fastapi_app/mysite2"   # ruleschat checkout on the server
+SIBLING="../scenarios"                # the other repo, if checked out beside this one
+
+cd "$(dirname "$0")"
+
+check_pushed() {   # $1 = repo dir, $2 = label
+  ( cd "$1"
+    git fetch -q origin main
+    local behind
+    behind=$(git rev-list --count origin/main..main)
+    if [ "$behind" -gt 0 ]; then
+      if [ "${PUSH:-0}" = 1 ] && [ "$1" = "." ]; then
+        echo "==> pushing $behind local commit(s) of $2 ..."
+        git push -q origin main
+      else
+        echo "!!! $2 has $behind commit(s) on main not on origin/main — the server pulls origin."
+        echo "    Push first (or run with --push for this repo)."
+        exit 1
+      fi
+    fi
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+      echo "    note: $2 has uncommitted changes; they are not part of this deploy."
+    fi
+  )
+}
+
+PUSH=0; [ "${1:-}" = "--push" ] && PUSH=1
+check_pushed . ruleschat
+[ -d "$SIBLING/.git" ] && check_pushed "$SIBLING" scenarios
+
+echo "==> deploying on $HOST ..."
+ssh "$HOST" "cd $APP_DIR && ./deployment/deploy.sh"
+
+echo "==> smoke check"
+for url in https://ruleschat.com/home https://ruleschat.com/scenarios/demo; do
+  printf '    %s -> %s\n' "$url" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url")"
+done

@@ -156,7 +156,20 @@ The app will be at `http://localhost:8000`. The demo page is public; full chat r
 
 ## Deployment
 
-See [deployment/QUICKSTART.md](deployment/QUICKSTART.md) for production setup (nginx, systemd, SSL).
+Day to day, one command from the repo root deploys **both** ruleschat and the
+scenarios section (they share one server and one service):
+
+```sh
+./deploy          # deploys origin/main of both repos; refuses if you have unpushed commits
+./deploy --push   # push this repo's main first, then deploy
+```
+
+It runs [deployment/deploy.sh](deployment/deploy.sh) on the server over ssh
+(`mydigitalocean`), which pulls this repo and the scenarios checkout, restarts
+`uvicorn.service`, and health-checks. The same `./deploy` exists in the
+scenarios repo and does the same thing.
+
+First-time server setup (nginx, systemd, SSL): [deployment/QUICKSTART.md](deployment/QUICKSTART.md).
 
 ## Tests
 
