@@ -13,6 +13,21 @@ class DemoUsage(Base):
     count = Column(Integer, default=0, nullable=False)
 
 
+class ScenarioDemoUsage(Base):
+    """Daily per-IP question count for the scenarios demo (/scenarios/demo).
+
+    Separate from DemoUsage so the two demos keep their own allowances and
+    the admin page can show them apart. Rows survive restarts, which the
+    old in-memory counter did not.
+    """
+    __tablename__ = "scenario_demo_usage"
+
+    id = Column(Integer, primary_key=True)
+    ip_address = Column(String(64), nullable=False, index=True)
+    date = Column(String(10), nullable=False)   # YYYY-MM-DD
+    count = Column(Integer, default=0, nullable=False)
+
+
 class DemoMessage(Base):
     __tablename__ = "demo_messages"
 

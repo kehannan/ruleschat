@@ -34,6 +34,14 @@ else
   echo "==> [2/4] requirements.txt unchanged — skipping pip install"
 fi
 
+# The scenarios section is served from a second checkout (SCENARIOS_DIR in
+# .env). Pull it in the same deploy so the two can't drift apart.
+scenarios_dir=$(grep -E '^SCENARIOS_DIR=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' || true)
+if [ -n "$scenarios_dir" ] && [ -d "$scenarios_dir/.git" ]; then
+  echo "==> [2b] Pulling scenarios checkout ($scenarios_dir) ..."
+  git -C "$scenarios_dir" pull --ff-only origin "$BRANCH"
+fi
+
 echo "==> [3/4] Reloading nginx + restarting $SERVICE ..."
 systemctl reload nginx
 systemctl restart "$SERVICE"

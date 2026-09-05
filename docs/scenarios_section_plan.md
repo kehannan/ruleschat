@@ -1,6 +1,6 @@
 # Scenarios as a ruleschat section — placement, permissions, integration
 
-**Status:** proposed · 2026-09-05
+**Status:** phases 1 and 2 implemented · 2026-09-05 (phase 3 open)
 **Goal:** make the scenario collection a first-class section of ruleschat that
 invited non-admin users can be granted access to, with one login, one nav, and
 one deploy — and decide whether it lives at `ruleschat.com/scenarios` or

@@ -1,9 +1,11 @@
 """ASL scenario collection — catalogue, query view, and an open demo.
 
-Two unlisted pages, deliberately absent from the nav:
+The section's pages, rendered inside ruleschat's chrome (the checkout's
+section.html extends our base.html):
 
-    /scenarios        the catalogue, and the query view behind it — admin only
-    /scenarios-demo   the query view, open to anyone, capped per visitor
+    /scenarios         the catalogue, /scenarios/chat the query view — entitled
+    /scenarios/demo    the query view, open to anyone, capped per visitor
+    /scenarios/design  how the collection was built — open
 
 The scenario data and its query tools live in a separate project. Rather than
 copy a thousand lines that would immediately drift, this imports them from a
@@ -23,17 +25,17 @@ import sqlite3
 import sys
 from datetime import date
 from pathlib import Path
-from threading import Lock
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, Response, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from jinja2 import ChoiceLoader, FileSystemLoader
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user, require_entitlement
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.models import User
+from app.models.demo import ScenarioDemoUsage
 from app.services.entitlements import has
 
 router = APIRouter()
@@ -57,25 +59,29 @@ if available():
     import tools as _tools            # noqa: E402
 
     _templates = Jinja2Templates(directory=str(_root / "webapp" / "templates"))
+    # The pages extend ruleschat's base.html (via the checkout's section.html),
+    # so ruleschat's templates resolve first and the section's own second.
+    _templates.env.loader = ChoiceLoader([
+        FileSystemLoader("templates"),
+        FileSystemLoader(str(_root / "webapp" / "templates")),
+    ])
+    _static = _root / "webapp" / "static"
     # The templates emit every path from these, so the same files serve here
     # under /scenarios and standalone at a site root.
     _templates.env.globals.update(
         base="/scenarios", list_url="/scenarios",
-        chat_url="/scenarios/chat", demo_url="/scenarios-demo",
-        design_url="/scenarios-design",
-        # Cache-buster for the stylesheet link in the scenarios base.html;
-        # here /static is ruleschat's own copy, served by nginx.
-        css_version=int(Path("static/css/site-design-system.css").stat().st_mtime),
+        chat_url="/scenarios/chat", demo_url="/scenarios/demo",
+        design_url="/scenarios/design",
+        chrome="base.html",
+        # Cache-buster for both stylesheets: ruleschat's design system (nginx
+        # serves /static from our tree) and the section's own scenarios.css.
+        css_version=int(max(Path("static/css/site-design-system.css").stat().st_mtime,
+                            (_static / "css" / "scenarios.css").stat().st_mtime)),
     )
     _DB = _root / "inventory" / "inventory.db"
 
 
 # ---------------------------------------------------------------- demo limits
-
-_lock = Lock()
-_day: Optional[date] = None
-_counts: dict = {}
-
 
 def _demo_limit() -> int:
     try:
@@ -85,44 +91,55 @@ def _demo_limit() -> int:
 
 
 def _client(request) -> str:
-    """Identify a visitor for rate limiting, trusting nginx's header.
+    """Identify a visitor for rate limiting, trusting nginx's X-Real-IP only.
 
-    Without X-Real-IP every request looks like it came from the proxy and the
-    whole internet would share one allowance.
+    Without it every request looks like it came from the proxy and the whole
+    internet would share one allowance. X-Forwarded-For is not used: nginx
+    appends to the client-supplied value, so its first entry is whatever the
+    visitor chose to send.
     """
-    for header in ("x-real-ip", "x-forwarded-for"):
-        v = request.headers.get(header)
-        if v:
-            return v.split(",")[0].strip()
+    v = request.headers.get("x-real-ip")
+    if v:
+        return v.strip()
     return request.client.host if request.client else "unknown"
+
+
+def _usage(db, key: str, today: str):
+    return db.query(ScenarioDemoUsage).filter_by(ip_address=key, date=today).first()
 
 
 def _take(request) -> tuple:
     """Consume one demo question. Returns (allowed, remaining).
 
-    In-memory and reset daily, so a restart forgets every count and visitors
-    behind one NAT share an allowance. That is the right trade for an open
-    demo; it bounds casual over-use, and it is not a security control.
+    Counted per IP per day in scenario_demo_usage, so a restart keeps the
+    tally. Visitors behind one NAT share an allowance; that bounds casual
+    over-use, which is all an open demo needs — it is not a security control.
     """
     cap = _demo_limit()
-    key = _client(request)
-    global _day
-    with _lock:
-        today = date.today()
-        if _day != today:
-            _day, _ = today, _counts.clear()
-        used = _counts.get(key, 0)
+    key, today = _client(request), date.today().isoformat()
+    db = SessionLocal()
+    try:
+        row = _usage(db, key, today)
+        used = row.count if row else 0
         if used >= cap:
             return False, 0
-        _counts[key] = used + 1
+        if row:
+            row.count += 1
+        else:
+            db.add(ScenarioDemoUsage(ip_address=key, date=today, count=1))
+        db.commit()
         return True, cap - used - 1
+    finally:
+        db.close()
 
 
 def _remaining(request) -> int:
-    with _lock:
-        if _day != date.today():
-            return _demo_limit()
-        return max(0, _demo_limit() - _counts.get(_client(request), 0))
+    db = SessionLocal()
+    try:
+        row = _usage(db, _client(request), date.today().isoformat())
+        return max(0, _demo_limit() - (row.count if row else 0))
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------- pages
@@ -130,56 +147,89 @@ def _remaining(request) -> int:
 # Pages redirect (anonymous → /login, signed in without access → the demo);
 # data routes answer 401/403. Scans are the publisher's artwork and sit behind
 # the tighter grant.
-_page = require_entitlement("scenarios", no_access_url="/scenarios-demo")
+_page = require_entitlement("scenarios", no_access_url="/scenarios/demo")
 _api = require_entitlement("scenarios", api=True)
 _scans = require_entitlement("scenarios.scans", api=True)
+
+
+def _ctx(request: Request, user, section_page: str, **extra) -> dict:
+    """Template context: ruleschat's base context (nav, login state, the
+    entitlement set) plus the section's own flags. active_page marks the
+    top-nav item; section_page the sub-nav item (see section.html)."""
+    from app.api.chat import get_base_context  # lazy: chat.py imports this module
+    ctx = get_base_context(request, user)
+    ctx.update(active_page="scenarios", section_page=section_page,
+               section_access=has(user, "scenarios"))
+    ctx.update(extra)
+    return ctx
 
 
 @router.get("/scenarios", name="scenarios", response_class=HTMLResponse)
 async def scenarios_list(request: Request, user: User = Depends(_page)):
     with sqlite3.connect(f"file:{_DB}?mode=ro", uri=True) as con:
         extracted = [r[0] for r in con.execute("SELECT uid FROM scenario_facts")]
-    return _templates.TemplateResponse("list.html", {
-        "request": request, "active_page": "list",
-        "facets": _serve.facets(), "extracted_uids": extracted,
-        "scans_allowed": has(user, "scenarios.scans"),
-    })
+    return _templates.TemplateResponse("list.html", _ctx(
+        request, user, "list",
+        facets=_serve.facets(), extracted_uids=extracted,
+        scans_allowed=has(user, "scenarios.scans"),
+    ))
 
 
 @router.get("/scenarios/chat", name="scenarios_chat", response_class=HTMLResponse)
 async def scenarios_chat(request: Request, user: User = Depends(_page)):
-    return _templates.TemplateResponse("chat.html", {
-        "request": request, "active_page": "chat",
-        "models": _providers.models_for_dropdown(), "pricing": _providers.pricing(),
-        "coverage": _tools.coverage(), "demo": False,
-        "ws_path": "/scenarios/ws",
-    })
+    return _templates.TemplateResponse("chat.html", _ctx(
+        request, user, "chat",
+        models=_providers.models_for_dropdown(), pricing=_providers.pricing(),
+        coverage=_tools.coverage(), demo=False, ws_path="/scenarios/ws",
+    ))
 
 
-@router.get("/scenarios-demo", name="scenarios_demo", response_class=HTMLResponse)
+@router.get("/scenarios/demo", name="scenarios_demo", response_class=HTMLResponse)
 async def scenarios_demo(request: Request, user: User = Depends(get_current_user)):
     """Open to anyone — no login, capped per visitor per day."""
-    return _templates.TemplateResponse("chat.html", {
-        "request": request, "active_page": "demo",
-        "models": [_providers.demo_model()],
-        "pricing": _providers.pricing(), "coverage": _tools.coverage(),
-        "demo": True, "remaining": _remaining(request), "daily_limit": _demo_limit(),
-        "imported_summary": _tools.imported_summary(),
-        "signed_in": user is not None, "allowed": has(user, "scenarios"),
-        "ws_path": "/scenarios-demo/ws", "login_url": "/login",
-    })
+    return _templates.TemplateResponse("chat.html", _ctx(
+        request, user, "demo",
+        models=[_providers.demo_model()],
+        pricing=_providers.pricing(), coverage=_tools.coverage(),
+        demo=True, remaining=_remaining(request), daily_limit=_demo_limit(),
+        imported_summary=_tools.imported_summary(),
+        signed_in=user is not None, allowed=has(user, "scenarios"),
+        ws_path="/scenarios/demo/ws", login_url="/login",
+    ))
 
 
-@router.get("/scenarios-design", name="scenarios_design", response_class=HTMLResponse)
-async def scenarios_design(request: Request):
+@router.get("/scenarios/design", name="scenarios_design", response_class=HTMLResponse)
+async def scenarios_design(request: Request, user: User = Depends(get_current_user)):
     """How the collection was built and what is in it. Open to anyone.
 
     Explains the method and the measured accuracy; carries no card data, so it
     sits alongside the demo rather than behind the login.
     """
-    return _templates.TemplateResponse("design.html", {
-        "request": request, "active_page": "design", "s": _tools.design_stats(),
-    })
+    return _templates.TemplateResponse("design.html", _ctx(
+        request, user, "design", s=_tools.design_stats()))
+
+
+# The flat siblings these pages used to live at. Old links and bookmarks keep
+# working; the nav never emits them.
+@router.get("/scenarios-demo", include_in_schema=False)
+async def _old_demo_path():
+    return RedirectResponse(url="/scenarios/demo", status_code=301)
+
+
+@router.get("/scenarios-design", include_in_schema=False)
+async def _old_design_path():
+    return RedirectResponse(url="/scenarios/design", status_code=301)
+
+
+@router.get("/scenarios/static/{path:path}", include_in_schema=False)
+async def scenarios_static(path: str):
+    """The section's own assets (scenarios.css). /static is ruleschat's tree,
+    served straight by nginx, so the checkout's files get their own prefix."""
+    root = _static.resolve()
+    target = (root / path).resolve()
+    if root not in target.parents or not target.is_file():
+        return PlainTextResponse("not found", status_code=404)
+    return FileResponse(target)
 
 
 # ----------------------------------------------------------------- data + ws
@@ -275,6 +325,6 @@ async def scenarios_ws(websocket: WebSocket, db: Session = Depends(get_db)):
     await _run(websocket, demo=False)
 
 
-@router.websocket("/scenarios-demo/ws")
+@router.websocket("/scenarios/demo/ws")
 async def scenarios_demo_ws(websocket: WebSocket):
     await _run(websocket, demo=True)
