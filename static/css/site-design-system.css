@@ -864,6 +864,18 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
 }
 .msg.assistant .msg-content p { margin: 0 0 12px; }
 .msg.assistant .msg-content strong { color: var(--ink); font-weight: 600; }
+/* Scenario references link to the card scan (the scenarios chat template turns
+   [ID — Title](uid) into a.card-link). The global `a` reset would leave them
+   invisible. Mirrors the same rule in the scenarios repo's copy of this file. */
+.msg.assistant .msg-content a.card-link {
+  color: var(--accent);
+  border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+  transition: border-color .15s ease;
+}
+.msg.assistant .msg-content a.card-link:hover { border-bottom-color: var(--accent); }
+.msg.assistant .msg-content a.card-link::after {
+  content: " ↗"; font-size: 0.8em; opacity: .6;
+}
 .msg.assistant .msg-content ul,
 .msg.assistant .msg-content ol { margin: 0 0 14px 18px; padding: 0; }
 .msg.assistant .msg-content li { margin-bottom: 6px; }

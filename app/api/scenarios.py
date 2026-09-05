@@ -61,6 +61,9 @@ if available():
         base="/scenarios", list_url="/scenarios",
         chat_url="/scenarios/chat", demo_url="/scenarios-demo",
         design_url="/scenarios-design",
+        # Cache-buster for the stylesheet link in the scenarios base.html;
+        # here /static is ruleschat's own copy, served by nginx.
+        css_version=int(Path("static/css/site-design-system.css").stat().st_mtime),
     )
     _DB = _root / "inventory" / "inventory.db"
 
