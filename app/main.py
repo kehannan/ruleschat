@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI, Depends, HTTPException, Body, BackgroundTasks, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
@@ -154,7 +153,7 @@ app = FastAPI(title="Rules Chat for Advanced Squad Leader (ASL)")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Initialize templates
-templates = Jinja2Templates(directory="templates")
+from app.templating import templates  # one env for every page; nav state attached
 
 # Load Responses API configuration
 responses_config = None

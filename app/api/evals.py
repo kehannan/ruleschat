@@ -7,7 +7,6 @@ from collections import defaultdict
 from datetime import datetime
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, cast, String
 from sqlalchemy.orm import Session
 
@@ -17,7 +16,7 @@ from app.models.chat import ChatMessage
 from app.models.demo import DemoMessage
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from app.templating import templates  # one env for every page; nav state attached
 
 # --- Dependencies ---
 

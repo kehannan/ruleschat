@@ -1,7 +1,6 @@
 """Authentication routes."""
 from fastapi import APIRouter, Request, Form, Depends, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.config import COOKIE_DOMAIN, COOKIE_SECURE
@@ -11,7 +10,7 @@ from app.services.user_service import get_user_by_email
 from app.models import User
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from app.templating import templates  # one env for every page; nav state attached
 
 
 def get_base_context(request: Request, user: User = None):

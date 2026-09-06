@@ -8,7 +8,6 @@ import time
 from typing import Optional
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
-from fastapi.templating import Jinja2Templates
 from starlette.websockets import WebSocketState
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
@@ -29,7 +28,7 @@ from app.database import SessionLocal, get_db
 from app.models.user import User
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from app.templating import templates  # one env for every page; nav state attached
 
 # Initialize OpenAI client
 openai_api_key = os.getenv("OPENAI_API_KEY")

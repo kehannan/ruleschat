@@ -4,7 +4,6 @@ import secrets
 import string
 from fastapi import APIRouter, Request, Form, Depends, Query, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -18,7 +17,7 @@ from app.services.user_service import update_user_profile, get_user_by_email, ge
 from app.services.entitlements import FEATURES, features_for, set_features
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from app.templating import templates  # one env for every page; nav state attached
 
 
 def get_base_context(request: Request, user: User = None, db=None):

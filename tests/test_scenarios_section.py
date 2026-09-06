@@ -43,6 +43,11 @@ r = get("/scenarios/design");     out["design"] = [r.status_code, "section-subna
 r = get("/scenarios/static/css/scenarios.css"); out["css"] = [r.status_code, ".section-subnav" in r.text]
 r = get("/scenarios/static/../../inventory/inventory.db"); out["traversal"] = r.status_code
 
+# The nav is complete on every page, including routes that never built a
+# base context themselves (app/templating.py attaches it).
+out["nav_everywhere"] = {u: 'data-require-entitlement="scenarios"' in get(u).text
+                         for u in ("/evals", "/ift", "/demo", "/register", "/login", "/scenarios/demo")}
+
 # An entitled viewer (admin holds every feature): the private pages render in
 # ruleschat's chrome with the Catalogue/Chat sub-nav.
 from app.models import Group, User
@@ -74,5 +79,6 @@ def test_section_under_ruleschat():
     assert out["design"] == [200, True]
     assert out["css"] == [200, True]
     assert out["traversal"] == 404
+    assert all(out["nav_everywhere"].values()), out["nav_everywhere"]
     assert out["catalogue_admin"] == [200, True, True, True, False]
     assert out["chat_admin"] == [200, True, True]

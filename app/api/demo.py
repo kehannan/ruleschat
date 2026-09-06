@@ -9,7 +9,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from sqlalchemy import func
 
@@ -57,7 +56,7 @@ def set_demo_enabled(value: bool, db):
     db.commit()
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from app.templating import templates  # one env for every page; nav state attached
 
 DEMO_PER_IP_LIMIT = 5
 DEMO_GLOBAL_LIMIT = 250

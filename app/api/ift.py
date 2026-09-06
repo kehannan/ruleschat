@@ -10,7 +10,6 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from app.asl.ift import (
@@ -23,7 +22,7 @@ from app.asl.ift import (
 )
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from app.templating import templates  # one env for every page; nav state attached
 
 
 async def get_current_user(request: Request):
