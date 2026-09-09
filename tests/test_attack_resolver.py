@@ -173,6 +173,28 @@ def test_qualified_native_vasl_los_still_blocks_cross_board_attack():
         raise AssertionError("qualified blocked native LOS must stop attack")
 
 
+def test_unmodeled_board_ssr_downgrades_blocked_native_los_to_warning():
+    state = _mk_state({
+        "03-T4": {"units": [_sq("4-4-7 1sq", "Russian")], "markers": []},
+        "03-W1": {"units": [_sq("4-4-7 1sq", "German")], "markers": []},
+    })
+    state["boards"] = [
+        {"name": "03", "base": "03", "slot": [0, 0], "reversed": False,
+         "crop": {"x": 0, "y": 0, "w": -1, "h": -1},
+         "ssr_transforms": ["BSO_3_HillsToL0Woods"]},
+    ]
+
+    result = resolve_attack(
+        state, "03-T4", "03-W1", native_los={
+            "source": "03-T4", "target": "03-W1", "blocked": True,
+            "reason": "Level 1 hill", "hindrance": 0,
+        })
+
+    assert result["total_fp"] == 2
+    assert any("unmodeled visual/overlay SSR terrain changes" in w
+               for w in result["warnings"]), result["warnings"]
+
+
 def test_selected_firers_limit_attack_to_clicked_stack():
     state = _mk_state({
         "57-B2": {"units": [

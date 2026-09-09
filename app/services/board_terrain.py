@@ -158,6 +158,16 @@ SSR_NAME_TRANSFORMS = {
     "NoRoads": {"Dirt Road": "Open Ground", "Paved Road": "Open Ground"},
 }
 
+
+def modeled_ssr_transforms(transforms) -> list:
+    """SSR transforms whose terrain-name effects are modeled here."""
+    return [t for t in transforms or () if t in SSR_NAME_TRANSFORMS]
+
+
+def unmodeled_ssr_transforms(transforms) -> list:
+    """SSR transforms that may alter board artwork/LOS but are not modeled."""
+    return [t for t in transforms or () if t not in SSR_NAME_TRANSFORMS]
+
 _ROAD_NAMES = {"Dirt Road", "Paved Road", "Elevated Road", "Sunken Road",
                "Path", "Track", "Runway"}
 
@@ -479,5 +489,9 @@ def annotate_state_with_terrain(state: dict) -> dict:
         source="vasl-losdata",
         missing_boards=missing,
         has_overlays=bool(state.get("overlays")),
+        unmodeled_ssr_transforms=sorted({
+            t for ts in transforms_by_base.values()
+            for t in unmodeled_ssr_transforms(ts)
+        }),
     )
     return state

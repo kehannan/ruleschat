@@ -1111,6 +1111,14 @@ def render_board_state(state: dict, perspective_side: str = None) -> str:
         lines.append("Terrain unavailable for board(s) "
                      + ", ".join(tinfo["missing_boards"])
                      + " (no local board data).")
+    if tinfo.get("unmodeled_ssr_transforms"):
+        lines.append(
+            "Warning: selected board SSR terrain/image transforms are not fully "
+            "modeled in backend LOS/terrain data: "
+            + ", ".join(tinfo["unmodeled_ssr_transforms"])
+            + ". Treat base-board terrain/elevation in transformed areas as "
+            "potentially stale and prefer the visible VASL map/native LOS."
+        )
 
     lines.append("")
     lines.append("Units by hex (<board>-<hex> [terrain]; unit flags in [..]; "

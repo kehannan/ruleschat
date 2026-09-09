@@ -497,6 +497,24 @@ def _native_los_matches_attack(native_los: Dict[str, Any], fkey: str, tkey: str)
     return False
 
 
+def _unmodeled_board_ssrs_for_attack(state: Dict[str, Any], fkey: str, tkey: str) -> List[str]:
+    bases = {_split_hex_key(fkey)[0], _split_hex_key(tkey)[0]}
+    out: List[str] = []
+    for b in state.get("boards", []):
+        base = str(b.get("base") or b.get("name", "")).lstrip("r").upper()
+        if base not in bases:
+            continue
+        for transform in b.get("ssr_transforms") or []:
+            try:
+                from app.services import board_terrain
+                modeled = transform in board_terrain.SSR_NAME_TRANSFORMS
+            except Exception:
+                modeled = False
+            if not modeled and transform not in out:
+                out.append(transform)
+    return out
+
+
 def _all_hex_markers(entry: Dict[str, Any]) -> set:
     """Every marker present in the hex: hex-level (unattributed) markers
     plus markers/entrenchments attributed to individual units by stack
@@ -676,21 +694,32 @@ def resolve_attack(
     if native_los:
         if _native_los_matches_attack(native_los, fkey, tkey):
             if native_los.get("blocked"):
-                raise ValueError("LOS is blocked" + (
-                    f": {native_los.get('reason')}" if native_los.get("reason") else ""))
-            try:
-                native_hindrance = max(0, int(native_los.get("hindrance", 0)))
-            except (TypeError, ValueError):
-                native_hindrance = 0
-            assumptions[0] = (
-                "LOS checked by VASL's native LOS engine using the open game "
-                "map, overlays, and counters."
-            )
-            if native_hindrance:
-                assumptions[1] = (
-                    f"VASL native LOS hindrance +{native_hindrance} applied "
-                    "to this attack."
+                unmodeled_ssrs = _unmodeled_board_ssrs_for_attack(state, fkey, tkey)
+                if unmodeled_ssrs:
+                    warnings.append(
+                        "VASL native LOS reported blocked, but this board has "
+                        "unmodeled visual/overlay SSR terrain changes active "
+                        f"({', '.join(unmodeled_ssrs)}). Ignoring the blocked "
+                        "LOS result and resolving the attack with terrain "
+                        "caveats; verify the LOS on the visible map."
+                    )
+                else:
+                    raise ValueError("LOS is blocked" + (
+                        f": {native_los.get('reason')}" if native_los.get("reason") else ""))
+            if not native_los.get("blocked"):
+                try:
+                    native_hindrance = max(0, int(native_los.get("hindrance", 0)))
+                except (TypeError, ValueError):
+                    native_hindrance = 0
+                assumptions[0] = (
+                    "LOS checked by VASL's native LOS engine using the open game "
+                    "map, overlays, and counters."
                 )
+                if native_hindrance:
+                    assumptions[1] = (
+                        f"VASL native LOS hindrance +{native_hindrance} applied "
+                        "to this attack."
+                    )
         else:
             warnings.append(
                 "Ignored VASL native LOS payload because its endpoints did not "
