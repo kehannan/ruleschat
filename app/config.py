@@ -1,7 +1,8 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.env import load_env
+
+load_env()
 
 ASL_SYSTEM_INSTRUCTIONS = os.getenv(
     "ASL_SYSTEM_INSTRUCTIONS",

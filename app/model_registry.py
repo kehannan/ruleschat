@@ -9,8 +9,9 @@ Columns:
   key        dropdown value and display name ("muse-spark-1.1")
   label      dropdown text shown to the user
   slug       provider model id sent to the API. None = key sent as-is
-             (OpenAI-native). "meta/…" routes to the Meta Model API,
-             any other "vendor/…" routes to OpenRouter.
+             (OpenAI-native). "meta/muse-spark…" routes to the Meta Model
+             API; any other "vendor/…" (including Meta's open-weight
+             models such as "meta/muse-glimmer-30b") routes to OpenRouter.
   in_chat    appears on /ruleschat
   in_demo    appears on /demo
   agentic    the Tools toggle is honored for this model
@@ -37,6 +38,8 @@ class ModelSpec:
 MODELS: tuple = (
     # Dropdown order (both surfaces): cheap → expensive, admin-only last.
     # The first visible entry is each dropdown's default selection.
+    # Prices checked 2026-09-07 (OpenRouter /api/v1/models, Meta pricing page,
+    # OpenAI list price after the 2026-07-30 GPT-5.6 cut).
     #         key               label                       slug                   chat   demo   agentic  $in    $out
     ModelSpec("deepseek-v4-flash", "deepseek-v4-flash · <¢/slower", "deepseek/deepseek-v4-flash",
               True,  True,  True,    0.077, 0.15),
@@ -44,13 +47,31 @@ MODELS: tuple = (
     # OpenRouter preview slug was retired; route it to its replacement.
     ModelSpec("ox-alpha",       "GLM 5.3 Flash · Ox successor", "z-ai/glm-5.3-flash",
               True,  False, True,    0.075, 0.25),
-    ModelSpec("muse-spark-1.1", "muse-spark-1.1 · ¢/new",   "meta/muse-spark-1.1", True,  True,  True,    1.25,  4.25),
-    ModelSpec("gpt-5.6-luna",   "gpt-5.6-luna · ¢/new",     None,                  True,  True,  True,    1.00,  6.00),
+    ModelSpec("qwen3.8-flash",  "qwen3.8-flash · <¢/new",   "qwen/qwen3.8-flash",  True,  False, True,    0.15,  0.47),
+    ModelSpec("gpt-5.6-luna",   "gpt-5.6-luna · <¢/fast",   None,                  True,  True,  True,    0.20,  1.20),
+    # Meta's open-weight 30B distilled from Muse Spark; served via OpenRouter
+    # (the Meta Model API only hosts Muse Spark — see asl_service routing).
+    ModelSpec("muse-glimmer-30b", "muse-glimmer-30b · ¢/Meta open", "meta/muse-glimmer-30b",
+              True,  False, True,    0.30,  1.10),
+    ModelSpec("gemini-3.8-flash", "gemini-3.8-flash · ¢/new", "google/gemini-3.8-flash",
+              True,  False, True,    0.75,  3.75),
+    ModelSpec("deepseek-v4-pro", "deepseek-v4-pro · ¢/reasoning", "deepseek/deepseek-v4-pro",
+              True,  False, True,    0.96,  1.91),
+    ModelSpec("muse-spark-1.3", "muse-spark-1.3 · ¢/new",   "meta/muse-spark-1.3", True,  True,  True,    1.25,  4.25),
+    # Superseded by 1.3 (same price); kept so history rows and cost chips
+    # still resolve. Not shown in either dropdown.
+    ModelSpec("muse-spark-1.1", "muse-spark-1.1 · ¢/old",   "meta/muse-spark-1.1", False, False, True,    1.25,  4.25),
     ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  True,  True,  True,    2.50,  15.00),
-    ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  True,  False, True,    2.50,  15.00,
+    ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  True,  False, True,    2.00,  12.00,
               True),  # admin_only — too expensive for general use
     ModelSpec("kimi-k3",        "kimi-k3 · ¢¢/new",         "moonshotai/kimi-k3",  True,  False, True,    3.00,  15.00,
               True),  # admin_only — admin-group trial before general release
+    # Meta's "contributor" tier: ~12x cheaper because Meta may TRAIN on the
+    # prompts and completions. Admin-only on purpose — never expose member or
+    # demo traffic to it without a privacy-policy decision.
+    ModelSpec("muse-spark-1.3-contributor", "muse-spark-1.3-contributor · <¢/trains Meta",
+              "meta/muse-spark-1.3-contributor",
+              True,  False, True,    0.10,  0.20, True),
 )
 
 

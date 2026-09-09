@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI, Depends, HTTPException, Body, BackgroundTasks, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
@@ -20,8 +19,9 @@ from app.services.user_service import update_user_profile, get_user_by_email
 # Import routers
 from app.api import auth, user, chat, evals, demo, ift, board_viewer, invite, ask
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (shell → ~/.config/secrets/keys.env → .env)
+from app.env import load_env  # noqa: E402
+load_env()
 
 # Configure logging
 logging.basicConfig(

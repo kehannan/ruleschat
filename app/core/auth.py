@@ -3,7 +3,6 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional
 
-from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -11,11 +10,12 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.env import load_env
 from app.models import User
 from app.services.user_service import get_user_by_email
 
 # Load environment variables
-load_dotenv()
+load_env()
 
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY")

@@ -33,7 +33,7 @@ from app import model_registry
 from app.asl.openrouter_client import OpenRouterClient
 from app.database import SessionLocal
 from app.models.user import User
-from app.services.asl_service import get_asl_service
+from app.services.asl_service import get_asl_service, uses_meta_api
 from app.services.user_service import is_admin
 from app.services.vsav_service import (
     VsavError, decode_vsav_data_url, parse_vsav, render_board_state,
@@ -231,7 +231,7 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
         trace_ctx = {"user_id": str(credential.id), "tags": ["ask", "account"]}
     else:
         model = payload.model or DEFAULT_PROVIDER_MODEL
-        if "/" not in model or model.startswith("meta/"):
+        if "/" not in model or uses_meta_api(model):
             raise HTTPException(
                 status_code=400,
                 detail=f"Model '{model}' is not an OpenRouter slug "

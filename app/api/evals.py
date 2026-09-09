@@ -104,20 +104,21 @@ async def usage_daily(db: Session = Depends(get_db)):
     so the /evals charts can show text vs image queries side by side.
     """
     # Production chat tags messages with the full model id sent to the API.
-    # Routed rows arrive as full slugs ("meta/muse-spark-1.1"); they're
-    # normalized to short display labels below.
+    # Routed rows arrive as full slugs ("meta/muse-spark-1.3"); they're
+    # normalized to the registry key below. Every registry model is charted
+    # automatically; the literals are legacy ids for historical rows.
     ALLOWED_MODELS = {
-        "gpt-5-mini", "gpt-4.1-mini", "gpt-5.4", "gpt-5.4-mini",
-        "gpt-5.6-luna", "gpt-5.6-terra",
-        "meta/muse-spark-1.1",
-        "deepseek/deepseek-v4-flash",
+        "gpt-5-mini", "gpt-4.1-mini", "gpt-5.4-mini",
         "stealth/ox-alpha",
     }
     USAGE_DISPLAY = {
-        "meta/muse-spark-1.1": "muse-spark-1.1",
-        "deepseek/deepseek-v4-flash": "deepseek-v4-flash",
         "stealth/ox-alpha": "ox-alpha",
     }
+    for _m in model_registry.MODELS:
+        ALLOWED_MODELS.add(_m.key)
+        if _m.slug:
+            ALLOWED_MODELS.add(_m.slug)
+            USAGE_DISPLAY[_m.slug] = _m.key
 
     messages = (
         db.query(ChatMessage)

@@ -112,6 +112,10 @@ Required variables:
 
 Optional (only needed for routed models in the registry): `META_API_KEY` (Meta Model API), `OPENROUTER_API_KEY` (OpenRouter). `ADAPTIVE_RAG_CHUNKS` tunes the thorough-mode chunk baseline (default 5).
 
+#### API keys
+
+On a dev machine the model API keys (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `META_API_KEY`) live in one shared file outside every repo, `~/.config/secrets/keys.env` (mode 600), so a rotated key is fixed once for all projects. Two things load it: direnv, via the gitignored `.envrc` in this repo (`dotenv_if_exists ~/.config/secrets/keys.env`), and [app/env.py](app/env.py) at startup, so launchers that bypass the shell (the desktop-app dev server, `python run.py`) still see it. Precedence is shell, then the shared file, then `.env`, first definition wins. Keep project-local settings (`SECRET_KEY`, mail, `DEFAULT_MODEL`, …) in `.env`; a key defined in both places is taken from the shared file. Prod has no shared file and reads everything from `.env` as before.
+
 Optional tracing ([Langfuse](https://cloud.langfuse.com)): set `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` (and `LANGFUSE_HOST` if not EU cloud) to trace every answered question — agent iterations, tool calls, and token usage per LLM call. Unset = tracing off; `LANGFUSE_ENABLED=false` force-disables it.
 
 ### 3. Set up the vector stores

@@ -359,7 +359,33 @@ _MODEL_OPENROUTER_DEFAULTS: Dict[str, Dict[str, Dict[str, Any]]] = {
     "z-ai/glm-5.3-flash": {
         "reasoning": {"effort": "low"},
     },
+    # 2026-09 cost/perf trial set. All four are thinking models; bound their
+    # reasoning by default for interactive use (same rationale as GLM above).
+    # Raise with OPENROUTER_REASONING_EFFORT=medium|high when running evals.
+    "deepseek/deepseek-v4-pro": {
+        "reasoning": {"effort": "low"},
+    },
+    "qwen/qwen3.8-flash": {
+        "reasoning": {"effort": "low"},
+    },
+    "google/gemini-3.8-flash": {
+        "reasoning": {"effort": "low"},
+    },
+    "meta/muse-glimmer-30b": {
+        "reasoning": {"effort": "low"},
+    },
 }
+
+
+# Model ids served directly by the Meta Model API (api.meta.ai). Meta's
+# open-weight models (e.g. "meta/muse-glimmer-30b") share the "meta/" vendor
+# prefix on OpenRouter but are NOT hosted on the Meta API, so routing is by
+# model family, not by prefix.
+_META_API_PREFIXES = ("meta/muse-spark",)
+
+
+def uses_meta_api(model: Optional[str]) -> bool:
+    return bool(model) and model.startswith(_META_API_PREFIXES)
 
 
 def _require_choices(response: Any) -> None:
@@ -482,7 +508,7 @@ class ASLService:
         if self.openrouter_client:
             logging.info("OpenRouter client initialized (/-prefixed model names route here)")
         if self.meta_client:
-            logging.info("Meta Model API client initialized (meta/-prefixed model names route here)")
+            logging.info("Meta Model API client initialized (meta/muse-spark… model names route here)")
         if not _lookup_tools_available():
             logging.warning(
                 "⚠️ Extracted rulebook store missing (data/rulebook/sections.json) — "
@@ -493,11 +519,12 @@ class ASLService:
     def _chat_client_for(self, model: str):
         """Resolve a '/'-routed model to (client, provider_model_id).
 
-        'meta/…' models go to the Meta Model API with the prefix stripped;
-        everything else goes to OpenRouter with the slug unchanged. Raises
+        'meta/muse-spark…' models go to the Meta Model API with the prefix
+        stripped; everything else (including Meta's open-weight models on
+        OpenRouter) goes to OpenRouter with the slug unchanged. Raises
         RuntimeError when the needed API key isn't configured.
         """
-        if model.startswith("meta/"):
+        if uses_meta_api(model):
             if self.meta_client is None:
                 raise RuntimeError(
                     f"Model '{model}' requires the Meta Model API, but META_API_KEY "
@@ -1083,7 +1110,7 @@ Your response:"""
         whole call is synchronous), unlike the OpenAI streaming path where
         timing_data fills in during iteration.
         """
-        provider_label = "Meta" if model.startswith("meta/") else "OpenRouter"
+        provider_label = "Meta" if uses_meta_api(model) else "OpenRouter"
         root_trace = _start_answer_trace(
             "answer.plain", question, model, trace_ctx, path=provider_label.lower()
         )
@@ -1255,7 +1282,7 @@ Your response:"""
 
         # Meta-prefixed models share this code path but hit the Meta Model API
         # directly (see _chat_client_for) — label logs with the real provider.
-        provider_label = "Meta" if model.startswith("meta/") else "OpenRouter"
+        provider_label = "Meta" if uses_meta_api(model) else "OpenRouter"
         root_trace = _start_answer_trace(
             "answer.agentic", question, model, trace_ctx,
             path=provider_label.lower(), force_tool=force_tool, stream=stream,
