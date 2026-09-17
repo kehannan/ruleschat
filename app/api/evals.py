@@ -57,6 +57,7 @@ async def evals_page(request: Request, user = Depends(get_current_user)):
 
     eval_data = load_eval_runs()
     context.update(eval_data)
+    context.update(load_discord_runs())
     context["is_archive"] = False
 
     return templates.TemplateResponse("evals.html", context)
@@ -588,6 +589,132 @@ def load_eval_runs(evals_dir=None, filter_to_present=True):
         return {"error": str(e)}
 
 
+# --- Discord eval (main /evals page) ---------------------------------------
+#
+# The main page reports one eval set: 74 questions real players asked in the
+# ASL Discord rules channel. Pass counts come from the published results
+# files; what a results file cannot say for itself lives here.
+#
+# Cost per question:
+#   * deepseek-v4-flash ran through the production pipeline on OpenRouter, so
+#     its figure is measured: the OpenRouter balance moved $0.2514 across the
+#     74-question run (cache discounts included). At list price the same
+#     tokens come to 0.60 cents.
+#   * gpt-6 ran through the Codex CLI on a ChatGPT subscription, which records
+#     no token usage. Its figure is an estimate: the production plain-RAG
+#     prompt (~22k input tokens, ~0.7k output) at the GPT-6 list price of
+#     $10 / $50 per 1M tokens = ~25 cents. Priced at the token volume
+#     deepseek's agentic loop actually used on this set (71.8k in / 3.1k out
+#     per question) it would be ~87 cents, so 25 is the floor.
+#
+# Avg time: deepseek's is measured per question by the harness. Codex logs no
+# per-question timing, so gpt-6's ~25s is a run average: active wall-clock
+# across the three Codex sessions behind the 74 results (from the timestamps
+# in ~/.codex/sessions), divided by 74. Local rulebook search is instant, so
+# it flatters gpt-6 against the production pipeline's retrieval round trips.
+DISCORD_RUNS = [
+    {
+        "file_id": "eval_gpt6_discord_v1.0_reviewed",
+        "model": "gpt-6",
+        "role": "frontier",
+        "cost_cents": 25.0, "cost_cents_high": 87.0, "cost_basis": "estimate",
+        "time_estimate_s": 25,
+    },
+    {
+        "file_id": "eval_dsv4flash_discord_v1.0_reviewed",
+        "model": "deepseek-v4-flash",
+        "role": "open weights",
+        "cost_cents": 0.34, "cost_cents_high": None, "cost_basis": "measured",
+    },
+]
+
+
+def _fmt_cents(cents):
+    if cents is None:
+        return None
+    if cents >= 10:
+        return f"{cents:.0f}¢"
+    if cents >= 1:
+        return f"{cents:.1f}¢"
+    return f"{cents:.2f}¢"
+
+
+def load_discord_runs(evals_dir=None):
+    """Rows + headline numbers for the Discord eval on the main /evals page.
+
+    Accuracy is the human-reviewed result (final_evaluation). Returns
+    ``discord_rows`` (one per DISCORD_RUNS entry whose file exists) and
+    ``discord`` (cross-model facts the findings prose cites), or empty values
+    when the files are not published, so the template can degrade quietly.
+    """
+    if evals_dir is None:
+        evals_dir = _get_evals_dir()
+    rows, fails_by_model = [], {}
+    for cfg in DISCORD_RUNS:
+        path = evals_dir / f"{cfg['file_id']}.json"
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logging.warning(f"Skipping {path.name}: {e}")
+            continue
+        results = data.get("results", [])
+        meta = data.get("metadata", {})
+        total = len(results)
+        passed = sum(1 for r in results if (r.get("final_evaluation") or "").lower() == "pass")
+        fails_by_model[cfg["model"]] = {
+            r.get("question") for r in results
+            if (r.get("final_evaluation") or "").lower() != "pass"
+        }
+        perf = meta.get("performance") or {}
+        time_s = (perf.get("avg_response_time_ms") or 0) / 1000
+        # Why a run was slow: how many rulebook lookups / calculator calls it
+        # made per question, and how fast it was when it made none. Only
+        # meaningful for runs with measured per-question timing.
+        timed = [r for r in results if r.get("response_time_ms")]
+        avg_tool_calls = (sum(len(r.get("tools_called") or []) for r in timed) / len(timed)) if timed else None
+        no_tool = [r["response_time_ms"] / 1000 for r in timed if not r.get("tools_called")]
+        no_tool_time_s = (sum(no_tool) / len(no_tool)) if no_tool else None
+        date_label = None
+        try:
+            date_label = datetime.fromisoformat(meta["timestamp"]).strftime("%b %-d")
+        except (KeyError, ValueError, TypeError):
+            pass
+        rows.append({
+            **cfg,
+            "total": total, "passed": passed, "failed": total - passed,
+            "pct": round(passed / total * 100) if total else 0,
+            "cost": _fmt_cents(cfg["cost_cents"]),
+            "cost_high": _fmt_cents(cfg["cost_cents_high"]),
+            "time": f"{time_s:.0f}s" if time_s > 0 else (
+                f"{cfg['time_estimate_s']}s" if cfg.get("time_estimate_s") else None),
+            "time_basis": "measured" if time_s > 0 else "estimate",
+            "avg_tool_calls": round(avg_tool_calls) if avg_tool_calls else None,
+            "no_tool_time": f"{no_tool_time_s:.0f}s" if no_tool_time_s else None,
+            "date": date_label,
+            "judge": meta.get("judge_model"),
+        })
+
+    discord = {}
+    by_model = {r["model"]: r for r in rows}
+    frontier, cheap = by_model.get("gpt-6"), by_model.get("deepseek-v4-flash")
+    if frontier and cheap:
+        overlap = fails_by_model["gpt-6"] & fails_by_model["deepseek-v4-flash"]
+        multiple = frontier["cost_cents"] / cheap["cost_cents"]
+        discord = {
+            "total": frontier["total"],
+            "frontier": frontier, "cheap": cheap,
+            "gap_questions": frontier["passed"] - cheap["passed"],
+            "overlap": len(overlap),
+            # Rounded down to the nearest 5 — it is built on an estimate.
+            "cost_multiple": int(multiple // 5 * 5),
+            "cost_multiple_high": int((frontier["cost_cents_high"] / cheap["cost_cents"]) // 10 * 10)
+                                  if frontier.get("cost_cents_high") else None,
+        }
+    return {"discord_rows": rows, "discord": discord}
+
+
 def load_eval_results(file_id=None, use_human_review=False):
     """Load and process evaluation results from a specific file."""
     evals_dir = _get_evals_dir()
@@ -668,6 +795,8 @@ def _eval_tier(eval_name: str) -> str:
     renders a neutral placeholder rather than a wrong label.
     """
     name = (eval_name or "").lower()
+    if "discord" in name:
+        return "Discord"
     if "med" in name:
         return "Medium"
     if "easy" in name:

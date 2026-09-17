@@ -145,6 +145,11 @@ async def demo_page(request: Request):
 async def random_question():
     """Return a random question from the eval set."""
     evals_dir = Path(os.getenv("EVALS_DIR", "data/evals"))
+    # The demo's question pool stays the curated v1.1 easy/medium sets. They
+    # moved to v1.1/ when the /evals page switched to the Discord eval, whose
+    # long multi-part questions make poor one-click demo prompts.
+    if any((evals_dir / "v1.1").glob("*.json")):
+        evals_dir = evals_dir / "v1.1"
     questions = []
     try:
         for file_path in evals_dir.glob("*.json"):

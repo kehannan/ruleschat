@@ -33,6 +33,12 @@
   }
   .chart-block canvas { background: transparent; }
 
+  /* The comparison table scrolls inside its own box on narrow screens
+     instead of being clipped by the page. */
+  .ev-body { min-width: 0; }   /* let the grid column shrink below the table's width */
+  .table-scroll { overflow-x: auto; max-width: 100%; }
+  .compare-table td.nowrap { white-space: nowrap; }
+
   @media (max-width: 880px) {
     .chart-block .chart-canvas-wrap { height: 260px; }
   }
@@ -60,17 +66,18 @@
       <div>
         <div class="eyebrow">
           <span class="dot"></span>
-          <span>VOL. 02</span><span>·</span>
+          <span>VOL. 03</span><span>·</span>
           <span>EVALUATION REPORT</span><span>·</span>
-          <span>JUN 2026</span>
+          <span>SEP 2026</span>
         </div>
         <h1>
-          Can LLMs answer ASL rules questions<br />
-          for less than <em>1 cent</em> per query?
+          Frontier vs. open weights,<br />
+          <em>on real questions from players</em>.
         </h1>
         <p class="lede">
-          A human-reviewed evaluation of whether today's best LLMs can reliably
-          — and cheaply — answer Advanced Squad Leader rules questions.
+          Questions that players asked in the ASL Discord rules channel,
+          answered by a frontier model and an open-weights model, and scored
+          against the rulebook.
         </p>
       </div>
       {% endif %}
@@ -79,7 +86,9 @@
 </header>
 
 <!-- ─── 01 · FINDINGS (latest page only) ─── -->
-{% if not is_archive %}
+{% if not is_archive and discord %}
+{% set fr = discord.frontier %}
+{% set ch = discord.cheap %}
 <section class="section">
   <div class="wrap">
     <div class="ev-grid">
@@ -88,29 +97,33 @@
         <div class="ev-title">Findings</div>
       </div>
       <div class="ev-body">
-        <h2 class="h-section">Cheap when it's easy — <em>a gap when it's hard</em>.</h2>
-        {% set ds_rows = (table_rows | selectattr('model', 'equalto', 'deepseek-v4-flash') | list) if table_rows is defined else [] %}
-        {% set ds_easy_ag = ds_rows | selectattr('tier', 'equalto', 'Easy') | selectattr('agentic') | list | first %}
-        {% set ds_med = ds_rows | selectattr('tier', 'equalto', 'Medium') | list | first %}
-        {% set fable_med = (table_rows | selectattr('model', 'equalto', 'Fable') | selectattr('tier', 'equalto', 'Medium') | list | first) if table_rows is defined else None %}
+        <h2 class="h-section">The frontier model is better — <em>at about {{ discord.cost_multiple }}&times; the price</em>.</h2>
         <p class="lede">
-          <strong>1.</strong> Open-source models with agentic tools can answer
-          easy rules questions for <strong>less than a cent</strong> —
-          deepseek-v4-flash scored <strong>100% recall / 86% calculation</strong>
-          on the
-          {% if ds_easy_ag and ds_easy_ag.file_id %}<a href="{{ url_for('evals_detail', file_id=ds_easy_ag.file_id) }}?judge=human" class="inline-link">easy eval</a>{% else %}easy eval{% endif %}
-          at about <strong>0.4¢ per query</strong>.
+          <strong>1.</strong>
+          <a href="{{ url_for('evals_detail', file_id=fr.file_id) }}?judge=human" class="inline-link">{{ fr.model }}</a>
+          answered <strong>{{ fr.pct }}%</strong> correctly
+          ({{ fr.passed }} of {{ fr.total }}).
+          <a href="{{ url_for('evals_detail', file_id=ch.file_id) }}?judge=human" class="inline-link">{{ ch.model }}</a>,
+          an open-weights model, answered <strong>{{ ch.pct }}%</strong>
+          ({{ ch.passed }} of {{ ch.total }}).
         </p>
         <p class="lede">
-          <strong>2.</strong> On a
-          {% if ds_med and ds_med.file_id %}<a href="{{ url_for('evals_detail', file_id=ds_med.file_id) }}?judge=human" class="inline-link">medium-hard eval</a>{% else %}medium-hard eval{% endif %}
-          a real gap opens between open-source and frontier models — in both
-          directions.
-          {% if fable_med and fable_med.file_id %}<a href="{{ url_for('evals_detail', file_id=fable_med.file_id) }}?judge=human" class="inline-link">Fable</a>{% else %}Fable{% endif %}
-          holds <strong>91% recall / 100% calculation</strong> against
-          deepseek's <strong>82% / 80%</strong>, but at roughly
-          <strong>50&times; the cost</strong> (~30¢ vs 0.57¢ per query).
+          <strong>2.</strong> {{ ch.model }} cost a measured
+          <strong>{{ ch.cost }} per question</strong>. {{ fr.model }} is
+          estimated at <strong>~{{ fr.cost }}</strong> — about
+          <strong>{{ discord.cost_multiple }}&times;</strong> more.
         </p>
+        {% if ch.time and ch.avg_tool_calls %}
+        <p class="lede">
+          <strong>3.</strong> {{ ch.model }} was slow:
+          <strong>{{ ch.time }} per question</strong>{% if fr.time %}, against
+          ~{{ fr.time }} for {{ fr.model }}{% endif %}. The time goes into its
+          tool loop — it made about {{ ch.avg_tool_calls }} rulebook lookups
+          per question, and each one is another round trip that re-sends a
+          growing context.{% if ch.no_tool_time %} When it answered without a
+          lookup it took {{ ch.no_tool_time }}.{% endif %}
+        </p>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -127,11 +140,95 @@
       </div>
       <div class="ev-body">
         <h2 class="h-section">Accuracy, cost, latency<br /><em>side by side</em>.</h2>
-        {% if is_archive %}
-        <p class="table-caption">TABLE 01 — 200+ questions, human-verified · cost &amp; timing from live production chat</p>
+
+        {% if not is_archive %}
+        {# ── Main page: the Discord eval ── #}
+        <p class="table-caption">TABLE 01 — questions from the ASL Discord rules channel · scored against rulebook-cited answers · human-reviewed</p>
+        {% if discord_rows %}
+        <div class="table-scroll">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th class="col-model">Model</th>
+              <th>Passed</th>
+              <th>Accuracy</th>
+              <th>Cost / q</th>
+              <th>Avg time</th>
+              <th>Date run</th>
+              <th class="col-action"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in discord_rows %}
+            <tr>
+              <td class="col-model">
+                {{ row.model }}
+                <div class="frontier">{{ row.role }}</div>
+              </td>
+              <td class="nowrap">{{ row.passed }}&thinsp;/&thinsp;{{ row.total }}</td>
+              <td class="acc">{{ row.pct }}%</td>
+              <td class="acc nowrap">
+                {% if row.cost_basis == 'estimate' %}~{{ row.cost }}<sup>&dagger;</sup>{% else %}{{ row.cost }}{% endif %}
+              </td>
+              <td class="acc nowrap">
+                {% if not row.time %}—{% elif row.time_basis == 'estimate' %}~{{ row.time }}<sup>&dagger;</sup>{% else %}{{ row.time }}{% endif %}
+              </td>
+              <td class="col-date">{{ row.date or '—' }}</td>
+              <td class="col-action">
+                <a href="{{ url_for('evals_detail', file_id=row.file_id) }}?judge=human" class="view-link">VIEW →</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+
+        <p class="table-footnote">
+          <strong>The questions —</strong> each one comes from a thread in the
+          ASL Discord rules channel (2025–26), reworded into a single
+          self-contained question. The expected answer was written against the
+          rulebook and the official Q&amp;A, with section citations. Several
+          expected answers were corrected during review, when a model's
+          citations showed the rulebook said otherwise.
+        </p>
+        <p class="table-footnote">
+          <strong>Scoring —</strong> Claude Fable 5.1 judged every answer
+          assertion by assertion against the expected answer; borderline
+          verdicts were settled by human review. Open any run to read the
+          questions, both answers and the verdicts.
+        </p>
+        <p class="table-footnote">
+          <strong>Cost / q &amp; Avg time —</strong> deepseek-v4-flash ran
+          through the same pipeline as live chat, so its eval cost is
+          measured: what OpenRouter billed for the run, divided by
+          {{ discord.total or 74 }} questions.
+        </p>
+        <p class="table-footnote">
+          <sup>&dagger;</sup> gpt-6 was run through the Codex CLI on a
+          subscription, with a local search over the same rulebook text and
+          the same calculators, so no per-question token usage or timing was
+          recorded. Its cost is an estimate: the production prompt (~22k input
+          tokens, ~0.7k output) at the GPT-6 list price of $10 / $50 per
+          million tokens. At the token volume deepseek's tool loop used on
+          this set it would be
+          ~{{ discord.frontier.cost_high if discord else '87¢' }}. Its time is
+          a run average taken from the Codex session logs, and local rulebook
+          search is instant, so it would be slower through the production
+          pipeline. The two models did not run an identical retrieval setup,
+          so read the accuracy gap as indicative.
+        </p>
+        <p class="table-footnote">
+          <strong>Sample size —</strong> {{ discord.total or 74 }} questions.
+          A {{ discord.gap_questions or 3 }}-question gap is a signal, not a
+          measurement to the decimal.
+        </p>
         {% else %}
-        <p class="table-caption">TABLE 01 — 85-question easy + 60-question medium evals, human-reviewed · each model with and without agentic tools · cost &amp; timing from live production usage</p>
+        <p class="table-footnote">Results for this eval are not published yet.</p>
         {% endif %}
+
+        {% else %}
+        {# ── Archive page (/evals/v1.0): the original multi-model table ── #}
+        <p class="table-caption">TABLE 01 — 200+ questions, human-verified · cost &amp; timing from live production chat</p>
 
         {% if table_rows is defined %}
         {% set mid = {'gpt-5.4': 'gpt54', 'gpt-5.4-mini': 'gpt54mini', 'gpt-5-mini': 'gpt5mini', 'gpt-4.1-mini': 'gpt41mini', 'deepseek-v3': 'dsv3', 'deepseek-v4-flash': 'dsv4flash', 'mercury-2': 'mercury2', 'muse-spark-1.1': 'musespark'} %}
@@ -140,11 +237,10 @@
           <thead>
             <tr>
               <th class="col-model">Model</th>
-              {% if not is_archive %}<th>Agentic</th>{% endif %}
               <th>Eval</th>
               <th>Recall</th>
               <th>Calc</th>
-              {% if is_archive %}<th>False Refusal</th>{% endif %}
+              <th>False Refusal</th>
               <th>Cost / q</th>
               <th>Avg time</th>
               <th>Date run</th>
@@ -161,45 +257,31 @@
             <tr>
               <td class="col-model">
                 {{ row.model }}
-                {% if is_archive and loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
-                {% if is_archive and row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
-                {% if is_archive and row.agentic %}
+                {% if loop.first %}<div class="frontier">frontier baseline</div>{% endif %}
+                {% if row.via_openrouter %}<div class="model-sub">via OpenRouter</div>{% endif %}
+                {% if row.agentic %}
                 <div class="model-sub" title="The model executed rulebook lookups / calculators during this run">agentic tools</div>
                 {% endif %}
               </td>
-              {% if not is_archive %}
-              <td {% if row.legacy_harness %}title="Older harness: calculators were classifier-forced on calc questions only; recall answers came from a plain-RAG run"{% elif row.agentic %}title="Production agentic loop — the model decides per question which rulebook lookups / calculators to run"{% else %}title="Plain RAG — retrieved rulebook context only, no tool calls"{% endif %}>{{ 'yes' if row.agentic else 'no' }}{% if row.legacy_harness %}<sup>&sect;</sup>{% endif %}</td>
-              {% endif %}
               <td>{{ row.tier }}</td>
               {% if 'recall' in acc %}
                 {% set rc = acc['recall'] %}
-                <td class="acc{% if is_archive %} {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
-              {% else %}<td>—{% if row.live_only %}<sup>&Dagger;</sup>{% endif %}</td>{% endif %}
+                <td class="acc {% if rc >= 95 %}cell-good{% elif rc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ rc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+              {% else %}<td>—</td>{% endif %}
               {% if 'calc' in acc %}
                 {% set cc = acc['calc'] %}
-                <td class="acc{% if is_archive %} {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
-              {% else %}<td>—{% if row.live_only %}<sup>&Dagger;</sup>{% endif %}</td>{% endif %}
-              {% if is_archive %}
-                {% if row.file_id %}
-                <td class="acc {% if row.false_refusals %}cell-mid{% endif %}">{{ row.false_refusal_pct }}%</td>
-                {% else %}<td>—</td>{% endif %}
-              {% endif %}
-              {% if is_archive %}
-                {% if rid and mode_key not in ns.cost_ids_done %}
-                  {% set ns.cost_ids_done = ns.cost_ids_done + [mode_key] %}
-                  <td id="tbl-cost-{{ rid }}{{ mode_suffix }}">—</td>
-                  <td id="tbl-time-{{ rid }}{{ mode_suffix }}">—</td>
-                {% else %}
-                  <td>—</td>
-                  <td>—</td>
-                {% endif %}
-              {% elif rid and mode_key not in ns.cost_ids_done %}
+                <td class="acc {% if cc >= 95 %}cell-good{% elif cc >= 70 %}cell-mid{% else %}cell-bad{% endif %}">{{ cc }}%{% if est %}<sup>*</sup>{% endif %}</td>
+              {% else %}<td>—</td>{% endif %}
+              {% if row.file_id %}
+              <td class="acc {% if row.false_refusals %}cell-mid{% endif %}">{{ row.false_refusal_pct }}%</td>
+              {% else %}<td>—</td>{% endif %}
+              {% if rid and mode_key not in ns.cost_ids_done %}
                 {% set ns.cost_ids_done = ns.cost_ids_done + [mode_key] %}
-                <td class="acc">{{ row.eval_cost or '—' }}&thinsp;/&thinsp;<span id="tbl-cost-{{ rid }}{{ mode_suffix }}">—</span></td>
-                <td class="acc">{{ row.eval_time or '—' }}&thinsp;/&thinsp;<span id="tbl-time-{{ rid }}{{ mode_suffix }}">—</span></td>
+                <td id="tbl-cost-{{ rid }}{{ mode_suffix }}">—</td>
+                <td id="tbl-time-{{ rid }}{{ mode_suffix }}">—</td>
               {% else %}
-                <td class="acc">{{ row.eval_cost or '—' }}&thinsp;/&thinsp;—</td>
-                <td class="acc">{{ row.eval_time or '—' }}&thinsp;/&thinsp;—</td>
+                <td>—</td>
+                <td>—</td>
               {% endif %}
               <td class="col-date">{{ row.date or '—' }}</td>
               <td class="col-action">
@@ -213,19 +295,10 @@
         </table>
 
         <p class="table-footnote">
-          {% if is_archive %}
           <strong>Note —</strong> all runs use the same retrieval configuration:
           ~20k token RAG input per question, 20 chunks retrieved per query from
           a vector store of the 700-page rulebook.
-          {% else %}
-          <strong>Retrieval —</strong> <em>no tools</em> rows get ~20k tokens
-          of rulebook context per question (20 chunks from a vector store of
-          the 700-page rulebook). <em>with tools</em> rows start from a
-          5-chunk baseline and the model fetches more sections itself via
-          lookup tools.
-          {% endif %}
         </p>
-        {% if is_archive %}
         <p class="table-footnote">
           <strong>False Refusal —</strong> the provider's content filter
           rejected the question outright (wargame terminology misread as
@@ -233,38 +306,6 @@
           still count in the accuracy denominators but are not scored as
           answer failures.
         </p>
-        {% endif %}
-        {% if not is_archive %}
-        <p class="table-footnote">
-          <strong>Cost / q &amp; Avg time</strong> — each cell shows two
-          numbers: <em>eval run&thinsp;/&thinsp;live production</em>. The
-          first is measured from the eval itself (the run's token volume at
-          the model's API pricing; wall-clock response time). The second is
-          the average across live chat turns in that row's mode — agentic
-          rows draw only from tool-using turns, non-agentic rows only from
-          plain turns; hover it for the sample size. An em dash means that
-          measurement doesn't exist yet. Fable's eval-side numbers are
-          approximations (its runner doesn't record token usage).
-        </p>
-        {% endif %}
-        {% if table_rows | selectattr('live_only') | list %}
-        <p class="table-footnote">
-          <sup>&Dagger;</sup> Not yet evaluated in this mode — accuracy is
-          unmeasured, not zero. Cost and time fill in from live production
-          traffic once that mode has any.
-        </p>
-        {% endif %}
-        {% if table_rows | selectattr('legacy_harness') | list %}
-        <p class="table-footnote">
-          <sup>&sect;</sup> Older tool harness (Jun 16): a classifier
-          force-called the combat calculators on calculation questions, and
-          the recall answers were reused from a plain-RAG run. The other
-          <em>with tools</em> rows let the model choose its own rulebook
-          lookups and calculators on every question, so this row isn't
-          directly comparable.
-        </p>
-        {% endif %}
-        {% if is_archive %}
         <p class="table-footnote">
           <strong>Caveat —</strong> deepseek-v3 and mercury-2 make two API
           calls per query — one to OpenAI's vector store for retrieval, then
@@ -273,11 +314,11 @@
           those models actually are at inference; the extra round-trip is
           baked in.
         </p>
-        {% endif %}
         {% if model_estimated %}
         <p class="table-footnote">
           <sup>*</sup> Estimated: gpt-5.4 run on 24 questions where gpt-5.4-mini failed; remaining 190 assumed correct.
         </p>
+        {% endif %}
         {% endif %}
         {% endif %}
 
@@ -409,7 +450,8 @@ fetch('/api/usage/daily')
 
     // (a) Table cells. Cost/time is matched to the row's mode: baseline
     // series fill the plain ids, "(agentic)" series fill the -agentic ids
-    // (rows whose eval ran with tools). Image variants stay chart-only.
+    // (the archive's tool-using rows). Image
+    // variants stay chart-only.
     data.models.forEach(variant => {
       const s = data.series[variant];
       if (s.is_image) return;
