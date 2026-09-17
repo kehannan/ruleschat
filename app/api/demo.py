@@ -145,12 +145,10 @@ async def demo_page(request: Request):
 async def random_question():
     """Return a random question from the eval set."""
     evals_dir = Path(os.getenv("EVALS_DIR", "data/evals"))
-    # The demo's question pool stays the curated v1.1 easy/medium sets. They
-    # moved to v1.1/ when the /evals page switched to the Discord eval, whose
-    # long multi-part questions make poor one-click demo prompts.
-    if any((evals_dir / "v1.1").glob("*.json")):
-        evals_dir = evals_dir / "v1.1"
-    questions = []
+    # The pool is whatever the /evals page reports: the top-level result
+    # files, currently the Discord eval (real questions players asked). Every
+    # model's file carries the same questions, hence the set.
+    questions = set()
     try:
         for file_path in evals_dir.glob("*.json"):
             with open(file_path, "r", encoding="utf-8") as f:
@@ -159,13 +157,13 @@ async def random_question():
             for r in results:
                 q = r.get("question", "").strip()
                 if q:
-                    questions.append(q)
+                    questions.add(q)
     except Exception as e:
         logging.warning(f"random-question: {e}")
 
     if not questions:
         return {"question": None}
-    return {"question": random.choice(questions)}
+    return {"question": random.choice(sorted(questions))}
 
 
 @router.websocket("/ws/demo/")
