@@ -3,7 +3,7 @@
     "model_name": "gpt-6 (codex)",
     "judge_model": "claude-fable-5-1",
     "timestamp": "2026-09-16T21:12:22.561924",
-    "total_questions": 74,
+    "total_questions": 73,
     "max_chunks": 20,
     "performance": {
       "total_input_tokens": 0,
@@ -18,25 +18,25 @@
       "ai_judge": {
         "pass": 71,
         "fail": 1,
-        "needs_review": 2
+        "needs_review": 1
       },
       "with_human_review": {
         "pass": 72,
-        "fail": 2,
+        "fail": 1,
         "pending_review": 0,
         "eval_error": 0
       },
       "by_question_type": {
         "recall": {
-          "total": 67,
+          "total": 66,
           "ai_judge": {
             "pass": 64,
             "fail": 1,
-            "needs_review": 2
+            "needs_review": 1
           },
           "with_human_review": {
             "pass": 65,
-            "fail": 2,
+            "fail": 1,
             "pending_review": 0,
             "eval_error": 0
           }
@@ -850,61 +850,6 @@
       "human_override": null,
       "final_evaluation": "pass",
       "judge_model": "fable-5.1 (claude code)"
-    },
-    {
-      "question": "If a concealed unit runs out of a building into an adjacent stream hex, does it lose concealment (become open / non-concealed) simply because it crossed a clear hexside or was visible to the defender at the hexside?",
-      "expected_answer": "No, not for crossing the hexside — but the unit almost certainly loses \"?\" anyway, for two separate reasons under A12.14.\n\n- Non-Assault Movement (A12.14): a concealed unit that uses Non-Assault Movement loses its \"?\" immediately if it is in the LOS of a Good Order enemy ground unit within 16 hexes [EXC: behind bocage, B9.55; between connected trenches, B27.54]. \"Running\" is Non-Assault Movement, so the \"?\" goes as soon as the unit expends MF in the building while such a LOS exists — before it ever reaches the hexside. LOS is traced to the unit's Location, not to a hexside.\n\n- Entering Open Ground (A12.14, A10.531): moving, advancing, or withdrawing into an Open Ground hex in such a LOS also costs the \"?\", regardless of movement type. A stream is Open Ground for TEM purposes provided a LOS INTO it exists (B20.3), and A10.531 defines Open Ground for concealment as a hex where the enemy could apply the -1 FFMO DRM — which a shallow stream with no TEM satisfies. So even a unit that Assault Moves out of the building keeps \"?\" while leaving the building but loses it on entering the stream hex, if a Good Order enemy within 16 hexes has a LOS INTO that stream Location.\n\n- The LOS condition is real: a stream is normally a level -1 Depression (B20.2), and a unit IN it can be seen only along the LOS INTO a depression (A6.3) — from adjacent hexes, along connected stream hexes, or from higher ground. If no Good Order enemy within 16 hexes has such a LOS, there is no loss (A12.14: the necessary LOS must exist, and checks are free).\n\n- \"Visible at the hexside\" is not a rule concept; the only hexside-vertex case is rowhouse bypass, where the Q&A treats the unit as in Open Ground at the vertex (A12.14 & B23.71) — not applicable to a normal building-to-stream move.",
-      "model_response": "**Answer:** No—crossing a clear hexside or being visible only at that hexside does not by itself remove concealment. If the stream Location is out of the qualifying enemy LOS, concealment can be retained; if the unit uses non-Assault Movement in LOS of a Good Order enemy ground unit within 16 hexes, it loses concealment normally.\n\n---\n\nA Snap Shot opportunity alone does not cause concealment loss; the attack must generate a PTC or better result. Apply the actual movement and LOS conditions in the entered Location, rather than treating every clear hexside crossing as entry into Open Ground.\n\nReferences:\n- (A12.14) Concealment removal — movement and qualifying enemy LOS determine loss.\n- (A12.141) Actions — a Snap Shot opportunity alone is insufficient to remove concealment.",
-      "section": "A12.14",
-      "question_type": "recall",
-      "source_url": "https://discord.com/channels/415876852419395586/1465080238836027452",
-      "response_time_ms": null,
-      "retrieval_ms": null,
-      "inference_ms": null,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "tools_called": [
-        "search",
-        "get_section",
-        "get_section"
-      ],
-      "llm_judgment": "partial",
-      "llm_confidence": 0.75,
-      "llm_reasoning": "[Explanation] Gets the main idea: the hexside is irrelevant, loss depends on movement type and enemy LOS to the entered Location, and Non-Assault Movement in LOS within 16 hexes loses '?' (A12.14). It misses a key concept in the expected answer: a stream is Open Ground (B20.3, A10.531), so entering it in LOS loses '?' even under Assault Movement. Its 'apply the actual movement and LOS conditions in the entered Location' points that way but never says the stream hex is Open Ground.",
-      "llm_assertions": [
-        {
-          "expected": "Crossing the hexside is not itself a trigger; LOS is judged on the unit's Location.",
-          "response": "Crossing a clear hexside or being visible only at that hexside does not by itself remove concealment.",
-          "aligned": "yes"
-        },
-        {
-          "expected": "Non-Assault Movement in LOS of a Good Order enemy within 16 hexes loses '?' immediately (A12.14).",
-          "response": "If the unit uses non-Assault Movement in LOS of a Good Order enemy ground unit within 16 hexes, it loses concealment normally.",
-          "aligned": "yes"
-        },
-        {
-          "expected": "Entering an Open Ground hex loses '?' regardless of movement type; a stream is Open Ground (B20.3, A10.531), so entering it in LOS costs '?' even with Assault Movement.",
-          "response": "not addressed — only 'apply the movement and LOS conditions in the entered Location'",
-          "aligned": "no",
-          "note": "key concept missing"
-        },
-        {
-          "expected": "If no Good Order enemy within 16 hexes has a LOS INTO the stream Location (depression, B20.2/A6.3), no loss.",
-          "response": "If the stream Location is out of the qualifying enemy LOS, concealment can be retained.",
-          "aligned": "yes"
-        },
-        {
-          "expected": "'Visible at the hexside' is not a rule concept (rowhouse-bypass vertex Q&A aside).",
-          "response": "Do not treat every clear hexside crossing as entry into Open Ground; a Snap Shot alone does not strip '?' (A12.141).",
-          "aligned": "yes"
-        }
-      ],
-      "ai_evaluation": "needs_review",
-      "human_override": "fail",
-      "final_evaluation": "fail",
-      "judge_model": "fable-5.1 (claude code)",
-      "human_override_applied": true,
-      "human_notes": "Missed that a stream is Open Ground (B20.3/A10.531), so entering it in LOS costs '?' even under Assault Movement."
     },
     {
       "question": "Can a unit that is on top of a Wire counter control that hex or Location for Victory Conditions?",
