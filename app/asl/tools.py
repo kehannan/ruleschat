@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional
 from app.asl import ift
 from app.asl import attack_resolver
 from app.asl import cc_resolver
+from app.asl import blind_hexes as blind_hexes_engine
 from app.asl import rules_lookup
 
 
@@ -242,6 +243,38 @@ def cc_attack(
         "⚔️ cc_attack(%s vs %s, drm=%s, hth=%s) -> %s, KN %s, p_elim %s",
         attack_fp, defense_fp, result.get("drm"), hth,
         result.get("odds"), result.get("kill_number"), result.get("p_eliminate"),
+    )
+    return result
+
+
+def blind_hexes(
+    firer_level: int,
+    obstacle_hex_level: int,
+    range_to_obstacle: int,
+    hexes_behind: List[int],
+    obstacle_height: int = 0,
+    cliff: bool = False,
+) -> Dict[str, Any]:
+    """
+    Blind Hex calculator (A6.4-.43, B10.23, B11.21): which hexes directly
+    behind one obstacle are blind to a higher-elevation firer.
+
+    Returns per-hex verdicts plus a rule-cited, plain-English `steps` ledger
+    so the model can present the derivation verbatim. See
+    `app.asl.blind_hexes.compute_blind_hexes` for the full contract.
+    """
+    result = blind_hexes_engine.compute_blind_hexes(
+        firer_level=firer_level,
+        obstacle_hex_level=obstacle_hex_level,
+        range_to_obstacle=range_to_obstacle,
+        hexes_behind=hexes_behind,
+        obstacle_height=obstacle_height,
+        cliff=cliff,
+    )
+    logging.info(
+        "🏔️ blind_hexes(firer=%s, obstacle=%s+%s, range=%s, cliff=%s, behind=%s) -> blind %s",
+        firer_level, obstacle_hex_level, obstacle_height, range_to_obstacle, cliff,
+        hexes_behind, result.get("blind_hexes"),
     )
     return result
 
@@ -721,6 +754,74 @@ TOOL_SCHEMAS = [
     },
     {
         "type": "function",
+        "name": "blind_hexes",
+        "description": (
+            "Compute BLIND HEXES (A6.4-.43, B10.23, B11.21): given a firer at a higher "
+            "elevation looking over ONE obstacle - a terrain obstacle on a hill (woods, "
+            "building), a bare hill Crest Line, or a cliff hexside - returns which of the "
+            "hexes directly beyond it along the LOS are Blind Hexes, with a rule-cited "
+            "step-by-step ledger. Use for any 'can X at level N see Y behind the hill/"
+            "woods/cliff' or 'how many blind hexes' question once the elevations are "
+            "known: read the firer level, the obstacle hex's hill level and terrain "
+            "height, the range to the obstacle, and the level of each hex behind it, then "
+            "call this instead of hand-deriving the A6.41/A6.42/A6.43 arithmetic. Use "
+            "full levels only (half-level obstacles such as walls/hedges/rubble are "
+            "ignored, A6.4). One obstacle per call; it does not model other obstacles, "
+            "hindrances, or B10.2's no-recrossing rule."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "firer_level": {
+                    "type": "integer",
+                    "description": "Elevation level of the firer (0 = ground level).",
+                },
+                "obstacle_hex_level": {
+                    "type": "integer",
+                    "description": (
+                        "Base hill level of the hex containing the obstacle. For a bare "
+                        "Crest Line or cliff, the level on the HIGH side of the crest."
+                    ),
+                },
+                "obstacle_height": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": (
+                        "Full-level height of the terrain obstacle in that hex above its "
+                        "base level: woods / one-story building 1, two-story building 2. "
+                        "0 (default) = a bare hill Crest Line or cliff with no terrain "
+                        "obstacle."
+                    ),
+                },
+                "range_to_obstacle": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Range in hexes from the firer to the obstacle hex.",
+                },
+                "hexes_behind": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"type": "integer"},
+                    "description": (
+                        "Elevation level of each hex directly beyond the obstacle along "
+                        "the LOS, nearest first (e.g. [0, 0, 1])."
+                    ),
+                },
+                "cliff": {
+                    "type": "boolean",
+                    "description": (
+                        "The hexside the LOS exits the obstacle hex through is a cliff "
+                        "hexside (B11). Default false."
+                    ),
+                },
+            },
+            "required": ["firer_level", "obstacle_hex_level", "range_to_obstacle",
+                         "hexes_behind"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
         "name": "get_section",
         "description": (
             "Fetch the EXACT text of one rulebook section by its ID (e.g. 'A12.14'), "
@@ -776,7 +877,8 @@ TOOL_SCHEMAS = [
 #   * OpenAI path: calc + get_section (hosted file_search covers search)
 #   * OpenRouter path: calc + get_section + search_rules
 LOOKUP_TOOL_NAMES = {"get_section", "search_rules"}
-CALC_TOOL_NAMES = {"ift_odds", "ift_attack", "cc_attack", "resolve_attack", "resolve_cc"}
+CALC_TOOL_NAMES = {"ift_odds", "ift_attack", "cc_attack", "resolve_attack", "resolve_cc",
+                   "blind_hexes"}
 
 
 def calc_tool_schemas(chat: bool = False) -> List[Dict[str, Any]]:
@@ -829,6 +931,7 @@ TOOL_FUNCTIONS = {
     "cc_attack": cc_attack,
     "resolve_attack": resolve_attack,
     "resolve_cc": resolve_cc,
+    "blind_hexes": blind_hexes,
     "get_section": get_section,
     "search_rules": search_rules,
 }

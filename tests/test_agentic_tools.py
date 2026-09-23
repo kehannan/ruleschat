@@ -53,7 +53,7 @@ def test_schemas_enums_match_engines():
 
 def test_registry_only_ui_tools():
     assert set(TOOL_FUNCTIONS) == {"ift_odds", "ift_attack", "cc_attack",
-                                   "resolve_attack", "resolve_cc",
+                                   "resolve_attack", "resolve_cc", "blind_hexes",
                                    "get_section", "search_rules"}, \
         "hand-rolled calculators should be retired; registry must match schemas"
     from app.asl.tools import CALC_TOOL_NAMES, LOOKUP_TOOL_NAMES
