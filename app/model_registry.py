@@ -57,21 +57,23 @@ MODELS: tuple = (
               True,  False, True,    0.75,  3.75),
     ModelSpec("deepseek-v4-pro", "deepseek-v4-pro · ¢/reasoning", "deepseek/deepseek-v4-pro",
               True,  False, True,    0.96,  1.91),
-    ModelSpec("muse-spark-1.3", "muse-spark-1.3 · ¢/new",   "meta/muse-spark-1.3", True,  True,  True,    1.25,  4.25),
-    # Superseded by 1.3 (same price); kept so history rows and cost chips
-    # still resolve. Not shown in either dropdown.
+    # Muse Spark 1.3 on Meta's "contributor" tier (switched 2026-09-24):
+    # ~12x cheaper than the standard endpoint because Meta may TRAIN on the
+    # prompts and completions. This is the entry members and the demo use.
+    ModelSpec("muse-spark-1.3", "muse-spark-1.3 · <¢/new",  "meta/muse-spark-1.3-contributor",
+              True,  True,  True,    0.10,  0.20),
+    # Standard (no-training) 1.3 endpoint, used before 2026-09-24; kept so
+    # history rows and cost chips still resolve. Not shown in either dropdown.
+    ModelSpec("muse-spark-1.3-standard", "muse-spark-1.3-standard · ¢/old", "meta/muse-spark-1.3",
+              False, False, True,    1.25,  4.25),
+    # Superseded by 1.3 (same price as standard); kept so history rows and
+    # cost chips still resolve. Not shown in either dropdown.
     ModelSpec("muse-spark-1.1", "muse-spark-1.1 · ¢/old",   "meta/muse-spark-1.1", False, False, True,    1.25,  4.25),
     ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  True,  True,  True,    2.50,  15.00),
     ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  True,  False, True,    2.00,  12.00,
               True),  # admin_only — too expensive for general use
     ModelSpec("kimi-k3",        "kimi-k3 · ¢¢/new",         "moonshotai/kimi-k3",  True,  False, True,    3.00,  15.00,
               True),  # admin_only — admin-group trial before general release
-    # Meta's "contributor" tier: ~12x cheaper because Meta may TRAIN on the
-    # prompts and completions. Admin-only on purpose — never expose member or
-    # demo traffic to it without a privacy-policy decision.
-    ModelSpec("muse-spark-1.3-contributor", "muse-spark-1.3-contributor · <¢/trains Meta",
-              "meta/muse-spark-1.3-contributor",
-              True,  False, True,    0.10,  0.20, True),
 )
 
 
