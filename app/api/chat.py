@@ -560,7 +560,12 @@ async def websocket_chat(websocket: WebSocket):
                         logging.info("🪶 Thorough mode: %d-chunk baseline + agentic loop", adaptive_chunks)
 
                     # Get streaming response from service
-                    stream, timing_data = asl_service.get_answer(
+                    # get_answer blocks on the LLM SDK: for OpenRouter/Meta models the
+                    # whole non-streaming inference (minutes on a slow provider) runs
+                    # inside this call. Run it on a worker thread so one slow answer
+                    # can't stall every other request on the single uvicorn worker.
+                    stream, timing_data = await asyncio.to_thread(
+                        asl_service.get_answer,
                         full_input,
                         stream=True,
                         return_timing=True,

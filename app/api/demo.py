@@ -357,7 +357,12 @@ async def websocket_demo(websocket: WebSocket):
                         model = "gpt-5.4"
 
                     asl_service = get_asl_service()
-                    stream, timing_data = asl_service.get_answer(
+                    # get_answer blocks on the LLM SDK: for OpenRouter/Meta models the
+                    # whole non-streaming inference (minutes on a slow provider) runs
+                    # inside this call. Run it on a worker thread so one slow answer
+                    # can't stall every other request on the single uvicorn worker.
+                    stream, timing_data = await asyncio.to_thread(
+                        asl_service.get_answer,
                         message,
                         stream=True,
                         return_timing=True,
