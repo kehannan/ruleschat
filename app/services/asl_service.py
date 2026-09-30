@@ -375,6 +375,24 @@ _MODEL_OPENROUTER_DEFAULTS: Dict[str, Dict[str, Dict[str, Any]]] = {
     "meta/muse-glimmer-30b": {
         "reasoning": {"effort": "low"},
     },
+    # deepseek-v4-flash ignores reasoning.effort / reasoning.max_tokens via
+    # OpenRouter: with either set it still burned the full 8192-token
+    # max_tokens on hidden reasoning and returned finish_reason="length" with
+    # empty content after ~4.5 min (2026-09-29, reproduced locally). Only
+    # disabling reasoning works — 15 s, a normal cited answer.
+    "deepseek/deepseek-v4-flash": {
+        "reasoning": {"enabled": False},
+    },
+    # Muse Spark picks its own reasoning depth when unset and counts reasoning
+    # against max_tokens; the same empty-answer-after-4-min failure hit prod
+    # on 2026-09-26. MetaModelClient maps {"effort"} to Meta's native
+    # reasoning_effort.
+    "meta/muse-spark-1.3-contributor": {
+        "reasoning": {"effort": "low"},
+    },
+    "meta/muse-spark-1.3": {
+        "reasoning": {"effort": "low"},
+    },
 }
 
 
@@ -411,6 +429,30 @@ def _require_choices(response: Any) -> None:
         except Exception:
             detail = repr(response)
     raise RuntimeError(f"OpenRouter returned no completion choices: {detail}")
+
+
+def _require_content(response: Any, model: str) -> None:
+    """Raise when a completion ran out of max_tokens with nothing visible.
+
+    Reasoning models count hidden reasoning against max_tokens. When a model
+    spends the whole budget thinking, the provider returns finish_reason
+    "length" with empty content (OpenRouter and Meta both document this). The
+    caller would otherwise stream an empty answer and save an empty assistant
+    row; surface it as an error the user can see and act on instead.
+    """
+    choice = response.choices[0]
+    content = (getattr(choice.message, "content", None) or "").strip()
+    if content or getattr(choice, "finish_reason", None) != "length":
+        return
+    usage = getattr(response, "usage", None)
+    details = getattr(usage, "completion_tokens_details", None) if usage else None
+    reasoning_tokens = getattr(details, "reasoning_tokens", None) if details else None
+    completion_tokens = getattr(usage, "completion_tokens", None) if usage else None
+    raise RuntimeError(
+        f"{model} hit the output token limit before producing an answer "
+        f"({completion_tokens} completion tokens, {reasoning_tokens} of them "
+        "reasoning). Try again, or pick a different model."
+    )
 
 
 def _openrouter_usage_cost(usage: Any) -> Optional[float]:
@@ -743,10 +785,11 @@ Your response:"""
                     stream=False,
                     temperature=temperature,
                     max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
-                    reasoning=_openrouter_reasoning_config(model) if is_openrouter else None,
+                    reasoning=_openrouter_reasoning_config(model),
                     provider=_openrouter_provider_config(model) if is_openrouter else None,
                 )
                 _require_choices(resp)
+                _require_content(resp, str(model))
                 revised = (resp.choices[0].message.content or "").strip()
             else:
                 supports_temp = not str(model).startswith("gpt-5")
@@ -1166,7 +1209,7 @@ Your response:"""
                 stream=False,
                 temperature=temperature,
                 max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
-                reasoning=_openrouter_reasoning_config(model) if is_openrouter else None,
+                reasoning=_openrouter_reasoning_config(model),
                 provider=_openrouter_provider_config(model) if is_openrouter else None,
             )
         except Exception as e:
@@ -1180,6 +1223,7 @@ Your response:"""
         )
 
         _require_choices(response)
+        _require_content(response, str(model))
         text = (response.choices[0].message.content or "").strip()
         usage = getattr(response, "usage", None)
         # OpenRouter normalizes to OpenAI's prompt_tokens/completion_tokens, but
@@ -1323,7 +1367,7 @@ Your response:"""
         max_tokens = int(os.getenv("OPENROUTER_MAX_TOKENS", "8192"))
         chat_client, provider_model = self._chat_client_for(model)
         is_openrouter = chat_client is self.openrouter_client
-        reasoning = _openrouter_reasoning_config(model) if is_openrouter else None
+        reasoning = _openrouter_reasoning_config(model)
         provider = _openrouter_provider_config(model) if is_openrouter else None
         total_input_tokens = 0
         total_output_tokens = 0
@@ -1572,6 +1616,7 @@ Your response:"""
 
             # No tool calls → final answer.
             if not tool_calls:
+                _require_content(response, str(model))
                 final_text = (msg.content or "").strip()
                 gen_obs.end(output=trim_text(final_text), usage_details=iter_usage)
                 logging.info(

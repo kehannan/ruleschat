@@ -59,6 +59,7 @@ class OpenRouterClient:
         tool_choice: Optional[Any] = None,
         reasoning: Optional[Dict[str, Any]] = None,
         provider: Optional[Dict[str, Any]] = None,
+        reasoning_effort: Optional[str] = None,
     ):
         """
         Make a chat-completions call.
@@ -82,6 +83,11 @@ class OpenRouterClient:
         {"sort": "throughput"} or {"order": ["deepinfra"], "allow_fallbacks":
         True}. Steers away from slow/flaky providers — also passed via
         extra_body.
+
+        `reasoning_effort` is the native OpenAI-style top-level parameter
+        ("minimal" | "low" | ...). Used by endpoints that speak that dialect
+        (Meta Model API); OpenRouter callers use `reasoning` instead — never
+        send both, OpenRouter 400s on the pair.
         """
         kwargs: Dict[str, Any] = {
             "model": model,
@@ -95,6 +101,8 @@ class OpenRouterClient:
             kwargs["temperature"] = temperature
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
         if tools:
             kwargs["tools"] = tools
             if tool_choice is not None:
@@ -135,7 +143,9 @@ class MetaModelClient(OpenRouterClient):
     override with META_API_BASE_URL if Meta moves it. Model ids on this
     endpoint carry no vendor prefix ("muse-spark-1.1") — the service layer's
     "meta/" prefix exists only to route here and is stripped before calling.
-    OpenRouter-specific extras (reasoning, provider) must not be passed.
+    OpenRouter-specific extras (reasoning, provider) must not be passed as
+    extra_body; create_chat translates {"effort": X} into Meta's native
+    `reasoning_effort` and drops the rest.
     """
     BASE_URL = "https://api.meta.ai/v1"
 
@@ -153,6 +163,17 @@ class MetaModelClient(OpenRouterClient):
         if tc is not None and tc != "auto":
             logging.info("Meta API: downgrading tool_choice %s -> 'auto'", tc)
             kwargs["tool_choice"] = "auto"
+        # Muse Spark reasons at a model-chosen depth unless told otherwise, and
+        # reasoning tokens count against max_tokens (dev.meta.ai/docs/reasoning).
+        # Left unbounded it can spend the whole 8K budget thinking and return
+        # empty content after minutes. Meta only understands the OpenAI-style
+        # top-level reasoning_effort, so map OpenRouter's {"effort": X} onto it
+        # and discard the OpenRouter-only shapes (max_tokens/enabled) and
+        # provider routing.
+        reasoning = kwargs.pop("reasoning", None)
+        kwargs.pop("provider", None)
+        if isinstance(reasoning, dict) and reasoning.get("effort"):
+            kwargs.setdefault("reasoning_effort", reasoning["effort"])
         return super().create_chat(*args, **kwargs)
 
 
