@@ -51,6 +51,12 @@ _DISABLED_FEATURES = (
     "tool_suggest",
     "sleep_tool",
     "shell_snapshot",
+    # Still present after the above (verified 2026-10-04): the code-mode
+    # `exec` host (apply_patch/view_image/clock run through it) and the
+    # multi-agent collaboration tools, which could spawn a less-locked agent.
+    "code_mode_host",
+    "multi_agent",
+    "view_image",
 )
 
 
