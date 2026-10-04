@@ -10,7 +10,9 @@ Columns:
   label      dropdown text shown to the user
   slug       provider model id sent to the API. None = key sent as-is
              (OpenAI-native). "meta/muse-spark…" routes to the Meta Model
-             API; any other "vendor/…" (including Meta's open-weight
+             API; "claude-cli/…" and "codex-cli/…" to the Claude Code
+             / Codex CLIs (subscription);
+             any other "vendor/…" (including Meta's open-weight
              models such as "meta/muse-glimmer-30b") routes to OpenRouter.
   in_chat    appears on /ruleschat
   in_demo    appears on /demo
@@ -46,22 +48,22 @@ MODELS: tuple = (
     # Compatibility key: older VASL extensions still send "ox-alpha". The
     # OpenRouter preview slug was retired; route it to its replacement.
     ModelSpec("ox-alpha",       "GLM 5.3 Flash · Ox successor", "z-ai/glm-5.3-flash",
-              True,  False, True,    0.075, 0.25),
+              False, False, True,    0.075, 0.25),
     ModelSpec("qwen3.8-flash",  "qwen3.8-flash · <¢/new",   "qwen/qwen3.8-flash",  True,  False, True,    0.15,  0.47),
-    ModelSpec("gpt-5.6-luna",   "gpt-5.6-luna · <¢/fast",   None,                  True,  True,  True,    0.20,  1.20),
+    ModelSpec("gpt-5.6-luna",   "gpt-5.6-luna · <¢/fast",   None,                  False, True,  True,    0.20,  1.20),
     # Meta's open-weight 30B distilled from Muse Spark; served via OpenRouter
     # (the Meta Model API only hosts Muse Spark — see asl_service routing).
     ModelSpec("muse-glimmer-30b", "muse-glimmer-30b · ¢/Meta open", "meta/muse-glimmer-30b",
-              True,  False, True,    0.30,  1.10),
+              False, False, True,    0.30,  1.10),
     ModelSpec("gemini-3.8-flash", "gemini-3.8-flash · ¢/new", "google/gemini-3.8-flash",
-              True,  False, True,    0.75,  3.75),
+              False, False, True,    0.75,  3.75),
     ModelSpec("deepseek-v4-pro", "deepseek-v4-pro · ¢/reasoning", "deepseek/deepseek-v4-pro",
               True,  False, True,    0.96,  1.91),
     # Muse Spark 1.3 on Meta's "contributor" tier (switched 2026-09-24):
     # ~12x cheaper than the standard endpoint because Meta may TRAIN on the
-    # prompts and completions. This is the entry members and the demo use.
+    # prompts and completions. Demo only since 2026-10-04.
     ModelSpec("muse-spark-1.3", "muse-spark-1.3 · <¢/new",  "meta/muse-spark-1.3-contributor",
-              True,  True,  True,    0.10,  0.20),
+              False, True,  True,    0.10,  0.20),
     # Standard (no-training) 1.3 endpoint, used before 2026-09-24; kept so
     # history rows and cost chips still resolve. Not shown in either dropdown.
     ModelSpec("muse-spark-1.3-standard", "muse-spark-1.3-standard · ¢/old", "meta/muse-spark-1.3",
@@ -69,11 +71,27 @@ MODELS: tuple = (
     # Superseded by 1.3 (same price as standard); kept so history rows and
     # cost chips still resolve. Not shown in either dropdown.
     ModelSpec("muse-spark-1.1", "muse-spark-1.1 · ¢/old",   "meta/muse-spark-1.1", False, False, True,    1.25,  4.25),
-    ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  True,  True,  True,    2.50,  15.00),
-    ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  True,  False, True,    2.00,  12.00,
-              True),  # admin_only — too expensive for general use
-    ModelSpec("kimi-k3",        "kimi-k3 · ¢¢/new",         "moonshotai/kimi-k3",  True,  False, True,    3.00,  15.00,
-              True),  # admin_only — admin-group trial before general release
+    # Hidden from /chat (paid OpenAI) but still forced server-side for image
+    # questions on both surfaces — keep it resolvable.
+    ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  False, True,  True,    2.50,  15.00),
+    # Retired from /chat 2026-10-04 (paid; subscription models replace them).
+    # Kept so history rows and cost chips still resolve.
+    ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  False, False, True,    2.00,  12.00,
+              True),
+    ModelSpec("kimi-k3",        "kimi-k3 · ¢¢/new",         "moonshotai/kimi-k3",  False, False, True,    3.00,  15.00,
+              True),
+    # Claude via the headless Claude Code CLI — billed to the server's Claude
+    # subscription login, not an API key (app/asl/claude_cli_client.py).
+    # admin_only: it's a personal subscription. No tool loop on this path.
+    # Needs Claude Code >= 2.1.251 on the host.
+    ModelSpec("claude-fable-sub", "claude-fable · subscription", "claude-cli/claude-fable-5-1",
+              True,  False, False,   0.0,   0.0,
+              True),
+    # Same idea via the headless Codex CLI on the server's ChatGPT login
+    # (app/asl/codex_cli_client.py).
+    ModelSpec("gpt-6-astra-sub", "gpt-6-astra · subscription", "codex-cli/gpt-6-astra",
+              True,  False, False,   0.0,   0.0,
+              True),
 )
 
 

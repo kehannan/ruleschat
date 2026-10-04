@@ -17,6 +17,16 @@ from openai import OpenAI
 from app.asl.config import load_asl_config, ASLConfig
 from app.asl.client import OpenAIResponsesClient
 from app.asl.openrouter_client import build_openrouter_client_from_env, build_meta_client_from_env
+from app.asl.claude_cli_client import (
+    CLAUDE_CLI_PREFIX,
+    build_claude_cli_client_from_env,
+    uses_claude_cli,
+)
+from app.asl.codex_cli_client import (
+    CODEX_CLI_PREFIX,
+    build_codex_cli_client_from_env,
+    uses_codex_cli,
+)
 from app.asl.retrieval import retrieve_chunks, format_chunks_as_context
 from app.asl.policy import build_instructions
 from app.asl.postprocess import (
@@ -407,6 +417,14 @@ def uses_meta_api(model: Optional[str]) -> bool:
     return bool(model) and model.startswith(_META_API_PREFIXES)
 
 
+def _provider_label(model: Optional[str]) -> str:
+    if uses_claude_cli(model):
+        return "Claude CLI"
+    if uses_codex_cli(model):
+        return "Codex CLI"
+    return "Meta" if uses_meta_api(model) else "OpenRouter"
+
+
 def _require_choices(response: Any) -> None:
     """Raise with the real provider error when a completion has no choices.
 
@@ -546,6 +564,12 @@ class ASLService:
         self.openrouter_client = build_openrouter_client_from_env()
         # Meta Model API client (Muse Spark) — None if META_API_KEY isn't set.
         self.meta_client = build_meta_client_from_env()
+        # Claude Code CLI client (subscription-billed) — None if the `claude`
+        # binary isn't installed.
+        self.claude_cli_client = build_claude_cli_client_from_env()
+        # Codex CLI client (ChatGPT-subscription-billed) — None if `codex`
+        # isn't installed.
+        self.codex_cli_client = build_codex_cli_client_from_env()
 
         logging.info(f"ASL Service initialized with vector store: {self.config.vector_store_id}")
         if self.openrouter_client:
@@ -562,11 +586,26 @@ class ASLService:
     def _chat_client_for(self, model: str):
         """Resolve a '/'-routed model to (client, provider_model_id).
 
-        'meta/muse-spark…' models go to the Meta Model API with the prefix
+        'claude-cli/…' and 'codex-cli/…' models go to the Claude Code / Codex
+        CLIs (subscription-billed) and 'meta/muse-spark…' models to the Meta Model API, both with the prefix
         stripped; everything else (including Meta's open-weight models on
         OpenRouter) goes to OpenRouter with the slug unchanged. Raises
         RuntimeError when the needed API key isn't configured.
         """
+        if uses_claude_cli(model):
+            if self.claude_cli_client is None:
+                raise RuntimeError(
+                    f"Model '{model}' requires the Claude Code CLI, but `claude` "
+                    "is not installed on this deployment."
+                )
+            return self.claude_cli_client, model[len(CLAUDE_CLI_PREFIX):]
+        if uses_codex_cli(model):
+            if self.codex_cli_client is None:
+                raise RuntimeError(
+                    f"Model '{model}' requires the Codex CLI, but `codex` "
+                    "is not installed on this deployment."
+                )
+            return self.codex_cli_client, model[len(CODEX_CLI_PREFIX):]
         if uses_meta_api(model):
             if self.meta_client is None:
                 raise RuntimeError(
@@ -1154,7 +1193,7 @@ Your response:"""
         whole call is synchronous), unlike the OpenAI streaming path where
         timing_data fills in during iteration.
         """
-        provider_label = "Meta" if uses_meta_api(model) else "OpenRouter"
+        provider_label = _provider_label(model)
         root_trace = _start_answer_trace(
             "answer.plain", question, model, trace_ctx, path=provider_label.lower()
         )
@@ -1327,7 +1366,7 @@ Your response:"""
 
         # Meta-prefixed models share this code path but hit the Meta Model API
         # directly (see _chat_client_for) — label logs with the real provider.
-        provider_label = "Meta" if uses_meta_api(model) else "OpenRouter"
+        provider_label = _provider_label(model)
         root_trace = _start_answer_trace(
             "answer.agentic", question, model, trace_ctx,
             path=provider_label.lower(), force_tool=force_tool, stream=stream,
