@@ -9,9 +9,11 @@ This is the path used by "codex-cli/<model>" model names (e.g.
 "codex-cli/gpt-6-astra"). Same `create_chat` surface and ChatCompletion-shaped
 return as `ClaudeCliClient`, so the plain retrieval path in asl_service works
 unchanged. Unlike `claude -p`, Codex has no flag to replace its system prompt
-or drop its shell tool: the instructions + retrieved chunks are sent as part
-of the prompt, and the agent runs in a read-only sandbox in an empty scratch
-directory. Function calling is not supported, so these models are non-agentic.
+(the instructions + retrieved chunks are sent as part of the prompt), but its
+tools can be switched off per feature flag: every built-in tool is disabled
+(see _DISABLED_FEATURES), web search is off, and as a fallback the agent runs
+in a read-only sandbox in an empty scratch directory with no inherited env.
+Function calling is not supported, so these models are non-agentic.
 """
 
 import json
@@ -30,6 +32,26 @@ CODEX_CLI_PREFIX = "codex-cli/"
 # With either of these set the CLI can bill the API account instead of the
 # ChatGPT subscription, which defeats the point of this path.
 _API_AUTH_ENV = ("OPENAI_API_KEY", "CODEX_API_KEY")
+
+# Codex feature flags (`codex features list`) for every tool the agent could
+# otherwise call. The model must answer from the prompt alone — on prod it
+# runs as root, so a shell tool would mean a prompt-injected question could
+# read the server's .env.
+_DISABLED_FEATURES = (
+    "shell_tool",
+    "unified_exec",
+    "apps",
+    "plugins",
+    "remote_plugin",
+    "browser_use",
+    "browser_use_external",
+    "computer_use",
+    "image_generation",
+    "skill_search",
+    "tool_suggest",
+    "sleep_tool",
+    "shell_snapshot",
+)
 
 
 def uses_codex_cli(model: Optional[str]) -> bool:
@@ -93,12 +115,17 @@ class CodexCliClient:
                 self.binary, "exec",
                 "-m", model,
                 "-c", f'model_reasoning_effort="{effort}"',
+                "-c", 'web_search="disabled"',
+                # Defence in depth should a tool slip through: no env vars
+                # reach spawned commands, and the sandbox is read-only.
+                "-c", 'shell_environment_policy.inherit="none"',
                 "-s", "read-only",
                 "-C", workdir,
                 "--skip-git-repo-check",
                 "--ephemeral",
                 "--ignore-user-config",
                 "--ignore-rules",
+                *(f"--disable={f}" for f in _DISABLED_FEATURES),
                 "--color", "never",
                 "--json",
                 "-o", out_path,

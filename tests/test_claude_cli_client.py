@@ -123,6 +123,9 @@ def test_codex_success_maps_to_chat_completion_shape(monkeypatch):
     cmd = captured["cmd"]
     assert cmd[:4] == ["codex", "exec", "-m", "gpt-6-astra"]
     assert cmd[cmd.index("-s") + 1] == "read-only"
+    # Every built-in tool is switched off; the model answers from the prompt.
+    assert "--disable=shell_tool" in cmd and "--disable=unified_exec" in cmd
+    assert 'web_search="disabled"' in cmd
     prompt = captured["kwargs"]["input"]
     assert MESSAGES[0]["content"] in prompt and MESSAGES[1]["content"] in prompt
     # API-key auth would bill the API account instead of the subscription.
