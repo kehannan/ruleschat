@@ -106,9 +106,20 @@ class CodexCliClient:
                 f"{m.get('role', 'user').capitalize()}: {_content_text(m.get('content'))}"
                 for m in turns
             )
+        # Codex's own system prompt frames it as a cautious coding agent, so
+        # the wrapper has to say explicitly that this is a knowledge task and
+        # that the retrieved excerpts are search results, not the whole
+        # rulebook — otherwise it refuses whenever retrieval misses the rule,
+        # where the API-routed models answer from their own rules knowledge.
         prompt = (
-            "Answer the question below directly from the instructions and "
-            "excerpts given here. Do not run commands or read files.\n\n"
+            "This is not a coding task and there is no repository to inspect; "
+            "do not run commands or read files. Act as the assistant described "
+            "in <instructions> and answer the <question> as that assistant "
+            "would. The rulebook excerpts inside <instructions> are retrieved "
+            "search results: use them as the primary source and cite them, "
+            "but they may miss the relevant rule. If they do, answer from your "
+            "own knowledge of the ASL rulebook, cite the sections you know, "
+            "and say briefly that the excerpts did not cover it.\n\n"
             f"<instructions>\n{system}\n</instructions>\n\n"
             f"<question>\n{question}\n</question>"
         )
