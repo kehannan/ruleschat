@@ -40,6 +40,8 @@ class ModelSpec:
 MODELS: tuple = (
     # Dropdown order (both surfaces): cheap → expensive, admin-only last.
     # The first visible entry is each dropdown's default selection.
+    # Since 2026-10-14 both dropdowns show only deepseek-v4-flash for
+    # non-admins (cost cap); admins also get the subscription CLI models.
     # Prices checked 2026-09-07 (OpenRouter /api/v1/models, Meta pricing page,
     # OpenAI list price after the 2026-07-30 GPT-5.6 cut).
     #         key               label                       slug                   chat   demo   agentic  $in    $out
@@ -49,8 +51,8 @@ MODELS: tuple = (
     # OpenRouter preview slug was retired; route it to its replacement.
     ModelSpec("ox-alpha",       "GLM 5.3 Flash · Ox successor", "z-ai/glm-5.3-flash",
               False, False, True,    0.075, 0.25),
-    ModelSpec("qwen3.8-flash",  "qwen3.8-flash · <¢/new",   "qwen/qwen3.8-flash",  True,  False, True,    0.15,  0.47),
-    ModelSpec("gpt-5.6-luna",   "gpt-5.6-luna · <¢/fast",   None,                  False, True,  True,    0.20,  1.20),
+    ModelSpec("qwen3.8-flash",  "qwen3.8-flash · <¢/new",   "qwen/qwen3.8-flash",  False, False, True,    0.15,  0.47),
+    ModelSpec("gpt-5.6-luna",   "gpt-5.6-luna · <¢/fast",   None,                  False, False, True,    0.20,  1.20),
     # Meta's open-weight 30B distilled from Muse Spark; served via OpenRouter
     # (the Meta Model API only hosts Muse Spark — see asl_service routing).
     ModelSpec("muse-glimmer-30b", "muse-glimmer-30b · ¢/Meta open", "meta/muse-glimmer-30b",
@@ -58,12 +60,13 @@ MODELS: tuple = (
     ModelSpec("gemini-3.8-flash", "gemini-3.8-flash · ¢/new", "google/gemini-3.8-flash",
               False, False, True,    0.75,  3.75),
     ModelSpec("deepseek-v4-pro", "deepseek-v4-pro · ¢/reasoning", "deepseek/deepseek-v4-pro",
-              True,  False, True,    0.96,  1.91),
+              False, False, True,    0.96,  1.91),
     # Muse Spark 1.3 on Meta's "contributor" tier (switched 2026-09-24):
     # ~12x cheaper than the standard endpoint because Meta may TRAIN on the
-    # prompts and completions. Demo only since 2026-10-04.
+    # prompts and completions. Demo-only 2026-10-04 → hidden 2026-10-14
+    # (both dropdowns now deepseek-v4-flash only).
     ModelSpec("muse-spark-1.3", "muse-spark-1.3 · <¢/new",  "meta/muse-spark-1.3-contributor",
-              False, True,  True,    0.10,  0.20),
+              False, False, True,    0.10,  0.20),
     # Standard (no-training) 1.3 endpoint, used before 2026-09-24; kept so
     # history rows and cost chips still resolve. Not shown in either dropdown.
     ModelSpec("muse-spark-1.3-standard", "muse-spark-1.3-standard · ¢/old", "meta/muse-spark-1.3",
@@ -71,9 +74,9 @@ MODELS: tuple = (
     # Superseded by 1.3 (same price as standard); kept so history rows and
     # cost chips still resolve. Not shown in either dropdown.
     ModelSpec("muse-spark-1.1", "muse-spark-1.1 · ¢/old",   "meta/muse-spark-1.1", False, False, True,    1.25,  4.25),
-    # Hidden from /chat (paid OpenAI) but still forced server-side for image
-    # questions on both surfaces — keep it resolvable.
-    ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  False, True,  True,    2.50,  15.00),
+    # Hidden from both dropdowns (paid OpenAI) but still forced server-side
+    # for image/.vsav questions on both surfaces — keep it resolvable.
+    ModelSpec("gpt-5.4",        "gpt-5.4 · ¢¢/fast",        None,                  False, False, True,    2.50,  15.00),
     # Retired from /chat 2026-10-04 (paid; subscription models replace them).
     # Kept so history rows and cost chips still resolve.
     ModelSpec("gpt-5.6-terra",  "gpt-5.6-terra · ¢¢/new",   None,                  False, False, True,    2.00,  12.00,

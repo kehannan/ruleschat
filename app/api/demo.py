@@ -63,7 +63,8 @@ DEMO_GLOBAL_LIMIT = 250
 DEMO_MAX_CHUNKS = 20
 DEMO_MAX_MESSAGE_CHARS = 2000
 DEMO_MAX_OUTPUT_TOKENS = 2000
-DEMO_MODEL = "gpt-5.4"
+# Fallback when the client sends an unknown/retired model key (stale page).
+DEMO_MODEL = "deepseek/deepseek-v4-flash"
 WEBSOCKET_PING_INTERVAL = 30
 
 
