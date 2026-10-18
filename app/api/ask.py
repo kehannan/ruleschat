@@ -199,6 +199,22 @@ def _account_model(requested: Optional[str], user: User, has_vsav: bool) -> str:
     return model_registry.resolve(model_registry.specs_for("chat", admin)[0].key)
 
 
+def _render_native_los(native_los: Optional[dict]) -> Optional[str]:
+    """One-line summary of the VASL client's own LOS check, for the model."""
+    if not native_los or not native_los.get("source") or not native_los.get("target"):
+        return None
+    if native_los.get("blocked"):
+        reason = native_los.get("reason")
+        verdict = f"BLOCKED ({reason})" if reason else "BLOCKED"
+    else:
+        verdict = f"clear, hindrance DRM +{native_los.get('hindrance', 0)}"
+    return (
+        f"VASL NATIVE LOS: {native_los['source']} (level {native_los.get('source_level', 0)})"
+        f" -> {native_los['target']} (level {native_los.get('target_level', 0)}):"
+        f" {verdict}, range {native_los.get('range', '?')}"
+    )
+
+
 def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
     """Everything both endpoints share: credential, limit, vsav, model."""
     mode, credential = _resolve_credential(authorization)
@@ -224,6 +240,9 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
                                 detail="Could not parse the VASL save")
         perspective = _resolve_perspective(vsav_state, payload.side, payload.player)
         board_state = render_board_state(vsav_state, perspective_side=perspective)
+        los_line = _render_native_los(payload.native_los)
+        if los_line:
+            board_state = f"{board_state}\n\n{los_line}"
 
     if mode == "account":
         model = _account_model(payload.model, credential, bool(vsav_state))

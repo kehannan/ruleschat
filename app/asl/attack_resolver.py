@@ -515,6 +515,44 @@ def _unmodeled_board_ssrs_for_attack(state: Dict[str, Any], fkey: str, tkey: str
     return out
 
 
+def _empty_hex_entry(state: Dict[str, Any], hex_id: str) -> Tuple[str, Dict[str, Any]]:
+    """Key and a synthetic (unit-less) entry for a real board hex with no units.
+
+    Lets the resolver price a hypothetical target ("what if A3 fires at A6")
+    from the hex's terrain. Never mutates `state`.
+    """
+    hid = hex_id.strip().upper()
+    base, sep, label = hid.partition("-")
+    if not sep:
+        base, label = "", hid
+    if not re.fullmatch(r"[A-Z]{1,3}\d{1,2}", label):
+        raise ValueError(f"Hex {hex_id!r} is not a valid hex id (e.g. '57-H9').")
+    boards = {str(b.get("base") or b.get("name", "")).lstrip("r").upper(): b
+              for b in state.get("boards", [])}
+    if base:
+        if base not in boards:
+            raise ValueError(f"Board {base!r} is not in the save (boards: {sorted(boards)}).")
+    elif len(boards) == 1:
+        base = next(iter(boards))
+    else:
+        raise ValueError(
+            f"Hex {hex_id!r} has no units and the save has several boards "
+            f"{sorted(boards)}. Use the full '<board>-<hex>' id."
+        )
+    key = f"{base}-{label}"
+    entry: Dict[str, Any] = {"units": [], "markers": [], "empty": True}
+    try:
+        from app.services import board_terrain  # local: avoids an import cycle
+        terrain = board_terrain.get_hex_terrain(
+            base, label, boards[base].get("ssr_transforms", []))
+    except Exception as e:
+        logging.warning("resolve_attack: terrain lookup for empty %s failed: %s", key, e)
+        terrain = None
+    if terrain:
+        entry["terrain"] = terrain
+    return key, entry
+
+
 def _all_hex_markers(entry: Dict[str, Any]) -> set:
     """Every marker present in the hex: hex-level (unattributed) markers
     plus markers/entrenchments attributed to individual units by stack
@@ -681,14 +719,19 @@ def resolve_attack(
     ]
 
     fkey = _find_hex_key(state, firing_hex)
-    tkey = _find_hex_key(state, target_hex)
+    try:
+        tkey = _find_hex_key(state, target_hex)
+        tentry = state["hexes"][tkey]
+    except ValueError as e:
+        if "no units" not in str(e):
+            raise
+        tkey, tentry = _empty_hex_entry(state, target_hex)
     if fkey == tkey:
         warnings.append(
             "Firing hex equals target hex: IFT attacks within the same "
             "Location are rarely legal (A7.21/A7.211) — treated as TPBF."
         )
     fentry = state["hexes"][fkey]
-    tentry = state["hexes"][tkey]
 
     native_hindrance = 0
     if native_los:
@@ -1114,7 +1157,17 @@ def resolve_attack(
         if selected_target_names:
             raise ValueError("The selected target stack does not match any "
                              f"unit in target hex {tkey}.")
-        raise ValueError(f"Target hex {tkey} contains no units in the save.")
+        if not tentry.get("empty"):
+            raise ValueError(f"Target hex {tkey} contains no units in the save.")
+        warnings.append(
+            f"Target hex {tkey} is EMPTY in the save: FP column and DRM are "
+            "for a hypothetical unentrenched, unconcealed target there; "
+            "break/pin odds need its morale (use ift_attack with a target)."
+        )
+        if not tentry.get("terrain"):
+            warnings.append(
+                f"No board terrain data for {tkey}: TEM taken as 0 — verify it."
+            )
     if all(u.get("side") == firing_side for u in t_units if u.get("side")):
         warnings.append(
             f"Target hex {tkey} contains only {firing_side} (friendly) units."

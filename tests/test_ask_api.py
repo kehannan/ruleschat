@@ -281,3 +281,16 @@ def test_resolve_perspective_fail_closed():
     assert ask_module._resolve_perspective(state, "Axis", "nobody") == "Axis"
     # nothing given -> full view
     assert ask_module._resolve_perspective(state, None, None) is None
+
+
+def test_render_native_los_line():
+    clear = ask_module._render_native_los({
+        "source": "57-A3", "target": "57-A6", "blocked": False,
+        "hindrance": 1, "range": 3, "source_level": 0, "target_level": 1})
+    assert clear == ("VASL NATIVE LOS: 57-A3 (level 0) -> 57-A6 (level 1): "
+                     "clear, hindrance DRM +1, range 3")
+    blocked = ask_module._render_native_los({
+        "source": "A3", "target": "A6", "blocked": True,
+        "reason": "Woods", "range": 3})
+    assert "BLOCKED (Woods)" in blocked
+    assert ask_module._render_native_los(None) is None

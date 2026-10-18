@@ -6,6 +6,7 @@ import VASSAL.build.Buildable;
 import VASSAL.build.GameModule;
 import VASSAL.build.Configurable;
 import VASSAL.build.module.PlayerRoster;
+import VASSAL.build.module.map.boardPicker.Board;
 import VASSAL.build.module.documentation.HelpFile;
 import VASSAL.counters.GamePiece;
 import VASSAL.counters.PieceFinder;
@@ -105,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.8";
+  static final String VERSION = "0.3.11";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -119,8 +120,9 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private static final String DEFAULT_URL = "https://ruleschat.com";
   private static final String DEFAULT_MODEL = "gpt-5.4";
   private static final int MAX_HISTORY_PAIRS = 6;
+  // The trailing guard keeps rule references like "A7.22" from matching as hex A7.
   private static final Pattern HEX_REFERENCE = Pattern.compile(
-    "(?i)(?:\\b\\d+-)?([A-Z]+\\d+)");
+    "(?i)\\b(?:(\\d+)-)?([A-Z]+\\d+)\\b(?!\\.\\d)");
 
   private static final ModelOption[] MODEL_OPTIONS = new ModelOption[] {
     new ModelOption(DEFAULT_MODEL, "GPT-5.4 (recommended)"),
@@ -357,11 +359,58 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return candidates[candidates.length - 1];
   }
 
+  private static String hexRef(Matcher matcher) {
+    final String board = matcher.group(1);
+    final String hex = matcher.group(2).toUpperCase();
+    return board == null ? hex : board.toUpperCase() + "-" + hex;
+  }
+
+  private static String bareHex(String hexRef) {
+    if (hexRef == null) {
+      return null;
+    }
+    final int dash = hexRef.lastIndexOf('-');
+    return (dash >= 0 ? hexRef.substring(dash + 1) : hexRef).toUpperCase();
+  }
+
+  private static String mapAwareLookupName(String hexRef) {
+    if (hexRef == null) {
+      return null;
+    }
+    final String trimmed = hexRef.trim().toUpperCase();
+    final int dash = trimmed.lastIndexOf('-');
+    return dash >= 0 ? trimmed.substring(0, dash) + trimmed.substring(dash + 1) : trimmed;
+  }
+
+  private static String qualifiedHexAt(ASLMap map, MouseEvent event, String fallbackHex) {
+    String boardName = null;
+    try {
+      final Board board = map.findBoard(event.getPoint());
+      if (board != null && board.getLocalizedName() != null) {
+        boardName = board.getLocalizedName().trim().toUpperCase();
+      }
+    }
+    catch (Exception ignored) {
+      // VASL still gives us a usable bare hex label through locationName().
+    }
+    if (boardName != null && !boardName.isEmpty()) {
+      if (boardName.startsWith("R") && boardName.length() > 1) {
+        boardName = boardName.substring(1);
+      }
+      return boardName + "-" + fallbackHex.toUpperCase();
+    }
+    return fallbackHex.toUpperCase();
+  }
+
   // --- dialog ---------------------------------------------------------------
 
   private void showDialog() {
+    final boolean reopening = dialog != null && !dialog.isVisible();
     if (dialog == null) {
       buildDialog();
+    }
+    else if (reopening) {
+      clearConversation();
     }
     dialog.setVisible(true);
     dialog.toFront();
@@ -369,6 +418,20 @@ public class AskRuleschatButton extends AbstractConfigurable {
       showSettings();
     }
     questionField.requestFocusInWindow();
+  }
+
+  private void clearConversation() {
+    messages.clear();
+    history.clear();
+    if (questionField != null) {
+      questionField.setText("");
+      questionField.setEnabled(true);
+    }
+    if (askButton != null) {
+      askButton.setEnabled(true);
+    }
+    setStatus(null);
+    renderTranscript();
   }
 
   private void buildDialog() {
@@ -607,12 +670,13 @@ public class AskRuleschatButton extends AbstractConfigurable {
         final Matcher m = HEX_REFERENCE.matcher(location == null ? "" : location);
         String hex = null;
         while (m.find()) {
-          hex = m.group(1).toUpperCase();
+          hex = hexRef(m);
         }
         if (hex == null) {
           setStatus("click a board hex");
           return;
         }
+        hex = qualifiedHexAt(pickerMap, event, bareHex(hex));
         if (losSourceField.getText().trim().isEmpty()) {
           losSourceField.setText(hex);
           selectedTargetNames.clear();
@@ -991,10 +1055,10 @@ public class AskRuleschatButton extends AbstractConfigurable {
     Matcher matcher = HEX_REFERENCE.matcher(question);
     while ((from == null || to == null) && matcher.find()) {
       if (from == null) {
-        from = matcher.group(1).toUpperCase();
+        from = hexRef(matcher);
       }
       else {
-        to = matcher.group(1).toUpperCase();
+        to = hexRef(matcher);
         break;
       }
     }
@@ -1007,8 +1071,14 @@ public class AskRuleschatButton extends AbstractConfigurable {
         return null;
       }
       VASL.LOS.Map.Map losMap = gameMap.getVASLMap();
-      Hex source = losMap.getHex(from);
-      Hex target = losMap.getHex(to);
+      Hex source = losMap.getHex(mapAwareLookupName(from), gameMap);
+      Hex target = losMap.getHex(mapAwareLookupName(to), gameMap);
+      if (source == null) {
+        source = losMap.getHex(bareHex(from));
+      }
+      if (target == null) {
+        target = losMap.getHex(bareHex(to));
+      }
       if (source == null || target == null) {
         return null;
       }

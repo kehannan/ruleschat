@@ -160,7 +160,13 @@ def resolve_attack(
 
 def _phase_from_vasl(phase: Optional[str]) -> str:
     """Map the VASL phase-wheel label to the resolver's fire-phase names."""
-    labels = {"PFPh": "prep", "AFPh": "advancing", "DFPh": "defensive_first"}
+    # Defensive First Fire happens during the enemy MPh; the DFPh is Final Fire.
+    labels = {
+        "PFPh": "prep",
+        "MPh": "defensive_first",
+        "DFPh": "defensive_final",
+        "AFPh": "advancing",
+    }
     return labels.get((phase or "").strip(), "prep")
 
 
@@ -603,7 +609,11 @@ TOOL_SCHEMAS = [
                 },
                 "target_hex": {
                     "type": "string",
-                    "description": "Hex being attacked, e.g. '57-H8'.",
+                    "description": (
+                        "Hex being attacked, e.g. '57-H8'. May be an EMPTY hex for "
+                        "a what-if attack: FP column and DRM are then priced from "
+                        "its terrain, with no break/pin odds."
+                    ),
                 },
                 "phase": {
                     "type": "string",

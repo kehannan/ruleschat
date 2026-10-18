@@ -12,6 +12,7 @@ Runnable directly (`python tests/test_attack_resolver.py`) or under pytest.
 No network, no DB.
 """
 import sys
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -1026,3 +1027,31 @@ if __name__ == "__main__":
             print(f"  ❌ {t.__name__}: {e}")
     print(f"\n{len(tests) - failures}/{len(tests)} passed")
     sys.exit(1 if failures else 0)
+
+
+# --------------------------------------------------------------------------- #
+# What-if fire at an empty hex; VASL phase-wheel mapping
+# --------------------------------------------------------------------------- #
+
+def test_empty_target_hex_prices_hypothetical_attack():
+    state = _mk_state({"57-B2": {"units": [_sq("4-6-7", "German")]}})
+    r = resolve_attack(state, "57-B2", "B4", phase="prep")
+    assert r["target_hex"] == "57-B4", r["target_hex"]
+    assert r["total_fp"] == 4 and r["column"] == 4, r
+    assert any("EMPTY" in w for w in r["warnings"]), r["warnings"]
+    assert "57-B4" not in state["hexes"], "state must not be mutated"
+
+
+def test_empty_target_hex_on_unknown_board_errors():
+    state = _mk_state({"57-B2": {"units": [_sq("4-6-7", "German")]}})
+    with pytest.raises(ValueError, match="not in the save"):
+        resolve_attack(state, "57-B2", "99-B4", phase="prep")
+
+
+@pytest.mark.parametrize("label,expected", [
+    ("PFPh", "prep"), ("MPh", "defensive_first"),
+    ("DFPh", "defensive_final"), ("AFPh", "advancing"), (None, "prep"),
+])
+def test_vasl_phase_wheel_mapping(label, expected):
+    from app.asl.tools import _phase_from_vasl
+    assert _phase_from_vasl(label) == expected
