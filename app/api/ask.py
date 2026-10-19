@@ -33,6 +33,8 @@ from app import model_registry
 from app.asl.openrouter_client import OpenRouterClient
 from app.database import SessionLocal
 from app.models.user import User
+from app.asl.claude_cli_client import uses_claude_cli
+from app.asl.codex_cli_client import uses_codex_cli
 from app.services.asl_service import get_asl_service, uses_meta_api
 from app.services.user_service import is_admin
 from app.services.vsav_service import (
@@ -185,18 +187,28 @@ def _parse_vsav_data_url(data_url: str) -> dict:
             pass
 
 
-def _account_model(requested: Optional[str], user: User, has_vsav: bool) -> str:
-    """Registry key -> provider model id, with the same forcing as the site."""
+def _account_model(requested: Optional[str], user: User, has_vsav: bool):
+    """Registry key -> (provider model id, use_agentic).
+
+    Same forcing as the site: with a .vsav, an agentic model runs the
+    resolve_attack/resolve_cc tool loop. The admin-only subscription CLI
+    models (claude-cli/…, codex-cli/…) have no tool loop, so they are
+    honored too but answer from the board state + retrieved rules alone.
+    """
     admin = is_admin(user)
-    if (
-        requested
-        and requested in model_registry.allowed_keys("chat", admin)
-        and (not has_vsav or model_registry.agentic_allowed(requested))
-    ):
-        return model_registry.resolve(requested)
+    if requested and requested in model_registry.allowed_keys("chat", admin):
+        spec = model_registry.by_key(requested)
+        if not has_vsav or spec.agentic or _is_subscription(spec.slug):
+            return (model_registry.resolve(requested),
+                    has_vsav and spec.agentic)
     if has_vsav:
-        return VSAV_MODEL
-    return model_registry.resolve(model_registry.specs_for("chat", admin)[0].key)
+        return VSAV_MODEL, True
+    return (model_registry.resolve(model_registry.specs_for("chat", admin)[0].key),
+            False)
+
+
+def _is_subscription(model: Optional[str]) -> bool:
+    return uses_claude_cli(model) or uses_codex_cli(model)
 
 
 def _render_native_los(native_los: Optional[dict]) -> Optional[str]:
@@ -245,12 +257,16 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
             board_state = f"{board_state}\n\n{los_line}"
 
     if mode == "account":
-        model = _account_model(payload.model, credential, bool(vsav_state))
+        model, use_agentic = _account_model(
+            payload.model, credential, bool(vsav_state))
         service = get_asl_service()
         trace_ctx = {"user_id": str(credential.id), "tags": ["ask", "account"]}
     else:
         model = payload.model or DEFAULT_PROVIDER_MODEL
-        if "/" not in model or uses_meta_api(model):
+        use_agentic = bool(vsav_state)
+        # The CLI prefixes route to the server's own subscriptions, never
+        # to the caller's OpenRouter key — reject them here.
+        if "/" not in model or uses_meta_api(model) or _is_subscription(model):
             raise HTTPException(
                 status_code=400,
                 detail=f"Model '{model}' is not an OpenRouter slug "
@@ -273,6 +289,7 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
         "vsav_state": vsav_state,
         "perspective": perspective,
         "model": model,
+        "use_agentic": use_agentic,
         "service": service,
         "trace_ctx": trace_ctx,
         "question": _question_with_history(payload.question, payload.history),
@@ -353,7 +370,7 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
             max_output_tokens=ASK_MAX_OUTPUT_TOKENS,
             board_state=board_state,
             vsav_state=vsav_state,
-            use_agentic=bool(vsav_state),
+            use_agentic=ctx["use_agentic"],
             trace_ctx=trace_ctx,
             native_los=ctx["native_los"],
             game_phase=ctx["game_phase"],
@@ -413,7 +430,7 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                 max_output_tokens=ASK_MAX_OUTPUT_TOKENS,
                 board_state=ctx["board_state"],
                 vsav_state=ctx["vsav_state"],
-                use_agentic=bool(ctx["vsav_state"]),
+                use_agentic=ctx["use_agentic"],
                 trace_ctx=ctx["trace_ctx"],
                 native_los=ctx["native_los"],
                 game_phase=ctx["game_phase"],

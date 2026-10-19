@@ -5,6 +5,7 @@ work never runs; DB lookup and the LLM service are stubbed at the module
 seams (_lookup_user_by_key, get_asl_service).
 """
 import base64
+import json
 import sys
 from pathlib import Path
 
@@ -294,3 +295,67 @@ def test_render_native_los_line():
         "reason": "Woods", "range": 3})
     assert "BLOCKED (Woods)" in blocked
     assert ask_module._render_native_los(None) is None
+
+
+# --- subscription CLI models ---------------------------------------------------
+
+class _AdminGroup:
+    name = "admin"
+
+
+@pytest.fixture
+def admin_client(client, monkeypatch):
+    class AdminUser(FakeUser):
+        group = _AdminGroup()
+    monkeypatch.setattr(
+        ask_module, "_lookup_user_by_key",
+        lambda key: AdminUser() if key == FakeUser.api_key else None)
+    return client
+
+
+@pytest.mark.parametrize("key,slug", [
+    ("claude-fable-sub", "claude-cli/claude-fable-5-1"),
+    ("gpt-6-astra-sub", "codex-cli/gpt-6-astra"),
+])
+def test_admin_subscription_model_with_vsav_runs_non_agentic(admin_client, key, slug):
+    r = admin_client.post(
+        "/api/ask",
+        json={"question": "Resolve this fire attack",
+              "vsav": _vsav_data_url(), "model": key},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["model"] == slug
+    call = admin_client.fake_service.calls[-1]
+    assert call["model"] == slug
+    assert call["use_agentic"] is False   # CLI path has no tool loop
+    assert "BOARD STATE" in call["board_state"]
+
+
+def test_admin_subscription_model_streams_without_vsav(admin_client):
+    r = admin_client.post(
+        "/api/ask/stream", json={"question": "hi", "model": "claude-fable-sub"},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200, r.text
+    done = json.loads(r.text.strip().splitlines()[-1])
+    assert done["model"] == "claude-cli/claude-fable-5-1"
+    assert admin_client.fake_service.calls[-1]["use_agentic"] is False
+
+
+def test_non_admin_cannot_pick_subscription_model(client):
+    r = client.post(
+        "/api/ask",
+        json={"question": "hi", "vsav": _vsav_data_url(),
+              "model": "claude-fable-sub"},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["model"] == ask_module.VSAV_MODEL
+    assert client.fake_service.calls[-1]["use_agentic"] is True
+
+
+@pytest.mark.parametrize("slug", ["claude-cli/claude-fable-5-1",
+                                  "codex-cli/gpt-6-astra"])
+def test_provider_mode_rejects_subscription_slugs(client, slug):
+    r = client.post("/api/ask", json={"question": "hi", "model": slug},
+                    headers={"Authorization": "Bearer sk-or-callerkey"})
+    assert r.status_code == 400
+    assert client.fake_service.calls == []

@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.11";
+  static final String VERSION = "0.3.12";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -126,7 +126,12 @@ public class AskRuleschatButton extends AbstractConfigurable {
 
   private static final ModelOption[] MODEL_OPTIONS = new ModelOption[] {
     new ModelOption(DEFAULT_MODEL, "GPT-5.4 (recommended)"),
-    new ModelOption("ox-alpha", "GLM 5.3 Flash (Ox successor)")
+    new ModelOption("ox-alpha", "GLM 5.3 Flash (Ox successor)"),
+    // Admin-only: run on the server's Claude / ChatGPT subscriptions via the
+    // CLIs. No calculator tools, so fire/CC math is hand-derived. Non-admin
+    // keys fall back to the server default.
+    new ModelOption("claude-fable-sub", "Claude Fable (subscription, admin)"),
+    new ModelOption("gpt-6-astra-sub", "GPT-6 Astra (subscription, admin)")
   };
 
   // --- palette: mirrors static/css/site-design-system.css -----------------
