@@ -1055,3 +1055,20 @@ def test_empty_target_hex_on_unknown_board_errors():
 def test_vasl_phase_wheel_mapping(label, expected):
     from app.asl.tools import _phase_from_vasl
     assert _phase_from_vasl(label) == expected
+
+
+def test_intervening_wall_not_flagged_as_block_between_different_elevations():
+    """Live case (VASL extension, 2026-10-19): 41-S3 (Level 1 hill) prep-fires
+    at 41-V4 (level 0 graveyard). The LOS crosses the T3|U4 wall (neither
+    hex) and enters V4 across U4|V4. B9.2 blocks only SAME-level LOS, so no
+    'attack may be impossible' warning; the wall TEM +2 still applies."""
+    s = _j103_state(**{
+        "41-S3": [_sq("5-4-8 1sq", "German")],
+        "41-V4": [_sq("4-5-7 1sq", "AlliedMinor")],
+    })
+    r = resolve_attack(s, "41-S3", "41-V4", "prep")
+    assert r["column"] == 4 and r["drm"] == 2, r["drm_breakdown"]
+    assert not any("NEITHER the firing nor the target hex" in w
+                   for w in r["warnings"]), r["warnings"]
+    assert any("different levels" in a and "T3|U4" in a
+               for a in r["assumptions"]), r["assumptions"]

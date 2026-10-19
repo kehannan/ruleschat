@@ -221,10 +221,16 @@ def _render_native_los(native_los: Optional[dict]) -> Optional[str]:
         verdict = f"BLOCKED ({reason})" if reason else "BLOCKED"
     else:
         verdict = f"clear, hindrance DRM +{native_los.get('hindrance', 0)}"
+    def where(level) -> str:
+        # The extension sends Location.getLevelInHex(): 0 is the hex's own
+        # ground level (a Level 1 hill hex is still 0), not absolute height.
+        level = level or 0
+        return "ground level of hex" if level == 0 else f"{level} level(s) above the hex's ground"
     return (
-        f"VASL NATIVE LOS: {native_los['source']} (level {native_los.get('source_level', 0)})"
-        f" -> {native_los['target']} (level {native_los.get('target_level', 0)}):"
+        f"VASL NATIVE LOS: {native_los['source']} ({where(native_los.get('source_level'))})"
+        f" -> {native_los['target']} ({where(native_los.get('target_level'))}):"
         f" {verdict}, range {native_los.get('range', '?')}"
+        " [hex elevations are in the BOARD STATE terrain annotations]"
     )
 
 

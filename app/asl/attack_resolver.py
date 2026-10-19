@@ -834,13 +834,34 @@ def resolve_attack(
                     "Location formed by that hexside) and no LOS block "
                     "(B9.2 — the hexside is part of the viewing hex).")
             else:
-                warnings.append(
-                    f"LOS crosses a {side_txt} that is part of NEITHER the "
-                    "firing nor the target hex: at the same level a "
-                    "wall/hedge hexside is a Half-Level obstacle that BLOCKS "
-                    "LOS (B9.2) — this attack may be impossible. The "
-                    "resolution below assumes LOS exists (e.g. an elevation "
-                    "advantage); verify on the map.")
+                fe = (fentry.get("terrain") or {}).get("elevation")
+                te = (tentry.get("terrain") or {}).get("elevation")
+                vasl_clear = bool(
+                    native_los and not native_los.get("blocked")
+                    and _native_los_matches_attack(native_los, fkey, tkey))
+                if fe is not None and te is not None and fe != te:
+                    # B9.2 blocks only SAME-level LOS; don't invite the model
+                    # to second-guess an attack between different elevations.
+                    assumptions.append(
+                        f"LOS crosses a {side_txt} that is part of neither "
+                        f"hex, but the firer (hex elevation {fe}) and target "
+                        f"(hex elevation {te}) are at different levels, so "
+                        "the B9.2 same-level Half-Level block does not apply"
+                        + (" (VASL's LOS check also reports it clear)."
+                           if vasl_clear else "."))
+                elif vasl_clear:
+                    assumptions.append(
+                        f"LOS crosses a {side_txt} that is part of neither "
+                        "hex; VASL's native LOS check reports this LOS clear, "
+                        "so it is taken as existing (B9.2).")
+                else:
+                    warnings.append(
+                        f"LOS crosses a {side_txt} that is part of NEITHER the "
+                        "firing nor the target hex: at the same level a "
+                        "wall/hedge hexside is a Half-Level obstacle that BLOCKS "
+                        "LOS (B9.2) — this attack may be impossible. The "
+                        "resolution below assumes LOS exists (e.g. an elevation "
+                        "advantage); verify on the map.")
 
     # ---- firing side ----
     units = [u for u in fentry.get("units", [])]

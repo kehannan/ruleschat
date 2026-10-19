@@ -288,8 +288,10 @@ def test_render_native_los_line():
     clear = ask_module._render_native_los({
         "source": "57-A3", "target": "57-A6", "blocked": False,
         "hindrance": 1, "range": 3, "source_level": 0, "target_level": 1})
-    assert clear == ("VASL NATIVE LOS: 57-A3 (level 0) -> 57-A6 (level 1): "
-                     "clear, hindrance DRM +1, range 3")
+    assert clear == ("VASL NATIVE LOS: 57-A3 (ground level of hex) -> 57-A6 "
+                     "(1 level(s) above the hex's ground): "
+                     "clear, hindrance DRM +1, range 3 "
+                     "[hex elevations are in the BOARD STATE terrain annotations]")
     blocked = ask_module._render_native_los({
         "source": "A3", "target": "A6", "blocked": True,
         "reason": "Woods", "range": 3})
