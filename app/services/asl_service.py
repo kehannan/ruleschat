@@ -1004,6 +1004,25 @@ Your response:"""
                     raise ValueError(
                         "use_verification is not supported on the OpenRouter path."
                     )
+                if use_agentic and (uses_claude_cli(model) or uses_codex_cli(model)):
+                    # Subscription CLIs run their own tool loop; our tools
+                    # reach them over the in-process MCP bridge.
+                    tools_chat = calc_tool_schemas(chat=True)
+                    if lookup_enabled:
+                        tools_chat = tools_chat + lookup_tool_schemas(chat=True)
+                    return self._openrouter_answer(
+                        question=question,
+                        model=model,
+                        temperature=temperature,
+                        instructions=instructions,
+                        num_chunks=num_chunks,
+                        api_call_start_time=api_call_start_time,
+                        stream=stream,
+                        return_timing=return_timing,
+                        trace_ctx=trace_ctx,
+                        tools=tools_chat,
+                        tool_context=tool_context,
+                    )
                 if use_agentic:
                     # Agentic OpenRouter: same IFT/CC calculator loop the OpenAI
                     # path uses, but over Chat Completions function calling.
@@ -1178,9 +1197,14 @@ Your response:"""
         stream: bool,
         return_timing: bool,
         trace_ctx: Optional[Dict[str, Any]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_context: Optional[Dict[str, Any]] = None,
     ):
         """
         OpenRouter path: client-side retrieval + non-streaming inference.
+
+        `tools`/`tool_context` are only for the subscription CLI clients,
+        which run the tool loop inside the one create_chat call.
 
         Returns the same shape the OpenAI path returns:
           * stream=True  → (generator, timing_data). The generator yields the
@@ -1250,6 +1274,7 @@ Your response:"""
                 max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "8192")),
                 reasoning=_openrouter_reasoning_config(model),
                 provider=_openrouter_provider_config(model) if is_openrouter else None,
+                **({"tools": tools, "tool_context": tool_context} if tools else {}),
             )
         except Exception as e:
             generation.end(level="ERROR", status_message=str(e))

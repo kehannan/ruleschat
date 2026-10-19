@@ -77,11 +77,74 @@ def test_error_result_raises_with_cli_message(monkeypatch):
         ClaudeCliClient("claude", timeout=5).create_chat(model="opus", messages=MESSAGES)
 
 
-def test_tools_rejected():
-    with pytest.raises(NotImplementedError):
-        ClaudeCliClient("claude", timeout=5).create_chat(
-            model="opus", messages=MESSAGES, tools=[{"type": "function"}]
-        )
+IFT_TOOL = {"type": "function", "function": {
+    "name": "ift_odds", "description": "IFT odds",
+    "parameters": {"type": "object", "properties": {"column": {"type": "integer"}}}}}
+
+
+def test_tools_go_through_mcp_bridge(monkeypatch):
+    captured = {}
+    out = json.dumps({"type": "result", "is_error": False, "result": "ok", "usage": {}})
+    monkeypatch.setattr(claude_cli_client.subprocess, "run", _fake_run(out, captured=captured))
+    ClaudeCliClient("claude", timeout=5).create_chat(
+        model="opus", messages=MESSAGES, tools=[IFT_TOOL], tool_context={"x": 1})
+    cmd = captured["cmd"]
+    assert cmd[cmd.index("--tools") + 1] == ""  # still no built-ins
+    mcp = json.loads(cmd[cmd.index("--mcp-config") + 1])["mcpServers"]["asl"]
+    assert mcp["type"] == "http" and "/internal/mcp/" in mcp["url"]
+    assert cmd[cmd.index("--allowedTools") + 1] == "mcp__asl"
+    assert "mcp__asl__ift_odds" in captured["system"]
+    # the session is closed once the CLI exits
+    token = mcp["url"].rsplit("/", 1)[1]
+    assert token not in mcp_bridge._sessions
+
+
+# --- MCP bridge --------------------------------------------------------------
+
+from app.asl import mcp_bridge
+
+
+def test_bridge_lists_and_calls_tools(monkeypatch):
+    seen = {}
+    def fake_execute(name, args, context=None):
+        seen.update(name=name, args=args, context=context)
+        return {"ok": True}
+    monkeypatch.setattr(mcp_bridge, "execute_tool", fake_execute)
+    with mcp_bridge.open_session([IFT_TOOL], {"vsav_state": "S"}) as url:
+        token = url.rsplit("/", 1)[1]
+        init = mcp_bridge.handle(token, {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                          "params": {"protocolVersion": "2025-03-26"}})
+        assert init["result"]["protocolVersion"] == "2025-03-26"
+        assert mcp_bridge.handle(token, {"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
+        tools = mcp_bridge.handle(token, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        assert tools["result"]["tools"][0]["name"] == "ift_odds"
+        assert tools["result"]["tools"][0]["inputSchema"]["properties"]["column"]
+        call = mcp_bridge.handle(token, {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                                          "params": {"name": "ift_odds", "arguments": {"column": 4}}})
+        assert json.loads(call["result"]["content"][0]["text"]) == {"ok": True}
+        assert seen == {"name": "ift_odds", "args": {"column": 4}, "context": {"vsav_state": "S"}}
+        # tools outside the session's list are refused
+        bad = mcp_bridge.handle(token, {"jsonrpc": "2.0", "id": 4, "method": "tools/call",
+                                         "params": {"name": "search_rules", "arguments": {}}})
+        assert "error" in bad
+    with pytest.raises(KeyError):
+        mcp_bridge.handle(token, {"jsonrpc": "2.0", "id": 5, "method": "tools/list"})
+
+
+def test_bridge_endpoint_refuses_proxied_and_unknown_tokens():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.api import mcp_bridge as api_bridge
+    app = FastAPI()
+    app.include_router(api_bridge.router)
+    c = TestClient(app)
+    msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+    assert c.post("/internal/mcp/nope", json=msg).status_code == 404
+    with mcp_bridge.open_session([IFT_TOOL], None) as url:
+        path = "/internal/mcp/" + url.rsplit("/", 1)[1]
+        assert c.post(path, json=msg).status_code == 200
+        # via nginx (X-Real-IP set) the endpoint does not exist
+        assert c.post(path, json=msg, headers={"X-Real-IP": "1.2.3.4"}).status_code == 404
 
 
 # --- Codex CLI (ChatGPT subscription) -------------------------------------
@@ -128,6 +191,7 @@ def test_codex_success_maps_to_chat_completion_shape(monkeypatch):
     assert 'web_search="disabled"' in cmd
     prompt = captured["kwargs"]["input"]
     assert MESSAGES[0]["content"] in prompt and MESSAGES[1]["content"] in prompt
+    assert "--disable=code_mode_host" in cmd and "mcp_servers" not in " ".join(cmd)
     # API-key auth would bill the API account instead of the subscription.
     assert "OPENAI_API_KEY" not in captured["kwargs"]["env"]
 
@@ -138,3 +202,19 @@ def test_codex_failure_raises_with_event_message(monkeypatch):
                         _fake_codex_run(out, None, returncode=1))
     with pytest.raises(RuntimeError, match="usage limit reached"):
         CodexCliClient("codex", timeout=5).create_chat(model="gpt-6-astra", messages=MESSAGES)
+
+
+def test_codex_tools_go_through_mcp_bridge(monkeypatch):
+    captured = {}
+    out = json.dumps({"type": "turn.completed", "usage": {}})
+    monkeypatch.setattr(codex_cli_client.subprocess, "run",
+                        _fake_codex_run(out, "ok", captured=captured))
+    CodexCliClient("codex", timeout=5).create_chat(
+        model="gpt-6-astra", messages=MESSAGES, tools=[IFT_TOOL], tool_context={})
+    cmd = captured["cmd"]
+    joined = " ".join(cmd)
+    assert 'mcp_servers.asl.url="http://' in joined and "/internal/mcp/" in joined
+    # Codex calls MCP tools through the code-mode host; shell stays off.
+    assert "--disable=code_mode_host" not in cmd
+    assert "--disable=shell_tool" in cmd and 'web_search="disabled"' in cmd
+    assert cmd[cmd.index("-s") + 1] == "read-only"

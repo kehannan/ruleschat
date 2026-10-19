@@ -13,7 +13,8 @@ unchanged. Unlike `claude -p`, Codex has no flag to replace its system prompt
 tools can be switched off per feature flag: every built-in tool is disabled
 (see _DISABLED_FEATURES), web search is off, and as a fallback the agent runs
 in a read-only sandbox in an empty scratch directory with no inherited env.
-Function calling is not supported, so these models are non-agentic.
+When `tools` are passed, the only tools it gets are ours, served over the
+in-process MCP bridge (app/asl/mcp_bridge.py); Codex runs the tool loop.
 """
 
 import json
@@ -22,9 +23,11 @@ import os
 import shutil
 import subprocess
 import tempfile
+from contextlib import nullcontext
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
+from app.asl import mcp_bridge
 from app.asl.claude_cli_client import _content_text
 
 CODEX_CLI_PREFIX = "codex-cli/"
@@ -79,6 +82,7 @@ class CodexCliClient:
         messages: List[Dict[str, Any]],
         stream: bool = False,
         tools: Optional[List[Dict[str, Any]]] = None,
+        tool_context: Optional[Dict[str, Any]] = None,
         **_ignored: Any,
     ):
         """
@@ -88,10 +92,6 @@ class CodexCliClient:
         reasoning, provider, …) have no CLI equivalent and are ignored;
         reasoning effort comes from CODEX_CLI_REASONING_EFFORT (default medium).
         """
-        if tools:
-            raise NotImplementedError(
-                "Codex CLI models do not support the agentic tool loop."
-            )
         if stream:
             raise NotImplementedError("Codex CLI path is non-streaming.")
 
@@ -111,9 +111,16 @@ class CodexCliClient:
         # that the retrieved excerpts are search results, not the whole
         # rulebook — otherwise it refuses whenever retrieval misses the rule,
         # where the API-routed models answer from their own rules knowledge.
+        tool_note = (
+            f"The function tools named in <instructions> are available as the "
+            f"`{mcp_bridge.SERVER_NAME}` MCP server's tools — call them as the "
+            "instructions say. "
+            if tools else ""
+        )
         prompt = (
             "This is not a coding task and there is no repository to inspect; "
-            "do not run commands or read files. Act as the assistant described "
+            "do not run commands or read files. " + tool_note +
+            "Act as the assistant described "
             "in <instructions> and answer the <question> as that assistant "
             "would. The rulebook excerpts inside <instructions> are retrieved "
             "search results: use them as the primary source and cite them, "
@@ -126,8 +133,25 @@ class CodexCliClient:
 
         env = {k: v for k, v in os.environ.items() if k not in _API_AUTH_ENV}
         effort = os.getenv("CODEX_CLI_REASONING_EFFORT", "medium")
-        with tempfile.TemporaryDirectory(prefix="codex-cli-") as workdir:
+        bridge = mcp_bridge.open_session(tools, tool_context) if tools else nullcontext()
+        with tempfile.TemporaryDirectory(prefix="codex-cli-") as workdir, bridge as mcp_url:
             out_path = os.path.join(workdir, "answer.txt")
+            mcp_args = []
+            disabled = _DISABLED_FEATURES
+            if mcp_url:
+                # Codex calls MCP tools through the code-mode `exec` host, so
+                # it has to stay on. Audited 2026-10-19 (codex 0.160): exec is
+                # a JS sandbox with no require/fs; besides our tools it only
+                # reaches apply_patch (read-only sandbox) and the sub-agent
+                # tools, which inherit this same locked-down config.
+                disabled = tuple(f for f in _DISABLED_FEATURES if f != "code_mode_host")
+                name = mcp_bridge.SERVER_NAME
+                mcp_args = [
+                    "-c", f'mcp_servers.{name}.url="{mcp_url}"',
+                    # Read-only tools on our own server: no approval prompts
+                    # (there's nobody to answer them in exec mode).
+                    "-c", f'mcp_servers.{name}.default_tools_approval_mode="approve"',
+                ]
             cmd = [
                 self.binary, "exec",
                 "-m", model,
@@ -142,7 +166,8 @@ class CodexCliClient:
                 "--ephemeral",
                 "--ignore-user-config",
                 "--ignore-rules",
-                *(f"--disable={f}" for f in _DISABLED_FEATURES),
+                *(f"--disable={f}" for f in disabled),
+                *mcp_args,
                 "--color", "never",
                 "--json",
                 "-o", out_path,

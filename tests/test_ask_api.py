@@ -317,7 +317,7 @@ def admin_client(client, monkeypatch):
     ("claude-fable-sub", "claude-cli/claude-fable-5-1"),
     ("gpt-6-astra-sub", "codex-cli/gpt-6-astra"),
 ])
-def test_admin_subscription_model_with_vsav_runs_non_agentic(admin_client, key, slug):
+def test_admin_subscription_model_with_vsav_runs_agentic(admin_client, key, slug):
     r = admin_client.post(
         "/api/ask",
         json={"question": "Resolve this fire attack",
@@ -327,7 +327,7 @@ def test_admin_subscription_model_with_vsav_runs_non_agentic(admin_client, key, 
     assert r.json()["model"] == slug
     call = admin_client.fake_service.calls[-1]
     assert call["model"] == slug
-    assert call["use_agentic"] is False   # CLI path has no tool loop
+    assert call["use_agentic"] is True   # tools reach the CLI via the MCP bridge
     assert "BOARD STATE" in call["board_state"]
 
 

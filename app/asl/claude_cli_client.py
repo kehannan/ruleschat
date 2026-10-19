@@ -11,8 +11,9 @@ This is the path used by "claude-cli/<model>" model names (e.g.
 `OpenRouterClient` and returns an OpenAI-ChatCompletion-shaped object, so the
 plain retrieval path in asl_service works unchanged. All Claude Code tools,
 settings, MCP servers and CLAUDE.md discovery are switched off — the CLI is
-used as a bare completion endpoint. Function calling is not supported, so
-these models are non-agentic.
+used as a bare completion endpoint. When `tools` are passed, the only tools
+it gets are ours, served over the in-process MCP bridge
+(app/asl/mcp_bridge.py); Claude Code runs the tool loop itself.
 """
 
 import json
@@ -21,8 +22,11 @@ import os
 import shutil
 import subprocess
 import tempfile
+from contextlib import nullcontext
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
+
+from app.asl import mcp_bridge
 
 CLAUDE_CLI_PREFIX = "claude-cli/"
 
@@ -60,18 +64,17 @@ class ClaudeCliClient:
         messages: List[Dict[str, Any]],
         stream: bool = False,
         tools: Optional[List[Dict[str, Any]]] = None,
+        tool_context: Optional[Dict[str, Any]] = None,
         **_ignored: Any,
     ):
         """
         Run a completion. `model` is the CLI model name or alias ("opus").
 
+        `tools` (Chat Completions schemas) are exposed to the CLI as MCP tools
+        mcp__asl__<name>, executed in this process with `tool_context`.
         Sampling/routing kwargs the API clients take (temperature, max_tokens,
         reasoning, provider, …) have no CLI equivalent and are ignored.
         """
-        if tools:
-            raise NotImplementedError(
-                "Claude CLI models do not support the agentic tool loop."
-            )
         if stream:
             raise NotImplementedError("Claude CLI path is non-streaming.")
 
@@ -87,11 +90,19 @@ class ClaudeCliClient:
                 for m in turns
             )
 
+        if tools:
+            system += (
+                "\n\nThe function tools named above are available to you as "
+                f"mcp__{mcp_bridge.SERVER_NAME}__<name> (e.g. "
+                f"mcp__{mcp_bridge.SERVER_NAME}__{mcp_bridge.tool_names(tools)[0]})."
+            )
+
         env = {k: v for k, v in os.environ.items() if k not in _API_AUTH_ENV}
         # Empty scratch cwd: no project CLAUDE.md or settings to pick up. The
         # system prompt goes through a file — it carries the retrieved chunks
         # and can exceed Linux's 128KB single-argument limit.
-        with tempfile.TemporaryDirectory(prefix="claude-cli-") as workdir:
+        bridge = mcp_bridge.open_session(tools, tool_context) if tools else nullcontext()
+        with tempfile.TemporaryDirectory(prefix="claude-cli-") as workdir, bridge as mcp_url:
             sys_path = os.path.join(workdir, "system.txt")
             with open(sys_path, "w", encoding="utf-8") as f:
                 f.write(system)
@@ -99,12 +110,20 @@ class ClaudeCliClient:
                 self.binary, "-p",
                 "--model", model,
                 "--system-prompt-file", sys_path,
+                # No built-in tools (Bash, Read, …) in any case.
                 "--tools", "",
                 "--strict-mcp-config",
                 "--setting-sources", "",
                 "--no-session-persistence",
                 "--output-format", "json",
             ]
+            if mcp_url:
+                mcp_config = {"mcpServers": {mcp_bridge.SERVER_NAME: {
+                    "type": "http", "url": mcp_url}}}
+                cmd += [
+                    "--mcp-config", json.dumps(mcp_config),
+                    "--allowedTools", f"mcp__{mcp_bridge.SERVER_NAME}",
+                ]
             try:
                 proc = subprocess.run(
                     cmd, input=prompt, capture_output=True, text=True,

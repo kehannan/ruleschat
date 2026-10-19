@@ -128,8 +128,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
     new ModelOption(DEFAULT_MODEL, "GPT-5.4 (recommended)"),
     new ModelOption("ox-alpha", "GLM 5.3 Flash (Ox successor)"),
     // Admin-only: run on the server's Claude / ChatGPT subscriptions via the
-    // CLIs. No calculator tools, so fire/CC math is hand-derived. Non-admin
-    // keys fall back to the server default.
+    // CLIs, with the same calculator tools as the API models. Non-admin keys
+    // fall back to the server default.
     new ModelOption("claude-fable-sub", "Claude Fable (subscription, admin)"),
     new ModelOption("gpt-6-astra-sub", "GPT-6 Astra (subscription, admin)")
   };

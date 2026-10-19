@@ -85,15 +85,16 @@ MODELS: tuple = (
               True),
     # Claude via the headless Claude Code CLI — billed to the server's Claude
     # subscription login, not an API key (app/asl/claude_cli_client.py).
-    # admin_only: it's a personal subscription. No tool loop on this path.
+    # admin_only: it's a personal subscription. Agentic: the CLI runs the
+    # tool loop against our tools via the MCP bridge (app/asl/mcp_bridge.py).
     # Needs Claude Code >= 2.1.251 on the host.
     ModelSpec("claude-fable-sub", "claude-fable · subscription", "claude-cli/claude-fable-5-1",
-              True,  False, False,   0.0,   0.0,
+              True,  False, True,    0.0,   0.0,
               True),
     # Same idea via the headless Codex CLI on the server's ChatGPT login
     # (app/asl/codex_cli_client.py).
     ModelSpec("gpt-6-astra-sub", "gpt-6-astra · subscription", "codex-cli/gpt-6-astra",
-              True,  False, False,   0.0,   0.0,
+              True,  False, True,    0.0,   0.0,
               True),
 )
 
