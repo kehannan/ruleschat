@@ -20,7 +20,9 @@ import copy
 import json
 import logging
 import os
+import queue
 import tempfile
+import threading
 import time
 from datetime import date
 from typing import Any, Dict, Optional
@@ -35,7 +37,9 @@ from app.database import SessionLocal
 from app.models.user import User
 from app.asl.claude_cli_client import uses_claude_cli
 from app.asl.codex_cli_client import uses_codex_cli
-from app.services.asl_service import get_asl_service, uses_meta_api
+from app.services.asl_service import (
+    _tool_status_label, get_asl_service, uses_meta_api,
+)
 from app.services.user_service import is_admin
 from app.services.vsav_service import (
     VsavError, decode_vsav_data_url, parse_vsav, render_board_state,
@@ -46,6 +50,9 @@ router = APIRouter()
 ASK_DAILY_LIMIT = int(os.getenv("ASK_DAILY_LIMIT", "50"))
 ASK_MAX_QUESTION_CHARS = int(os.getenv("ASK_MAX_QUESTION_CHARS", "4000"))
 ASK_MAX_OUTPUT_TOKENS = int(os.getenv("ASK_MAX_OUTPUT_TOKENS", "4000"))
+# /api/ask/stream sends a status line at least this often while the answer
+# is being produced; nginx drops upstreams that are silent for 60s.
+STREAM_HEARTBEAT_SECONDS = float(os.getenv("ASK_STREAM_HEARTBEAT_SECONDS", "10"))
 # Provider mode: any OpenRouter slug is accepted (it's the caller's money);
 # this is only the default when the request names no model.
 DEFAULT_PROVIDER_MODEL = os.getenv(
@@ -409,25 +416,53 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
 
     def gen():
         t0 = time.monotonic()
-        try:
+        events: "queue.Queue" = queue.Queue()
+
+        def call():
             # Every streaming path of the service returns (generator,
             # timing_data) when return_timing=True — the OpenAI paths return
             # a 2-tuple even without it — so always ask for it and unwrap.
-            result = ctx["service"].get_answer(
-                ctx["question"],
-                stream=True,
-                return_timing=True,
-                model=ctx["model"],
-                max_output_tokens=ASK_MAX_OUTPUT_TOKENS,
-                board_state=ctx["board_state"],
-                vsav_state=ctx["vsav_state"],
-                use_agentic=bool(ctx["vsav_state"]),
-                trace_ctx=ctx["trace_ctx"],
-                native_los=ctx["native_los"],
-                game_phase=ctx["game_phase"],
-                selected_firers=ctx["selected_firers"],
-                selected_targets=ctx["selected_targets"],
-            )
+            try:
+                events.put(("result", ctx["service"].get_answer(
+                    ctx["question"],
+                    stream=True,
+                    return_timing=True,
+                    model=ctx["model"],
+                    max_output_tokens=ASK_MAX_OUTPUT_TOKENS,
+                    board_state=ctx["board_state"],
+                    vsav_state=ctx["vsav_state"],
+                    use_agentic=bool(ctx["vsav_state"]),
+                    trace_ctx=ctx["trace_ctx"],
+                    native_los=ctx["native_los"],
+                    game_phase=ctx["game_phase"],
+                    selected_firers=ctx["selected_firers"],
+                    selected_targets=ctx["selected_targets"],
+                    on_tool_call=lambda name, args: events.put(
+                        ("status", _tool_status_label(name, args))),
+                )))
+            except Exception as e:
+                events.put(("error", e))
+
+        # The subscription CLI paths block for the whole tool loop (often
+        # >60s, nginx's read timeout) before yielding anything, so run the
+        # call on a worker and keep the stream alive with status lines.
+        threading.Thread(target=call, daemon=True).start()
+        status = "Thinking"
+        try:
+            while True:
+                try:
+                    kind, value = events.get(timeout=STREAM_HEARTBEAT_SECONDS)
+                except queue.Empty:
+                    yield json.dumps({"status": status}) + "\n"
+                    continue
+                if kind == "status":
+                    status = value
+                    yield json.dumps({"status": status}) + "\n"
+                elif kind == "error":
+                    raise value
+                else:
+                    result = value
+                    break
             stream = result[0] if isinstance(result, tuple) else result
             timing = result[1] if isinstance(result, tuple) else {}
             for delta in stream:

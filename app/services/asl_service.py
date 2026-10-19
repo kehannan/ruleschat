@@ -10,7 +10,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Optional, Generator, Tuple, Any, Dict, List, Union
+from typing import Callable, Optional, Generator, Tuple, Any, Dict, List, Union
 
 from openai import OpenAI
 
@@ -730,8 +730,13 @@ Your response:"""
         force_tool: Optional[str] = None,
         use_cite_check: bool = False,
         trace_ctx: Optional[Dict[str, Any]] = None,
+        on_tool_call: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ):
         """Public entry point. See _get_answer_impl for the full contract.
+
+        on_tool_call(name, args) is invoked as the subscription CLI models
+        call tools through the MCP bridge (their loop runs inside one
+        blocking call, so this is the only progress signal).
 
         trace_ctx optionally attributes the Langfuse trace: keys user_id,
         session_id, tags (all optional). No-op when tracing is unconfigured.
@@ -766,6 +771,7 @@ Your response:"""
             selected_targets=selected_targets,
             force_tool=force_tool,
             trace_ctx=trace_ctx,
+            on_tool_call=on_tool_call,
         )
         if not use_cite_check:
             return result
@@ -892,6 +898,7 @@ Your response:"""
         selected_targets: Optional[List[str]] = None,
         force_tool: Optional[str] = None,
         trace_ctx: Optional[Dict[str, Any]] = None,
+        on_tool_call: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ):
         """
         Get an answer to an ASL question.
@@ -979,6 +986,8 @@ Your response:"""
             tool_context["selected_firers"] = selected_firers
         if selected_targets:
             tool_context["selected_targets"] = selected_targets
+        if on_tool_call:
+            tool_context["on_tool_call"] = on_tool_call
 
         # Start timing for RAG latency measurement
         api_call_start_time = time.time()

@@ -108,6 +108,12 @@ def handle(token: str, msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if name not in session["tools"]:
             return _rpc_error(msg_id, -32602, f"Unknown tool: {name}")
         session["calls"].append(name)
+        notify = (session["context"] or {}).get("on_tool_call")
+        if notify:
+            try:
+                notify(name, args)
+            except Exception:
+                logging.warning("MCP bridge: on_tool_call hook failed", exc_info=True)
         try:
             result = execute_tool(name, args, context=session["context"])
             is_error = False

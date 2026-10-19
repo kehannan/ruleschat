@@ -359,3 +359,26 @@ def test_provider_mode_rejects_subscription_slugs(client, slug):
                     headers={"Authorization": "Bearer sk-or-callerkey"})
     assert r.status_code == 400
     assert client.fake_service.calls == []
+
+
+def test_stream_heartbeats_and_tool_status_during_blocking_call(client, monkeypatch):
+    """Subscription CLI calls block for the whole tool loop; the stream must
+    keep sending lines (nginx drops silent upstreams after 60s)."""
+    import time as _time
+    monkeypatch.setattr(ask_module, "STREAM_HEARTBEAT_SECONDS", 0.05)
+    orig = client.fake_service.get_answer
+
+    def slow_answer(question, stream=False, **kwargs):
+        kwargs["on_tool_call"]("resolve_attack", {"firing_hex": "57-H9"})
+        _time.sleep(0.3)
+        return orig(question, stream=stream, **kwargs)
+    client.fake_service.get_answer = slow_answer
+
+    r = client.post("/api/ask/stream", json={"question": "hi"},
+                    headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    lines = [json.loads(l) for l in r.text.strip().splitlines()]
+    statuses = [l["status"] for l in lines if "status" in l]
+    assert statuses[0] == "Resolving the attack from the save file"
+    assert len(statuses) >= 3  # tool label + heartbeats repeating it
+    assert "".join(l.get("delta", "") for l in lines) == "THE ANSWER"
+    assert lines[-1]["done"] is True
