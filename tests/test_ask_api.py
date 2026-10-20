@@ -384,3 +384,47 @@ def test_stream_heartbeats_and_tool_status_during_blocking_call(client, monkeypa
     assert len(statuses) >= 3  # tool label + heartbeats repeating it
     assert "".join(l.get("delta", "") for l in lines) == "THE ANSWER"
     assert lines[-1]["done"] is True
+
+
+# --- server-side precomputed attack -------------------------------------------
+
+_HAZMO_LOS = {"source": "57-H9", "target": "57-H8", "blocked": False,
+              "hindrance": 0, "range": 1, "source_level": 0, "target_level": 0}
+
+
+def test_fire_question_precomputes_attack_and_prepends_summary(client):
+    r = client.post(
+        "/api/ask",
+        json={"question": "H9 Prep Fires at H8 - what is the IFT and DRM?",
+              "vsav": _vsav_data_url(), "native_los": _HAZMO_LOS,
+              "game_phase": "PFPh"},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200, r.text
+    answer = r.json()["answer"]
+    summary, _, rest = answer.partition("\n\n---\n\n")
+    assert summary.startswith("**Calculator** · 57-H9 → 57-H8, Prep Fire")
+    assert "**16 FP column**" in summary and "DRM **+2**" in summary
+    assert rest == "THE ANSWER"
+    # the model gets the full result, marked authoritative
+    board = client.fake_service.calls[-1]["board_state"]
+    assert "PRECOMPUTED ATTACK RESOLUTION" in board and '"total_fp": 16' in board
+
+
+def test_stream_sends_calculator_summary_first(client):
+    r = client.post(
+        "/api/ask/stream",
+        json={"question": "Resolve H9 firing at H8", "vsav": _vsav_data_url(),
+              "native_los": _HAZMO_LOS, "game_phase": "PFPh"},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    lines = [json.loads(l) for l in r.text.strip().splitlines()]
+    assert lines[0]["delta"].startswith("**Calculator** · 57-H9 → 57-H8")
+
+
+def test_los_only_question_is_not_precomputed(client):
+    r = client.post(
+        "/api/ask",
+        json={"question": "Can H9 see H8?", "vsav": _vsav_data_url(),
+              "native_los": _HAZMO_LOS},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.json()["answer"] == "THE ANSWER"
+    assert "PRECOMPUTED" not in client.fake_service.calls[-1]["board_state"]

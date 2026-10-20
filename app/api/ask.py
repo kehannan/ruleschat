@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import queue
+import re
 import tempfile
 import threading
 import time
@@ -33,6 +34,7 @@ from pydantic import BaseModel, Field
 
 from app import model_registry
 from app.asl.openrouter_client import OpenRouterClient
+from app.asl.tools import execute_tool
 from app.database import SessionLocal
 from app.models.user import User
 from app.asl.claude_cli_client import uses_claude_cli
@@ -234,6 +236,95 @@ def _render_native_los(native_los: Optional[dict]) -> Optional[str]:
     )
 
 
+# A question that asks to resolve a fire attack (vs a pure LOS / rules one).
+_FIRE_QUESTION = re.compile(
+    r"\b(fire[sd]?|firing|shoot\w*|attack\w*|IFT|DRM|FP|odds|resolve\w*|"
+    r"prep|break|kill)\b", re.IGNORECASE)
+_PHASE_NAMES = {
+    "prep": "Prep Fire", "defensive_first": "Defensive First Fire",
+    "defensive_final": "Final Fire", "advancing": "Advancing Fire",
+}
+
+
+def _precompute_attack(question: str, vsav_state: Optional[dict],
+                       native_los: Optional[dict], game_phase: Optional[str],
+                       selected_firers, selected_targets) -> Optional[dict]:
+    """Run resolve_attack server-side for the attack the extension picked.
+
+    The pair comes from native_los (the extension's LOS picker, or hexes it
+    found in the question), so the model can't skip the calculator or feed
+    it the wrong hexes. None when this isn't a fire question about one pair.
+    """
+    if not (vsav_state and native_los and native_los.get("source")
+            and native_los.get("target") and _FIRE_QUESTION.search(question)):
+        return None
+    context = {"vsav_state": vsav_state, "native_los": native_los,
+               "game_phase": game_phase, "selected_firers": selected_firers,
+               "selected_targets": selected_targets}
+    try:
+        return execute_tool("resolve_attack", {
+            "firing_hex": native_los["source"],
+            "target_hex": native_los["target"],
+        }, context=context)
+    except Exception:
+        logging.error("ask: precomputed resolve_attack failed", exc_info=True)
+        return None
+
+
+def _pct(p) -> str:
+    return f"{100 * float(p):.1f}%"
+
+
+def _attack_summary(result: dict, native_los: dict) -> str:
+    """The calculator's numbers as fixed markdown shown above the answer."""
+    pair = f"{native_los.get('source')} → {native_los.get('target')}"
+    if result.get("error"):
+        return f"**Calculator** · {pair}: no attack — {result['error']}"
+    phase = _PHASE_NAMES.get(result.get("phase"), result.get("phase") or "")
+    firers = ", ".join(f"{f.get('name')} ({f.get('fp')} FP)"
+                       for f in result.get("firers") or [])
+    rng = (result.get("range") or {})
+    rng_txt = f"range {rng.get('hexes')}" if rng.get("hexes") is not None else ""
+    if rng.get("pbf") and rng.get("pbf") != "none":
+        rng_txt += f", {rng['pbf'].upper()}"
+    lines = [
+        f"**Calculator** · {pair}, {phase} (computed from the save)",
+        f"- Firers: {firers} → {result.get('total_fp')} FP → "
+        f"**{result.get('column')} FP column**" + (f" ({rng_txt})" if rng_txt else ""),
+        f"- DRM **{result.get('drm', 0):+d}**" + (
+            ": " + "; ".join(
+                d["label"] if f"{d['drm']:+d}" in str(d["label"])
+                else f"{d['label']} {d['drm']:+d}"
+                for d in result.get("drm_breakdown") or [])
+            if result.get("drm_breakdown") else " (no modifiers)"),
+    ]
+    vt = (result.get("ift") or {}).get("vs_target") or {}
+    if "p_broken" in vt:
+        lines.append(
+            f"- vs morale {vt.get('effective_morale', vt.get('morale'))}: "
+            f"broken {_pct(vt['p_broken'])} · pinned {_pct(vt.get('p_pinned', 0))}"
+            f" · eliminated/reduced {_pct(vt.get('p_eliminated_or_reduced', 0))}"
+            f" · no effect {_pct(vt.get('p_no_effect', 0))}")
+    if result.get("cowering") and result["cowering"] != "none":
+        lines.append(f"- Cowering possible on doubles ({result['cowering']}, A7.9)")
+    return "\n".join(lines)
+
+
+def _precomputed_prompt_block(result: dict) -> str:
+    return (
+        "=== PRECOMPUTED ATTACK RESOLUTION (the server already ran "
+        "resolve_attack for the hexes the user picked) ===\n"
+        + json.dumps(result, default=str) + "\n"
+        "This is authoritative and is ALREADY shown to the user verbatim as a "
+        "calculator summary above your answer. Do not call resolve_attack "
+        "again for this pair, do not restate its numbers as a table, and do "
+        "not change or second-guess any value. Explain why each FP/range/DRM "
+        "line applies with rule citations (fetch them), and relay every "
+        "warning and assumption it lists. If it is an error (e.g. LOS "
+        "blocked), explain that error using the obstacles it names.\n"
+        "=== END PRECOMPUTED ATTACK RESOLUTION ===")
+
+
 def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
     """Everything both endpoints share: credential, limit, vsav, model."""
     mode, credential = _resolve_credential(authorization)
@@ -262,6 +353,14 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
         los_line = _render_native_los(payload.native_los)
         if los_line:
             board_state = f"{board_state}\n\n{los_line}"
+
+    precomputed = _precompute_attack(
+        payload.question, vsav_state, payload.native_los, payload.game_phase,
+        payload.selected_firers, payload.selected_targets)
+    summary = None
+    if precomputed is not None:
+        summary = _attack_summary(precomputed, payload.native_los)
+        board_state = f"{board_state}\n\n{_precomputed_prompt_block(precomputed)}"
 
     if mode == "account":
         model = _account_model(payload.model, credential, bool(vsav_state))
@@ -301,6 +400,7 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
         "game_phase": payload.game_phase,
         "selected_firers": payload.selected_firers,
         "selected_targets": payload.selected_targets,
+        "summary": summary,
     }
 
 
@@ -390,6 +490,8 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
     else:
         answer, timing = result, {}
 
+    if ctx["summary"]:
+        answer = f"{ctx['summary']}\n\n---\n\n{answer}"
     result: Dict[str, Any] = {
         "answer": answer,
         "model": model,
@@ -453,6 +555,8 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
         # >60s, nginx's read timeout) before yielding anything, so run the
         # call on a worker and keep the stream alive with status lines.
         threading.Thread(target=call, daemon=True).start()
+        if ctx["summary"]:
+            yield json.dumps({"delta": f"{ctx['summary']}\n\n---\n\n"}) + "\n"
         status = "Thinking"
         try:
             while True:
