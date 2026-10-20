@@ -369,6 +369,179 @@ def los_hexside_crossings(board_base: str, from_label: str, to_label: str,
     return out
 
 
+
+# name -> (obstacle height in levels above the hex's ground, VASL LOSCategory),
+# from SharedBoardMetadata.xml (VASL 6.7.3): height + 0.5 if isHalfLevelHeight.
+LOS_OBSTACLES = {
+    'Lumberyard': (1, 'OTHER'),
+    'Stone Building': (1, 'BUILDING'),
+    'Stone Building, 1 Level': (1.5, 'BUILDING'),
+    'Stone Building, 2 Level': (2.5, 'BUILDING'),
+    'Stone Building, 3 Level': (3.5, 'BUILDING'),
+    'Stone Building, 4 Level': (4.5, 'BUILDING'),
+    'Stone Factory Wall, 1.5 Level': (1.5, 'FACTORY'),
+    'Stone Factory Wall, 2.5 Level': (2.5, 'FACTORY'),
+    'Stone Market Place': (1.5, 'MARKETPLACE'),
+    'Wooden Building': (1, 'BUILDING'),
+    'Wooden Building, 1 Level': (1.5, 'BUILDING'),
+    'Wooden Building, 2 Level': (2.5, 'BUILDING'),
+    'Wooden Building, 3 Level': (3.5, 'BUILDING'),
+    'Wooden Building, 4 Level': (4.5, 'BUILDING'),
+    'Wooden Factory Wall, 1.5 Level': (1.5, 'FACTORY'),
+    'Wooden Factory Wall, 2.5 Level': (2.5, 'FACTORY'),
+    'Wooden Market Place': (1.5, 'MARKETPLACE'),
+    'Woods': (1, 'WOODS'),
+    'Forest': (2, 'OTHER'),
+    'Pine Woods': (2, 'WOODS'),
+    'Orchard': (1, 'OTHER'),
+    'Wall': (0.5, 'HEXSIDE'),
+    'Hedge': (0.5, 'HEXSIDE'),
+    'Bocage': (1, 'HEXSIDE'),
+    'Rowhouse Wall': (1, 'BUILDING'),
+    'Rowhouse Wall, 1 Level': (1.5, 'BUILDING'),
+    'Rowhouse Wall, 2 Level': (2.5, 'BUILDING'),
+    'Rowhouse Wall, 3 Level': (3.5, 'BUILDING'),
+    'Rowhouse Wall, 4 Level': (3.5, 'BUILDING'),
+    'Road Block': (0.5, 'HEXSIDE'),
+    'Stone Rubble': (0.5, 'OTHER'),
+    'Wooden Rubble': (0.5, 'OTHER'),
+    'Hillock': (0.5, 'OTHER'),
+    'Hillock Summit': (0, 'OPEN'),
+    'Sand Dune, Low': (0.5, 'OTHER'),
+    'Dune, Crest Low': (0.5, 'HEXSIDE'),
+    'Dune, Crest High': (0.5, 'HEXSIDE'),
+    'Mausoleum': (1, 'BUILDING'),
+    'Building Cluster': (1, 'BUILDING'),
+    'Cactus Hedge': (0.5, 'HEXSIDE'),
+    'Cactus Patch': (0.5, 'OTHER'),
+    'Olive Grove': (1, 'OTHER'),
+    'Temple': (1, 'BUILDING'),
+    'Light Jungle': (2, 'WOODS'),
+    'Dense Jungle': (2, 'WOODS'),
+    'Bamboo': (1, 'OTHER'),
+    'Palm Trees': (1, 'OTHER'),
+    'Swamp': (2, 'OTHER'),
+    'Railway Embankment': (0.5, 'HEXSIDE'),
+    'Rrembankment': (0.5, 'HEXSIDE'),
+    'Tower Obstacle': (1.5, 'BUILDING'),
+    'Tower, 2 Level Obstacle': (2.5, 'BUILDING'),
+    'Tower, 3 Level Obstacle': (3.5, 'BUILDING'),
+    'Storage Tank': (1.5, 'BUILDING'),
+    'Storage Tank, 2 Level': (2.5, 'BUILDING'),
+    'BFP Tower, 1 Level': (1.5, 'BUILDING'),
+    'BFP Tower, 2 Level': (2.5, 'BUILDING'),
+    'Interior Factory Wall, 1 Level': (1.5, 'FACTORY'),
+    'Interior Factory Wall, 2 Level': (2.5, 'FACTORY'),
+    'Cellar': (1, 'BUILDING'),
+    'Light Woods': (1, 'OTHER'),
+    'Gutted Stone Building': (1, 'BUILDING'),
+    'Gutted Stone Building, 1 Level': (1.5, 'BUILDING'),
+    'Gutted Stone Building, 2 Level': (2.5, 'BUILDING'),
+    'Gutted Stone Building, 3 Level': (3.5, 'BUILDING'),
+    'Gutted Stone Building, 4 Level': (4.5, 'BUILDING'),
+    'Stone Rubble Ground Level': (0.5, 'OTHER'),
+    'Stone Rubble Level 1': (1.5, 'OTHER'),
+    'Stone Rubble Level 2': (2.5, 'OTHER'),
+    'Stone Rubble Level 3': (3.5, 'OTHER'),
+    'Wooden Rubble Ground Level': (0.5, 'OTHER'),
+    'Wooden Rubble Level 1': (1.5, 'OTHER'),
+    'Wooden Rubble Level 2': (2.5, 'OTHER'),
+    'Wooden Rubble Level 3': (3.5, 'OTHER'),
+    'Wooden Factory Wall, 1 Level': (1, 'FACTORY'),
+    'PartialOrchard': (1, 'HEXSIDE'),
+    'MultipleWooden': (1, 'BUILDING'),
+    'BTCrags': (0.5, 'OTHER'),
+    'MultipleStone': (1, 'BUILDING'),
+    'Breach': (1, 'BUILDING'),
+    'Gutted Building Wall, 1 Level': (1.5, 'BUILDING'),
+    'Gutted Building Wall, 2 Level': (2.5, 'BUILDING'),
+}
+
+# Rule to cite per VASL LOSCategory / terrain when naming a blocker.
+_OBSTACLE_RULES = {
+    "BUILDING": "B23", "FACTORY": "B23.74", "MARKETPLACE": "B23.73",
+    "WOODS": "B13", "HEXSIDE": "B9.2",
+}
+_OBSTACLE_RULE_BY_NAME = {
+    "Orchard": "B14.2", "PartialOrchard": "B14.2", "Forest": "B13",
+    "Lumberyard": "B23.6", "Olive Grove": "B14.8", "Palm Trees": "G4",
+}
+
+
+def los_obstacle_trace(board_base: str, from_label: str, to_label: str,
+                       from_height: float, to_height: float,
+                       ssr_transforms=()):
+    """LOS obstacles in the hexes BETWEEN two hex centers of one board.
+
+    Walks the straight LOS pixel by pixel on the board's LOSData grid (the
+    same per-pixel terrain VASL's LOS engine reads), so a building depiction
+    the line misses inside its hex is not reported. For each intervening hex
+    returns the tallest obstacle the line actually touches, as a dict:
+      hex, terrain (post-SSR), ground (hex ground elevation under the line),
+      top (ground + obstacle height; hills: the ground itself),
+      los_height (the LOS line's height there, interpolated between
+      from_height and to_height — absolute levels), t (0 firer .. 1 target),
+      blocks (top >= los_height), rule.
+    In-season orchards count only when the LOS is to/from a higher elevation
+    (B14.2). Hexside obstacles (walls, hedges, bocage, crests) are left to
+    los_hexside_crossings, whose B9.2 handling knows which hex owns the
+    hexside. Firer and target hexes are excluded (A6.2: own-hex terrain never
+    blocks LOS from the hex center). None when no board data is available.
+    """
+    bd = _load_board(str(board_base))
+    if bd is None:
+        return None
+    try:
+        (x0, y0), (x1, y1) = _hex_center(from_label), _hex_center(to_label)
+    except ValueError:
+        return None
+    ends = {from_label.upper(), to_label.upper()}
+    gw, gh, grid = bd["grid_w"], bd["grid_h"], bd["grid"]
+    n = max(1, int(((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5))
+    best = {}
+    for i in range(n + 1):
+        f = i / n
+        x, y = x0 + (x1 - x0) * f, y0 + (y1 - y0) * f
+        xi, yi = int(round(x)), int(round(y))
+        if not (0 <= xi < gw and 0 <= yi < gh):
+            continue
+        hx = board_xy_to_hex(x, y)
+        if not hx or hx in ends:
+            continue
+        idx = (xi * gh + yi) * 2
+        e = grid[idx]
+        ground = e - 256 if e > 127 else e
+        name = apply_ssr_transforms(
+            TERRAIN_NAMES.get(grid[idx + 1], "Open Ground"), ssr_transforms)
+        los_h = from_height + (to_height - from_height) * f
+        top, rule, terr = None, None, None
+        if name in LOS_OBSTACLES and LOS_OBSTACLES[name][1] == "HEXSIDE":
+            pass  # walls/hedges/crests: B9.2 semantics, see los_hexside_crossings
+        elif name in LOS_OBSTACLES:
+            if name in ("Orchard", "PartialOrchard") and \
+                    max(from_height, to_height) <= ground:
+                pass  # B14.2: not an obstacle between same-level units
+            else:
+                height, cat = LOS_OBSTACLES[name]
+                top = ground + height
+                terr = name
+                rule = _OBSTACLE_RULE_BY_NAME.get(name) or \
+                    _OBSTACLE_RULES.get(cat, "A6.2")
+        if ground > 0 and (top is None or ground >= top):
+            top, terr, rule = ground, f"Level {ground} hill", "B10.1"
+        if top is None:
+            continue
+        cand = dict(hex=hx, terrain=terr, ground=ground, top=top,
+                    los_height=round(los_h, 2), t=round(f, 2),
+                    blocks=top >= los_h - 1e-9, rule=rule)
+        prev = best.get(hx)
+        # keep the point where this hex's terrain rises highest over the LOS
+        if prev is None or (cand["top"] - cand["los_height"]) > \
+                (prev["top"] - prev["los_height"]):
+            best[hx] = cand
+    return sorted(best.values(), key=lambda c: c["t"])
+
+
 def apply_ssr_transforms(name: str, transforms) -> str:
     """Apply per-board SSR transforms sequentially to a terrain name."""
     for t in transforms or ():

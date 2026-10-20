@@ -132,7 +132,7 @@ def test_native_vasl_los_hindrance_is_applied_and_block_stops_attack():
             "reason": "Woods", "hindrance": 0,
         })
     except ValueError as e:
-        assert "LOS is blocked: Woods" in str(e)
+        assert "LOS is blocked (VASL native LOS check): Woods" in str(e)
     else:
         raise AssertionError("blocked native LOS must stop attack resolution")
 
@@ -169,7 +169,7 @@ def test_qualified_native_vasl_los_still_blocks_cross_board_attack():
             "reason": "woods", "hindrance": 0,
         })
     except ValueError as e:
-        assert "LOS is blocked: woods" in str(e)
+        assert "LOS is blocked (VASL native LOS check): woods" in str(e)
     else:
         raise AssertionError("qualified blocked native LOS must stop attack")
 
@@ -1072,3 +1072,29 @@ def test_intervening_wall_not_flagged_as_block_between_different_elevations():
                    for w in r["warnings"]), r["warnings"]
     assert any("different levels" in a and "T3|U4" in a
                for a in r["assumptions"]), r["assumptions"]
+
+
+def test_blocked_native_los_names_the_intervening_obstacle():
+    """Live case (VASL extension, 2026-10-20): 41-S8 (Level 1 hill) prep-fires
+    at 41-W5 (ground-level stone building); VASL says "Must have a height
+    advantage to see over this terrain". The error must name the in-season
+    orchard the LOS crosses (B14.2), not leave the model guessing."""
+    s = _j103_state(**{
+        "41-S8": [_sq("4-4-7 1sq", "German")],
+        "41-W5": [_sq("4-5-7 1sq", "AlliedMinor")],
+    })
+    native = {"source": "41-S8", "target": "41-W5", "blocked": True,
+              "reason": "Must have a height advantage to see over this terrain",
+              "range": 5, "source_level": 0, "target_level": 0}
+    with pytest.raises(ValueError) as e:
+        resolve_attack(s, "41-S8", "41-W5", "prep", native_los=native)
+    msg = str(e.value)
+    assert "Firer 41-S8 is at level 1, target 41-W5 at level 0" in msg, msg
+    assert "41-U7 in-season Orchard" in msg and "(B14.2)" in msg, msg
+    assert "Wall" not in msg, msg  # hexsides are B9.2's job, not blockers here
+
+
+def test_los_obstacle_trace_orchard_not_an_obstacle_at_same_level():
+    from app.services.board_terrain import los_obstacle_trace
+    assert not any(c["terrain"] == "Orchard"
+                   for c in los_obstacle_trace("41", "S8", "W5", 0, 0))

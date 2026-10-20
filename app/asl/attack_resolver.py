@@ -191,16 +191,68 @@ _LOS_CLEAR_EXCEPT_HEXSIDES_ASSUMPTION = (
 )
 
 
+def _board_transforms(state: Dict[str, Any], base: str) -> tuple:
+    for b in state.get("boards", []) or []:
+        bbase = b.get("base") or str(b.get("name", "")).lstrip("r")
+        if str(bbase) == str(base):
+            return tuple(b.get("ssr_transforms") or ())
+    return ()
+
+
+def _blocked_los_detail(state: Dict[str, Any], fkey: str, tkey: str,
+                        fentry: Dict[str, Any], tentry: Dict[str, Any],
+                        native_los: Dict[str, Any]) -> str:
+    """Name the terrain that plausibly blocks a LOS VASL reported blocked.
+
+    Traced on the board grid from the firer's to the target's absolute
+    height (hex ground elevation + VASL's level-in-hex). Same board only;
+    empty string when nothing can be said.
+    """
+    from app.services import board_terrain  # local: avoids an import cycle
+    fbase, flabel = _split_hex_key(fkey)
+    tbase, tlabel = _split_hex_key(tkey)
+    if fbase != tbase:
+        return ""
+    fh = ((fentry.get("terrain") or {}).get("elevation") or 0) + \
+        int(native_los.get("source_level") or 0)
+    th = ((tentry.get("terrain") or {}).get("elevation") or 0) + \
+        int(native_los.get("target_level") or 0)
+    try:
+        trace = board_terrain.los_obstacle_trace(
+            fbase, flabel, tlabel, fh, th, _board_transforms(state, fbase))
+    except Exception as e:  # never let the trace break the error message
+        logging.warning("los_obstacle_trace failed: %s", e)
+        return ""
+    if trace is None:
+        return ""
+    blockers = [c for c in trace if c["blocks"]]
+    head = (f" Firer {fkey} is at level {fh}, target {tkey} at level {th} "
+            "(hex elevation + level in hex).")
+    if not blockers:
+        return head + (
+            " No terrain on the board's terrain grid reaches the LOS line "
+            "between them, so VASL is likely blocking on counters (wrecks, "
+            "SMOKE, blazes, rubble) or an overlay — check the map.")
+    parts = []
+    for c in blockers:
+        what = c["terrain"]
+        if what == "Orchard":
+            what = ("in-season Orchard (a one-level obstacle to LOS to/from "
+                    "a higher elevation)")
+        parts.append(
+            f"{tbase}-{c['hex']} {what} on level-{c['ground']} ground, "
+            f"obstacle top level {c['top']:g} vs the LOS line at level "
+            f"{c['los_height']:g} there ({c['rule']})")
+    return head + (" Intervening obstacle(s) at or above the LOS line, "
+                   "traced on the board's terrain grid: "
+                   + "; ".join(parts) + ".")
+
+
 def _los_hexsides(state: Dict[str, Any], base: str, flabel: str,
                   tlabel: str):
     """Wall/hedge hexsides crossed by the LOS (same board only), or None."""
     from app.services import board_terrain  # local: avoids an import cycle
-    transforms = ()
-    for b in state.get("boards", []) or []:
-        bbase = b.get("base") or str(b.get("name", "")).lstrip("r")
-        if str(bbase) == str(base):
-            transforms = tuple(b.get("ssr_transforms") or ())
-            break
+    transforms = _board_transforms(state, base)
     try:
         return board_terrain.los_hexside_crossings(
             str(base), flabel, tlabel, transforms)
@@ -747,8 +799,12 @@ def resolve_attack(
                         "caveats; verify the LOS on the visible map."
                     )
                 else:
-                    raise ValueError("LOS is blocked" + (
-                        f": {native_los.get('reason')}" if native_los.get("reason") else ""))
+                    raise ValueError(
+                        "LOS is blocked (VASL native LOS check)" + (
+                            f": {native_los.get('reason')}"
+                            if native_los.get("reason") else "") + "."
+                        + _blocked_los_detail(state, fkey, tkey, fentry,
+                                              tentry, native_los))
             if not native_los.get("blocked"):
                 try:
                     native_hindrance = max(0, int(native_los.get("hindrance", 0)))
