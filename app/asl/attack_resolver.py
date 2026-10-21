@@ -257,6 +257,41 @@ def _bare(name) -> str:
     return m.group(1) if m else str(name or "").strip().upper()
 
 
+def _hexside_counters(facts: Dict[str, Any], warnings: List[str]):
+    """(wall-like hexside counters, ["hex: name" not modelled]) from facts.
+
+    Extension >= 0.6 sends every non-unit counter per hex ("hexes"), which
+    counter_rules classifies; 0.5.x sent only a pre-digested "roadblocks".
+    """
+    from app.asl import counter_rules  # local: keeps the import graph flat
+    hexes = [h for h in facts.get("hexes") or [] if isinstance(h, dict)]
+    if not hexes:
+        return [dict(rb, label="Roadblock", tem=2, rule="B29.2-.3")
+                for rb in facts.get("roadblocks") or []
+                if isinstance(rb, dict) and rb.get("toward")], []
+    base_of = {_bare(h.get("hex")): h.get("base") for h in hexes}
+    walls, unmodeled = [], []
+    for hx in hexes:
+        for c in hx.get("counters") or []:
+            if not isinstance(c, dict):
+                continue
+            kind, entry = counter_rules.classify(c.get("name"))
+            if kind == "hexside_wall":
+                toward, how = counter_rules.hexside_from_counter(c, hx, entry)
+                if not toward:
+                    warnings.append(
+                        f"{entry['label']} in {_bare(hx.get('hex'))}: can't tell "
+                        f"which hexside it obstructs ({how}) — check the map.")
+                    continue
+                walls.append(dict(
+                    hex=hx.get("hex"), toward=toward, method=how,
+                    label=entry["label"], tem=entry["tem"], rule=entry["rule"],
+                    hex_base=hx.get("base"), toward_base=base_of.get(_bare(toward))))
+            elif kind == "unmodeled" and hx.get("role") in ("path", "target"):
+                unmodeled.append(f"{_bare(hx.get('hex'))}: {c.get('name')}")
+    return walls, unmodeled
+
+
 def _apply_vasl_facts(facts: Dict[str, Any], base: str, flabel: str,
                       tlabel: str, tentry: Dict[str, Any], hindrance: int,
                       hexside_tem: int, hexside_tem_label: Optional[str],
@@ -292,47 +327,54 @@ def _apply_vasl_facts(facts: Dict[str, Any], base: str, flabel: str,
                 f"{entry_terr or 'none'}); hexside TEM not applied.")
             hexside_tem, hexside_tem_label = 0, None
 
-    # Roadblocks (B29.2-.3): a stone wall across the hexside they point to.
-    for rb in facts.get("roadblocks") or []:
-        if not isinstance(rb, dict) or not rb.get("toward"):
-            continue
+    # Wall-like hexside counters VASL's LOS ignores (roadblocks, B29), and
+    # every counter the rules table doesn't know (counter_rules.py).
+    walls, unmodeled = _hexside_counters(facts, warnings)
+    for rb in walls:
         a, b = _bare(rb.get("hex")), _bare(rb.get("toward"))
+        name, tem, rule = rb["label"], rb["tem"], rb["rule"]
         side = f"{a}|{b}"
         how = ("" if rb.get("method") == "position" else
                " (hexside read from the counter's arrow)")
         ha, hb = rb.get("hex_base"), rb.get("toward_base")
         if ha is not None and hb is not None and ha != hb:
             assumptions.append(
-                f"The roadblock hexside {side} joins hexes of different base "
-                f"levels ({a} level {ha}, {b} level {hb}): it is at the higher "
-                "level and treated like a Hillside Wall (B29.4, B9.6).")
+                f"The {name.lower()} hexside {side} joins hexes of different "
+                f"base levels ({a} level {ha}, {b} level {hb}): it is at the "
+                "higher level and treated like a Hillside Wall (B29.4, B9.6).")
         if {a, b} == {tlabel, neighbor}:
-            if 2 >= hexside_tem:
-                hexside_tem, hexside_tem_label = 2, (
-                    f"Roadblock TEM +2 (B29.3: treated as a stone wall across "
+            if tem >= hexside_tem:
+                hexside_tem, hexside_tem_label = tem, (
+                    f"{name} TEM +{tem} ({rule}: treated as a stone wall across "
                     f"{side}, the hexside the LOS enters {tlabel} through)")
-            assumptions.append(f"Roadblock on {side}{how}.")
+            assumptions.append(f"{name} on {side}{how}.")
             continue
         crossed = any({seq[i], seq[i + 1]} == {a, b} for i in range(len(seq) - 1))
         if not crossed:
-            assumptions.append(f"Roadblock on {side} is not crossed by this "
+            assumptions.append(f"{name} on {side} is not crossed by this "
                                f"LOS{how}.")
             continue
         if flabel in (a, b):
             assumptions.append(
-                f"LOS leaves {flabel} across its own roadblock hexside {side}: "
-                f"no effect (B9.2: a hexside of the viewing hex){how}.")
+                f"LOS leaves {flabel} across its own {name.lower()} hexside "
+                f"{side}: no effect (B9.2: a hexside of the viewing hex){how}.")
             continue
         if fh is not None and th is not None and fh == th:
             raise ValueError(
-                f"LOS is blocked by the roadblock on {side}: a roadblock is a "
-                "Half-Level Obstacle to same-level LOS (B29.2, B9.2), and "
+                f"LOS is blocked by the {name.lower()} on {side}: it is a "
+                f"Half-Level Obstacle to same-level LOS ({rule}, B9.2), and "
                 f"firer and target are both at level {fh}. VASL's own LOS "
-                f"check ignores roadblocks, so it reported this LOS clear{how}.")
+                f"check ignores {name.lower()}s, so it reported this LOS "
+                f"clear{how}.")
         assumptions.append(
-            f"LOS crosses the roadblock on {side}; firer (level {fh}) and "
+            f"LOS crosses the {name.lower()} on {side}; firer (level {fh}) and "
             f"target (level {th}) are at different levels, so its same-level "
-            f"Half-Level block (B29.2) does not apply{how}.")
+            f"Half-Level block ({rule}) does not apply{how}.")
+    if unmodeled:
+        warnings.append(
+            "Counters on the LOS / in the target hex that this calculator does "
+            "not model — check whether they change LOS or TEM: "
+            + "; ".join(unmodeled) + ".")
 
     # Where VASL's hindrance comes from (A6.7): counters first, then terrain.
     label = None

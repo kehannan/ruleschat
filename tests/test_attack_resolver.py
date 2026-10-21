@@ -1172,7 +1172,7 @@ def test_roadblock_on_target_entry_hexside_is_a_wall():
     los = _facts(roadblocks=[{"hex": "U5", "toward": "T4", "method": "position"}])
     r = resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
     assert r["drm"] == 2, r["drm_breakdown"]
-    assert "Roadblock TEM +2 (B29.3" in r["drm_breakdown"][0]["label"]
+    assert "Roadblock TEM +2 (B29" in r["drm_breakdown"][0]["label"]
 
 
 def test_roadblock_mid_path_blocks_same_level_los():
@@ -1224,3 +1224,84 @@ def test_vasl_entry_hexside_overrides_board_file_wall():
     los["facts"]["target_entry"]["terrain"] = "Wall"
     r = resolve_attack(s, "41-S3", "41-W4", "prep", native_los=los)
     assert r["drm"] == 2, r["drm_breakdown"]
+
+
+
+# --- generic per-hex counters (extension >= 0.6) + counter_rules table --------
+
+def _sides(**neighbors):
+    """Six hexsides; bearings 0/60/.../300 (0 = up). neighbors: side->hex."""
+    return [{"side": i, "bearing": i * 60, "neighbor": neighbors.get(f"s{i}"),
+             "hexside_terrain": "", "location_terrain":
+                 "Paved Road" if f"s{i}" in neighbors.get("_roads", ()) else "Open Ground"}
+            for i in range(6)]
+
+
+def _hexes_facts(u5_counters):
+    # U5's T4 side faces up-left (300), its V5 side down-right (120).
+    hexes = [
+        {"hex": "W6", "role": "firer", "base": 0, "terrain": "Paved Road",
+         "sides": _sides(), "counters": []},
+        {"hex": "V5", "role": "path", "base": 0, "terrain": "Paved Road",
+         "sides": _sides(), "counters": []},
+        {"hex": "U5", "role": "path", "base": -1, "terrain": "Shallow Stream",
+         "sides": _sides(s5="T4", s2="V5", s0="U4", s3="U6", s1="V4", s4="T5",
+                         _roads=("s5", "s2")),
+         "counters": u5_counters},
+        {"hex": "T4", "role": "target", "base": 0, "terrain": "Paved Road",
+         "sides": _sides(), "counters": []},
+    ]
+    los = _facts(target_entry={"neighbor": "U5", "side": 2, "terrain": ""},
+                 hexes=hexes)
+    return los
+
+
+def test_counter_rules_table_classifies():
+    from app.asl.counter_rules import classify
+    assert classify("Roadblock")[0] == "hexside_wall"
+    assert classify("White +2 Smoke")[0] == "vasl_los"
+    assert classify("Wreck")[0] == "vasl_los"
+    assert classify("1S Foxhole")[0] == "handled"
+    assert classify("Prep Fire")[0] == "no_effect"
+    assert classify("Wire")[0] == "no_effect"
+    assert classify("Pillbox 1+5+7")[0] == "unmodeled"
+
+
+def test_roadblock_arrow_down_at_rotation_zero_points_at_t4():
+    """The art's arrow points DOWN (bearing 180) at rotation 0 and VASSAL
+    draws at -angle, so bearing = 180 - angle: angle -120 -> 300, U5's T4
+    side."""
+    los = _hexes_facts([{"name": "Roadblock", "side": -1, "angle": -120.0,
+                         "arrow_level": None}])
+    r = resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    assert r["drm"] == 2, r["drm_breakdown"]
+    assert "U5|T4" in r["drm_breakdown"][0]["label"]
+    assert any("B29.4" in a for a in r["assumptions"])  # U5 is a depression
+
+
+def test_roadblock_arrow_layer_up_flips_direction():
+    # same rotation, DO counter's Arrow layer set to "up": now faces V5
+    los = _hexes_facts([{"name": "Roadblock", "side": -1, "angle": -120.0,
+                         "arrow_level": "2"}])
+    with pytest.raises(ValueError) as e:
+        resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    assert "roadblock on U5|V5" in str(e.value)
+
+
+def test_roadblock_on_hexside_position_needs_no_arrow():
+    los = _hexes_facts([{"name": "Roadblock", "side": 5, "angle": None,
+                         "arrow_level": None}])
+    r = resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    assert r["drm"] == 2 and "U5|T4" in r["drm_breakdown"][0]["label"]
+    assert not any("arrow" in a for a in r["assumptions"] if "Roadblock on" in a)
+
+
+def test_unknown_counter_on_los_is_reported_not_ignored():
+    los = _hexes_facts([{"name": "Pillbox 1+5+7", "side": -1, "angle": None,
+                         "arrow_level": None},
+                        {"name": "Prep Fire", "side": -1, "angle": None,
+                         "arrow_level": None}])
+    r = resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    w = " ".join(r["warnings"])
+    assert "does not model" in w and "U5: Pillbox 1+5+7" in w, w
+    assert "Prep Fire" not in w

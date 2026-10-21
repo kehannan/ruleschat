@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.5.1";
+  static final String VERSION = "0.6.0";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -1063,9 +1063,16 @@ public class AskRuleschatButton extends AbstractConfigurable {
      .append(",\"blocked_at_hex\":").append(
        result.isBlocked() ? hexAt(losMap, result.getBlockedAtPoint()) : "null");
 
-    // roadblocks in or next to the LOS (B29): "hex" + the hex its hexside faces
-    f.append(",\"roadblocks\":[");
-    boolean first = true;
+    // Every non-unit counter in the firer, target and path hexes, reported
+    // generically (the server's counter-rules table decides what each one
+    // does), plus each of those hexes' six hexsides. Units are skipped (the
+    // server reads them from the save, with fog of war), and so is anything
+    // hidden or obscured from this player.
+    final List<Hex> hexes = new ArrayList<>();
+    hexes.add(source);
+    hexes.addAll(path);
+    hexes.add(target);
+    final java.util.Map<Hex, List<String>> byHex = new java.util.HashMap<>();
     final java.awt.Dimension edge = gameMap.getEdgeBuffer();
     for (GamePiece top : gameMap.getAllPieces()) {
       final List<GamePiece> pieces = new ArrayList<>();
@@ -1078,37 +1085,54 @@ public class AskRuleschatButton extends AbstractConfigurable {
         pieces.add(top);
       }
       for (GamePiece piece : pieces) {
-        final String name = piece.getName();
-        if (name == null || !name.toLowerCase().contains("roadblock")) {
+        if (Boolean.TRUE.equals(piece.getProperty(VASSAL.counters.Properties.INVISIBLE_TO_ME))
+            || Boolean.TRUE.equals(piece.getProperty(VASSAL.counters.Properties.OBSCURED_TO_ME))
+            || game.isUnitCounter(piece) || game.isDBUnitCounter(piece)) {
           continue;
         }
         final java.awt.Point p = new java.awt.Point(piece.getPosition());
         p.translate(-edge.width, -edge.height);
         final Hex h = losMap.gridToHex(p.x, p.y);
-        if (h == null || !(h == source || h == target || path.contains(h))) {
+        if (h == null || !hexes.contains(h)) {
           continue;
         }
-        int side = h.getLocationHexside(h.getNearestLocation(p.x, p.y));
-        String method = "position";
-        if (side < 0) {
-          side = sideFromRotation(h, piece);
-          method = "rotation";
-        }
-        final Hex toward = side < 0 ? null : losMap.getAdjacentHex(h, side);
+        final int side = h.getLocationHexside(h.getNearestLocation(p.x, p.y));
         final GamePiece rot = VASSAL.counters.Decorator.getDecorator(
           piece, VASSAL.counters.FreeRotator.class);
-        f.append(first ? "" : ",").append("{\"hex\":").append(Json.quote(h.getName()))
-         .append(",\"toward\":").append(toward == null ? "null" : Json.quote(toward.getName()))
-         .append(",\"method\":").append(Json.quote(method))
-         .append(",\"angle\":").append(rot == null ? "null"
-           : String.valueOf(((VASSAL.counters.FreeRotator) rot).getAngle()))
-         .append(",\"arrow_level\":").append(Json.quote(String.valueOf(
-           piece.getProperty("Arrow_Level"))))
-         .append(",\"hex_base\":").append(h.getBaseLevelofHex())
-         .append(",\"toward_base\":").append(toward == null ? "null"
-           : String.valueOf(toward.getBaseLevelofHex())).append('}');
-        first = false;
+        final Object arrow = piece.getProperty("Arrow_Level");
+        byHex.computeIfAbsent(h, k -> new ArrayList<>()).add(
+          "{\"name\":" + Json.quote(piece.getName() == null ? "" : piece.getName())
+          + ",\"side\":" + side
+          + ",\"angle\":" + (rot == null ? "null"
+              : String.valueOf(((VASSAL.counters.FreeRotator) rot).getAngle()))
+          + ",\"arrow_level\":" + (arrow == null ? "null" : Json.quote(arrow.toString()))
+          + "}");
       }
+    }
+    f.append(",\"hexes\":[");
+    for (int i = 0; i < hexes.size(); i++) {
+      final Hex h = hexes.get(i);
+      final String role = h == source ? "firer" : h == target ? "target" : "path";
+      f.append(i == 0 ? "" : ",").append("{\"hex\":").append(Json.quote(h.getName()))
+       .append(",\"role\":").append(Json.quote(role))
+       .append(",\"base\":").append(h.getBaseLevelofHex())
+       .append(",\"terrain\":").append(Json.quote(terrainName(h.getCenterLocation().getTerrain())))
+       .append(",\"sides\":[");
+      final java.awt.Point c = h.getHexCenter();
+      for (int side = 0; side < 6; side++) {
+        final VASL.LOS.Map.Location loc = h.getHexsideLocation(side);
+        final java.awt.Point e = loc == null ? null : loc.getEdgeCenterPoint();
+        final Hex nb = losMap.getAdjacentHex(h, side);
+        f.append(side == 0 ? "" : ",").append("{\"side\":").append(side)
+         .append(",\"bearing\":").append(e == null ? "null"
+           : String.valueOf(Math.round(Math.toDegrees(Math.atan2(e.x - c.x, c.y - e.y)))))
+         .append(",\"neighbor\":").append(nb == null ? "null" : Json.quote(nb.getName()))
+         .append(",\"hexside_terrain\":").append(Json.quote(terrainName(h.getHexsideTerrain(side))))
+         .append(",\"location_terrain\":").append(Json.quote(loc == null ? "" : terrainName(loc.getTerrain())))
+         .append('}');
+      }
+      f.append("],\"counters\":[").append(String.join(",",
+        byHex.getOrDefault(h, new ArrayList<>()))).append("]}");
     }
     f.append("]}");
     return f.toString();
@@ -1160,55 +1184,6 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return sb.append(']').toString();
   }
 
-  /** A roadblock sitting in a hex (not on a hexside) points its arrow at the
-   *  obstructed road hexside (B29.1). The standard VASL counters (ML/Rdblk,
-   *  RdBlk2) draw the arrow pointing DOWN at rotation 0; the DO counter has
-   *  an "Arrow" layer (level 1 = down, 2 = up, 3 = none). VASSAL draws a
-   *  FreeRotator at -angle, so positive angles turn the art counter-
-   *  clockwise: screen bearing (0 = up, clockwise) = base - angle. */
-  private static int sideFromRotation(Hex h, GamePiece piece) {
-    final GamePiece rot = VASSAL.counters.Decorator.getDecorator(
-      piece, VASSAL.counters.FreeRotator.class);
-    double base = 180;
-    final Object arrowLevel = piece.getProperty("Arrow_Level");
-    if (arrowLevel != null) {
-      final String lvl = arrowLevel.toString().trim();
-      if ("2".equals(lvl)) {
-        base = 0;
-      }
-      else if (!"1".equals(lvl)) {
-        return -1;  // arrow layer switched off: no way to tell
-      }
-    }
-    final double angle = rot == null ? 0
-      : ((VASSAL.counters.FreeRotator) rot).getAngle();
-    final double bearing = base - angle;
-    final java.awt.Point c = h.getHexCenter();
-    int best = -1;
-    double bestScore = Double.MAX_VALUE;
-    for (int side = 0; side < 6; side++) {
-      final VASL.LOS.Map.Location loc = h.getHexsideLocation(side);
-      if (loc == null || loc.getEdgeCenterPoint() == null) {
-        continue;
-      }
-      final java.awt.Point e = loc.getEdgeCenterPoint();
-      final double sideBearing = Math.toDegrees(Math.atan2(e.x - c.x, c.y - e.y));
-      double diff = angleDiff(sideBearing, bearing);
-      if (!terrainName(loc.getTerrain()).toLowerCase().contains("road")) {
-        diff += 20;  // tie-break only: B29.1 roadblocks obstruct a road hexside
-      }
-      if (diff < bestScore) {
-        bestScore = diff;
-        best = side;
-      }
-    }
-    return best;
-  }
-
-  private static double angleDiff(double x, double y) {
-    final double d = Math.abs(((x - y) % 360 + 540) % 360 - 180);
-    return d;
-  }
 
   private static String currentPhase(GameModule gm) {
     Object phase = gm.getProperty("PhaseName");
