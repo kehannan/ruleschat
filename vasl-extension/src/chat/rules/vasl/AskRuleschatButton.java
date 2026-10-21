@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.3.12";
+  static final String VERSION = "0.4.0";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -187,6 +187,9 @@ public class AskRuleschatButton extends AbstractConfigurable {
     String status;            // live progress line while streaming
     String error;
     String latency;           // final meta line (model · seconds · quota)
+    String calcHtml;          // server-rendered calculator card (trusted HTML)
+    boolean showAssumptions;  // folded sections, toggled from the transcript
+    boolean showRules;
     boolean streaming;
 
     Message(String role, String time) {
@@ -464,7 +467,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     final JLabel brand = new JLabel("ASL Ruleschat");
     brand.setFont(new Font(UI_FONT, Font.BOLD, 15));
     brand.setForeground(Color.WHITE);
-    final JLabel sub = new JLabel("  ·  ask about the rules or the current game");
+    final JLabel sub = new JLabel("");
     sub.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
     sub.setForeground(new Color(0xA9B4BC));
     final JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -492,6 +495,11 @@ public class AskRuleschatButton extends AbstractConfigurable {
     transcript.setBackground(PAPER);
     transcript.setBorder(BorderFactory.createEmptyBorder());
     transcript.addHyperlinkListener(e -> {
+      if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED
+          && e.getDescription() != null && e.getDescription().startsWith("fold:")) {
+        toggleFold(e.getDescription());
+        return;
+      }
       if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED
           && e.getURL() != null) {
         try {
@@ -521,7 +529,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
     questionField = new JTextArea(2, 40);
     questionField.setLineWrap(true);
     questionField.setWrapStyleWord(true);
-    questionField.setFont(new Font(UI_FONT, Font.PLAIN, 13));
+    questionField.setFont(new Font(UI_FONT, Font.PLAIN, 12));
+    questionField.setToolTipText("Enter to send · Shift-Enter for a new line");
     questionField.setForeground(INK);
     questionField.setBackground(FIELD_BG);
     questionField.setCaretColor(INK);
@@ -566,10 +575,6 @@ public class AskRuleschatButton extends AbstractConfigurable {
       + "opponent's concealed/HIP units stay hidden.");
     toggles.add(attachCheck);
     toggles.add(soloCheck);
-    final JLabel hint = new JLabel("enter to send  ·  shift-enter for newline");
-    hint.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
-    hint.setForeground(MUTED);
-    toggles.add(hint);
     controls.add(toggles, BorderLayout.WEST);
     final JPanel losControls = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
     losControls.setOpaque(false);
@@ -907,13 +912,98 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
   }
 
+  private static final java.util.regex.Pattern FOLD_HEAD = java.util.regex.Pattern.compile(
+    "(?i)^\\s*(?:\\*\\*)?(assumptions|rules|references)(?:\\*\\*)?\\s*(?::|$)(?:\\*\\*)?\\s*(.*)$");
+
+  /** The answer with its trailing "Assumptions:" / "Rules:" sections folded
+   *  behind one-line toggles (expanded per message on click). */
+  static String foldedHtml(Message m, int idx) {
+    final StringBuilder main = new StringBuilder();
+    final StringBuilder assumptions = new StringBuilder();
+    final StringBuilder rules = new StringBuilder();
+    StringBuilder cur = main;
+    for (String line : m.text.toString().replace("\r\n", "\n").split("\n", -1)) {
+      final java.util.regex.Matcher mm = FOLD_HEAD.matcher(line);
+      if (mm.matches() && !line.trim().startsWith("-") && !line.trim().startsWith("*  ")) {
+        cur = "assumptions".equalsIgnoreCase(mm.group(1)) ? assumptions : rules;
+        if (!mm.group(2).trim().isEmpty()) {
+          cur.append(mm.group(2).trim()).append('\n');
+        }
+        continue;
+      }
+      cur.append(line).append('\n');
+    }
+    final StringBuilder h = new StringBuilder(Md.toHtml(main.toString().trim()));
+    final int nAssume = countItems(assumptions.toString());
+    final int nRules = rules.toString().trim().isEmpty() ? 0
+      : rules.toString().trim().split("\\s*[,;\\n]\\s*").length;
+    if (nAssume == 0 && nRules == 0) {
+      return h.toString();
+    }
+    h.append("<div class='fold'>");
+    if (nAssume > 0) {
+      h.append("<a class='fold' href='fold:").append(idx).append(":a'>")
+       .append(m.showAssumptions ? "&#9662; " : "&#9656; ")
+       .append(nAssume).append(nAssume == 1 ? " assumption" : " assumptions")
+       .append("</a>");
+    }
+    if (nAssume > 0 && nRules > 0) {
+      h.append(" &nbsp;&middot;&nbsp; ");
+    }
+    if (nRules > 0) {
+      h.append("<a class='fold' href='fold:").append(idx).append(":r'>")
+       .append(m.showRules ? "&#9662; " : "&#9656; ")
+       .append(nRules).append(nRules == 1 ? " rule cited" : " rules cited")
+       .append("</a>");
+    }
+    h.append("</div>");
+    if (m.showAssumptions && nAssume > 0) {
+      h.append("<div class='fold'>").append(Md.toHtml(assumptions.toString().trim()))
+       .append("</div>");
+    }
+    if (m.showRules && nRules > 0) {
+      h.append("<div class='fold'>").append(Md.toHtml(rules.toString().trim()))
+       .append("</div>");
+    }
+    return h.toString();
+  }
+
+  private static int countItems(String section) {
+    int n = 0;
+    for (String line : section.split("\n")) {
+      final String t = line.trim();
+      if (t.startsWith("- ") || t.startsWith("* ") || t.startsWith("• ")
+          || t.matches("\\d+[.)]\\s.*")) {
+        n++;
+      }
+    }
+    return n == 0 && !section.trim().isEmpty() ? 1 : n;
+  }
+
+  private void toggleFold(String desc) {
+    final String[] parts = desc.split(":");
+    try {
+      final Message m = messages.get(Integer.parseInt(parts[1]));
+      if ("a".equals(parts[2])) {
+        m.showAssumptions = !m.showAssumptions;
+      }
+      else {
+        m.showRules = !m.showRules;
+      }
+      renderTranscript();
+    }
+    catch (RuntimeException ignored) {
+      // stale link
+    }
+  }
+
   private static String css() {
     return "body { background-color: #EEF1EF; color: #1E2A33; font-family: "
-      + UI_FONT + "; font-size: 13px; margin: 14px 20px 8px 20px; }\n"
-      + "p { margin: 0 0 9px 0; }\n"
-      + "h3 { font-size: 13px; margin: 12px 0 6px 0; color: #1E2A33; }\n"
-      + "ul, ol { margin: 0 0 9px 20px; }\n"
-      + "li { margin: 0 0 4px 0; }\n"
+      + UI_FONT + "; font-size: 11px; margin: 10px 14px 6px 14px; }\n"
+      + "p { margin: 0 0 6px 0; }\n"
+      + "h3 { font-size: 11px; margin: 8px 0 4px 0; color: #1E2A33; }\n"
+      + "ul, ol { margin: 0 0 6px 16px; }\n"
+      + "li { margin: 0 0 2px 0; }\n"
       + "a { color: #2E5C7E; }\n"
       + "code { font-family: " + MONO_FONT + "; font-size: 11px; "
       + "background-color: #E2E7E5; }\n"
@@ -921,8 +1011,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
       + "background-color: #E2E7E5; margin: 0 0 9px 0; }\n"
       + "td.meta { font-family: " + MONO_FONT + "; font-size: 10px; "
       + "color: #6A757D; padding: 0 0 5px 0; }\n"
-      + "td.bubble { background-color: #E2E7E5; padding: 10px 14px; "
-      + "font-size: 13px; color: #1E2A33; }\n"
+      + "td.bubble { background-color: #E2E7E5; padding: 7px 10px; "
+      + "font-size: 11px; color: #1E2A33; }\n"
       + "td.bubbleedge { background-color: #CFD6D5; }\n"
       + "td.content { padding: 0; }\n"
       + "p.status { font-family: " + MONO_FONT + "; font-size: 11px; "
@@ -934,12 +1024,27 @@ public class AskRuleschatButton extends AbstractConfigurable {
       + "font-size: 1px; }\n"
       + "div.latrule { border-top: 1px solid #CFD6D5; margin: 10px 0 0 0; "
       + "font-size: 1px; }\n"
-      + "td.gap { padding: 10px 0 0 0; }\n"
-      + "p.empty { font-size: 22px; color: #1E2A33; margin: 40px 0 0 0; }\n"
+      + "td.gap { padding: 8px 0 0 0; }\n"
+      + "p.empty { font-size: 16px; color: #1E2A33; margin: 30px 0 0 0; }\n"
       + "p.emptysub { color: #6A757D; margin: 6px 0 0 0; }\n"
       + "th { text-align: left; font-size: 11px; padding: 3px 8px; "
       + "background-color: #E2E7E5; }\n"
-      + "table.md td { font-size: 11px; padding: 3px 8px; }\n";
+      + "table.md td { font-size: 11px; padding: 3px 8px; }\n"
+      // calculator card (server-rendered, see app/api/ask.py)
+      + "td.calc { font-size: 11px; }\n"
+      + "div.calchead { font-size: 10px; color: #6A757D; margin: 0 0 2px 0; }\n"
+      + "td.tile { padding: 3px 6px; }\n"
+      + "div.tilelbl { font-size: 10px; color: #6A757D; }\n"
+      + "div.tileval { font-size: 14px; font-weight: bold; color: #1E2A33; }\n"
+      + "td.calck { font-size: 10px; color: #3D4B56; }\n"
+      + "td.calcv { font-size: 10px; color: #1E2A33; }\n"
+      + "td.bar { font-size: 3px; }\n"
+      + "div.calcbargap { font-size: 1px; margin: 4px 0 0 0; }\n"
+      + "div.calcleg { font-size: 10px; color: #6A757D; margin: 3px 0 0 0; }\n"
+      + "div.calcerr { font-size: 11px; color: #3D4B56; margin: 2px 0 0 0; }\n"
+      + "div.calcgap { font-size: 1px; margin: 0 0 7px 0; }\n"
+      + "div.fold { font-size: 10px; color: #6A757D; margin: 2px 0 0 0; }\n"
+      + "a.fold { color: #2E5C7E; text-decoration: none; }\n";
   }
 
   /** Rebuild the transcript HTML from the message model. */
@@ -975,8 +1080,11 @@ public class AskRuleschatButton extends AbstractConfigurable {
           h.append(" &middot; ").append(Md.escape(m.model));
         }
         h.append("</td></tr><tr><td class='content'>");
+        if (m.calcHtml != null) {
+          h.append(m.calcHtml).append("<div class='calcgap'>&nbsp;</div>");
+        }
         if (m.text.length() > 0) {
-          h.append(Md.toHtml(m.text.toString()));
+          h.append(foldedHtml(m, messages.indexOf(m)));
         }
         if (m.streaming && m.status != null) {
           h.append("<p class='status'>").append(Md.escape(m.status)).append("</p>");
@@ -1212,6 +1320,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
       private void runRequest() throws Exception {
         final StringBuilder body = new StringBuilder("{");
         body.append("\"question\":").append(Json.quote(question));
+        body.append(",\"rich\":true");
         if (vsav != null) {
           body.append(",\"vsav\":\"data:application/octet-stream;base64,")
               .append(Base64.getEncoder().encodeToString(vsav)).append('"');
@@ -1296,6 +1405,11 @@ public class AskRuleschatButton extends AbstractConfigurable {
             if (line.isEmpty()) {
               continue;
             }
+            final String calc = Json.getString(line, "calculator_html");
+            if (calc != null) {
+              publish(new String[] {"calc", calc});
+              continue;
+            }
             final String delta = Json.getString(line, "delta");
             if (delta != null) {
               answer.append(delta);
@@ -1371,6 +1485,9 @@ public class AskRuleschatButton extends AbstractConfigurable {
               break;
             case "status":
               bot.status = c[1];
+              break;
+            case "calc":
+              bot.calcHtml = c[1];
               break;
             case "error":
               bot.error = c[1];

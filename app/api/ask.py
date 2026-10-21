@@ -18,6 +18,7 @@ unit still masks BOTH sides' hidden units (over-masking, never leaking).
 """
 import copy
 import json
+from html import escape as html_escape
 import logging
 import os
 import queue
@@ -86,6 +87,9 @@ class AskRequest(BaseModel):
     # first. The endpoint itself is stateless; follow-up context rides along
     # in the prompt.
     history: Optional[list] = None
+    # Extension >= 0.4 renders the calculator as a native card
+    # (calculator_html) instead of markdown tables in the answer text.
+    rich: Optional[bool] = False
 
 
 def _question_with_history(question: str, history) -> str:
@@ -314,6 +318,115 @@ def _attack_summary(result: dict, native_los: dict) -> str:
     return "\n".join(out)
 
 
+def _h(text) -> str:
+    return html_escape(str(text), quote=True)
+
+
+# Palette mirrors the extension's (static/css/site-design-system.css).
+_INK, _MUTED, _HAIR, _PAPER, _WHITE = "#1E2A33", "#6A757D", "#CFD6D5", "#EEF1EF", "#FFFFFF"
+_BROKEN, _PINNED, _ELIM = "#A4453B", "#C98A2E", "#1E2A33"
+
+
+_RULE_REF = re.compile(r"\b([A-H]\d+(?:\.\d+)*)\b")
+
+
+def _short_drm_label(label: str) -> str:
+    """'TEM: Wall hexside TEM +2 (B9.3: the LOS enters ...)' -> 'Wall hexside
+    TEM (B9.3)'. The full wording still reaches the model."""
+    head, _, rest = str(label).partition("(")
+    head = re.sub(r"^\s*TEM:\s*", "", head)
+    head = re.sub(r"\s*[+-]\d+\s*$", "", head.strip())
+    refs = list(dict.fromkeys(_RULE_REF.findall(rest)))[:2]
+    return f"{head} ({', '.join(refs)})" if refs else head
+
+
+def _calculator_html(result: dict, native_los: dict) -> str:
+    """The calculator card as HTML 3.2 for the extension's Swing renderer
+    (tables + bgcolor only: no flexbox, no rounded corners)."""
+    pair = f"{native_los.get('source')} → {native_los.get('target')}"
+
+    def card(inner: str) -> str:
+        return (f"<table width='100%' cellspacing='1' cellpadding='7' bgcolor='{_HAIR}'>"
+                f"<tr><td bgcolor='{_WHITE}' class='calc'>{inner}</td></tr></table>")
+
+    if result.get("error"):
+        return card(
+            f"<div class='calchead'>{_h(pair)} · <font color='{_BROKEN}'><b>no attack"
+            f"</b></font></div><div class='calcerr'>{_h(result['error'])}</div>")
+    phase = _PHASE_NAMES.get(result.get("phase"), result.get("phase") or "")
+    rng = result.get("range") or {}
+    head = f"{pair} · {phase}"
+    if rng.get("hexes") is not None:
+        head += f" · range {rng['hexes']}"
+        if rng.get("pbf") and rng["pbf"] != "none":
+            head += f" ({rng['pbf'].upper()})"
+    vt = (result.get("ift") or {}).get("vs_target") or {}
+
+    tiles = [("IFT column", result.get("column")),
+             ("Final DRM", f"{result.get('drm', 0):+d}")]
+    if "p_broken" in vt:
+        tiles.append(("Break", f"{round(100 * float(vt['p_broken']))}%"))
+    tile_html = "".join(
+        f"<td bgcolor='{_PAPER}' class='tile'><div class='tilelbl'>{_h(k)}</div>"
+        f"<div class='tileval'>{_h(v)}</div></td>" for k, v in tiles)
+
+    rows = [(f"{f.get('name')}", f"{f.get('fp')} FP")
+            for f in result.get("firers") or []]
+    if len(rows) > 1:
+        rows.append(("Total", f"{result.get('total_fp')} FP"))
+    rows += [(_short_drm_label(d["label"]), f"{d['drm']:+d}")
+             for d in result.get("drm_breakdown") or []]
+    if result.get("cowering") and result["cowering"] != "none":
+        rows.append(("Cowering possible on doubles (A7.9)", result["cowering"]))
+    row_html = "".join(
+        f"<tr><td class='calck'>{_h(k)}</td><td class='calcv' align='right' "
+        f"nowrap>{_h(v)}</td></tr>"
+        for k, v in rows)
+
+    odds_html = ""
+    if "p_broken" in vt:
+        parts = [(vt.get("p_eliminated_or_reduced", 0), _ELIM, "Eliminated/reduced"),
+                 (vt["p_broken"], _BROKEN, "Broken"),
+                 (vt.get("p_pinned", 0), _PINNED, "Pinned"),
+                 (vt.get("p_no_effect", 0), _HAIR, "No effect")]
+        cells = "".join(
+            f"<td width='{max(1, round(100 * float(p)))}%' bgcolor='{c}' class='bar'>&nbsp;</td>"
+            for p, c, _ in parts if float(p) > 0)
+        legend = " · ".join(f"{name} {_pct(p)}" for p, _, name in parts if float(p) > 0)
+        morale = vt.get("effective_morale", vt.get("morale"))
+        odds_html = (
+            "<div class='calcbargap'>&nbsp;</div>"
+            f"<table width='100%' cellspacing='0' cellpadding='0'><tr>{cells}</tr></table>"
+            f"<div class='calcleg'>vs morale {_h(morale)}: {_h(legend)}</div>")
+
+    return card(
+        f"<div class='calchead'>{_h(head)}</div>"
+        f"<table width='100%' cellspacing='4' cellpadding='0'><tr>{tile_html}</tr></table>"
+        f"<table width='100%' cellspacing='0' cellpadding='0'>{row_html}</table>"
+        f"{odds_html}")
+
+
+# Appended to the system instructions for /api/ask: the answer is shown in
+# the VASL extension's narrow side panel, so keep it short and structured.
+# The extension folds the trailing "Assumptions:" and "Rules:" sections.
+ASK_ANSWER_FORMAT = (
+    "ANSWER FORMAT (this answer is shown in a narrow side panel inside VASL):\n"
+    "- Start with ONE plain sentence that answers the question. No 'Answer:' "
+    "label, no headings.\n"
+    "- Then at most 3 short bullets, each giving one reason with its rule "
+    "number in parentheses.\n"
+    "- If a PRECOMPUTED ATTACK RESOLUTION is attached, the user already sees "
+    "its numbers in a calculator card: explain them, don't repeat the "
+    "FP/column/DRM/odds.\n"
+    "- Then, if there are any, a line 'Assumptions:' followed by one short "
+    "bullet per assumption or warning to confirm.\n"
+    "- End with one line 'Rules: ' listing the sections you cited, comma "
+    "separated.\n"
+    "- No other headings, tables or horizontal rules. Keep everything before "
+    "'Assumptions:' under 90 words."
+)
+
+
 def _precomputed_prompt_block(result: dict) -> str:
     return (
         "=== PRECOMPUTED ATTACK RESOLUTION (the server already ran "
@@ -361,9 +474,12 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
     precomputed = _precompute_attack(
         payload.question, vsav_state, payload.native_los, payload.game_phase,
         payload.selected_firers, payload.selected_targets)
-    summary = None
+    summary = calculator_html = None
     if precomputed is not None:
-        summary = _attack_summary(precomputed, payload.native_los)
+        if payload.rich:
+            calculator_html = _calculator_html(precomputed, payload.native_los)
+        else:
+            summary = _attack_summary(precomputed, payload.native_los)
         board_state = f"{board_state}\n\n{_precomputed_prompt_block(precomputed)}"
 
     if mode == "account":
@@ -405,6 +521,7 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
         "selected_firers": payload.selected_firers,
         "selected_targets": payload.selected_targets,
         "summary": summary,
+        "calculator_html": calculator_html,
     }
 
 
@@ -484,6 +601,7 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
             game_phase=ctx["game_phase"],
             selected_firers=ctx["selected_firers"],
             selected_targets=ctx["selected_targets"],
+            extra_instructions=ASK_ANSWER_FORMAT,
         )
     except HTTPException:
         raise
@@ -507,6 +625,8 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
     board = _board_summary(ctx)
     if board is not None:
         result["board"] = board
+    if ctx["calculator_html"]:
+        result["calculator_html"] = ctx["calculator_html"]
     return result
 
 
@@ -551,6 +671,7 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                     selected_targets=ctx["selected_targets"],
                     on_tool_call=lambda name, args: events.put(
                         ("status", _tool_status_label(name, args))),
+                    extra_instructions=ASK_ANSWER_FORMAT,
                 )))
             except Exception as e:
                 events.put(("error", e))
@@ -559,7 +680,9 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
         # >60s, nginx's read timeout) before yielding anything, so run the
         # call on a worker and keep the stream alive with status lines.
         threading.Thread(target=call, daemon=True).start()
-        if ctx["summary"]:
+        if ctx["calculator_html"]:
+            yield json.dumps({"calculator_html": ctx["calculator_html"]}) + "\n"
+        elif ctx["summary"]:
             yield json.dumps({"delta": f"{ctx['summary']}\n\n---\n\n"}) + "\n"
         status = "Thinking"
         try:

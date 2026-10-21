@@ -731,8 +731,12 @@ Your response:"""
         use_cite_check: bool = False,
         trace_ctx: Optional[Dict[str, Any]] = None,
         on_tool_call: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        extra_instructions: Optional[str] = None,
     ):
         """Public entry point. See _get_answer_impl for the full contract.
+
+        extra_instructions is appended to the system instructions (e.g. the
+        VASL panel's compact answer format).
 
         on_tool_call(name, args) is invoked as the subscription CLI models
         call tools through the MCP bridge (their loop runs inside one
@@ -772,6 +776,7 @@ Your response:"""
             force_tool=force_tool,
             trace_ctx=trace_ctx,
             on_tool_call=on_tool_call,
+            extra_instructions=extra_instructions,
         )
         if not use_cite_check:
             return result
@@ -899,6 +904,7 @@ Your response:"""
         force_tool: Optional[str] = None,
         trace_ctx: Optional[Dict[str, Any]] = None,
         on_tool_call: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        extra_instructions: Optional[str] = None,
     ):
         """
         Get an answer to an ASL question.
@@ -961,6 +967,8 @@ Your response:"""
         lookup_enabled = use_agentic and _lookup_tools_available()
         if lookup_enabled:
             instructions = instructions + CITE_VERIFICATION_ADDENDUM
+        if extra_instructions:
+            instructions = instructions + "\n\n" + extra_instructions
 
         # Build input — multimodal if image(s) attached, else plain string
         if image_paths:

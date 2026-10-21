@@ -428,3 +428,26 @@ def test_los_only_question_is_not_precomputed(client):
         headers={"Authorization": f"Bearer {FakeUser.api_key}"})
     assert r.json()["answer"] == "THE ANSWER"
     assert "PRECOMPUTED" not in client.fake_service.calls[-1]["board_state"]
+
+
+def test_rich_client_gets_calculator_html_not_markdown(client):
+    r = client.post(
+        "/api/ask/stream",
+        json={"question": "Resolve H9 firing at H8", "vsav": _vsav_data_url(),
+              "native_los": _HAZMO_LOS, "game_phase": "PFPh", "rich": True},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    lines = [json.loads(l) for l in r.text.strip().splitlines()]
+    html = lines[0]["calculator_html"]
+    assert "57-H9 → 57-H8 · Prep Fire · range 1 (PBF)" in html
+    assert "<div class='tileval'>16</div>" in html and "+2" in html
+    assert "Broken" in html and "bgcolor" in html
+    # the answer text carries only the model's explanation
+    assert "".join(l.get("delta", "") for l in lines) == "THE ANSWER"
+    assert "ANSWER FORMAT" in client.fake_service.calls[-1]["extra_instructions"]
+
+
+def test_calculator_html_escapes_and_reports_blocked_los():
+    html = ask_module._calculator_html(
+        {"error": "LOS is blocked <Orchard> & co"},
+        {"source": "41-S8", "target": "41-W5"})
+    assert "no attack" in html and "&lt;Orchard&gt; &amp; co" in html
