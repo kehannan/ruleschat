@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.4.1";
+  static final String VERSION = "0.5.0";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -974,6 +974,15 @@ public class AskRuleschatButton extends AbstractConfigurable {
       }
       losMap.LOS(sourceLocation, false, targetLocation,
                  false, result, game);
+      String facts;
+      try {
+        facts = losFacts(gameMap, losMap, game, source, target,
+                         sourceLocation, targetLocation, result);
+      }
+      catch (Exception e) {  // facts are a bonus; never lose the LOS verdict
+        System.err.println("AskRuleschat: LOS facts unavailable: " + e);
+        facts = null;
+      }
       return "{\"source\":" + Json.quote(from)
         + ",\"target\":" + Json.quote(to)
         + ",\"blocked\":" + result.isBlocked()
@@ -981,12 +990,204 @@ public class AskRuleschatButton extends AbstractConfigurable {
         + ",\"hindrance\":" + result.getHindrance()
         + ",\"range\":" + result.getRange()
         + ",\"source_level\":" + sourceLocation.getLevelInHex()
-        + ",\"target_level\":" + targetLocation.getLevelInHex() + "}";
+        + ",\"target_level\":" + targetLocation.getLevelInHex()
+        + (facts == null ? "" : ",\"facts\":" + facts) + "}";
     }
     catch (Exception e) {
       System.err.println("AskRuleschat: native LOS unavailable: " + e);
       return null;
     }
+  }
+
+  /** What VASL's own map model knows about this LOS, for the server's
+   *  calculator: absolute heights, terrain as currently on the map (with
+   *  overlays and SSR changes), the hexside the LOS enters the target
+   *  through, the hexes it crosses with their LOS counters, where VASL found
+   *  the first hindrance / the block, and roadblocks (which VASL's LOS
+   *  engine ignores, see CounterMetadata.xml). */
+  static String losFacts(ASLMap gameMap, VASL.LOS.Map.Map losMap,
+                         VASLGameInterface game, Hex source, Hex target,
+                         VASL.LOS.Map.Location sl, VASL.LOS.Map.Location tl,
+                         LOSResult result) {
+    final java.awt.Point a = sl.getLOSPoint();
+    final java.awt.Point b = tl.getLOSPoint();
+    final StringBuilder f = new StringBuilder("{");
+    f.append("\"source_height\":").append(sl.getAbsoluteHeight())
+     .append(",\"target_height\":").append(tl.getAbsoluteHeight())
+     .append(",\"source_terrain\":").append(Json.quote(terrainName(sl.getTerrain())))
+     .append(",\"target_terrain\":").append(Json.quote(terrainName(tl.getTerrain())))
+     .append(",\"source_base\":").append(source.getBaseLevelofHex())
+     .append(",\"target_base\":").append(target.getBaseLevelofHex());
+
+    // hexes along the LOS, in order, excluding the two endpoints
+    final List<Hex> path = new ArrayList<>();
+    final double len = Math.max(1, a.distance(b));
+    for (int i = 0; i <= (int) len; i += 2) {
+      final double t = i / len;
+      final Hex h = losMap.gridToHex((int) Math.round(a.x + (b.x - a.x) * t),
+                                     (int) Math.round(a.y + (b.y - a.y) * t));
+      if (h != null && h != source && h != target && !path.contains(h)) {
+        path.add(h);
+      }
+    }
+    f.append(",\"path\":[");
+    for (int i = 0; i < path.size(); i++) {
+      final Hex h = path.get(i);
+      if (i > 0) {
+        f.append(',');
+      }
+      f.append("{\"hex\":").append(Json.quote(h.getName()))
+       .append(",\"base\":").append(h.getBaseLevelofHex())
+       .append(",\"terrain\":").append(Json.quote(terrainName(h.getCenterLocation().getTerrain())))
+       .append(",\"counters\":").append(counterNames(game, h)).append('}');
+    }
+    f.append(']');
+    f.append(",\"target_counters\":").append(counterNames(game, target));
+
+    // the hexside the LOS enters the target through: step back from the
+    // target's LOS point toward the firer until we leave the target hex
+    for (int i = 1; i <= (int) len; i++) {
+      final double t = 1 - i / len;
+      final Hex h = losMap.gridToHex((int) Math.round(a.x + (b.x - a.x) * t),
+                                     (int) Math.round(a.y + (b.y - a.y) * t));
+      if (h != null && h != target) {
+        final int side = sideToward(losMap, target, h);
+        f.append(",\"target_entry\":{\"neighbor\":").append(Json.quote(h.getName()))
+         .append(",\"side\":").append(side)
+         .append(",\"terrain\":").append(side < 0 ? "null"
+           : Json.quote(terrainName(target.getHexsideTerrain(side)))).append('}');
+        break;
+      }
+    }
+    f.append(",\"first_hindrance_hex\":").append(hexAt(losMap, result.firstHindranceAt()))
+     .append(",\"blocked_at_hex\":").append(
+       result.isBlocked() ? hexAt(losMap, result.getBlockedAtPoint()) : "null");
+
+    // roadblocks in or next to the LOS (B29): "hex" + the hex its hexside faces
+    f.append(",\"roadblocks\":[");
+    boolean first = true;
+    final java.awt.Dimension edge = gameMap.getEdgeBuffer();
+    for (GamePiece top : gameMap.getAllPieces()) {
+      final List<GamePiece> pieces = new ArrayList<>();
+      if (top instanceof Stack) {
+        for (int i = 0; i < ((Stack) top).getPieceCount(); i++) {
+          pieces.add(((Stack) top).getPieceAt(i));
+        }
+      }
+      else {
+        pieces.add(top);
+      }
+      for (GamePiece piece : pieces) {
+        final String name = piece.getName();
+        if (name == null || !name.toLowerCase().contains("roadblock")) {
+          continue;
+        }
+        final java.awt.Point p = new java.awt.Point(piece.getPosition());
+        p.translate(-edge.width, -edge.height);
+        final Hex h = losMap.gridToHex(p.x, p.y);
+        if (h == null || !(h == source || h == target || path.contains(h))) {
+          continue;
+        }
+        int side = h.getLocationHexside(h.getNearestLocation(p.x, p.y));
+        String method = "position";
+        if (side < 0) {
+          side = sideFromRotation(h, piece);
+          method = "rotation";
+        }
+        final Hex toward = side < 0 ? null : losMap.getAdjacentHex(h, side);
+        f.append(first ? "" : ",").append("{\"hex\":").append(Json.quote(h.getName()))
+         .append(",\"toward\":").append(toward == null ? "null" : Json.quote(toward.getName()))
+         .append(",\"method\":").append(Json.quote(method)).append('}');
+        first = false;
+      }
+    }
+    f.append("]}");
+    return f.toString();
+  }
+
+  private static String terrainName(VASL.LOS.Map.Terrain t) {
+    return t == null ? "" : t.getName();
+  }
+
+  private static String hexAt(VASL.LOS.Map.Map losMap, java.awt.Point p) {
+    if (p == null) {
+      return "null";
+    }
+    final Hex h = losMap.gridToHex(p.x, p.y);
+    return h == null ? "null" : Json.quote(h.getName());
+  }
+
+  private static int sideToward(VASL.LOS.Map.Map losMap, Hex from, Hex to) {
+    for (int side = 0; side < 6; side++) {
+      if (losMap.getAdjacentHex(from, side) == to) {
+        return side;
+      }
+    }
+    return -1;
+  }
+
+  /** SMOKE / vehicles / wrecks VASL's LOS engine counts in one hex. */
+  private static String counterNames(VASLGameInterface game, Hex h) {
+    final List<String> names = new ArrayList<>();
+    if (game.getSmoke(h) != null) {
+      for (VASL.LOS.counters.Smoke c : game.getSmoke(h)) {
+        names.add("SMOKE: " + c.getName());
+      }
+    }
+    if (game.getVehicles(h) != null) {
+      for (VASL.LOS.counters.Vehicle c : game.getVehicles(h)) {
+        names.add("vehicle: " + c.getName());
+      }
+    }
+    if (game.getWreck(h) != null) {
+      for (VASL.LOS.counters.Wreck c : game.getWreck(h)) {
+        names.add("wreck: " + c.getName());
+      }
+    }
+    final StringBuilder sb = new StringBuilder("[");
+    for (int i = 0; i < names.size(); i++) {
+      sb.append(i == 0 ? "" : ",").append(Json.quote(names.get(i)));
+    }
+    return sb.append(']').toString();
+  }
+
+  /** A roadblock sitting in a hex (not on a hexside) points its arrow at the
+   *  obstructed road hexside (B29.1). VASSAL's rotation sign convention is
+   *  not documented, so try both and prefer a hexside the road crosses. */
+  private static int sideFromRotation(Hex h, GamePiece piece) {
+    final GamePiece rot = VASSAL.counters.Decorator.getDecorator(
+      piece, VASSAL.counters.FreeRotator.class);
+    if (rot == null) {
+      return -1;
+    }
+    final double angle = ((VASSAL.counters.FreeRotator) rot).getAngle();
+    final java.awt.Point c = h.getHexCenter();
+    int best = -1;
+    double bestScore = Double.MAX_VALUE;
+    for (int side = 0; side < 6; side++) {
+      final VASL.LOS.Map.Location loc = h.getHexsideLocation(side);
+      if (loc == null || loc.getEdgeCenterPoint() == null) {
+        continue;
+      }
+      final java.awt.Point e = loc.getEdgeCenterPoint();
+      // bearing of this hexside from the hex center: 0 = up, clockwise
+      final double bearing = Math.toDegrees(Math.atan2(e.x - c.x, c.y - e.y));
+      double diff = Math.min(angleDiff(bearing, angle), angleDiff(bearing, -angle));
+      final String terr = terrainName(loc.getTerrain()).toLowerCase();
+      if (!terr.contains("road")) {
+        diff += 45;  // B29.1: the arrow points at a road hexside
+      }
+      if (diff < bestScore) {
+        bestScore = diff;
+        best = side;
+      }
+    }
+    return best;
+  }
+
+  private static double angleDiff(double x, double y) {
+    final double d = Math.abs(((x - y) % 360 + 540) % 360 - 180);
+    return d;
   }
 
   private static String currentPhase(GameModule gm) {

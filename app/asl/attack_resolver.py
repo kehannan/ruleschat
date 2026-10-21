@@ -248,6 +248,122 @@ def _blocked_los_detail(state: Dict[str, Any], fkey: str, tkey: str,
                    + "; ".join(parts) + ".")
 
 
+_HEX_NAME = re.compile(r"([A-Z]{1,2}\d{1,2})$")
+
+
+def _bare(name) -> str:
+    """VASL hex name ('S3', '41S3', '41-S3') -> bare label 'S3'."""
+    m = _HEX_NAME.search(str(name or "").strip().upper())
+    return m.group(1) if m else str(name or "").strip().upper()
+
+
+def _apply_vasl_facts(facts: Dict[str, Any], base: str, flabel: str,
+                      tlabel: str, tentry: Dict[str, Any], hindrance: int,
+                      hexside_tem: int, hexside_tem_label: Optional[str],
+                      assumptions: List[str], warnings: List[str]):
+    """Let VASL's live map model (with overlays and SSR changes) decide the
+    target hexside, roadblocks and hindrance sources.
+
+    Returns (hexside_tem, hexside_tem_label, hindrance_label). Raises
+    ValueError when a roadblock blocks a same-level LOS — VASL's LOS engine
+    ignores roadblocks, so its "clear" can't be taken at face value there.
+    """
+    path = [p for p in facts.get("path") or [] if isinstance(p, dict)]
+    seq = [flabel] + [_bare(p.get("hex")) for p in path] + [tlabel]
+    fh, th = facts.get("source_height"), facts.get("target_height")
+
+    # Hexside the LOS enters the target through (B9.3), straight from VASL.
+    entry = facts.get("target_entry") or {}
+    neighbor = _bare(entry.get("neighbor")) if entry.get("neighbor") else None
+    entry_terr = (entry.get("terrain") or "").strip()
+    if neighbor:
+        if entry_terr in _HEXSIDE_TEM:
+            tem, rule = _HEXSIDE_TEM[entry_terr]
+            hexside_tem, hexside_tem_label = tem, (
+                f"{entry_terr} hexside TEM +{tem} ({rule}: VASL's map shows "
+                f"the LOS entering {tlabel} across its {neighbor}|{tlabel} "
+                f"{entry_terr.lower()} hexside)")
+        elif hexside_tem and entry_terr not in _HEXSIDE_TEM:
+            # the board-file trace thought so, VASL's map (overlays/SSR
+            # applied) says that hexside has no wall/hedge now
+            assumptions.append(
+                f"VASL's map shows no wall/hedge on the {neighbor}|{tlabel} "
+                f"hexside the LOS enters through (map now: "
+                f"{entry_terr or 'none'}); hexside TEM not applied.")
+            hexside_tem, hexside_tem_label = 0, None
+
+    # Roadblocks (B29.2-.3): a stone wall across the hexside they point to.
+    for rb in facts.get("roadblocks") or []:
+        if not isinstance(rb, dict) or not rb.get("toward"):
+            continue
+        a, b = _bare(rb.get("hex")), _bare(rb.get("toward"))
+        side = f"{a}|{b}"
+        how = ("" if rb.get("method") == "position" else
+               " (hexside read from the counter's arrow — verify on the map)")
+        if {a, b} == {tlabel, neighbor}:
+            if 2 >= hexside_tem:
+                hexside_tem, hexside_tem_label = 2, (
+                    f"Roadblock TEM +2 (B29.3: treated as a stone wall across "
+                    f"{side}, the hexside the LOS enters {tlabel} through)")
+            assumptions.append(f"Roadblock on {side}{how}.")
+            continue
+        crossed = any({seq[i], seq[i + 1]} == {a, b} for i in range(len(seq) - 1))
+        if not crossed:
+            assumptions.append(f"Roadblock on {side} is not crossed by this "
+                               f"LOS{how}.")
+            continue
+        if flabel in (a, b):
+            assumptions.append(
+                f"LOS leaves {flabel} across its own roadblock hexside {side}: "
+                f"no effect (B9.2: a hexside of the viewing hex){how}.")
+            continue
+        if fh is not None and th is not None and fh == th:
+            raise ValueError(
+                f"LOS is blocked by the roadblock on {side}: a roadblock is a "
+                "Half-Level Obstacle to same-level LOS (B29.2, B9.2), and "
+                f"firer and target are both at level {fh}. VASL's own LOS "
+                f"check ignores roadblocks, so it reported this LOS clear{how}.")
+        assumptions.append(
+            f"LOS crosses the roadblock on {side}; firer (level {fh}) and "
+            f"target (level {th}) are at different levels, so its same-level "
+            f"Half-Level block (B29.2) does not apply{how}.")
+
+    # Where VASL's hindrance comes from (A6.7): counters first, then terrain.
+    label = None
+    if hindrance:
+        from app.services.board_terrain import LOS_HINDRANCES
+        sources = [f"{_bare(p.get('hex'))} ({', '.join(p['counters'])})"
+                   for p in path if p.get("counters")]
+        sources += [f"{_bare(p.get('hex'))} ({p.get('terrain')})" for p in path
+                    if not p.get("counters") and p.get("terrain") in LOS_HINDRANCES]
+        if sources:
+            label = (f"LOS Hindrance +{hindrance} (A6.7, VASL LOS check): "
+                     + "; ".join(sources))
+        else:
+            first = facts.get("first_hindrance_hex")
+            label = (f"LOS Hindrance +{hindrance} (A6.7, VASL LOS check)"
+                     + (f": begins in {_bare(first)}" if first else "")
+                     + " — source not identified on the map")
+            warnings.append(
+                f"VASL counted a +{hindrance} hindrance"
+                + (f" beginning in {_bare(first)}" if first else "")
+                + " but no SMOKE, vehicle, wreck or hindrance terrain was found "
+                "there; check that hex on the map.")
+
+    # VASL's terrain at the target Location (overlays/SSR applied) vs ours.
+    vt = (facts.get("target_terrain") or "").strip()
+    ours = (tentry.get("terrain") or {}).get("parts") or []
+    if vt and ours and vt not in ours and vt != "Open Ground":
+        warnings.append(
+            f"VASL's map shows {tlabel}'s Location terrain as {vt}, but the "
+            f"board file reads {' + '.join(ours)} (an overlay or SSR may have "
+            "changed it): the target TEM below uses the board-file terrain.")
+    if fh is not None and th is not None:
+        assumptions.append(f"Heights from VASL's map: firer at level {fh}, "
+                           f"target at level {th}.")
+    return hexside_tem, hexside_tem_label, label
+
+
 def _grid_los(state: Dict[str, Any], base: str, flabel: str, tlabel: str,
               fentry: Dict[str, Any], tentry: Dict[str, Any],
               assumptions: List[str], warnings: List[str],
@@ -854,6 +970,10 @@ def resolve_attack(
                         "LOS is blocked (VASL native LOS check)" + (
                             f": {native_los.get('reason')}"
                             if native_los.get("reason") else "") + "."
+                        + (f" VASL places the block in "
+                           f"{_bare((native_los.get('facts') or {}).get('blocked_at_hex'))}."
+                           if (native_los.get("facts") or {}).get("blocked_at_hex")
+                           else "")
                         + _blocked_los_detail(state, fkey, tkey, fentry,
                                               tentry, native_los))
             if not native_los.get("blocked"):
@@ -978,6 +1098,15 @@ def resolve_attack(
         if out.get("hindrance"):
             native_hindrance = out["hindrance"]
             hindrance_label = out["label"]
+
+    # ---- facts from VASL's own map model (extension >= 0.5) ----
+    facts = (native_los or {}).get("facts") if vasl_los else None
+    if isinstance(facts, dict):
+        hexside_tem, hexside_tem_label, fh_label = _apply_vasl_facts(
+            facts, fbase, flabel, tlabel, tentry, native_hindrance,
+            hexside_tem, hexside_tem_label, assumptions, warnings)
+        if fh_label:
+            hindrance_label = fh_label
 
     # ---- overlays: only worth a note when the save actually has one here ----
     boards_here = {str(fbase), str(tbase)}

@@ -333,6 +333,11 @@ _RULE_REF = re.compile(r"\b([A-H]\d+(?:\.\d+)*)\b")
 def _short_drm_label(label: str) -> str:
     """'TEM: Wall hexside TEM +2 (B9.3: the LOS enters ...)' -> 'Wall hexside
     TEM (B9.3)'. The full wording still reaches the model."""
+    if str(label).startswith("LOS Hindrance") and "): " in str(label):
+        # keep the source ("U5 (wreck: Wreck)"): it's the point of the line
+        head, _, tail = str(label).partition("): ")
+        refs = list(dict.fromkeys(_RULE_REF.findall(head)))[:1]
+        return f"LOS Hindrance ({', '.join(refs)}): {tail}" if refs else f"LOS Hindrance: {tail}"
     head, _, rest = str(label).partition("(")
     head = re.sub(r"^\s*TEM:\s*", "", head)
     head = re.sub(r"\s*[+-]\d+\s*$", "", head.strip())
@@ -471,6 +476,9 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
         if los_line:
             board_state = f"{board_state}\n\n{los_line}"
 
+    if payload.native_los and payload.native_los.get("facts"):
+        logging.info("ask: VASL LOS facts %s",
+                     json.dumps(payload.native_los, default=str)[:3000])
     precomputed = _precompute_attack(
         payload.question, vsav_state, payload.native_los, payload.game_phase,
         payload.selected_firers, payload.selected_targets)

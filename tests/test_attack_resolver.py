@@ -1143,3 +1143,84 @@ def test_grid_traces_hindrances_without_vasl_los():
     assert not any("LOS Hindrance" in d["label"] for d in r["drm_breakdown"]), \
         r["drm_breakdown"]
     assert "No intervening terrain LOS Hindrances" in " ".join(r["assumptions"])
+
+
+# --- VASL map facts (extension >= 0.5) ---------------------------------------
+
+def _w6_t4_state():
+    return _j103_state(**{
+        "41-W6": [_sq("6-4-8 1sq", "German")],
+        "41-T4": [_sq("4-5-7 1sq", "AlliedMinor")],
+    })
+
+
+def _facts(**kw):
+    f = {"source_height": 0, "target_height": 0, "source_terrain": "Open Ground",
+         "target_terrain": "Open Ground",
+         "path": [{"hex": "V5", "base": 0, "terrain": "Open Ground", "counters": []},
+                  {"hex": "U5", "base": 0, "terrain": "Open Ground", "counters": []}],
+         "target_counters": [],
+         "target_entry": {"neighbor": "U5", "side": 1, "terrain": ""},
+         "first_hindrance_hex": None, "blocked_at_hex": None, "roadblocks": []}
+    f.update(kw)
+    return {"source": "W6", "target": "T4", "blocked": False,
+            "hindrance": kw.pop("_hindrance", 0), "range": 3,
+            "source_level": 0, "target_level": 0, "facts": f}
+
+
+def test_roadblock_on_target_entry_hexside_is_a_wall():
+    los = _facts(roadblocks=[{"hex": "U5", "toward": "T4", "method": "position"}])
+    r = resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    assert r["drm"] == 2, r["drm_breakdown"]
+    assert "Roadblock TEM +2 (B29.3" in r["drm_breakdown"][0]["label"]
+
+
+def test_roadblock_mid_path_blocks_same_level_los():
+    los = _facts(roadblocks=[{"hex": "V5", "toward": "U5", "method": "rotation"}])
+    with pytest.raises(ValueError) as e:
+        resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    msg = str(e.value)
+    assert "roadblock on V5|U5" in msg and "B29.2" in msg and "ignores roadblocks" in msg
+    assert "verify on the map" in msg  # read from the arrow, not the position
+
+
+def test_roadblock_mid_path_does_not_block_different_levels():
+    los = _facts(source_height=1,
+                 roadblocks=[{"hex": "V5", "toward": "U5", "method": "position"}])
+    r = resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    assert any("does not apply" in a and "V5|U5" in a for a in r["assumptions"])
+
+
+def test_vasl_hindrance_is_named_by_its_counter():
+    path = [{"hex": "V5", "base": 0, "terrain": "Open Ground", "counters": []},
+            {"hex": "U5", "base": 0, "terrain": "Open Ground",
+             "counters": ["wreck: Wreck"]}]
+    los = _facts(path=path, first_hindrance_hex="U5")
+    los["hindrance"] = 1
+    r = resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    labels = [d["label"] for d in r["drm_breakdown"]]
+    assert any("LOS Hindrance +1" in l and "U5 (wreck: Wreck)" in l for l in labels), labels
+
+
+def test_unexplained_vasl_hindrance_warns_with_its_hex():
+    los = _facts(first_hindrance_hex="41U5")
+    los["hindrance"] = 1
+    r = resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
+    assert any("beginning in U5" in w for w in r["warnings"]), r["warnings"]
+
+
+def test_vasl_entry_hexside_overrides_board_file_wall():
+    """S3 -> W4: the board file has a wall on V3|W4; if VASL's live map says
+    that hexside has none (e.g. an overlay), VASL wins."""
+    s = _j103_state(**{"41-S3": [_sq("5-4-8 1sq", "German")],
+                       "41-W4": [_sq("4-5-7 1sq", "AlliedMinor")]})
+    los = {"source": "S3", "target": "W4", "blocked": False, "hindrance": 0,
+           "range": 4, "source_level": 0, "target_level": 0,
+           "facts": {"source_height": 1, "target_height": 0, "path": [],
+                     "target_entry": {"neighbor": "V3", "side": 5, "terrain": ""},
+                     "roadblocks": []}}
+    r = resolve_attack(s, "41-S3", "41-W4", "prep", native_los=los)
+    assert r["drm"] == 1, r["drm_breakdown"]   # graveyard only
+    los["facts"]["target_entry"]["terrain"] = "Wall"
+    r = resolve_attack(s, "41-S3", "41-W4", "prep", native_los=los)
+    assert r["drm"] == 2, r["drm_breakdown"]
