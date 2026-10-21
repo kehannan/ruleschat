@@ -403,7 +403,7 @@ def test_fire_question_precomputes_attack_and_prepends_summary(client):
     answer = r.json()["answer"]
     summary, _, rest = answer.partition("\n\n---\n\n")
     assert summary.startswith("**Calculator** · 57-H9 → 57-H8, Prep Fire")
-    assert "**16 FP column**" in summary and "DRM **+2**" in summary
+    assert "| IFT column | **16** |" in summary and "| Final DRM | **+2** |" in summary
     assert rest == "THE ANSWER"
     # the model gets the full result, marked authoritative
     board = client.fake_service.calls[-1]["board_state"]

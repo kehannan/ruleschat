@@ -275,39 +275,43 @@ def _pct(p) -> str:
     return f"{100 * float(p):.1f}%"
 
 
+def _cell(text) -> str:
+    return str(text).replace("|", "/").replace("\n", " ")
+
+
 def _attack_summary(result: dict, native_los: dict) -> str:
-    """The calculator's numbers as fixed markdown shown above the answer."""
+    """The calculator's numbers as fixed markdown tables above the answer."""
     pair = f"{native_los.get('source')} → {native_los.get('target')}"
     if result.get("error"):
         return f"**Calculator** · {pair}: no attack — {result['error']}"
     phase = _PHASE_NAMES.get(result.get("phase"), result.get("phase") or "")
-    firers = ", ".join(f"{f.get('name')} ({f.get('fp')} FP)"
-                       for f in result.get("firers") or [])
-    rng = (result.get("range") or {})
-    rng_txt = f"range {rng.get('hexes')}" if rng.get("hexes") is not None else ""
+    rng = result.get("range") or {}
+    rng_txt = str(rng.get("hexes")) if rng.get("hexes") is not None else "?"
     if rng.get("pbf") and rng.get("pbf") != "none":
-        rng_txt += f", {rng['pbf'].upper()}"
-    lines = [
-        f"**Calculator** · {pair}, {phase} (computed from the save)",
-        f"- Firers: {firers} → {result.get('total_fp')} FP → "
-        f"**{result.get('column')} FP column**" + (f" ({rng_txt})" if rng_txt else ""),
-        f"- DRM **{result.get('drm', 0):+d}**" + (
-            ": " + "; ".join(
-                d["label"] if f"{d['drm']:+d}" in str(d["label"])
-                else f"{d['label']} {d['drm']:+d}"
-                for d in result.get("drm_breakdown") or [])
-            if result.get("drm_breakdown") else " (no modifiers)"),
-    ]
+        rng_txt += f" ({rng['pbf'].upper()})"
+    rows = [("Firers", ", ".join(f"{f.get('name')} ({f.get('fp')} FP)"
+                                 for f in result.get("firers") or [])),
+            ("Range", rng_txt),
+            ("Total FP", result.get("total_fp")),
+            ("IFT column", f"**{result.get('column')}**")]
+    for d in result.get("drm_breakdown") or []:
+        rows.append((f"DRM {d['drm']:+d}", d["label"]))
+    rows.append(("Final DRM", f"**{result.get('drm', 0):+d}**"))
+    if result.get("cowering") and result["cowering"] != "none":
+        rows.append(("Cowering", f"possible on doubles ({result['cowering']}, A7.9)"))
+    out = [f"**Calculator** · {pair}, {phase} (computed from the save)", "",
+           "| Step | Result |", "|---|---|"]
+    out += [f"| {_cell(k)} | {_cell(v)} |" for k, v in rows]
     vt = (result.get("ift") or {}).get("vs_target") or {}
     if "p_broken" in vt:
-        lines.append(
-            f"- vs morale {vt.get('effective_morale', vt.get('morale'))}: "
-            f"broken {_pct(vt['p_broken'])} · pinned {_pct(vt.get('p_pinned', 0))}"
-            f" · eliminated/reduced {_pct(vt.get('p_eliminated_or_reduced', 0))}"
-            f" · no effect {_pct(vt.get('p_no_effect', 0))}")
-    if result.get("cowering") and result["cowering"] != "none":
-        lines.append(f"- Cowering possible on doubles ({result['cowering']}, A7.9)")
-    return "\n".join(lines)
+        morale = vt.get("effective_morale", vt.get("morale"))
+        out += ["",
+                f"| vs morale {morale} | Broken | Pinned | Eliminated/reduced | No effect |",
+                "|---|---|---|---|---|",
+                f"| Odds | {_pct(vt['p_broken'])} | {_pct(vt.get('p_pinned', 0))} | "
+                f"{_pct(vt.get('p_eliminated_or_reduced', 0))} | "
+                f"{_pct(vt.get('p_no_effect', 0))} |"]
+    return "\n".join(out)
 
 
 def _precomputed_prompt_block(result: dict) -> str:
@@ -317,7 +321,7 @@ def _precomputed_prompt_block(result: dict) -> str:
         + json.dumps(result, default=str) + "\n"
         "This is authoritative and is ALREADY shown to the user verbatim as a "
         "calculator summary above your answer. Do not call resolve_attack "
-        "again for this pair, do not restate its numbers as a table, and do "
+        "again for this pair, do not repeat its numbers in your own table, and do "
         "not change or second-guess any value. Explain why each FP/range/DRM "
         "line applies with rule citations (fetch them), and relay every "
         "warning and assumption it lists. If it is an error (e.g. LOS "
