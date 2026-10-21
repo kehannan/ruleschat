@@ -248,6 +248,55 @@ def _blocked_los_detail(state: Dict[str, Any], fkey: str, tkey: str,
                    + "; ".join(parts) + ".")
 
 
+def _grid_los(state: Dict[str, Any], base: str, flabel: str, tlabel: str,
+              fentry: Dict[str, Any], tentry: Dict[str, Any],
+              assumptions: List[str], warnings: List[str],
+              out: Dict[str, Any]) -> None:
+    """LOS obstacles + Hindrances traced on the board grid, for questions
+    VASL's own LOS check didn't cover. Fills assumptions[0]/[1], adds a
+    BLOCKED warning, and puts any hindrance DRM in out["hindrance"/"label"].
+    """
+    from app.services import board_terrain  # local: avoids an import cycle
+    fh = (fentry.get("terrain") or {}).get("elevation") or 0
+    th = (tentry.get("terrain") or {}).get("elevation") or 0
+    transforms = _board_transforms(state, base)
+    try:
+        obstacles = board_terrain.los_obstacle_trace(
+            base, flabel, tlabel, fh, th, transforms)
+        hindrances = board_terrain.los_hindrance_trace(
+            base, flabel, tlabel, fh, th, transforms)
+    except Exception as e:  # never let the trace break the resolution
+        logging.warning("grid LOS trace failed: %s", e)
+        return
+    if obstacles is None or hindrances is None:
+        return  # no board data: keep the generic assumptions
+    blockers = [c for c in obstacles if c["blocks"]]
+    if blockers:
+        warnings.append(
+            "LOS traced on the board's terrain grid looks BLOCKED by: "
+            + "; ".join(f"{base}-{c['hex']} {c['terrain']} (obstacle top level "
+                        f"{c['top']:g} vs the LOS line at {c['los_height']:g}, "
+                        f"{c['rule']})" for c in blockers)
+            + ". VASL's own LOS check was not sent with this question — name "
+            "both hexes in the question so VASL can confirm.")
+    assumptions[0] = (
+        f"LOS traced on the board's terrain grid from level {fh} to level {th} "
+        "(VASL's LOS check not available for this pair): "
+        + ("see the BLOCKED warning" if blockers
+           else "no terrain obstacle reaches the LOS line")
+        + "; wall/hedge hexsides traced separately (B9). Counters on the map "
+        "(SMOKE, wrecks, blazes) are not seen.")
+    if hindrances:
+        names = ", ".join(f"{base}-{h['hex']} {h['terrain']}" for h in hindrances)
+        out["hindrance"] = len(hindrances)
+        out["label"] = f"LOS Hindrance +{len(hindrances)} (A6.7): {names}"
+        assumptions[1] = (f"Intervening LOS Hindrances traced on the board's "
+                          f"terrain grid: {names}.")
+    else:
+        assumptions[1] = ("No intervening terrain LOS Hindrances on the "
+                          "board's terrain grid.")
+
+
 def _los_hexsides(state: Dict[str, Any], base: str, flabel: str,
                   tlabel: str):
     """Wall/hedge hexsides crossed by the LOS (same board only), or None."""
@@ -786,6 +835,8 @@ def resolve_attack(
     fentry = state["hexes"][fkey]
 
     native_hindrance = 0
+    hindrance_label = None
+    vasl_los = False   # VASL's own LOS engine checked this exact pair: clear
     if native_los:
         if _native_los_matches_attack(native_los, fkey, tkey):
             if native_los.get("blocked"):
@@ -810,15 +861,15 @@ def resolve_attack(
                     native_hindrance = max(0, int(native_los.get("hindrance", 0)))
                 except (TypeError, ValueError):
                     native_hindrance = 0
+                vasl_los = True
                 assumptions[0] = (
                     "LOS checked by VASL's native LOS engine using the open game "
-                    "map, overlays, and counters."
+                    "map, overlays, and counters: clear."
                 )
-                if native_hindrance:
-                    assumptions[1] = (
-                        f"VASL native LOS hindrance +{native_hindrance} applied "
-                        "to this attack."
-                    )
+                assumptions[1] = (
+                    f"Intervening LOS Hindrances counted by VASL's native LOS "
+                    f"check: +{native_hindrance} (A6.7)."
+                )
         else:
             warnings.append(
                 "Ignored VASL native LOS payload because its endpoints did not "
@@ -851,7 +902,8 @@ def resolve_attack(
     hexside_tem = 0
     hexside_tem_label = None
     if hexside_crossings is not None:
-        assumptions[0] = _LOS_CLEAR_EXCEPT_HEXSIDES_ASSUMPTION
+        if not vasl_los:
+            assumptions[0] = _LOS_CLEAR_EXCEPT_HEXSIDES_ASSUMPTION
         for c in hexside_crossings:
             terr = c["terrain"]
             a, b = c["between"]
@@ -918,6 +970,25 @@ def resolve_attack(
                         "LOS (B9.2) — this attack may be impossible. The "
                         "resolution below assumes LOS exists (e.g. an elevation "
                         "advantage); verify on the map.")
+
+    # ---- obstacles + hindrances from the board grid (no VASL LOS) ----
+    if not vasl_los and fbase == tbase and fkey != tkey:
+        _grid_los(state, fbase, flabel, tlabel, fentry, tentry, assumptions,
+                  warnings, out := {})
+        if out.get("hindrance"):
+            native_hindrance = out["hindrance"]
+            hindrance_label = out["label"]
+
+    # ---- overlays: only worth a note when the save actually has one here ----
+    boards_here = {str(fbase), str(tbase)}
+    ovs = [o for o in state.get("overlays") or []
+           if str(o.get("board", "")).lstrip("r") in boards_here]
+    assumptions[2] = (
+        "Map overlay(s) on this board (" + ", ".join(
+            str(o.get("spec")) for o in ovs) + "): the target's terrain/TEM is "
+        "read from the base board" + ("; VASL's LOS check includes them."
+                                      if vasl_los else ".")
+    ) if ovs else None
 
     # ---- firing side ----
     units = [u for u in fentry.get("units", [])]
@@ -1302,7 +1373,8 @@ def resolve_attack(
     drm_breakdown: List[Dict[str, Any]] = []
     if native_hindrance:
         drm_breakdown.append({
-            "label": f"VASL native LOS hindrance (A6.7) +{native_hindrance}",
+            "label": hindrance_label
+                     or f"VASL native LOS hindrance (A6.7) +{native_hindrance}",
             "drm": native_hindrance,
         })
     t_markers = _all_hex_markers(tentry)
@@ -1618,7 +1690,7 @@ def resolve_attack(
             "morale_used": resolutions[0]["morale_used"] if single else None,
         },
         "warnings": warnings + result.get("warnings", []),
-        "assumptions": assumptions,
+        "assumptions": [a for a in assumptions if a],
         "ift": result if single else None,
     }
     if not single:

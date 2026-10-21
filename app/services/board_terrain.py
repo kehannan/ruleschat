@@ -268,6 +268,28 @@ def _hex_center(hex_label: str):
     return x, y
 
 
+def _nearest_hex(x: float, y: float) -> str:
+    """Pixel -> the hex whose center is nearest: the exact hex partition.
+
+    vsav_service.board_xy_to_hex rounds to a rectangular cell, which is fine
+    for placing counters but can be several pixels off near a hexside —
+    enough to attribute a target's own wall or graveyard to its neighbor.
+    """
+    i0 = int(round(x / DX))
+    best, best_d = None, None
+    for i in range(max(0, i0 - 1), min(len(LETTERS), i0 + 2)):
+        r0 = int(round(y / DY))
+        for r in range(r0 - 1, r0 + 3):
+            if r < (0 if i % 2 == 1 else 1) or r > 10:
+                continue
+            label = f"{LETTERS[i]}{r}"
+            cx, cy = _hex_center(label)
+            d = (cx - x) ** 2 + (cy - y) ** 2
+            if best_d is None or d < best_d:
+                best, best_d = label, d
+    return best or board_xy_to_hex(x, y)
+
+
 def _sample_hex(bd, hex_label):
     """Counter of terrain names + Counter of elevations over the hex disc."""
     cx, cy = _hex_center(hex_label)
@@ -359,8 +381,8 @@ def los_hexside_crossings(board_base: str, from_label: str, to_label: str,
     for start, end, nm in runs:
         bx, by = _pt(start - _CROSSING_PROBE_PX)
         ax, ay = _pt(end + _CROSSING_PROBE_PX)
-        before = board_xy_to_hex(bx, by)
-        after = board_xy_to_hex(ax, ay)
+        before = _nearest_hex(bx, by)
+        after = _nearest_hex(ax, ay)
         at_target = after == to_label or before == to_label
         at_firer = before == from_label or after == from_label
         out.append(dict(terrain=nm, between=(before, after),
@@ -505,7 +527,7 @@ def los_obstacle_trace(board_base: str, from_label: str, to_label: str,
         xi, yi = int(round(x)), int(round(y))
         if not (0 <= xi < gw and 0 <= yi < gh):
             continue
-        hx = board_xy_to_hex(x, y)
+        hx = _nearest_hex(x, y)
         if not hx or hx in ends:
             continue
         idx = (xi * gh + yi) * 2
@@ -540,6 +562,101 @@ def los_obstacle_trace(board_base: str, from_label: str, to_label: str,
                 (prev["top"] - prev["los_height"]):
             best[hx] = cand
     return sorted(best.values(), key=lambda c: c["t"])
+
+
+# name -> hindrance height in levels above the hex's ground, same source
+# and rule as LOS_OBSTACLES (VASL isLOSHindrance terrain).
+LOS_HINDRANCES = {
+    'Marsh': 0.5,
+    'Grain': 0.5,
+    'Brush': 0.5,
+    'Crags': 0.5,
+    'Debris': 0.5,
+    'Graveyard': 0.5,
+    'Stone Factory, 1.5 Level': 1.5,
+    'Stone Factory, 2.5 Level': 2.5,
+    'Wooden Factory, 1.5 Level': 1.5,
+    'Wooden Factory, 2.5 Level': 2.5,
+    'Orchard, Out of Season': 1,
+    'Single Hex Stone Bridge': 0.5,
+    'Single Hex Wooden Bridge': 0.5,
+    'Stone Bridge': 0.5,
+    'Wooden Bridge': 0.5,
+    'Bedouin Camp': 0.5,
+    'Vineyard': 0.5,
+    'Huts': 1,
+    'Collapsed Huts': 1,
+    'Kunai': 0.5,
+    'Rice Paddy, In Season': 0.5,
+    'Rice Paddy Bank': 0.5,
+    'Tower Hindrance': 1.5,
+    'Tower, 2 Level Hindrance': 2.5,
+    'Tower, 3 Level Hindrance': 3.5,
+    'Roofless Stone Factory, 1.5 Level': 0.5,
+    'Roofless Stone Factory, 2.5 Level': 0.5,
+    'Gutted Stone Factory, 1.5 Level': 0.5,
+    'Gutted Stone Factory, 2.5 Level': 0.5,
+    'Wooden Factory, 1 Level': 1,
+    'Monument': 0.5,
+    'Light Grain': 0.5,
+    'Volga Pier': 0.5,
+}
+
+
+# A hex counts as an intervening Hindrance only when the LOS crosses at least
+# this many of its hindrance pixels (keeps vertex grazes out).
+_HINDRANCE_MIN_PX = 3
+
+
+def los_hindrance_trace(board_base: str, from_label: str, to_label: str,
+                        from_height: float, to_height: float,
+                        ssr_transforms=()):
+    """Terrain LOS Hindrances (A6.7) in the hexes BETWEEN two hex centers.
+
+    Same pixel walk as los_obstacle_trace. A hex counts once when the LOS
+    passes through its hindrance terrain below that terrain's top (ground +
+    VASL hindrance height), e.g. grain/brush/graveyard (half level) or an
+    out-of-season orchard (B14.2). Counters (SMOKE, wrecks, blazes) are not
+    on the grid and are not seen. Returns [{hex, terrain, ground, top,
+    los_height}] firer->target, or None when no board data is available.
+    """
+    bd = _load_board(str(board_base))
+    if bd is None:
+        return None
+    try:
+        (x0, y0), (x1, y1) = _hex_center(from_label), _hex_center(to_label)
+    except ValueError:
+        return None
+    ends = {from_label.upper(), to_label.upper()}
+    gw, gh, grid = bd["grid_w"], bd["grid_h"], bd["grid"]
+    n = max(1, int(((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5))
+    hits, first = Counter(), {}
+    for i in range(n + 1):
+        f = i / n
+        x, y = x0 + (x1 - x0) * f, y0 + (y1 - y0) * f
+        xi, yi = int(round(x)), int(round(y))
+        if not (0 <= xi < gw and 0 <= yi < gh):
+            continue
+        hx = _nearest_hex(x, y)
+        if not hx or hx in ends:
+            continue
+        idx = (xi * gh + yi) * 2
+        e = grid[idx]
+        ground = e - 256 if e > 127 else e
+        name = apply_ssr_transforms(
+            TERRAIN_NAMES.get(grid[idx + 1], "Open Ground"), ssr_transforms)
+        if name not in LOS_HINDRANCES:
+            continue
+        top = ground + LOS_HINDRANCES[name]
+        los_h = from_height + (to_height - from_height) * f
+        if los_h >= top:
+            continue  # the LOS passes above it
+        hits[hx] += 1
+        first.setdefault(hx, dict(hex=hx, terrain=name, ground=ground,
+                                  top=top, los_height=round(los_h, 2),
+                                  t=round(f, 2)))
+    return sorted((first[h] for h, c in hits.items() if c >= _HINDRANCE_MIN_PX),
+                  key=lambda c: c["t"])
 
 
 def apply_ssr_transforms(name: str, transforms) -> str:

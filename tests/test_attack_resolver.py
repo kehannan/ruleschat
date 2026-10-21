@@ -919,7 +919,7 @@ def test_hedge_hexside_tem_applied_when_los_enters_target_across_it():
     assert tem and tem[0]["drm"] == 1 and "B9.3" in tem[0]["label"], \
         r["drm_breakdown"]
     assert not any("NOT auto-applied" in w for w in r["warnings"]), r["warnings"]
-    assert "EXCEPT wall/hedge" in r["assumptions"][0], r["assumptions"][0]
+    assert "wall/hedge hexsides traced" in r["assumptions"][0], r["assumptions"][0]
     assert any("B9.31" in a for a in r["assumptions"]), r["assumptions"]
 
 
@@ -973,7 +973,7 @@ def test_no_board_data_keeps_plain_los_assumption():
     if r["los_hexsides"] is None:
         assert "EXCEPT" not in r["assumptions"][0], r["assumptions"][0]
     else:
-        assert "EXCEPT wall/hedge" in r["assumptions"][0], r["assumptions"][0]
+        assert "terrain grid" in r["assumptions"][0], r["assumptions"][0]
 
 
 def test_wounded_leader_direction_drm_worsened_by_one():
@@ -1098,3 +1098,48 @@ def test_los_obstacle_trace_orchard_not_an_obstacle_at_same_level():
     from app.services.board_terrain import los_obstacle_trace
     assert not any(c["terrain"] == "Orchard"
                    for c in los_obstacle_trace("41", "S8", "W5", 0, 0))
+
+
+def test_wall_of_target_hex_applies_when_los_grazes_hexside():
+    """Live case (VASL extension, 2026-10-21): 41-S3 (Level 1 hill) -> 41-W4
+    (graveyard). The LOS enters W4 across its V3|W4 wall a few pixels before
+    the rectangular hex rounding says W4 starts; it used to be labeled
+    'V3|V3', so the wall TEM was dropped and only the graveyard +1 applied."""
+    s = _j103_state(**{
+        "41-S3": [_sq("5-4-8 1sq", "German")],
+        "41-W4": [_sq("4-5-7 1sq", "AlliedMinor")],
+    })
+    r = resolve_attack(s, "41-S3", "41-W4", "prep")
+    assert r["drm"] == 2, r["drm_breakdown"]
+    assert "V3|W4 wall" in r["drm_breakdown"][0]["label"], r["drm_breakdown"]
+
+
+def test_vasl_los_reports_hindrances_even_when_zero():
+    s = _j103_state(**{
+        "41-S3": [_sq("5-4-8 1sq", "German")],
+        "41-W4": [_sq("4-5-7 1sq", "AlliedMinor")],
+    })
+    native = {"source": "S3", "target": "W4", "blocked": False, "hindrance": 0,
+              "range": 4, "source_level": 0, "target_level": 0}
+    r = resolve_attack(s, "41-S3", "41-W4", "prep", native_los=native)
+    text = " ".join(r["assumptions"])
+    assert "LOS checked by VASL's native LOS engine" in r["assumptions"][0]
+    assert "counted by VASL's native LOS check: +0" in text, text
+    assert "NOT included" not in text and "assumed CLEAR" not in text, text
+    assert "Map overlay" not in text, text  # no overlays on board 41 here
+
+
+def test_grid_traces_hindrances_without_vasl_los():
+    """No VASL LOS: grain between same-level hexes is traced and applied."""
+    from app.services.board_terrain import los_hindrance_trace
+    assert [h["hex"] for h in los_hindrance_trace("42", "N1", "M3", 0, 0)] == \
+        ["N2", "M2"]
+    # the J103 save's NoGrain SSR turns that grain into plowed field
+    s = _j103_state(**{
+        "42-N1": [_sq("5-4-8 SSAEsq", "German")],
+        "42-M3": [_sq("3-2-8 AEhs", "Russian")],
+    })
+    r = resolve_attack(s, "42-N1", "42-M3", "prep")
+    assert not any("LOS Hindrance" in d["label"] for d in r["drm_breakdown"]), \
+        r["drm_breakdown"]
+    assert "No intervening terrain LOS Hindrances" in " ".join(r["assumptions"])
