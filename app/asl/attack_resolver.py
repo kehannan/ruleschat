@@ -299,7 +299,13 @@ def _apply_vasl_facts(facts: Dict[str, Any], base: str, flabel: str,
         a, b = _bare(rb.get("hex")), _bare(rb.get("toward"))
         side = f"{a}|{b}"
         how = ("" if rb.get("method") == "position" else
-               " (hexside read from the counter's arrow — verify on the map)")
+               " (hexside read from the counter's arrow)")
+        ha, hb = rb.get("hex_base"), rb.get("toward_base")
+        if ha is not None and hb is not None and ha != hb:
+            assumptions.append(
+                f"The roadblock hexside {side} joins hexes of different base "
+                f"levels ({a} level {ha}, {b} level {hb}): it is at the higher "
+                "level and treated like a Hillside Wall (B29.4, B9.6).")
         if {a, b} == {tlabel, neighbor}:
             if 2 >= hexside_tem:
                 hexside_tem, hexside_tem_label = 2, (

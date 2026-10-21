@@ -1181,7 +1181,7 @@ def test_roadblock_mid_path_blocks_same_level_los():
         resolve_attack(_w6_t4_state(), "41-W6", "41-T4", "prep", native_los=los)
     msg = str(e.value)
     assert "roadblock on V5|U5" in msg and "B29.2" in msg and "ignores roadblocks" in msg
-    assert "verify on the map" in msg  # read from the arrow, not the position
+    assert "read from the counter's arrow" in msg  # not from its position
 
 
 def test_roadblock_mid_path_does_not_block_different_levels():

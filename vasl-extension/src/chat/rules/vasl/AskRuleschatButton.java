@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.5.0";
+  static final String VERSION = "0.5.1";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -1095,9 +1095,18 @@ public class AskRuleschatButton extends AbstractConfigurable {
           method = "rotation";
         }
         final Hex toward = side < 0 ? null : losMap.getAdjacentHex(h, side);
+        final GamePiece rot = VASSAL.counters.Decorator.getDecorator(
+          piece, VASSAL.counters.FreeRotator.class);
         f.append(first ? "" : ",").append("{\"hex\":").append(Json.quote(h.getName()))
          .append(",\"toward\":").append(toward == null ? "null" : Json.quote(toward.getName()))
-         .append(",\"method\":").append(Json.quote(method)).append('}');
+         .append(",\"method\":").append(Json.quote(method))
+         .append(",\"angle\":").append(rot == null ? "null"
+           : String.valueOf(((VASSAL.counters.FreeRotator) rot).getAngle()))
+         .append(",\"arrow_level\":").append(Json.quote(String.valueOf(
+           piece.getProperty("Arrow_Level"))))
+         .append(",\"hex_base\":").append(h.getBaseLevelofHex())
+         .append(",\"toward_base\":").append(toward == null ? "null"
+           : String.valueOf(toward.getBaseLevelofHex())).append('}');
         first = false;
       }
     }
@@ -1152,15 +1161,28 @@ public class AskRuleschatButton extends AbstractConfigurable {
   }
 
   /** A roadblock sitting in a hex (not on a hexside) points its arrow at the
-   *  obstructed road hexside (B29.1). VASSAL's rotation sign convention is
-   *  not documented, so try both and prefer a hexside the road crosses. */
+   *  obstructed road hexside (B29.1). The standard VASL counters (ML/Rdblk,
+   *  RdBlk2) draw the arrow pointing DOWN at rotation 0; the DO counter has
+   *  an "Arrow" layer (level 1 = down, 2 = up, 3 = none). VASSAL draws a
+   *  FreeRotator at -angle, so positive angles turn the art counter-
+   *  clockwise: screen bearing (0 = up, clockwise) = base - angle. */
   private static int sideFromRotation(Hex h, GamePiece piece) {
     final GamePiece rot = VASSAL.counters.Decorator.getDecorator(
       piece, VASSAL.counters.FreeRotator.class);
-    if (rot == null) {
-      return -1;
+    double base = 180;
+    final Object arrowLevel = piece.getProperty("Arrow_Level");
+    if (arrowLevel != null) {
+      final String lvl = arrowLevel.toString().trim();
+      if ("2".equals(lvl)) {
+        base = 0;
+      }
+      else if (!"1".equals(lvl)) {
+        return -1;  // arrow layer switched off: no way to tell
+      }
     }
-    final double angle = ((VASSAL.counters.FreeRotator) rot).getAngle();
+    final double angle = rot == null ? 0
+      : ((VASSAL.counters.FreeRotator) rot).getAngle();
+    final double bearing = base - angle;
     final java.awt.Point c = h.getHexCenter();
     int best = -1;
     double bestScore = Double.MAX_VALUE;
@@ -1170,12 +1192,10 @@ public class AskRuleschatButton extends AbstractConfigurable {
         continue;
       }
       final java.awt.Point e = loc.getEdgeCenterPoint();
-      // bearing of this hexside from the hex center: 0 = up, clockwise
-      final double bearing = Math.toDegrees(Math.atan2(e.x - c.x, c.y - e.y));
-      double diff = Math.min(angleDiff(bearing, angle), angleDiff(bearing, -angle));
-      final String terr = terrainName(loc.getTerrain()).toLowerCase();
-      if (!terr.contains("road")) {
-        diff += 45;  // B29.1: the arrow points at a road hexside
+      final double sideBearing = Math.toDegrees(Math.atan2(e.x - c.x, c.y - e.y));
+      double diff = angleDiff(sideBearing, bearing);
+      if (!terrainName(loc.getTerrain()).toLowerCase().contains("road")) {
+        diff += 20;  // tie-break only: B29.1 roadblocks obstruct a road hexside
       }
       if (diff < bestScore) {
         bestScore = diff;
