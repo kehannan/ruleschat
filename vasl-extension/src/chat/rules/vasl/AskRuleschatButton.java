@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.4.0";
+  static final String VERSION = "0.4.1";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -160,18 +160,6 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private FlatButton askButton;
   private JCheckBox attachCheck;
   private JCheckBox soloCheck;
-  private JTextField losSourceField;
-  private JTextField losTargetField;
-  private JComboBox<Integer> losSourceLevel;
-  private JComboBox<Integer> losTargetLevel;
-  private JButton losPickButton;
-  private boolean pickingLos;
-  private ASLMap pickerMap;
-  private MouseAdapter pickerListener;
-  private final List<String> firingStackNames = new ArrayList<>();
-  private final List<String> targetStackNames = new ArrayList<>();
-  private final List<String> selectedFirerNames = new ArrayList<>();
-  private final List<String> selectedTargetNames = new ArrayList<>();
   private JLabel statusLabel;
   private JLabel headerMeta;
 
@@ -229,7 +217,6 @@ public class AskRuleschatButton extends AbstractConfigurable {
 
   @Override
   public void removeFrom(Buildable parent) {
-    stopLosPicker();
     if (launchButton != null) {
       GameModule.getGameModule().getToolBar().remove(launchButton);
       GameModule.getGameModule().getToolBar().revalidate();
@@ -576,41 +563,6 @@ public class AskRuleschatButton extends AbstractConfigurable {
     toggles.add(attachCheck);
     toggles.add(soloCheck);
     controls.add(toggles, BorderLayout.WEST);
-    final JPanel losControls = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-    losControls.setOpaque(false);
-    losControls.add(compactLabel("LOS"));
-    losSourceField = compactField("Source hex");
-    losControls.add(losSourceField);
-    losSourceLevel = levelBox("Source level");
-    losControls.add(losSourceLevel);
-    losControls.add(compactLabel("to"));
-    losTargetField = compactField("Target hex");
-    losControls.add(losTargetField);
-    losTargetLevel = levelBox("Target level");
-    losControls.add(losTargetLevel);
-    losPickButton = new JButton("Pick");
-    losPickButton.setToolTipText("Click firing Location, then target Location on the map");
-    losPickButton.addActionListener(e -> toggleLosPicker());
-    losControls.add(losPickButton);
-    final JButton firerCountersButton = new JButton("Firer");
-    firerCountersButton.setToolTipText("Choose which counters in the firing stack attack");
-    firerCountersButton.addActionListener(e -> editStackSelection(
-      "Firing counters", firingStackNames, selectedFirerNames));
-    losControls.add(firerCountersButton);
-    final JButton targetCountersButton = new JButton("Target");
-    targetCountersButton.setToolTipText("Choose which counters in the target stack are attacked");
-    targetCountersButton.addActionListener(e -> editStackSelection(
-      "Target counters", targetStackNames, selectedTargetNames));
-    losControls.add(targetCountersButton);
-    final JButton swapLosButton = new JButton("Swap");
-    swapLosButton.setToolTipText("Swap firing and target Locations");
-    swapLosButton.addActionListener(e -> swapLosLocations());
-    losControls.add(swapLosButton);
-    final JButton clearLosButton = new JButton("Clear");
-    clearLosButton.setToolTipText("Clear selected LOS Locations");
-    clearLosButton.addActionListener(e -> clearLosLocations());
-    losControls.add(clearLosButton);
-    controls.add(losControls, BorderLayout.CENTER);
     statusLabel = new JLabel();
     statusLabel.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
     statusLabel.setForeground(MUTED);
@@ -637,192 +589,6 @@ public class AskRuleschatButton extends AbstractConfigurable {
     cb.setForeground(INK2);
     cb.setToolTipText(tip);
     return cb;
-  }
-
-  private static JLabel compactLabel(String text) {
-    final JLabel label = new JLabel(text);
-    label.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
-    label.setForeground(MUTED);
-    return label;
-  }
-
-  private static JTextField compactField(String tip) {
-    final JTextField field = new JTextField(5);
-    field.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
-    field.setToolTipText(tip);
-    return field;
-  }
-
-  private static JComboBox<Integer> levelBox(String tip) {
-    final JComboBox<Integer> box = new JComboBox<>(new Integer[] {0, 1, 2, 3, 4});
-    box.setFont(new Font(MONO_FONT, Font.PLAIN, 11));
-    box.setToolTipText(tip);
-    return box;
-  }
-
-  private void toggleLosPicker() {
-    if (pickingLos) {
-      stopLosPicker();
-      return;
-    }
-    pickerMap = findAslMap(GameModule.getGameModule());
-    if (pickerMap == null) {
-      setStatus("map unavailable for LOS pick");
-      return;
-    }
-    pickerListener = new MouseAdapter() {
-      @Override
-      public void mouseReleased(MouseEvent event) {
-        if (event.getButton() != MouseEvent.BUTTON1) {
-          return;
-        }
-        final String location = pickerMap.locationName(event.getPoint());
-        final Matcher m = HEX_REFERENCE.matcher(location == null ? "" : location);
-        String hex = null;
-        while (m.find()) {
-          hex = hexRef(m);
-        }
-        if (hex == null) {
-          setStatus("click a board hex");
-          return;
-        }
-        hex = qualifiedHexAt(pickerMap, event, bareHex(hex));
-        if (losSourceField.getText().trim().isEmpty()) {
-          losSourceField.setText(hex);
-          selectedTargetNames.clear();
-          targetStackNames.clear();
-          selectStack(event, firingStackNames);
-          selectAll(firingStackNames, selectedFirerNames);
-          setStatus(selectedFirerNames.isEmpty()
-            ? "no stack found; select target Location"
-            : selectedFirerNames.size() + " counter(s) selected; select target Location");
-        }
-        else {
-          losTargetField.setText(hex);
-          selectStack(event, targetStackNames);
-          selectAll(targetStackNames, selectedTargetNames);
-          stopLosPicker();
-          setStatus(selectedTargetNames.isEmpty()
-            ? "LOS Locations selected"
-            : "LOS Locations + " + selectedTargetNames.size() + " target counter(s) selected");
-        }
-      }
-    };
-    pickerMap.addLocalMouseListener(pickerListener);
-    pickingLos = true;
-    losPickButton.setText("Cancel");
-    setStatus("select firing Location");
-  }
-
-  private void stopLosPicker() {
-    if (pickerMap != null && pickerListener != null) {
-      pickerMap.removeLocalMouseListener(pickerListener);
-    }
-    pickerMap = null;
-    pickerListener = null;
-    pickingLos = false;
-    if (losPickButton != null) {
-      losPickButton.setText("Pick");
-    }
-  }
-
-  /** Capture a clicked stack so attacks use its actual counters, rather
-   * than every unit in the same hex. */
-  private void selectStack(MouseEvent event, List<String> selectedNames) {
-    selectedNames.clear();
-    try {
-      final GamePiece picked = pickerMap.findPiece(event.getPoint(), PieceFinder.PIECE_IN_STACK);
-      if (picked == null) {
-        return;
-      }
-      Stack stack = null;
-      if (picked instanceof Stack) {
-        stack = (Stack) picked;
-      }
-      else if (picked.getParent() instanceof Stack) {
-        stack = (Stack) picked.getParent();
-      }
-      if (stack != null) {
-        for (GamePiece piece : stack.asList()) {
-          addSelectedPiece(piece, selectedNames);
-        }
-      }
-      else {
-        addSelectedPiece(picked, selectedNames);
-      }
-    }
-    catch (Exception e) {
-      System.err.println("AskRuleschat: could not read selected stack: " + e);
-    }
-  }
-
-  private void addSelectedPiece(GamePiece piece, List<String> selectedNames) {
-    if (piece != null && piece.getName() != null && !piece.getName().trim().isEmpty()) {
-      selectedNames.add(piece.getName().trim());
-    }
-  }
-
-  private static void selectAll(List<String> source, List<String> selected) {
-    selected.clear();
-    selected.addAll(source);
-  }
-
-  /** Allow a player to fire only part of a picked stack (for example, a
-   * squad and its LMG but not another squad sharing the Location). */
-  private void editStackSelection(String title, List<String> stackNames,
-                                  List<String> selectedNames) {
-    if (stackNames.isEmpty()) {
-      setStatus("pick the " + title.toLowerCase() + " on the map first");
-      return;
-    }
-    final JPanel choices = new JPanel();
-    choices.setLayout(new BoxLayout(choices, BoxLayout.Y_AXIS));
-    final List<JCheckBox> boxes = new ArrayList<>();
-    for (String name : stackNames) {
-      final JCheckBox box = new JCheckBox(name, selectedNames.contains(name));
-      box.setFont(new Font(UI_FONT, Font.PLAIN, 12));
-      box.setOpaque(false);
-      boxes.add(box);
-      choices.add(box);
-    }
-    final JScrollPane pane = new JScrollPane(choices);
-    pane.setPreferredSize(new Dimension(320, Math.min(300, 36 + stackNames.size() * 26)));
-    if (JOptionPane.showConfirmDialog(dialog, pane, title,
-        JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) {
-      return;
-    }
-    selectedNames.clear();
-    for (int i = 0; i < boxes.size(); i++) {
-      if (boxes.get(i).isSelected()) {
-        selectedNames.add(stackNames.get(i));
-      }
-    }
-    setStatus(selectedNames.size() + " " + title.toLowerCase() + " selected");
-  }
-
-  private void swapLosLocations() {
-    selectedFirerNames.clear();
-    selectedTargetNames.clear();
-    firingStackNames.clear();
-    targetStackNames.clear();
-    final String source = losSourceField.getText();
-    losSourceField.setText(losTargetField.getText());
-    losTargetField.setText(source);
-    final Object level = losSourceLevel.getSelectedItem();
-    losSourceLevel.setSelectedItem(losTargetLevel.getSelectedItem());
-    losTargetLevel.setSelectedItem(level);
-  }
-
-  private void clearLosLocations() {
-    stopLosPicker();
-    selectedFirerNames.clear();
-    selectedTargetNames.clear();
-    firingStackNames.clear();
-    targetStackNames.clear();
-    losSourceField.setText("");
-    losTargetField.setText("");
-    losSourceLevel.setSelectedIndex(0);
-    losTargetLevel.setSelectedIndex(0);
   }
 
   private void refreshHeaderMeta() {
@@ -1253,14 +1019,12 @@ public class AskRuleschatButton extends AbstractConfigurable {
     }
     final String base = pref(P_URL, DEFAULT_URL).replaceAll("/+$", "");
     final String model = modelForRequest(key, pref(P_MODEL, DEFAULT_MODEL));
-    final String nativeLos = nativeLosForQuestion(question, gm,
-      losSourceField == null ? null : losSourceField.getText(),
-      losTargetField == null ? null : losTargetField.getText(),
-      losSourceLevel == null ? 0 : (Integer) losSourceLevel.getSelectedItem(),
-      losTargetLevel == null ? 0 : (Integer) losTargetLevel.getSelectedItem());
+    // The attack pair comes from the first two hexes named in the question
+    // ("S3 fires at V4"); VASL checks LOS between them at ground level.
+    final String nativeLos = nativeLosForQuestion(question, gm, null, null, 0, 0);
     final String gamePhase = currentPhase(gm);
-    final List<String> pickedFirers = new ArrayList<>(selectedFirerNames);
-    final List<String> pickedTargets = new ArrayList<>(selectedTargetNames);
+    final List<String> pickedFirers = new ArrayList<>();
+    final List<String> pickedTargets = new ArrayList<>();
 
     byte[] snapshot = null;
     String snapshotError = null;

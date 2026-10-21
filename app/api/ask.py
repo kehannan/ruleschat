@@ -255,7 +255,7 @@ def _precompute_attack(question: str, vsav_state: Optional[dict],
                        selected_firers, selected_targets) -> Optional[dict]:
     """Run resolve_attack server-side for the attack the extension picked.
 
-    The pair comes from native_los (the extension's LOS picker, or hexes it
+    The pair comes from native_los (the first two hexes the extension
     found in the question), so the model can't skip the calculator or feed
     it the wrong hexes. None when this isn't a fire question about one pair.
     """
