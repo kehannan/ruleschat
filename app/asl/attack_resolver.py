@@ -406,9 +406,6 @@ def _apply_vasl_facts(facts: Dict[str, Any], base: str, flabel: str,
             f"VASL's map shows {tlabel}'s Location terrain as {vt}, but the "
             f"board file reads {' + '.join(ours)} (an overlay or SSR may have "
             "changed it): the target TEM below uses the board-file terrain.")
-    if fh is not None and th is not None:
-        assumptions.append(f"Heights from VASL's map: firer at level {fh}, "
-                           f"target at level {th}.")
     return hexside_tem, hexside_tem_label, label
 
 
@@ -1149,6 +1146,20 @@ def resolve_attack(
 
     # ---- facts from VASL's own map model (extension >= 0.5) ----
     facts = (native_los or {}).get("facts") if vasl_los else None
+    if isinstance(facts, dict) and facts.get("source_height") is not None \
+            and facts.get("target_height") is not None:
+        def _where(prefix):
+            loc = native_los.get(f"{prefix}_location")
+            known = native_los.get(f"{prefix}_from_units")
+            if known is None:   # extension < 0.6.1: always the hex's ground level
+                return "ground level of the hex"
+            return (f"{loc}, where its units are" if known
+                    else f"{loc} (no visible units: ground level)")
+        # replaces "Same-level fire assumed ... upper levels are not modeled"
+        assumptions[4] = (
+            f"Levels from VASL's map: firer {fkey} at level "
+            f"{facts['source_height']} ({_where('source')}), target {tkey} at "
+            f"level {facts['target_height']} ({_where('target')}).")
     if isinstance(facts, dict):
         hexside_tem, hexside_tem_label, fh_label = _apply_vasl_facts(
             facts, fbase, flabel, tlabel, tentry, native_hindrance,
@@ -1300,6 +1311,10 @@ def resolve_attack(
     # ---- PBF / long range per unit ----
     felev = (fentry.get("terrain") or {}).get("elevation")
     telev = (tentry.get("terrain") or {}).get("elevation")
+    if isinstance(facts, dict) and facts.get("source_height") is not None \
+            and facts.get("target_height") is not None:
+        # VASL's absolute Location heights (hill + building level)
+        felev, telev = facts["source_height"], facts["target_height"]
     pbf_mode = "none"
     if rng == 0:
         pbf_mode = "tpbf"

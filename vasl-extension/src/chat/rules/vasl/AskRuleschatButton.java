@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.6.0";
+  static final String VERSION = "0.6.1";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -1036,8 +1036,18 @@ public class AskRuleschatButton extends AbstractConfigurable {
       VASLGameInterface game = new VASLGameInterface(gameMap, losMap);
       game.updatePieces();
       LOSResult result = new LOSResult();
-      VASL.LOS.Map.Location sourceLocation = source.getCenterLocation();
-      VASL.LOS.Map.Location targetLocation = target.getCenterLocation();
+      // Check LOS from where the units actually are (e.g. a building's first
+      // floor), not from the hex's ground level.
+      VASL.LOS.Map.Location sourceLocation = unitLocation(gameMap, game, source);
+      VASL.LOS.Map.Location targetLocation = unitLocation(gameMap, game, target);
+      final boolean sourceFromUnits = sourceLocation != null;
+      final boolean targetFromUnits = targetLocation != null;
+      if (sourceLocation == null) {
+        sourceLocation = source.getCenterLocation();
+      }
+      if (targetLocation == null) {
+        targetLocation = target.getCenterLocation();
+      }
       for (int i = 0; i < sourceLevel && sourceLocation.getUpLocation() != null; i++) {
         sourceLocation = sourceLocation.getUpLocation();
       }
@@ -1063,12 +1073,56 @@ public class AskRuleschatButton extends AbstractConfigurable {
         + ",\"range\":" + result.getRange()
         + ",\"source_level\":" + sourceLocation.getLevelInHex()
         + ",\"target_level\":" + targetLocation.getLevelInHex()
+        + ",\"source_location\":" + Json.quote(sourceLocation.getName())
+        + ",\"target_location\":" + Json.quote(targetLocation.getName())
+        + ",\"source_from_units\":" + sourceFromUnits
+        + ",\"target_from_units\":" + targetFromUnits
         + (facts == null ? "" : ",\"facts\":" + facts) + "}";
     }
     catch (Exception e) {
       System.err.println("AskRuleschat: native LOS unavailable: " + e);
       return null;
     }
+  }
+
+  /** The VASL Location the visible units in this hex occupy: the one with
+   *  the most units, ties to the higher level. Null when no unit is visible
+   *  to this player (hidden enemy units are never consulted, so their level
+   *  can't leak), and the caller falls back to the hex's ground level. */
+  static VASL.LOS.Map.Location unitLocation(ASLMap gameMap,
+                                            VASLGameInterface game, Hex hex) {
+    final java.util.Map<VASL.LOS.Map.Location, Integer> counts = new java.util.HashMap<>();
+    for (GamePiece top : gameMap.getAllPieces()) {
+      final List<GamePiece> pieces = new ArrayList<>();
+      if (top instanceof Stack) {
+        for (int i = 0; i < ((Stack) top).getPieceCount(); i++) {
+          pieces.add(((Stack) top).getPieceAt(i));
+        }
+      }
+      else {
+        pieces.add(top);
+      }
+      for (GamePiece piece : pieces) {
+        if (!(game.isUnitCounter(piece) || game.isDBUnitCounter(piece))
+            || Boolean.TRUE.equals(piece.getProperty(VASSAL.counters.Properties.INVISIBLE_TO_ME))
+            || Boolean.TRUE.equals(piece.getProperty(VASSAL.counters.Properties.OBSCURED_TO_ME))) {
+          continue;
+        }
+        final VASL.LOS.Map.Location loc = game.getLocation(piece);
+        if (loc != null && loc.getHex() == hex) {
+          counts.merge(loc, 1, Integer::sum);
+        }
+      }
+    }
+    VASL.LOS.Map.Location best = null;
+    for (java.util.Map.Entry<VASL.LOS.Map.Location, Integer> e : counts.entrySet()) {
+      if (best == null || e.getValue() > counts.get(best)
+          || (e.getValue().equals(counts.get(best))
+              && e.getKey().getAbsoluteHeight() > best.getAbsoluteHeight())) {
+        best = e.getKey();
+      }
+    }
+    return best;
   }
 
   /** What VASL's own map model knows about this LOS, for the server's

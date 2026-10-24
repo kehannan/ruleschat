@@ -1305,3 +1305,22 @@ def test_unknown_counter_on_los_is_reported_not_ignored():
     w = " ".join(r["warnings"])
     assert "does not model" in w and "U5: Pillbox 1+5+7" in w, w
     assert "Prep Fire" not in w
+
+
+def test_vasl_unit_locations_set_levels_and_pbf():
+    """Extension >= 0.6.1 checks LOS from where the units are. A firer two
+    levels below its adjacent target loses PBF (A7.21) using VASL's
+    heights, and the levels assumption names the Locations."""
+    s = _j103_state(**{"42-L2": [_sq("4-6-7 1sq", "German")],
+                       "42-M2": [_sq("4-4-7 1sq", "Russian")]})
+    los = {"source": "L2", "target": "M2", "blocked": False, "hindrance": 0,
+           "range": 1, "source_level": 0, "target_level": 2,
+           "source_location": "L2", "target_location": "M2 Level 2",
+           "source_from_units": True, "target_from_units": True,
+           "facts": {"source_height": 0, "target_height": 2, "path": [],
+                     "target_entry": {}, "hexes": []}}
+    r = resolve_attack(s, "42-L2", "42-M2", "defensive_first", native_los=los)
+    assert r["range"]["pbf"] == "none", r["range"]
+    text = " ".join(r["assumptions"])
+    assert "target 42-M2 at level 2 (M2 Level 2, where its units are)" in text, text
+    assert "upper levels are not modeled" not in text, text

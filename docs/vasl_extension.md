@@ -29,7 +29,7 @@ The split is deliberate:
 
 `POST /api/ask/stream` with `Authorization: Bearer <ruleschat API key>`.
 
-A fire question ("W6 fires at T4 – IFT and DRM?") from extension 0.6, during
+A fire question ("W6 fires at T4 – IFT and DRM?") from extension 0.6.1, during
 Prep Fire, with a roadblock in U5. Lists of hexsides are shown for one hex only;
 every hex in `facts.hexes` carries all six.
 
@@ -49,15 +49,21 @@ every hex in `facts.hexes` carries all six.
   // Present when the question names two hexes. The first is the firer, the
   // second the target ("S3 fires at V4"; "41-S3" for a multi-board map).
   "native_los": {
-    // --- VASL's own LOS check, between the two hex-center Locations ---
-    "source": "W6",
-    "target": "T4",
+    // --- chosen by the extension: which two Locations to check ---
+    "source": "W6",                     // first hex named in the question
+    "target": "T4",                     // second hex named in the question
+    "source_location": "W6",            // VASL Location name ("M2 Level 1" for
+    "target_location": "T4",            //   a building's first floor)
+    "source_from_units": true,          // Location of the visible units there;
+    "target_from_units": true,          //   false = none visible: ground level
+    "source_level": 0,                  // level WITHIN the hex (0 = ground),
+    "target_level": 0,                  //   not elevation: a hill hex is still 0
+
+    // --- straight from VASL's LOS engine (LOSResult) ---
     "blocked": false,
     "reason": "",                       // VASL's text when blocked
     "hindrance": 1,                     // total hindrance DRM VASL counted
     "range": 3,
-    "source_level": 0,                  // level WITHIN the hex (0 = ground),
-    "target_level": 0,                  //   not elevation: a hill hex is still 0
 
     // --- extension >= 0.5: what VASL's map model knows (raw facts) ---
     "facts": {
@@ -121,17 +127,20 @@ every hex in `facts.hexes` carries all six.
 | `model` | Settings dropdown | Non-admin keys fall back to the server default; subscription models are admin-only. |
 | `game_phase` | phase wheel | Maps to the fire phase (`PFPh` → Prep, `MPh` → Defensive First, `DFPh` → Final, `AFPh` → Advancing). |
 | `history` | transcript | Context only; `/api/ask` is stateless. |
-| `native_los.*` | `Map.LOS(...)` in VASL | The verdict from VASL's own LOS engine (it ignores roadblocks; see below). |
-| `facts.*_height` | `Location.getAbsoluteHeight()` | Absolute levels: use these, not `*_level`. |
+| `native_los.source/target` | question text | The first two hexes named; the extension doesn't guess from the map. |
+| `native_los.*_location`, `*_from_units` | `VASLGameInterface.getLocation(unit)` | LOS is checked from where the units actually are: the Location holding most of the hex's visible units (ties to the higher level), e.g. a building's first floor. With no visible units (empty hex, or only concealed/HIP enemies, which are never consulted) it falls back to the hex's ground level. |
+| `native_los.blocked/reason/hindrance/range` | `Map.LOS(...)` → `LOSResult` | The verdict from VASL's own LOS engine, same as VASL's LOS tool (it ignores roadblocks; see below). |
+| `facts.*_height` | `Location.getAbsoluteHeight()` | Absolute levels (hill + building level) of those Locations: use these, not `*_level`. The resolver uses them for the PBF level test (A7.21) and walls/roadblocks (B9.2). |
 | `facts.target_entry` | LOS line + `Hex.getHexsideTerrain(side)` | Decides hexside TEM (B9.3) at the target. |
 | `facts.path[].counters` | `VASLGameInterface.getSmoke/getVehicles/getWreck` | What VASL counts as hindrances, per hex. |
 | `facts.first_hindrance_hex` | `LOSResult.firstHindranceAt()` | Names the hindrance when nothing else explains it. |
 | `facts.hexes[].counters` | every piece in the hex | Units and anything invisible/obscured to this player are never sent. |
 | `facts.hexes[].sides` | `Hex.getHexsideLocation/getAdjacentHex/getHexsideTerrain` | `bearing`: 0 = up, clockwise. Lets the server turn a counter's arrow into a hexside. |
 
-Older extensions send less, and the server copes: 0.3 sends no `facts`, and
+Older extensions send less, and the server copes: 0.3 sends no `facts`;
 0.5 sends `facts` without `hexes` (with a pre-digested `roadblocks` list
-instead).
+instead); before 0.6.1 the LOS was always checked from each hex's ground
+level, and `*_location` / `*_from_units` are missing.
 
 ---
 
