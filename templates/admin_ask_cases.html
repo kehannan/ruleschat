@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Eval cases — Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+  .site .cases-wrap { padding: 56px 0 80px; }
+  .site .cases-header {
+    display: flex; align-items: end; justify-content: space-between;
+    gap: 24px; flex-wrap: wrap;
+    margin-bottom: 28px; padding-bottom: 20px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .site .cases-header h1 {
+    font-family: var(--display); font-weight: 400;
+    font-size: clamp(26px, 3vw, 34px); line-height: 1.1;
+    letter-spacing: -0.01em; text-transform: uppercase;
+    margin: 8px 0 0;
+  }
+  .site .cases-header h1 em { font-style: normal; }
+  .site .cases-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .site .cases-table th {
+    padding: 10px 12px; text-align: left; font-family: var(--mono);
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); font-weight: 500; background: var(--paper-2);
+    white-space: nowrap; border-bottom: 1px solid var(--muted-2);
+  }
+  .site .cases-table td {
+    padding: 10px 12px; color: var(--ink-2); vertical-align: top;
+    border-top: 1px solid var(--hair);
+  }
+  .site .cases-table td.mono { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  .site .cases-table .empty-row td { text-align: center; color: var(--muted); padding: 32px 12px; }
+  .site .case-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+  @media (max-width: 900px) { .site .case-grid { grid-template-columns: minmax(0, 1fr); } }
+  .site .case-block { margin-bottom: 22px; }
+  .site .case-block h2 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); font-weight: 500;
+    margin: 0 0 8px;
+  }
+  .site .case-question { font-size: 17px; color: var(--ink); margin: 0; }
+  .site .case-note { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; color: var(--ink); }
+  .site .case-pre {
+    white-space: pre-wrap; word-break: break-word; font-family: var(--mono);
+    font-size: 12px; background: var(--paper-2); padding: 12px; margin: 0;
+    max-height: 420px; overflow: auto;
+  }
+  .site .case-calc { font-size: 12px; }
+  /* the calculator card is HTML 3.2 for the extension's Swing panel; these
+     mirror the extension's own card styles */
+  .site .case-calc .calchead, .site .case-calc .calcleg,
+  .site .case-calc .tilelbl { font-size: 11px; color: var(--muted); }
+  .site .case-calc .tileval { font-size: 17px; font-weight: 700; color: var(--ink); }
+  .site .case-calc .calck, .site .case-calc .calcv { font-size: 12px; padding: 1px 0; }
+  .site .case-calc .bar { height: 8px; font-size: 1px; }
+  .site .case-meta { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .site #board-viewer-slot { min-height: 40px; }
+  .site #board-viewer-slot .bv-viewport { height: 520px; }
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="cases-wrap">
+  <div class="wrap">
+
+    <header class="cases-header">
+      <div>
+        <div class="eyebrow"><span class="dot"></span><span>Admin</span><span>·</span><span>Eval cases</span></div>
+        {% if case %}
+        <h1>Case <em>{{ case.id }}</em></h1>
+        {% else %}
+        <h1>Eval <em>cases</em>.</h1>
+        {% endif %}
+      </div>
+      <div>
+        {% if case %}
+        <a href="/admin/ask-cases" class="btn btn-ghost btn-sm">← All cases</a>
+        {% else %}
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-ghost btn-sm">← Back to admin</a>
+        {% endif %}
+      </div>
+    </header>
+
+    {% if case %}
+    <div class="case-block">
+      <h2>Question</h2>
+      <p class="case-question">{{ case.request.question }}</p>
+      <p class="case-meta">{{ case.created_at[:16].replace('T', ' ') }} UTC ·
+        extension {{ case.extension_version or '?' }} ·
+        phase {{ case.request.game_phase or '—' }} ·
+        side {{ case.request.side or 'full view' }}
+        {% if case.meta %} · {{ case.meta }}{% endif %}</p>
+    </div>
+    {% if case.note %}
+    <div class="case-block">
+      <h2>What's wrong (your note)</h2>
+      <div class="case-note">{{ case.note }}</div>
+    </div>
+    {% endif %}
+
+    <div class="case-block">
+      <h2>Board</h2>
+      {% if case.has_save %}
+      <div id="board-viewer-slot"></div>
+      <p class="case-meta" id="board-status">Loading the board…</p>
+      {% else %}
+      <p class="case-meta">No save was attached to this question.</p>
+      {% endif %}
+    </div>
+
+    <div class="case-grid">
+      <div>
+        <div class="case-block">
+          <h2>Answer at capture</h2>
+          <pre class="case-pre">{{ case.answer }}</pre>
+        </div>
+      </div>
+      <div>
+        <div class="case-block">
+          <h2>Calculator now (current code, same save + facts)</h2>
+          {% if calc_html %}
+          <div class="case-calc">{{ calc_html | safe }}</div>
+          {% else %}
+          <p class="case-meta">Not a fire question with two named hexes — no calculator run.</p>
+          {% endif %}
+        </div>
+        <div class="case-block">
+          <details>
+            <summary class="case-meta">VASL facts sent with the question</summary>
+            <pre class="case-pre">{{ facts_json }}</pre>
+          </details>
+        </div>
+        <div class="case-block case-meta">
+          Download: <a href="/api/admin/ask-cases/{{ case.id }}/case.json">case.json</a>
+          {% if case.has_save %} · <a href="/api/admin/ask-cases/{{ case.id }}/save.vsav">save.vsav</a>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    <table class="cases-table">
+      <thead>
+        <tr><th>Saved</th><th>Question</th><th>Note</th><th>Ext.</th><th>Save</th></tr>
+      </thead>
+      <tbody>
+        {% for c in cases %}
+        <tr>
+          <td class="mono">{{ c.created_at[:16].replace('T', ' ') }}</td>
+          <td><a href="/admin/ask-cases/{{ c.id }}">{{ c.request.question }}</a></td>
+          <td>{{ c.note }}</td>
+          <td class="mono">{{ c.extension_version }}</td>
+          <td class="mono">{{ 'yes' if c.has_save else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr class="empty-row"><td colspan="5">No cases yet. In VASL, click "Save as eval case" under an answer.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if case and case.has_save %}
+<script src="{{ url_for('static', path='/js/board-viewer.js') }}"></script>
+<script>
+  (async () => {
+    const status = document.getElementById('board-status');
+    try {
+      const resp = await fetch('/api/admin/ask-cases/{{ case.id }}/manifest');
+      if (!resp.ok) throw new Error((await resp.json()).detail || resp.status);
+      window.showBoardManifest(await resp.json(), 'Save at capture');
+      status.remove();
+    } catch (err) {
+      status.textContent = 'Could not load the board: ' + err.message;
+    }
+  })();
+</script>
+{% endif %}
+{% endblock %}

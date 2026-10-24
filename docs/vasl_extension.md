@@ -215,7 +215,34 @@ road hexside is preferred as a tie-break (B29.1).
 
 ---
 
-## 5. Building, installing, debugging
+## 5. Eval cases: "Save as eval case"
+
+Under each answer the extension (>= 0.7) shows **Save as eval case**. It
+asks for an optional note ("what's wrong") and re-sends the original request
+(including the save), the answer and the note to `POST /api/ask/cases`.
+Admin keys only.
+
+The server stores each case on prod, never in git (`.gitignore`):
+
+```
+data/ask_cases/<id>/case.json   question, VASL facts, answer, note, extension version,
+                                expected / expected_answer (filled in when it becomes an eval)
+data/ask_cases/<id>/save.vsav   the game save, as sent
+```
+
+**`/admin/ask-cases`** lists them. Each case page shows the board, drawn from
+the stored save by the same viewer as the chat page, plus:
+- your note and the answer as captured;
+- **the calculator re-run with today's code** on the same save and facts,
+  so after a fix you can see whether the case now comes out right;
+- the VASL facts, and downloads of `case.json` / `save.vsav` (for the evals
+  repo's sync).
+
+Saves hold both sides' units, hidden ones included, so cases stay admin-only.
+
+---
+
+## 6. Building, installing, debugging
 
 - **Build:** `vasl-extension/build.sh` → `dist/AskRuleschat-<version>.vmdx`.
   It compiles against the local VASSAL and VASL jars with `--release 11`. Bump

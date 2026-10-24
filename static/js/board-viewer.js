@@ -97,8 +97,10 @@
           '<div class="bv-tooltip" style="display:none"></div>' +
         '</div>' +
       '</div>';
+    const slot = document.getElementById('board-viewer-slot');
     const dock = document.querySelector('.input-dock');
-    if (dock && dock.parentNode) dock.parentNode.insertBefore(panel, dock);
+    if (slot) slot.appendChild(panel);
+    else if (dock && dock.parentNode) dock.parentNode.insertBefore(panel, dock);
     else document.body.appendChild(panel);
 
     viewport = panel.querySelector('.bv-viewport');
@@ -438,4 +440,6 @@
   }
 
   window.initBoardViewer = initBoardViewer;
+  // Render a manifest fetched elsewhere (admin eval-case page).
+  window.showBoardManifest = (man, title) => renderManifest(man, title);
 })();

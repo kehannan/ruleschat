@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.6.1";
+  static final String VERSION = "0.7.0";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -176,6 +176,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
     String error;
     String latency;           // final meta line (model · seconds · quota)
     String calcHtml;          // server-rendered calculator card (trusted HTML)
+    String requestJson;       // the exact /api/ask body (for "Save as eval case")
+    String caseStatus;        // "saving…", "saved as case …", or an error
     boolean showAssumptions;  // folded sections, toggled from the transcript
     boolean showRules;
     boolean streaming;
@@ -485,6 +487,11 @@ public class AskRuleschatButton extends AbstractConfigurable {
       if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED
           && e.getDescription() != null && e.getDescription().startsWith("fold:")) {
         toggleFold(e.getDescription());
+        return;
+      }
+      if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED
+          && e.getDescription() != null && e.getDescription().startsWith("case:")) {
+        saveCase(e.getDescription());
         return;
       }
       if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED
@@ -817,6 +824,72 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return 0;
   }
 
+  /** "Save as eval case": re-send this answer's request (with the save),
+   *  the answer and a note to /api/ask/cases (admin keys only). */
+  private void saveCase(String desc) {
+    final Message m;
+    try {
+      m = messages.get(Integer.parseInt(desc.substring("case:".length())));
+    }
+    catch (RuntimeException e) {
+      return;
+    }
+    if (m.requestJson == null || m.caseStatus != null) {
+      return;
+    }
+    final String note = JOptionPane.showInputDialog(dialog,
+      "What's wrong with this answer? (optional)", "Save as eval case",
+      JOptionPane.PLAIN_MESSAGE);
+    if (note == null) {
+      return;  // cancelled
+    }
+    m.caseStatus = "saving case…";
+    renderTranscript();
+    final String base = pref(P_URL, DEFAULT_URL).replaceAll("/+$", "");
+    final String key = pref(P_KEY, "");
+    final String body = "{\"request\":" + m.requestJson
+      + ",\"answer\":" + Json.quote(m.text.toString())
+      + ",\"note\":" + Json.quote(note)
+      + ",\"meta\":" + Json.quote(m.latency == null ? "" : m.latency)
+      + ",\"extension_version\":" + Json.quote(VERSION) + "}";
+    new SwingWorker<String, Void>() {
+      @Override
+      protected String doInBackground() {
+        try {
+          final HttpResponse<String> resp = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(10)).build()
+            .send(HttpRequest.newBuilder(URI.create(base + "/api/ask/cases"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + key)
+                    .timeout(Duration.ofSeconds(120))
+                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                    .build(),
+                  HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+          if (resp.statusCode() != 200) {
+            final String detail = Json.getString(resp.body(), "detail");
+            return "case not saved: " + (detail != null ? detail : "HTTP " + resp.statusCode());
+          }
+          return "saved as case " + Json.getString(resp.body(), "id");
+        }
+        catch (Exception ex) {
+          return "case not saved: " + ex.getMessage();
+        }
+      }
+
+      @Override
+      protected void done() {
+        try {
+          m.caseStatus = get();
+        }
+        catch (Exception ex) {
+          m.caseStatus = "case not saved: " + ex.getMessage();
+        }
+        renderTranscript();
+      }
+    }.execute();
+  }
+
   private void toggleFold(String desc) {
     final String[] parts = desc.split(":");
     try {
@@ -935,7 +1008,19 @@ public class AskRuleschatButton extends AbstractConfigurable {
           h.append("<tr><td><div class='latrule'></div>"
                    + "<table width='100%' cellspacing='0' cellpadding='0'>"
                    + "<tr><td class='lat'>").append(Md.escape(m.latency))
-           .append("</td></tr></table></td></tr>");
+           .append("</td></tr>");
+          if (m.requestJson != null && !m.streaming) {
+            h.append("<tr><td class='lat'>");
+            if (m.caseStatus == null) {
+              h.append("<a class='fold' href='case:").append(messages.indexOf(m))
+               .append("'>Save as eval case</a>");
+            }
+            else {
+              h.append(Md.escape(m.caseStatus));
+            }
+            h.append("</td></tr>");
+          }
+          h.append("</table></td></tr>");
         }
         h.append("<tr><td class='gap'></td></tr></table>");
       }
@@ -1459,6 +1544,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
           body.append(']');
         }
         body.append('}');
+        bot.requestJson = body.toString();
 
         // HTTP/1.1 pinned: the default HTTP/2 client sends an h2c upgrade
         // handshake on plain http:// URLs and uvicorn drops the body.
