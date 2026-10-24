@@ -488,6 +488,13 @@ public class AskRuleschatButton extends AbstractConfigurable {
         return;
       }
       if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED
+          && e.getDescription() != null
+          && (e.getDescription().startsWith("rule:")
+              || e.getDescription().startsWith("qa:"))) {
+        openCitation(e.getDescription());
+        return;
+      }
+      if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED
           && e.getURL() != null) {
         try {
           Desktop.getDesktop().browse(e.getURL().toURI());
@@ -746,6 +753,70 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return n == 0 && !section.trim().isEmpty() ? 1 : n;
   }
 
+  // Served by the ruleschat site (same files as static/js/chat-shared.js).
+  private static final String RULEBOOK_PDF = "/static/rulebook/eASLRB_v3_14_INHERIT_ZOOM.pdf";
+  private static final String QA_PDF = "/static/rulebook/ASL-QA-v31.pdf";
+  private static final Pattern SECTION_PAGE_ENTRY =
+    Pattern.compile("\"([A-Z]?\\d+(?:\\.\\d+)+)\"\\s*:\\s*(\\d+)");
+  private static volatile java.util.Map<String, Integer> sectionPages;
+
+  /** Open a cited rule ("rule:A7.2" or "rule:A7.2:123") or the Q&A ("qa:")
+   *  in the system browser, at the section's page in the hosted rulebook. */
+  private void openCitation(String desc) {
+    final String base = pref(P_URL, DEFAULT_URL).replaceAll("/+$", "");
+    final String[] parts = desc.split(":");
+    new Thread(() -> {
+      String url = base + QA_PDF;
+      if ("rule".equals(parts[0]) && parts.length > 1) {
+        int page = parts.length > 2 ? Integer.parseInt(parts[2]) : sectionPage(base, parts[1]);
+        url = base + RULEBOOK_PDF + (page > 0 ? "#page=" + page : "");
+      }
+      try {
+        Desktop.getDesktop().browse(URI.create(url));
+      }
+      catch (Exception ignored) {
+        // no browser available
+      }
+    }, "AskRuleschat-cite").start();
+  }
+
+  /** PDF page of a rule section via the site's section_pages.json (fetched
+   *  once); an unmapped sub-section falls back to its parent (A7.211 -> A7.2). */
+  private static int sectionPage(String base, String section) {
+    java.util.Map<String, Integer> map = sectionPages;
+    if (map == null) {
+      map = new java.util.HashMap<>();
+      try {
+        final HttpResponse<String> resp = HttpClient.newBuilder()
+          .version(HttpClient.Version.HTTP_1_1)
+          .connectTimeout(Duration.ofSeconds(10)).build()
+          .send(HttpRequest.newBuilder(URI.create(base + "/static/rulebook/section_pages.json"))
+                  .timeout(Duration.ofSeconds(20)).GET().build(),
+                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (resp.statusCode() == 200) {
+          final Matcher m = SECTION_PAGE_ENTRY.matcher(resp.body());
+          while (m.find()) {
+            map.put(m.group(1), Integer.parseInt(m.group(2)));
+          }
+          sectionPages = map;
+        }
+      }
+      catch (Exception ignored) {
+        // offline: open the rulebook at its first page
+      }
+    }
+    for (String s = section; s.contains("."); s = s.substring(0, s.length() - 1)) {
+      final Integer page = map.get(s);
+      if (page != null) {
+        return page;
+      }
+      if (s.endsWith(".")) {
+        break;
+      }
+    }
+    return 0;
+  }
+
   private void toggleFold(String desc) {
     final String[] parts = desc.split(":");
     try {
@@ -810,7 +881,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
       + "div.calcerr { font-size: 11px; color: #3D4B56; margin: 2px 0 0 0; }\n"
       + "div.calcgap { font-size: 1px; margin: 0 0 7px 0; }\n"
       + "div.fold { font-size: 10px; color: #6A757D; margin: 2px 0 0 0; }\n"
-      + "a.fold { color: #2E5C7E; text-decoration: none; }\n";
+      + "a.fold { color: #2E5C7E; text-decoration: none; }\n"
+      + "a.cite { color: #2E5C7E; text-decoration: none; font-weight: bold; }\n";
   }
 
   /** Rebuild the transcript HTML from the message model. */
@@ -1768,11 +1840,76 @@ public class AskRuleschatButton extends AbstractConfigurable {
       t = t.replaceAll("__(.+?)__", "<b>$1</b>");
       t = t.replaceAll("(?<![\\w*])\\*(?!\\s)(.+?)(?<!\\s)\\*(?![\\w*])", "<i>$1</i>");
       t = t.replaceAll("(?<![\\w_])_(?!\\s)(.+?)(?<!\\s)_(?![\\w_])", "<i>$1</i>");
+      t = linkCitations(t);
       // restore code spans
       for (int k = 0; k < codes.size(); k++) {
         t = t.replace("\u0000" + k + "\u0000", "<code>" + codes.get(k) + "</code>");
       }
       return t;
+    }
+
+    // {A7.2|123} (section with page), bare A7.2 / B23.71, and Perry Sez / ASL Q&A
+    // — the same references static/js/chat-shared.js makes clickable, except a
+    // bare ref needs its chapter letter here (so odds like 41.7 stay plain).
+    private static final Pattern CITATION = Pattern.compile(
+      "\\{([A-Z]?\\d+\\.\\d+(?:\\.\\d+)?)\\|(\\d+)\\}"
+      + "|(?<![\\w.])([A-Z]\\d+\\.\\d+(?:\\.\\d+)?)(?![\\w])"
+      + "|\\b(?:Perry\\s+Sez|ASL\\s+Q&amp;A)\\b",
+      Pattern.CASE_INSENSITIVE);
+
+    /** Wrap rule citations in rule:/qa: links, outside tags and existing links. */
+    static String linkCitations(String html) {
+      final StringBuilder out = new StringBuilder(html.length() + 32);
+      int i = 0;
+      boolean inLink = false;
+      while (i < html.length()) {
+        if (html.charAt(i) == '<') {
+          final int end = html.indexOf('>', i);
+          final String tag = html.substring(i, end < 0 ? html.length() : end + 1);
+          if (tag.startsWith("<a ")) {
+            inLink = true;
+          }
+          else if (tag.startsWith("</a")) {
+            inLink = false;
+          }
+          out.append(tag);
+          i += tag.length();
+          continue;
+        }
+        int next = html.indexOf('<', i);
+        if (next < 0) {
+          next = html.length();
+        }
+        final String text = html.substring(i, next);
+        i = next;
+        if (inLink) {
+          out.append(text);
+          continue;
+        }
+        final Matcher m = CITATION.matcher(text);
+        int last = 0;
+        while (m.find()) {
+          if (m.group(1) == null && m.group(3) != null
+              && !Character.isUpperCase(m.group(3).charAt(0))) {
+            continue;  // case-insensitive only for the Q&A phrases
+          }
+          out.append(text, last, m.start());
+          if (m.group(1) != null) {
+            out.append("<a class='cite' href='rule:").append(m.group(1)).append(':')
+               .append(m.group(2)).append("'>").append(m.group(1)).append("</a>");
+          }
+          else if (m.group(3) != null) {
+            out.append("<a class='cite' href='rule:").append(m.group(3)).append("'>")
+               .append(m.group(3)).append("</a>");
+          }
+          else {
+            out.append("<a class='cite' href='qa:'>").append(m.group()).append("</a>");
+          }
+          last = m.end();
+        }
+        out.append(text.substring(last));
+      }
+      return out.toString();
     }
   }
 
