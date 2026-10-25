@@ -117,6 +117,45 @@ every hex in `facts.hexes` carries all six.
 }
 ```
 
+### When `native_los` is sent
+
+The extension builds `native_los` (and its `facts`) itself, before the
+request leaves VASL. The LLM plays no part. It does so when:
+
+1. a game is open with a map loaded;
+2. the question names two hexes. The `HEX_REFERENCE` regex takes the first
+   two matches ("S3", or "41-S3" on multi-board maps; rule numbers such as
+   "A7.22" are skipped), the first as firer and the second as target. Any
+   further hexes are ignored;
+3. they are different hexes that both exist on the map (if not, it gives up;
+   it doesn't try later matches);
+4. VASL's LOS check runs without error.
+
+It does this for every such question, not only fire questions. The server
+decides relevance: a fire question (a second regex on words such as fire,
+attack, IFT, DRM, odds) gets the calculator run on that pair; any other
+question just passes VASL's verdict to the model as context.
+
+Known weak spots: word order is the only signal for firer vs target ("V4 is
+fired on by S3" checks V4 → S3), and rule names without a decimal ("E4") can
+look like hexes.
+
+### Where `facts` come from
+
+Everything in `facts` is read from VASL's live map model at the moment you
+ask: the same model VASL's LOS tool uses, so overlays, SSR terrain changes and
+counters are included.
+
+| Facts | VASL source |
+|---|---|
+| heights, terrain at firer/target | the two `Location`s (`getAbsoluteHeight`, `getTerrain`) |
+| base levels, hexsides, neighbors | `Hex` (`getBaseLevelofHex`, `getHexsideTerrain`, `getHexsideLocation`, `Map.getAdjacentHex`) |
+| `path`, `target_entry` | the LOS line between the two Locations, walked over the map with `Map.gridToHex` |
+| SMOKE / vehicles / wrecks per hex | `VASLGameInterface.getSmoke` / `getVehicles` / `getWreck` |
+| `first_hindrance_hex`, `blocked_at_hex` | VASL's `LOSResult` (`firstHindranceAt`, `getBlockedAtPoint`) |
+| counters in `hexes` | the game's pieces: name, position (hexside or not), `FreeRotator` angle, `Arrow_Level` layer |
+| which Location in each hex | `VASLGameInterface.getLocation(unit)` for the visible units there |
+
 ### Field reference
 
 | Field | From | Notes |
