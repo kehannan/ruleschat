@@ -5,14 +5,34 @@ button to VASL. A question goes to ruleschat's `/api/ask/stream` together with
 a snapshot of the game and what VASL's own map model knows about the attack
 being asked about. The server does the rules math; the model explains it.
 
+```mermaid
+flowchart TD
+    EXT["VASL extension<br/><i>reports facts, no rules</i>"]
+    API["/api/ask"]
+    RES["resolve_attack<br/><i>applies the rules</i>"]
+    CR[("counter_rules<br/><i>counter effects, data</i>")]
+    BF["board-file trace<br/><i>fallback only</i>"]
+    CARD["calculator card<br/><i>fixed numbers</i>"]
+    LLM["LLM<br/><i>explains, cites rules</i>"]
+    ANS["answer in VASL<br/><i>card first, then explanation</i>"]
+
+    EXT -- "question + save + facts" --> API --> RES
+    CR --> RES
+    BF -. "when there are no facts" .-> RES
+    RES --> CARD --> ANS
+    RES --> LLM --> ANS
 ```
-VASL extension ──facts──▶ /api/ask ──▶ resolve_attack ◀── counter_rules (data)
- (reports, no rules)                        │        ◀── board-file trace (fallback)
-                                            ├──▶ calculator card (fixed numbers)
-                                            └──▶ LLM (explains, cites rules)
-                                                        │
-                                   answer in VASL ◀─────┘  card first, then explanation
-```
+
+In words:
+
+1. **The VASL extension** sends the question, the save and the facts it read
+   from VASL's map to `/api/ask`.
+2. **`resolve_attack`** turns them into FP, column, DRM and odds. It looks up
+   what each counter does in **`counter_rules`**, and uses the **board-file
+   trace** only when there are no facts.
+3. The result becomes the **calculator card** (fixed numbers) and goes to the
+   **LLM**, which explains it and cites the rules.
+4. **The answer in VASL** shows the card first, then the explanation.
 
 The split is deliberate:
 
