@@ -49,7 +49,7 @@ The split is deliberate:
 
 `POST /api/ask/stream` with `Authorization: Bearer <ruleschat API key>`.
 
-A fire question ("W6 fires at T4 – IFT and DRM?") from extension 0.6.1, during
+A fire question ("W6 fires at T4 – IFT and DRM?") from extension 0.7, during
 Prep Fire, with a roadblock in U5. Lists of hexsides are shown for one hex only;
 every hex in `facts.hexes` carries all six.
 
@@ -198,8 +198,9 @@ counters are included.
 
 Older extensions send less, and the server copes: 0.3 sends no `facts`;
 0.5 sends `facts` without `hexes` (with a pre-digested `roadblocks` list
-instead); before 0.6.1 the LOS was always checked from each hex's ground
-level, and `*_location` / `*_from_units` are missing.
+instead); before 0.7 the LOS was always checked from each hex's ground
+level, and `*_location` / `*_from_units` are missing. Only 0.7 shows
+"Save as eval case".
 
 ---
 
@@ -241,6 +242,11 @@ The answer text follows a fixed format (`ASK_ANSWER_FORMAT` in
 4. **Render the card** (`_calculator_html`) and stream it first.
 5. **Ask the model** with the full resolution marked authoritative: explain
    each line, cite rules, relay assumptions. It must not recompute the numbers.
+   Agentic models can still call tools (`file_search`, `resolve_attack`,
+   `ift_attack`, …) for follow-ups; each call shows as a `status` line. The
+   subscription models (`claude-fable-sub`, `gpt-6-astra-sub`) run as
+   `claude -p` / `codex exec` and reach the same tools through the in-process
+   MCP bridge (`app/asl/mcp_bridge.py`).
 
 If VASL reports the LOS blocked, there is no attack: the card says so and
 names the obstacle, using `blocked_at_hex` plus a terrain trace.
@@ -347,4 +353,6 @@ Saves hold both sides' units, hidden ones included, so cases stay admin-only.
   separates a sensing problem (extension) from a rules problem (resolver or
   table).
 - **Tests:** `tests/test_ask_api.py` (endpoint, card, stream),
-  `tests/test_attack_resolver.py` (resolver, facts, counter rules).
+  `tests/test_attack_resolver.py` (resolver, facts, counter rules),
+  `tests/test_attack_pipeline.py` (step order), `tests/test_ask_cases.py`
+  (eval-case capture and admin pages).
