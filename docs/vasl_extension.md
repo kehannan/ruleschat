@@ -231,8 +231,9 @@ The answer text follows a fixed format (`ASK_ANSWER_FORMAT` in
    SSR transforms, overlays; mask hidden units for the requesting side.
 2. **Precompute the attack** when the question is a fire question and
    `native_los` names the pair (`_precompute_attack` in `app/api/ask.py`).
-   `resolve_attack` (`app/asl/attack_resolver.py`) derives FP, range, PBF, TEM
-   and DRM, then IFT odds via `app/asl/ift.py`.
+   `resolve_attack` runs the rule pipeline (`app/asl/attack/pipeline.py`):
+   an ordered list of small steps that derive LOS, range, PBF, firers, TEM
+   and DRM, then IFT odds via `app/asl/ift.py`. See section 5.
 3. **Prefer VASL's facts** (`_apply_vasl_facts`): target hexside TEM from
    `target_entry`, heights, hindrance sources, and counter effects from
    `counter_rules`. Without facts, `board_terrain.py` traces the board files
@@ -263,8 +264,9 @@ counter in `facts.hexes` is classified, first match wins:
 as **not modelled — check**, so a new edge case shows up the first time it
 appears instead of being silently ignored.
 
-**Adding an edge case is a row in `COUNTER_RULES` plus a test** in
-`tests/test_attack_resolver.py`, not new code in the extension.
+**A counter edge case is a row in `COUNTER_RULES` plus a test** in
+`tests/test_attack_resolver.py`, not new code in the extension. A rules edge
+case goes in the pipeline (next section).
 
 A hexside counter's hexside comes from where it sits (`side >= 0`), otherwise
 from its arrow. Roadblock art points **down** at rotation 0, and VASSAL draws
@@ -274,7 +276,37 @@ road hexside is preferred as a tie-break (B29.1).
 
 ---
 
-## 5. Eval cases: "Save as eval case"
+## 5. The rule pipeline: where rule fixes go
+
+`resolve_attack` is an explicit, ordered list of steps
+(`STEPS` in `app/asl/attack/pipeline.py`). Each step is a function
+`step(ctx)` in `app/asl/attack/steps/` that reads the shared
+`AttackContext`, adds DRM lines, caveats or warnings, or raises `NoAttack`
+(a `ValueError`) when there is no legal attack:
+
+| Group | Steps (in order) |
+|---|---|
+| LOS | `locate`, `vasl_verdict`, `measure_range`, `walls`, `grid_trace`, `vasl_facts`, `overlays` |
+| Firers | `firing_side`, `eligible_firers`, `point_blank`, `fire_strength`, `leadership` |
+| Target | `target_units`, `concealment` |
+| DRM ledger | `hindrance`, `tem`, `firer_modifiers`, `ffmo_ffnam`, `encircled_target` |
+| Odds | `cowering`, `target_morale`, `skis`, `odds` |
+
+- **The order is the contract:** a step may rely only on what earlier steps
+  set (`tests/test_attack_pipeline.py` pins the key dependencies), and the
+  card shows warnings, caveats and DRM lines in step order.
+- **Caveats are keyed:** the six standing caveats (`los`, `hindrance`,
+  `overlays`, `entrenchment`, `levels`, `fire_group`) are replaced by name
+  (`ctx.caveats.set("hindrance", ...)`), never by list position.
+- **Adding a rule:** write a step, or extend the one that owns the rule, and
+  put it where its inputs are ready (e.g. Wall Advantage, B9.32, between
+  `walls` and `tem`), plus a test. Shared helpers and rule tables (unit
+  classification, geometry, TEM values) still live in
+  `app/asl/attack_resolver.py`.
+
+---
+
+## 6. Eval cases: "Save as eval case"
 
 Under each answer the extension (>= 0.7) shows **Save as eval case**. It
 asks for an optional note ("what's wrong") and re-sends the original request
@@ -301,7 +333,7 @@ Saves hold both sides' units, hidden ones included, so cases stay admin-only.
 
 ---
 
-## 6. Building, installing, debugging
+## 7. Building, installing, debugging
 
 - **Build:** `vasl-extension/build.sh` → `dist/AskRuleschat-<version>.vmdx`.
   It compiles against the local VASSAL and VASL jars with `--release 11`. Bump
