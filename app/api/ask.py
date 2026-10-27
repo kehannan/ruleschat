@@ -34,6 +34,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import model_registry
+from app.asl import rules_lookup
 from app.asl.openrouter_client import OpenRouterClient
 from app.asl.tools import execute_tool
 from app.database import SessionLocal
@@ -654,6 +655,36 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
     if ctx["calculator_html"]:
         result["calculator_html"] = ctx["calculator_html"]
     return result
+
+
+RULE_TEXT_CHAR_CAP = 6000
+
+
+@router.get("/api/ask/rule/{section}")
+def ask_rule(section: str, authorization: Optional[str] = Header(None)):
+    """Text of one rule section for the extension's citation popup.
+
+    Account keys only: the rulebook text is copyrighted, and anyone can mint
+    an OpenRouter key. A missing sub-section falls back to its parent
+    (rules_lookup); `page` lets the popup open the PDF at the section.
+    """
+    mode, _ = _resolve_credential(authorization)
+    if mode != "account":
+        raise HTTPException(status_code=403,
+                            detail="Rule text needs a ruleschat account key")
+    res = rules_lookup.get_section(section, include_qa=False)
+    if "error" in res:
+        raise HTTPException(status_code=404, detail=res["error"])
+    # The extracted text keeps the PDF's line breaks and end-of-line hyphens.
+    text = re.sub(r"-\n(?=[a-z])", "", res["text"])
+    text = re.sub(r"\s*\n\s*", " ", text).strip()
+    out = {"section": res["section"], "page": res.get("page"),
+           "text": text[:RULE_TEXT_CHAR_CAP]}
+    if len(text) > RULE_TEXT_CHAR_CAP:
+        out["truncated"] = True
+    if res.get("note"):
+        out["note"] = res["note"]
+    return out
 
 
 @router.post("/api/ask/stream")

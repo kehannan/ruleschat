@@ -475,3 +475,52 @@ def test_calculator_html_escapes_and_reports_blocked_los():
         {"error": "LOS is blocked <Orchard> & co"},
         {"source": "41-S8", "target": "41-W5"})
     assert "no attack" in html and "&lt;Orchard&gt; &amp; co" in html
+
+
+# --- rule text for the citation popup -----------------------------------------
+
+@pytest.fixture
+def rules_fixture():
+    from app.asl import rules_lookup
+    fixtures = Path(__file__).resolve().parent / "fixtures"
+    rules_lookup.reset()
+    rules_lookup.load_sections(str(fixtures / "rulebook_sections_fixture.json"),
+                               str(fixtures / "qa_entries_fixture.json"))
+    yield
+    rules_lookup.reset()
+
+
+def test_rule_text_for_account_key(client, rules_fixture):
+    r = client.get("/api/ask/rule/Z1.11",
+                   headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["section"] == "Z1.11" and body["page"] == 10
+    assert body["text"].startswith("Z1.11 DOUBLE ACTIVATION")
+
+
+def test_rule_text_falls_back_to_parent(client, rules_fixture):
+    r = client.get("/api/ask/rule/Z1.119",
+                   headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200 and r.json()["section"] == "Z1.11"
+    assert "not found" in r.json()["note"]
+
+
+def test_rule_text_refuses_provider_keys_and_unknown_sections(client, rules_fixture):
+    r = client.get("/api/ask/rule/Z1.11",
+                   headers={"Authorization": "Bearer sk-or-v1-abc"})
+    assert r.status_code == 403
+    r = client.get("/api/ask/rule/Q99",
+                   headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 404
+
+
+def test_rule_text_reflows_pdf_line_breaks(client, monkeypatch):
+    from app.asl import rules_lookup
+    monkeypatch.setattr(rules_lookup, "get_section", lambda s, include_qa: {
+        "section": "B9.31", "page": 119,
+        "text": "9.31 The wall/hedge TEM is not cumulative with oth-\ner terrain\nin that hex."})
+    r = client.get("/api/ask/rule/B9.31",
+                   headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.json()["text"] == ("9.31 The wall/hedge TEM is not cumulative "
+                                "with other terrain in that hex.")

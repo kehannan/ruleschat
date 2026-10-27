@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.7.0";
+  static final String VERSION = "0.7.1";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -767,11 +767,103 @@ public class AskRuleschatButton extends AbstractConfigurable {
     Pattern.compile("\"([A-Z]?\\d+(?:\\.\\d+)+)\"\\s*:\\s*(\\d+)");
   private static volatile java.util.Map<String, Integer> sectionPages;
 
-  /** Open a cited rule ("rule:A7.2" or "rule:A7.2:123") or the Q&A ("qa:")
-   *  in the system browser, at the section's page in the hosted rulebook. */
+  /** A cited rule ("rule:A7.2" or "rule:A7.2:123") opens a popup with the
+   *  section's text (GET /api/ask/rule/{section}) and an "Open full rulebook"
+   *  button. The Q&A ("qa:"), or a rule the server can't supply (offline, an
+   *  OpenRouter key, unknown section), opens the PDF in the browser. */
   private void openCitation(String desc) {
     final String base = pref(P_URL, DEFAULT_URL).replaceAll("/+$", "");
     final String[] parts = desc.split(":");
+    if (!"rule".equals(parts[0]) || parts.length < 2) {
+      openPdf(base, parts);
+      return;
+    }
+    final String key = pref(P_KEY, "");
+    new SwingWorker<String, Void>() {
+      @Override
+      protected String doInBackground() {
+        try {
+          final HttpResponse<String> resp = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(10)).build()
+            .send(HttpRequest.newBuilder(URI.create(base + "/api/ask/rule/"
+                      + java.net.URLEncoder.encode(parts[1], StandardCharsets.UTF_8)))
+                    .header("Authorization", "Bearer " + key)
+                    .timeout(Duration.ofSeconds(20)).GET().build(),
+                  HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+          return resp.statusCode() == 200 ? resp.body() : null;
+        }
+        catch (Exception ex) {
+          return null;
+        }
+      }
+
+      @Override
+      protected void done() {
+        String body = null;
+        try {
+          body = get();
+        }
+        catch (Exception ignored) {
+          // fall through to the PDF
+        }
+        if (body == null || Json.getString(body, "text") == null) {
+          openPdf(base, parts);
+          return;
+        }
+        showRulePopup(base, parts, body);
+      }
+    }.execute();
+  }
+
+  private void showRulePopup(String base, String[] parts, String body) {
+    final String section = Json.getString(body, "section");
+    final String page = Json.getRaw(body, "page");
+    final String note = Json.getString(body, "note");
+    final StringBuilder html = new StringBuilder("<html><head><style>")
+      .append(css()).append("</style></head><body>");
+    if (note != null) {
+      html.append("<p class=\"status\">").append(Md.escape(note)).append("</p>");
+    }
+    html.append("<p>").append(Md.escape(Json.getString(body, "text"))).append("</p>");
+    if ("true".equals(Json.getRaw(body, "truncated"))) {
+      html.append("<p class=\"status\">… continued in the rulebook</p>");
+    }
+    html.append("</body></html>");
+
+    final JEditorPane pane = new JEditorPane();
+    pane.setEditorKit(new HTMLEditorKit());
+    pane.setEditable(false);
+    pane.setBackground(PAPER);
+    pane.setText(html.toString());
+    pane.setCaretPosition(0);
+    final JScrollPane sp = new JScrollPane(pane);
+    sp.setBorder(BorderFactory.createEmptyBorder());
+    sp.setPreferredSize(new Dimension(440, 300));
+
+    final JDialog popup = new JDialog(dialog, "Rule " + section, false);
+    final JButton open = new JButton("Open full rulebook");
+    open.addActionListener(e -> {
+      final boolean known = page != null && page.matches("\\d+");
+      openPdf(base, known ? new String[] {"rule", section, page}
+                          : new String[] {"rule", section});
+    });
+    final JButton close = new JButton("Close");
+    close.addActionListener(e -> popup.dispose());
+    final JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+    buttons.setBackground(PAPER);
+    buttons.add(open);
+    buttons.add(close);
+    popup.getContentPane().setLayout(new BorderLayout());
+    popup.getContentPane().add(sp, BorderLayout.CENTER);
+    popup.getContentPane().add(buttons, BorderLayout.SOUTH);
+    popup.pack();
+    popup.setLocationRelativeTo(dialog);
+    popup.setVisible(true);
+  }
+
+  /** The rulebook PDF at the section's page (or the Q&A) in the browser. */
+  private static void openPdf(String base, String[] parts) {
     new Thread(() -> {
       String url = base + QA_PDF;
       if ("rule".equals(parts[0]) && parts.length > 1) {

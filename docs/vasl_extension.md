@@ -219,6 +219,14 @@ NDJSON, one JSON object per line, in this order:
 Errors before the stream starts (bad key, daily limit, unreadable save) are
 ordinary HTTP errors with `{"detail": "…"}`.
 
+**Rule citations.** Clicking a cited rule in an answer (extension >= 0.7.1)
+calls `GET /api/ask/rule/{section}` (account keys only: the rulebook text is
+copyrighted) and shows the section's text in a popup with an **Open full
+rulebook** button (the PDF at that page, in the browser). The text comes from
+`data/rulebook/sections.json` (`app/asl/rules_lookup.py`; gitignored, copied
+to prod separately); a missing sub-section falls back to its parent. Q&A
+citations, OpenRouter keys and unknown sections open the PDF directly.
+
 The answer text follows a fixed format (`ASK_ANSWER_FORMAT` in
 `app/api/ask.py`): one sentence, at most three rule-cited bullets, then
 `Assumptions:` and `Rules:` sections that the extension folds behind
