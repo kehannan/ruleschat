@@ -248,6 +248,22 @@ _PHASE_NAMES = {
     "prep": "Prep Fire", "defensive_first": "Defensive First Fire",
     "defensive_final": "Final Fire", "advancing": "Advancing Fire",
 }
+# A fire phase named in the question beats the VASL phase wheel ("U8 fires on
+# S7 in Advancing Fire" while the wheel still says PFPh). First match wins.
+_QUESTION_PHASES = [
+    (re.compile(r"\b(advanc\w*\s+fire|AFPh)\b", re.I), "advancing"),
+    (re.compile(r"\b(prep\w*\s+fire|PFPh)\b", re.I), "prep"),
+    (re.compile(r"\b(defensive\s+)?first\s+fire\b", re.I), "defensive_first"),
+    (re.compile(r"\b(final\s+fire|defensive\s+fire|DFPh)\b", re.I),
+     "defensive_final"),
+]
+
+
+def _phase_from_question(question: str) -> Optional[str]:
+    for pattern, phase in _QUESTION_PHASES:
+        if pattern.search(question):
+            return phase
+    return None
 
 
 def _precompute_attack(question: str, vsav_state: Optional[dict],
@@ -265,11 +281,13 @@ def _precompute_attack(question: str, vsav_state: Optional[dict],
     context = {"vsav_state": vsav_state, "native_los": native_los,
                "game_phase": game_phase, "selected_firers": selected_firers,
                "selected_targets": selected_targets}
+    args = {"firing_hex": native_los["source"],
+            "target_hex": native_los["target"]}
+    phase = _phase_from_question(question)
+    if phase:
+        args["phase"] = phase
     try:
-        return execute_tool("resolve_attack", {
-            "firing_hex": native_los["source"],
-            "target_hex": native_los["target"],
-        }, context=context)
+        return execute_tool("resolve_attack", args, context=context)
     except Exception:
         logging.error("ask: precomputed resolve_attack failed", exc_info=True)
         return None

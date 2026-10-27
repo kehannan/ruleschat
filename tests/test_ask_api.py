@@ -410,6 +410,30 @@ def test_fire_question_precomputes_attack_and_prepends_summary(client):
     assert "PRECOMPUTED ATTACK RESOLUTION" in board and '"total_fp": 16' in board
 
 
+def test_phase_named_in_question_beats_the_phase_wheel(client):
+    r = client.post(
+        "/api/ask",
+        json={"question": "H9 fires on H8 in Advance Fire Phase - IFT and DRM?",
+              "vsav": _vsav_data_url(), "native_los": _HAZMO_LOS,
+              "game_phase": "PFPh"},
+        headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["answer"].startswith(
+        "**Calculator** · 57-H9 → 57-H8, Advancing Fire")
+
+
+@pytest.mark.parametrize("question,phase", [
+    ("S3 fires at V4 in the AFPh", "advancing"),
+    ("prep fire S3 at V4", "prep"),
+    ("Defensive First Fire from S3 at V4", "defensive_first"),
+    ("S3 Final Fire at V4", "defensive_final"),
+    ("S3 fires at V4 in the Defensive Fire Phase", "defensive_final"),
+    ("S3 fires at V4", None),
+])
+def test_phase_from_question(question, phase):
+    assert ask_module._phase_from_question(question) == phase
+
+
 def test_stream_sends_calculator_summary_first(client):
     r = client.post(
         "/api/ask/stream",
