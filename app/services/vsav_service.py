@@ -295,11 +295,17 @@ def parse_boards(lines: list) -> list:
             f = chunk.split("\t")
             try:
                 col, row, name = int(f[0]), int(f[1]), f[2]
-                crop = [int(f[3]), int(f[4]), int(f[5]), int(f[6])]
             except (ValueError, IndexError):
                 logging.warning("vsav: skipping malformed bd chunk: %r", chunk[:80])
                 continue
-            rest = f[7:]
+            # VASL writes the crop rectangle only for a cropped board
+            # ("bd 0 0 r02 VER 7.6 SSR ..."); uncropped = full board.
+            try:
+                crop = [int(f[3]), int(f[4]), int(f[5]), int(f[6])]
+                rest = f[7:]
+            except (ValueError, IndexError):
+                crop = [0, 0, -1, -1]
+                rest = f[3:]
             ssr, ovr, ver = [], [], None
             i = 0
             while i < len(rest):

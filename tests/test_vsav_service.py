@@ -60,6 +60,18 @@ def test_boards_and_ssr():
     assert "NoGrain" in s["ssr_transforms"]
 
 
+def test_uncropped_board_has_no_crop_fields():
+    # VASL omits the crop rectangle for an uncropped board; the board must
+    # still be parsed (else every unit lands "off-board").
+    line = ("bd\t0\t0\tr02\tVER\t7.6\tSSR\tOrchardOutOfSeason\tSwampToMarsh"
+            "\t\tNoGrain\tMarshToOpenGround\tWinter\t")
+    (b,) = vsav_service.parse_boards([line])
+    assert b["name"] == "r02" and b["reversed"] and b["version"] == "7.6"
+    assert b["crop"] == dict(x=0, y=0, w=-1, h=-1)
+    assert b["display_w"] == vsav_service.BOARD_W
+    assert "Winter" in b["ssr_transforms"]
+
+
 def test_known_hex_contents():
     s = _state()
     # 57-K3: Russian 37L AT gun + its 2-2-8 crew
