@@ -20,15 +20,6 @@
   </div>
 </div>
 
-<!-- EXPERIMENTAL NOTICE -->
-<div class="exp-notice" id="experimental-notice">
-  <div class="wrap">
-    <span class="label">EXPERIMENTAL</span>
-    <span>Attach a VASL <strong>.vsav</strong> save (button below) to ask questions about your board — exact units, positions, and terrain, with fire attacks resolved deterministically.</span>
-    <button type="button" class="dismiss" id="experimental-notice-dismiss" title="Dismiss" aria-label="Dismiss">×</button>
-  </div>
-</div>
-
 <!-- TOOLBAR -->
 <div class="chat-toolbar">
   <div class="wrap">
@@ -63,8 +54,6 @@
         <button class="send-btn" id="chat-message-submit" type="button">Send</button>
       </div>
       <div class="helper-strip">
-        <button class="surprise" id="vsav-attach-btn" type="button" title="Attach a VASL .vsav save — its board state is parsed and given to the model">Attach .vsav</button>
-        <input type="file" id="vsav-file-input" accept=".vsav" style="display:none;">
         <span>enter to send · shift-enter for newline</span>
         <span class="status" id="connection-status"><span class="pip"></span>connecting…</span>
       </div>
@@ -103,11 +92,6 @@
   </div>
 </div>
 
-<!-- Image Lightbox (for experimental-notice "see example") -->
-<div id="image-lightbox" class="image-lightbox" style="display: none;" role="dialog" aria-modal="true" aria-label="VASL example screenshot">
-  <button type="button" class="lightbox-close" id="image-lightbox-close" title="Close" aria-label="Close">×</button>
-  <img src="{{ url_for('static', path='img/vasl-screenshot.png') }}" alt="VASL example screenshot showing a multimodal Q&A" />
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -118,7 +102,6 @@
 </script>
 <script>window.MODEL_PRICING_TABLE = {{ model_pricing | tojson }};</script>
 <script src="{{ url_for('static', path='/js/chat-shared.js') }}?v=20260710"></script>
-<script src="{{ url_for('static', path='/js/board-viewer.js') }}"></script>
 <script>
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = protocol + '//' + window.location.host + '/ws/demo/';
@@ -349,20 +332,17 @@
     hideWelcome();
 
     const attachedImages = (typeof getPendingImages === 'function') ? getPendingImages() : [];
-    const attachedVsav = (typeof getPendingVsav === 'function') ? getPendingVsav() : null;
 
     lastUserQuestion = message;
-    createUserMessage(attachedVsav ? `${message}\nAttached: ${attachedVsav.name}` : message, attachedImages);
+    createUserMessage(message, attachedImages);
     createSearchingBubble();
     input.value = '';
     input.style.height = 'auto';
     if (typeof clearPendingImages === 'function') clearPendingImages();
-    if (typeof clearPendingVsav === 'function') clearPendingVsav();
 
     const model = document.getElementById('model-selector').value;
     const payload = { type: 'chat', text: message, model: model };
     if (attachedImages.length > 0) payload.images = attachedImages;
-    if (attachedVsav) payload.vsav = attachedVsav.dataUrl;
     chatSocket.send(JSON.stringify(payload));
   }
 
@@ -385,54 +365,6 @@
     submitBtn.addEventListener('click', sendMessage);
 
     if (typeof bindImagePasteHandler === 'function') bindImagePasteHandler();
-    // Board viewer listener must bind BEFORE the shared attach handler:
-    // the shared handler clears the file input synchronously on change.
-    if (typeof initBoardViewer === 'function') initBoardViewer();
-    if (typeof bindVsavAttachHandler === 'function') bindVsavAttachHandler();
-
-    // Experimental-notice dismiss (persists via localStorage)
-    const NOTICE_KEY = 'dismissed_experimental_notice_v3';
-    const notice = document.getElementById('experimental-notice');
-    const noticeDismiss = document.getElementById('experimental-notice-dismiss');
-    if (notice && localStorage.getItem(NOTICE_KEY) === '1') {
-      notice.style.display = 'none';
-    }
-    if (noticeDismiss) {
-      noticeDismiss.addEventListener('click', function() {
-        notice.style.display = 'none';
-        try { localStorage.setItem(NOTICE_KEY, '1'); } catch (e) { /* private mode etc. */ }
-      });
-    }
-
-    // "see example" → image lightbox.
-    const lightbox = document.getElementById('image-lightbox');
-    const lightboxClose = document.getElementById('image-lightbox-close');
-    const seeExampleLink = document.getElementById('see-example-link');
-    function openLightbox() {
-      if (!lightbox) return;
-      lightbox.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-    }
-    function closeLightbox() {
-      if (!lightbox) return;
-      lightbox.style.display = 'none';
-      document.body.style.overflow = '';
-    }
-    if (seeExampleLink) {
-      seeExampleLink.addEventListener('click', function(e) {
-        e.preventDefault();
-        openLightbox();
-      });
-    }
-    if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox);
-    if (lightbox) {
-      lightbox.addEventListener('click', function(e) {
-        if (e.target === lightbox) closeLightbox();
-      });
-    }
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && lightbox && lightbox.style.display !== 'none') closeLightbox();
-    });
 
   });
 </script>

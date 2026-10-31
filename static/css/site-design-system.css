@@ -744,45 +744,6 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
 }
 .demo-banner .login-cta:hover { opacity: 1; border-bottom-color: var(--accent-soft); }
 
-/* Experimental notice */
-.exp-notice {
-  background: var(--paper-2);
-  border-bottom: 1px solid var(--hair);
-  padding: 8px 0;
-  position: relative;
-}
-.exp-notice .wrap {
-  display: flex; align-items: center; gap: 14px;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-.exp-notice .label {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.exp-notice .see-link {
-  color: var(--ink);
-  border-bottom: 1px solid var(--ink-2);
-  font-size: 13px;
-  transition: border-color .15s ease, color .15s ease;
-  cursor: pointer;
-}
-.exp-notice .see-link:hover { border-bottom-color: var(--accent); color: var(--accent); }
-.exp-notice .dismiss {
-  margin-left: auto;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 18px; line-height: 1;
-  padding: 4px 8px;
-}
-.exp-notice .dismiss:hover { color: var(--ink); }
-
 /* Demo main + chat surface */
 .demo-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .chat-toolbar {
@@ -1103,7 +1064,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
 .pdf-modal {
   position: fixed; inset: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: center;
-  padding: 32px;
+  padding: 8px;
 }
 .pdf-modal-backdrop {
   position: absolute; inset: 0;
@@ -1115,15 +1076,15 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   background: var(--paper);
   border: 1px solid var(--hair);
   border-radius: 4px;
-  width: min(calc(100vw - 48px), 1600px);
-  height: min(calc(100vh - 48px), 1100px);
+  width: calc(100vw - 16px);
+  height: calc(100vh - 16px);
   display: flex; flex-direction: column;
   box-shadow: 0 24px 60px rgba(0, 0, 0, .4);
   overflow: hidden;
 }
 .pdf-modal-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px;
+  padding: 6px 12px;
   background: var(--paper-2);
   border-bottom: 1px solid var(--hair);
 }
@@ -1146,7 +1107,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
 }
 .pdf-modal-header h3 em { font-style: normal; }
 .pdf-modal-close {
-  width: 32px; height: 32px;
+  width: 26px; height: 26px;
   background: transparent;
   border: 1px solid var(--hair);
   color: var(--ink-2);
@@ -1169,8 +1130,8 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
 .pdf-controls {
   position: relative;
   z-index: 20;
-  display: flex; align-items: center; justify-content: center; gap: 14px;
-  padding: 14px 18px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 4px 12px;
   border-bottom: 2px solid #c9bda7;
   background: #f6f0e6;
   font-family: var(--mono);
@@ -1178,7 +1139,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   font-weight: 700;
   color: #2f3437;
   letter-spacing: .04em;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, .18);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .14);
 }
 .pdf-controls #pdf-page-info,
 .pdf-controls #pdf-zoom-level {
@@ -1186,7 +1147,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   color: #2f3437;
 }
 .pdf-controls #pdf-zoom-level {
-  padding: 7px 12px;
+  padding: 3px 8px;
   border: 1px solid #b8ab94;
   border-radius: 2px;
   background: #fffaf2;
@@ -1196,10 +1157,10 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   color: #243039;
   border: 1px solid #9a8d77;
   border-radius: 2px;
-  padding: 7px 14px;
-  min-width: 40px;
+  padding: 3px 10px;
+  min-width: 32px;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: .04em;
   cursor: pointer;
@@ -1222,7 +1183,7 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
 .pdf-container {
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 8px;
   background: var(--paper-2);
   display: flex; justify-content: center;
 }
@@ -1256,37 +1217,6 @@ a.inline-link:hover { border-bottom-color: var(--accent); }
   font-family: var(--mono);
   font-size: 12px;
   color: var(--muted);
-}
-
-/* Image lightbox */
-.image-lightbox {
-  position: fixed; inset: 0;
-  background: rgba(15, 12, 8, .85);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1001;
-  padding: 32px;
-}
-.image-lightbox img {
-  max-width: 95%; max-height: 90vh;
-  object-fit: contain;
-  border-radius: 2px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
-}
-.image-lightbox .lightbox-close {
-  position: absolute; top: 16px; right: 20px;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, .3);
-  color: var(--paper);
-  font-size: 22px;
-  line-height: 1; cursor: pointer;
-  width: 36px; height: 36px;
-  display: grid; place-items: center;
-  border-radius: 2px;
-  transition: background .15s ease, border-color .15s ease;
-}
-.image-lightbox .lightbox-close:hover {
-  background: var(--accent);
-  border-color: var(--accent);
 }
 
 /* ═════════════════════════════════════════════════════════════
@@ -1663,7 +1593,7 @@ footer.site-footer {
   .latency-row { gap: 12px; }
   .welcome .prompt-list { grid-template-columns: 1fr; }
   .compare-table th, .compare-table td { padding: 10px 6px; font-size: 11px; }
-  .pdf-modal { padding: 12px; }
+  .pdf-modal { padding: 4px; }
 }
 
 /* ---- Visual board viewer (static/js/board-viewer.js): chat, demo, admin
