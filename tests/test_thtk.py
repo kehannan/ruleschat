@@ -251,5 +251,78 @@ def test_target_type_legality():
         compute_shot(gun="75", ammo="HE", target_type="area", range_hexes=0)
 
 
+# --- C5/C6 case ledger + agentic tools ---------------------------------------
+
+def test_build_th_drm_cases():
+    led = thtk.build_th_drm(target_type="vehicle", range_hexes=2, gun_type="NT",
+                            ca_hexspines=2, firer_in_woods_building_rubble=True,
+                            acquired=-1, target_size=1, buttoned_up=True)
+    by_rule = {l["rule"]: l["drm"] for l in led["lines"]}
+    assert by_rule["C5.1"] == (3 + 1) * 2      # NT first hexspine +3, next +1, x2 woods
+    assert by_rule["C6.3"] == -1               # Point Blank at 2 hexes
+    assert by_rule["C6.5"] == -1 and by_rule["C6.7"] == 1 and by_rule["C5.9"] == 1
+
+
+def test_c53_bounding_fire_examples():
+    # C5.3 EX: AFPh after moving: Stabilized +3, T/ST +4, NT +5.
+    for gun_type, drm in (("stabilized", 3), ("T", 4), ("ST", 4), ("NT", 5)):
+        led = thtk.build_th_drm(range_hexes=6, gun_type=gun_type, bounding_fire=True, afph=True)
+        assert sum(l["drm"] for l in led["lines"]) == drm, gun_type
+
+
+def test_point_blank_na_vs_moving_target_and_area():
+    assert not any(l["rule"] == "C6.3" for l in
+                   thtk.build_th_drm(range_hexes=1, target_moving="moving")["lines"])
+    assert not any(l["rule"] == "C6.3" for l in
+                   thtk.build_th_drm(range_hexes=1, target_type="area")["lines"])
+
+
+def test_motion_firer_doubles_lower_dr():
+    base = compute_shot(gun="75L", nationality="German", range_hexes=6, target=_armor())
+    moving = thtk.compute_attack(gun="75L", nationality="German", range_hexes=6,
+                                 target=_armor(), bounding_fire=True, motion_firer=True)
+    assert moving["to_hit"]["p_hit"] < base["to_hit"]["p_hit"]
+    assert any("C5.35" in n for n in moving["notes"])
+
+
+def test_tem_not_th_drm_when_it_makes_target_hull_down():
+    r = compute_shot(gun="75L", nationality="German", range_hexes=6, tem=1,
+                     target=_armor(hull_down=True))
+    assert r["to_hit"]["total_drm"] == 0
+
+
+def test_quick_odds_matches_full_engine():
+    full = compute_shot(gun="75L", nationality="German", range_hexes=8, target=_armor())
+    quick = thtk.quick_odds(modified_th=9, drm=0, final_tk=9, ch_final_tk=26)
+    assert quick["p_hit"] == full["to_hit"]["p_hit"]
+    assert {o["result"]: o["probability"] for o in quick["outcomes"]} == pytest.approx(
+        {o["result"]: o["probability"] for o in full["outcomes"]}, abs=1e-4)
+
+
+def test_tools_registered_and_callable():
+    from app.asl.tools import CALC_TOOL_NAMES, TOOL_SCHEMAS, execute_tool
+    names = {s["name"] for s in TOOL_SCHEMAS}
+    assert {"ordnance_attack", "thtk_odds"} <= names & CALC_TOOL_NAMES
+    r = execute_tool("ordnance_attack", {"gun": "75L", "nationality": "German",
+                                         "range_hexes": 8, "acquired": -1,
+                                         "target": {"kind": "armored", "hull_af": 8,
+                                                    "turret_af": 8}})
+    assert r["to_hit"]["total_drm"] == -1
+    assert "error" in execute_tool("ordnance_attack", {"gun": "88", "nationality": "German",
+                                                       "range_hexes": 8,
+                                                       "target": _armor()})
+    assert execute_tool("thtk_odds", {"modified_th": 9, "final_tk": 6})["p_hit"] > 0
+
+
+def test_tool_schema_properties_match_engine():
+    from app.asl.tools import TOOL_SCHEMAS
+    import inspect
+    props = set(next(s for s in TOOL_SCHEMAS if s["name"] == "ordnance_attack")
+                ["parameters"]["properties"])
+    accepted = (set(inspect.signature(thtk.compute_shot).parameters) | thtk._DRM_KEYS) \
+        - {"th_drm", "double_lower_dr", "mm", "barrel"}
+    assert props <= accepted, props - accepted
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

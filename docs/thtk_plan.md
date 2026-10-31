@@ -95,7 +95,18 @@ Original scope:
   2-always-hits and 12-always-misses edges.
 - **Done when** the engine tests pass and each table row cites its rule.
 
-### Phase 2 — Manual tools + `/thtk` page (ships to both channels)
+### Phase 2 — Manual tools + `/thtk` page (ships to both channels) — BUILT 2026-10-30
+Status:
+- Done: `thtk.build_th_drm` (C5/C6 case catalogue), `compute_attack`,
+  `quick_odds`; the `ordnance_attack` / `thtk_odds` tools (in
+  `CALC_TOOL_NAMES`, so every model path on both channels gets them); the
+  `app/api/thtk.py` page + API; the `_tools_subnav.html` restore; and routing
+  text in the .vsav instruction block (non-save questions route on the tool
+  descriptions, like IFT).
+- **Not done:** the TH/TK eval questions and a live check of tool choice per
+  model path.
+
+Original scope:
 - Add `thtk_odds` and `ordnance_attack` to `tools.py`.
 - Add `POST /api/thtk/odds` and `POST /api/thtk/attack`.
 - Build `templates/thtk.html` with "Attack builder" and "Quick odds" modes,

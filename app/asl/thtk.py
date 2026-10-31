@@ -156,7 +156,7 @@ def modified_to_hit(target_type: str, rng: int, mm: int, barrel: str, ammo: str,
 
 
 def _th_events(target_type: str, th: int, drm: int, hull_down: bool,
-               multiple_ok: bool) -> List[Dict[str, Any]]:
+               multiple_ok: bool, double_lower_dr: bool = False) -> List[Dict[str, Any]]:
     """Every distinct TH outcome with its probability.
 
     Each event: {p, hit, ch, loc ('hull'|'turret'|None), multiple, original,
@@ -176,7 +176,9 @@ def _th_events(target_type: str, th: int, drm: int, hull_down: bool,
 
     for c, w in _DICE:
         orig = c + w
-        final = orig + drm
+        # Case C4 Motion Firer without a Gyrostabilizer doubles the lower dr
+        # (C5.35); an Original 2 (1-1) is still the CH/Improbable trigger.
+        final = orig + (min(c, w) if double_lower_dr else 0) + drm
         if improbable:
             if orig != 2:
                 add(_P36, c, w, False)
@@ -405,6 +407,7 @@ def compute_shot(
     rof: int = 0,
     fp: Optional[float] = None,
     effects_drm: int = 0,
+    double_lower_dr: bool = False,
 ) -> Dict[str, Any]:
     """Resolve one ordnance shot. See the module docstring for the rules.
 
@@ -467,15 +470,19 @@ def compute_shot(
         if note:
             notes.append(note)
     mth = modified_to_hit(target_type, range_hexes, mm, barrel, ammo, color, nationality)
-    drm_lines = [{"label": str(d.get("label", "DRM")), "drm": int(d.get("drm", 0))}
+    drm_lines = [{"label": str(d.get("label", "DRM")), "drm": int(d.get("drm", 0)),
+                  **({"rule": d["rule"]} if d.get("rule") else {})}
                  for d in th_drm]
-    if tem and target_type != "area":
-        drm_lines.append({"label": "TEM (Case Q)", "drm": int(tem)})
+    hull_down = bool(target.get("hull_down")) and kind == "armored"
+    # Case Q (C6.8): TEM is a TH DRM on the Vehicle/Infantry Target Type, but
+    # not on the Area Target Type (C3.331) nor when it is what makes the AFV HD.
+    if tem and target_type != "area" and not hull_down:
+        drm_lines.append({"label": "TEM (Case Q)", "drm": int(tem), "rule": "C6.8"})
     total_drm = sum(d["drm"] for d in drm_lines)
 
-    hull_down = bool(target.get("hull_down")) and kind == "armored"
     multiple_ok = 15 <= mm <= 40 and target_type in ("vehicle", "infantry") and ammo != "SMOKE"
-    events = _th_events(target_type, mth["modified"], total_drm, hull_down, multiple_ok)
+    events = _th_events(target_type, mth["modified"], total_drm, hull_down, multiple_ok,
+                        double_lower_dr)
 
     p_hit = sum(e["p"] for e in events if e["hit"])
     p_ch = sum(e["p"] for e in events if e["hit"] and e["ch"])
@@ -496,6 +503,8 @@ def compute_shot(
         "p_rof_retained": round(sum(1 for c, w in _DICE if c <= rof) / 36, 4),
     }
     del to_hit["modified"]
+    if double_lower_dr:
+        notes.append("Case C4 Motion Firer: the lower dr of the TH DR is doubled (C5.35).")
     if to_hit["improbable"]:
         notes.append("Improbable Hit: only an Original 2 followed by a dr of 1-3 hits (C3.6).")
 
@@ -669,6 +678,227 @@ def _personnel_effects(mm, ammo, target_type, tem, fp_override, effects_drm,
     return {"fp_source": source, "full_fp": full, "branches": branches}
 
 
+# ---------------------------------------------------------------------------
+# Situation -> TH DRM ledger (C5 firer-based, C6 target-based cases)
+# ---------------------------------------------------------------------------
+
+_CASE_A_FIRST = {"T": 1, "ST": 2, "NT": 3}
+_CASE_C_GUN = {"stabilized": 1, "T": 2, "ST": 2, "NT": 3}
+_MOVING_TARGET = {"moving": 2, "j1": 3, "j2": 4}
+
+
+def build_th_drm(
+    *,
+    target_type: str = "vehicle",
+    range_hexes: int = 0,
+    gun_type: str = "T",
+    ca_hexspines: int = 0,
+    firer_in_woods_building_rubble: bool = False,
+    afph: bool = False,
+    bounding_fire: bool = False,
+    aim: str = "normal",
+    motion_firer: bool = False,
+    pinned: bool = False,
+    intensive_fire: bool = False,
+    captured: bool = False,
+    buttoned_up: bool = False,
+    cx: bool = False,
+    encircled: bool = False,
+    leadership: int = 0,
+    stun: int = 0,
+    spotted_fire: bool = False,
+    overstack: int = 0,
+    target_moving: str = "no",
+    ffnam: bool = False,
+    ffmo: bool = False,
+    concealed: bool = False,
+    bore_sighted: bool = False,
+    acquired: int = 0,
+    hazardous_movement: bool = False,
+    target_size: int = 0,
+    hindrance: int = 0,
+    other_drm: Sequence[Dict[str, Any]] = (),
+) -> Dict[str, Any]:
+    """Itemized TH DRM from the situation, per the C5/C6 To Hit cases.
+
+    gun_type: T (fast traverse / mounted), ST (slow traverse), NT (non-turreted),
+        or 'stabilized' for Case C/C4. ca_hexspines: CA change for this shot
+        (Case A). bounding_fire: firer entered a new hex this Player Turn (Case C;
+        includes Case B's +2). aim: normal | restricted (C1) | limited (C2).
+    target_moving: no | moving (J) | j1 | j2. acquired: 0, -1, -2 (Case N).
+    TEM (Case Q) is not built here; compute_shot places it by Target Type.
+
+    Returns {"lines": [{label, drm, rule}], "double_lower_dr": bool, "warnings"}.
+    """
+    area = target_type == "area"
+    lines: List[Dict[str, Any]] = []
+    warnings: List[str] = []
+    double_lower = False
+    in_hex = range_hexes == 0
+    gun_type = gun_type if gun_type in _CASE_C_GUN else "T"
+
+    def add(label, drm, rule):
+        if drm:
+            lines.append({"label": label, "drm": int(drm), "rule": rule})
+
+    # --- C5 firer-based ---
+    if ca_hexspines > 0:
+        if bounding_fire and not afph:
+            warnings.append("Case A is NA to Bounding First Fire: a Bounding First Firer "
+                            "changes CA only by spending MP (C5.13).")
+        else:
+            first = _CASE_A_FIRST.get(gun_type, 1)
+            drm = first + (ca_hexspines - 1)
+            if firer_in_woods_building_rubble:
+                drm *= 2
+            add(f"Case A: CA change {ca_hexspines} hexspine(s), {gun_type}"
+                + (" ×2 woods/building/rubble" if firer_in_woods_building_rubble else ""),
+                drm, "C5.1")
+    if bounding_fire:
+        add(f"Case C: Bounding Firer ({gun_type}) incl. Case B +2", 2 + _CASE_C_GUN[gun_type],
+            "C5.3")
+        if not area and not afph:
+            if aim == "restricted":
+                add("Case C1: Restricted Aim", 1, "C5.31")
+            elif aim == "limited":
+                add("Case C2: Limited Aim", 2, "C5.32")
+    elif afph:
+        add("Case B: AFPh" + (" in woods/building/rubble" if firer_in_woods_building_rubble else ""),
+            3 if firer_in_woods_building_rubble else 2, "C5.2")
+    if motion_firer and not area:
+        if gun_type == "stabilized":
+            add("Case C4: Motion Firer, Gyrostabilizer", 1, "C5.35")
+        else:
+            double_lower = True
+        if not bounding_fire:
+            warnings.append("Case C4 adds to the Case C/C1/C2 DRM; set bounding_fire too.")
+    if pinned:
+        add("Case D: Pinned firer", 2, "C5.4")
+    if in_hex and not area:
+        add("Case E: fire within hex" + (" ×2 woods/building/rubble"
+                                          if firer_in_woods_building_rubble else ""),
+            4 if firer_in_woods_building_rubble else 2, "C5.5")
+    if intensive_fire:
+        add("Case F: Intensive Fire", 2, "C5.6")
+    if captured:
+        add("Case H: Captured / non-qualified", 2, "C5.8")
+    if buttoned_up:
+        add("Case I: Buttoned Up", 1, "C5.9")
+    add("CX", 1 if cx else 0, "A4.51")
+    add("Encircled firer", 1 if encircled else 0, "A7.7")
+    add("Leadership", leadership, "A7.531")
+    add("Stun", stun, "D5.34")
+    add("Spotted Fire", 2 if spotted_fire else 0, "C9.31")
+    add("Overstacked firer", overstack, "A5.12")
+
+    # --- C6 target-based ---
+    j_na = ffnam or ffmo or hazardous_movement
+    if target_moving in _MOVING_TARGET and not j_na:
+        names = {"moving": "Case J: moving/Motion target", "j1": "Case J1: Restricted Aim",
+                 "j2": "Case J2: Limited Aim"}
+        add(names[target_moving], _MOVING_TARGET[target_moving], "C6.1")
+    if not in_hex:
+        add("Case J3: FFNAM", -1 if ffnam else 0, "C6.13")
+        add("Case J4: FFMO", -1 if ffmo else 0, "C6.14")
+    add("Case K: concealed target", 2 if concealed else 0, "C6.2")
+    pb_na = area or in_hex or motion_firer or target_moving != "no"
+    if not pb_na and range_hexes in (1, 2):
+        add(f"Case L: Point Blank ({range_hexes} hex)", -2 if range_hexes == 1 else -1, "C6.3")
+    if bore_sighted and not in_hex:
+        add("Case M: Bore Sighted", -2, "C6.4")
+    if acquired and not bore_sighted:
+        add("Case N: Acquired target", max(-2, min(0, acquired)), "C6.5")
+    add("Case O: Hazardous Movement", -2 if hazardous_movement else 0, "C6.6")
+    add("Case P: target size", target_size, "C6.7")
+    add("Case R: Hindrance", hindrance, "C6.9")
+    for d in other_drm or ():
+        add(str(d.get("label", "other")), int(d.get("drm", 0)), d.get("rule", ""))
+    return {"lines": lines, "double_lower_dr": double_lower, "warnings": warnings}
+
+
+_DRM_KEYS = set(build_th_drm.__code__.co_varnames[:build_th_drm.__code__.co_kwonlyargcount])
+
+
+def compute_attack(**kw) -> Dict[str, Any]:
+    """Describe the situation, get the shot: build the TH DRM ledger from the
+    C5/C6 cases (see build_th_drm) and resolve it with compute_shot."""
+    drm_kw = {k: kw.pop(k) for k in list(kw) if k in _DRM_KEYS
+              and k not in ("target_type", "range_hexes")}
+    ledger = build_th_drm(target_type=kw.get("target_type", "vehicle"),
+                          range_hexes=kw.get("range_hexes", 0), **drm_kw)
+    result = compute_shot(th_drm=ledger["lines"], double_lower_dr=ledger["double_lower_dr"],
+                          **kw)
+    result["notes"] = ledger["warnings"] + result["notes"]
+    return result
+
+
+def quick_odds(
+    *,
+    modified_th: int,
+    drm: int = 0,
+    target_type: str = "vehicle",
+    final_tk: Optional[int] = None,
+    turret_final_tk: Optional[int] = None,
+    ch_final_tk: Optional[int] = None,
+    he: bool = False,
+    unarmored: bool = False,
+    hull_down: bool = False,
+    multiple_hits: bool = False,
+    ift_fp: Optional[float] = None,
+    ch_ift_fp: Optional[float] = None,
+    effects_drm: int = 0,
+) -> Dict[str, Any]:
+    """TH/TK odds when the Modified TH#, TH DRM and Final TK# (or IFT FP) are
+    already known. Without ch_final_tk / ch_ift_fp, a CH is resolved like a
+    normal hit and a note says so."""
+    if target_type not in _load()["target_types"]:
+        raise ValueError(f"Invalid target_type {target_type!r}.")
+    notes: List[str] = []
+    events = _th_events(target_type, modified_th, drm, hull_down and not unarmored,
+                        multiple_hits)
+    p_hit = sum(e["p"] for e in events if e["hit"])
+    total: Dict[str, Fraction] = defaultdict(Fraction)
+    total["Miss"] += 1 - p_hit
+    out: Dict[str, Any] = {
+        "modified_th": modified_th, "drm": drm, "target_type": target_type,
+        "needed_original_dr": modified_th - drm,
+        "p_hit": round(float(p_hit), 4),
+        "p_critical": round(float(sum(e["p"] for e in events if e["hit"] and e["ch"])), 4),
+        "p_multiple": round(float(sum(e["p"] for e in events if e["hit"] and e["multiple"])), 4),
+        "improbable": 2 + drm > modified_th,
+        "notes": notes,
+    }
+    if final_tk is None and ift_fp is None:
+        out["outcomes"] = [{"result": "Hit", "probability": out["p_hit"]},
+                           {"result": "Miss", "probability": round(1 - out["p_hit"], 4)}]
+        return out
+
+    for ev in events:
+        if not ev["hit"]:
+            continue
+        p = ev["p"]
+        if ift_fp is not None:
+            fpv = ch_ift_fp if (ev["ch"] and ch_ift_fp is not None) else ift_fp
+            for r, q in _ift_dist(_ift_column(fpv), effects_drm, ev["multiple"]).items():
+                total[r] += p * q
+            continue
+        loc = ev["loc"] or "hull"
+        tk_hull = ch_final_tk if (ev["ch"] and ch_final_tk is not None) else final_tk
+        tk_turret = tk_hull if ev["ch"] and ch_final_tk is not None else (
+            turret_final_tk if turret_final_tk is not None else final_tk)
+        ftk = {"hull": tk_hull, "turret": tk_turret}
+        dist = (_tk_multiple(ftk, loc, he, not unarmored) if ev["multiple"]
+                else _tk_dist(ftk[loc], loc, he, not unarmored))
+        for r, q in dist.items():
+            total[r] += p * q
+    if out["p_critical"] and ((final_tk is not None and ch_final_tk is None)
+                              or (ift_fp is not None and ch_ift_fp is None)):
+        notes.append("No CH value given: Critical Hits were resolved as normal hits "
+                     "(a CH doubles the Basic TK# / IFT FP; C3.71-.72, C7.23).")
+    out["outcomes"] = _fmt(total, (VEHICLE_RESULTS + ["Miss"]) if ift_fp is None else None)
+    return out
+
+
 def get_options() -> Dict[str, Any]:
     t = _load()
     return {
@@ -677,4 +907,7 @@ def get_options() -> Dict[str, Any]:
         "target_types": t["target_types"],
         "nationalities": [k for k in t["th_color"] if not k.startswith("_")],
         "facings": ["front", "side", "rear"],
+        "gun_types": ["T", "ST", "NT", "stabilized"],
+        "target_moving": ["no", "moving", "j1", "j2"],
+        "aims": ["normal", "restricted", "limited"],
     }

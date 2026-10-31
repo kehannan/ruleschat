@@ -17,6 +17,7 @@ from app.asl import attack_resolver
 from app.asl import cc_resolver
 from app.asl import blind_hexes as blind_hexes_engine
 from app.asl import rules_lookup
+from app.asl import thtk
 
 
 # =============================================================================
@@ -281,6 +282,61 @@ def blind_hexes(
         "🏔️ blind_hexes(firer=%s, obstacle=%s+%s, range=%s, cliff=%s, behind=%s) -> blind %s",
         firer_level, obstacle_hex_level, obstacle_height, range_to_obstacle, cliff,
         hexes_behind, result.get("blind_hexes"),
+    )
+    return result
+
+
+def thtk_odds(
+    modified_th: int,
+    drm: int = 0,
+    target_type: str = "vehicle",
+    final_tk: Optional[int] = None,
+    turret_final_tk: Optional[int] = None,
+    ch_final_tk: Optional[int] = None,
+    he: bool = False,
+    unarmored: bool = False,
+    hull_down: bool = False,
+    multiple_hits: bool = False,
+    ift_fp: Optional[float] = None,
+    ch_ift_fp: Optional[float] = None,
+    effects_drm: int = 0,
+) -> Dict[str, Any]:
+    """
+    Ordnance To Hit / To Kill odds when the Modified TH#, total TH DRM and the
+    Final TK# (or IFT FP vs personnel) are already known. See
+    `thtk.quick_odds`.
+    """
+    try:
+        result = thtk.quick_odds(
+            modified_th=modified_th, drm=drm, target_type=target_type,
+            final_tk=final_tk, turret_final_tk=turret_final_tk, ch_final_tk=ch_final_tk,
+            he=he, unarmored=unarmored, hull_down=hull_down, multiple_hits=multiple_hits,
+            ift_fp=ift_fp, ch_ift_fp=ch_ift_fp, effects_drm=effects_drm,
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+    logging.info("🎯 thtk_odds(TH#%s, drm %s, TK %s) -> hit %s",
+                 modified_th, drm, final_tk, result.get("p_hit"))
+    return result
+
+
+def ordnance_attack(**kwargs) -> Dict[str, Any]:
+    """
+    Build and resolve one ordnance shot from the SITUATION (ASL Chapter C):
+    gun + ammo + range + target -> Modified TH# (C3/C4), an itemized TH DRM
+    ledger from the C5/C6 cases, the 36-roll hit tree (CH, Multiple/Improbable
+    Hits, hull/turret) and the To Kill / IFT outcome distribution. See
+    `thtk.compute_attack`.
+    """
+    try:
+        result = thtk.compute_attack(**kwargs)
+    except (ValueError, TypeError) as e:
+        return {"error": str(e)}
+    logging.info(
+        "💥 ordnance_attack(%s %s, %s target @%s) -> TH# %s drm %s, hit %s",
+        result.get("gun"), result.get("ammo"), result.get("target_type"),
+        result.get("range"), result["to_hit"].get("modified_th"),
+        result["to_hit"].get("total_drm"), result["to_hit"].get("p_hit"),
     )
     return result
 
@@ -880,6 +936,135 @@ TOOL_SCHEMAS = [
             "additionalProperties": False,
         },
     },
+    {
+        "type": "function",
+        "name": "ordnance_attack",
+        "description": (
+            "Resolve an ORDNANCE shot (Gun / vehicle MA / mortar / ordnance SW) from the "
+            "SITUATION, per ASL Chapter C: Basic TH# from the C3 To Hit Table (red/black "
+            "by nationality), C4 Gun & Ammo modifications, an itemized To Hit DRM ledger "
+            "built from the C5/C6 cases you flag (CA change, AFPh, Bounding Fire, "
+            "moving target, Point Blank, acquisition, target size, concealment, "
+            "hindrance, TEM...), every 36-roll To Hit outcome (Critical Hit, Multiple "
+            "Hits, Improbable Hits, hull vs turret, Hull Down), then the To Kill result "
+            "(AP/APCR/APDS/HEAT/HE tables: Basic TK#, CH x2, rear +1, Case D range, "
+            "minus the struck aspect's AF -> Burn/Elim/Immobilized/Shock/Possible Shock) "
+            "or the IFT result vs personnel. Use whenever a question DESCRIBES an "
+            "ordnance shot; if the Modified TH#, TH DRM and Final TK# are already "
+            "known, use thtk_odds. Vehicle stats are NOT looked up: supply the target's "
+            "AF for the facing fired on (from the counter) and the firing gun's size. "
+            "NEVER hand-derive TH#/TK# — present the tool's ledgers and odds."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "gun": {"type": "string",
+                        "description": "Firing gun size as on the counter: '75L', '37*', '88LL', '57'."},
+                "nationality": {"type": "string",
+                                "enum": thtk.get_options()["nationalities"],
+                                "description": "Firer's nationality — picks red/black TH# and color-coded TK# rows."},
+                "year": {"type": "integer",
+                         "description": "Scenario year (Americans use red TH# before 1944)."},
+                "th_color": {"type": "string", "enum": ["black", "red"],
+                             "description": "Override the TH# color (captured guns, British Vehicle Note A, French vehicles...)."},
+                "ammo": {"type": "string", "enum": thtk.get_options()["ammo_types"],
+                         "description": "Default AP vs AFVs, HE vs unarmored (C2.21)."},
+                "target_type": {"type": "string", "enum": thtk.get_options()["target_types"],
+                                "description": "vehicle (a specific vehicle), infantry (HE vs an unarmored Location), area (mortars, SMOKE, HE)."},
+                "range_hexes": {"type": "integer", "minimum": 0},
+                "target": {
+                    "type": "object",
+                    "description": "What is fired on. Omit for personnel on the Infantry/Area Target Type.",
+                    "properties": {
+                        "kind": {"type": "string", "enum": ["armored", "unarmored", "personnel"]},
+                        "facing": {"type": "string", "enum": ["front", "side", "rear"],
+                                   "description": "Target Facing the shot strikes (rear = +1 Basic TK#)."},
+                        "hull_af": {"type": "integer", "description": "Hull AF of that facing (counter)."},
+                        "turret_af": {"type": "integer", "description": "Turret/upper-superstructure AF of that facing."},
+                        "hull_down": {"type": "boolean"},
+                    },
+                    "additionalProperties": False,
+                },
+                "basic_tk": {"type": "integer",
+                             "description": "Override the table Basic TK# (Vehicle-Note specials, guns not on the table)."},
+                "tem": {"type": "integer", "description": "Target's positive TEM (Case Q on Vehicle/Infantry types; Effects DRM on Area)."},
+                "b_number": {"type": "integer", "description": "Gun's B# (default 12)."},
+                "rof": {"type": "integer", "description": "Multiple ROF number (0 if none)."},
+                "fp": {"type": "number", "description": "Override the IFT FP vs personnel."},
+                "effects_drm": {"type": "integer", "description": "Other IFT Effects DRM vs personnel (FFMO/FFNAM, Air Burst)."},
+                "gun_type": {"type": "string", "enum": thtk.get_options()["gun_types"],
+                             "description": "T fast-traverse/mounted, ST slow-traverse turret, NT non-turreted, stabilized (Case C/C4)."},
+                "ca_hexspines": {"type": "integer", "minimum": 0, "description": "CA/TCA hexspines changed for this shot (Case A)."},
+                "firer_in_woods_building_rubble": {"type": "boolean"},
+                "afph": {"type": "boolean", "description": "Firing in the AFPh without having moved (Case B)."},
+                "bounding_fire": {"type": "boolean", "description": "Firer entered a new hex this Player Turn (Case C, includes Case B)."},
+                "aim": {"type": "string", "enum": thtk.get_options()["aims"],
+                        "description": "Bounding First Fire LOS: restricted (C1, 2.5-3 MP) / limited (C2, <=2 MP)."},
+                "motion_firer": {"type": "boolean", "description": "Firing while in Motion/Non-Stopped (Case C4)."},
+                "pinned": {"type": "boolean"},
+                "intensive_fire": {"type": "boolean"},
+                "captured": {"type": "boolean"},
+                "buttoned_up": {"type": "boolean", "description": "BU CT AFV firing (Case I)."},
+                "cx": {"type": "boolean"},
+                "encircled": {"type": "boolean"},
+                "leadership": {"type": "integer", "description": "Leader/armor-leader DRM (negative)."},
+                "stun": {"type": "integer"},
+                "spotted_fire": {"type": "boolean"},
+                "overstack": {"type": "integer"},
+                "target_moving": {"type": "string", "enum": thtk.get_options()["target_moving"],
+                                  "description": "moving (J +2), j1 (DFF <=3 MP in LOS, +3), j2 (<=1 MP, +4)."},
+                "ffnam": {"type": "boolean"},
+                "ffmo": {"type": "boolean"},
+                "concealed": {"type": "boolean"},
+                "bore_sighted": {"type": "boolean"},
+                "acquired": {"type": "integer", "minimum": -2, "maximum": 0},
+                "hazardous_movement": {"type": "boolean"},
+                "target_size": {"type": "integer", "minimum": -2, "maximum": 2,
+                                "description": "Target Size DRM from the target counter (Case P)."},
+                "hindrance": {"type": "integer", "minimum": 0},
+                "other_drm": {
+                    "type": "array",
+                    "items": {"type": "object",
+                              "properties": {"label": {"type": "string"}, "drm": {"type": "integer"}},
+                              "required": ["label", "drm"], "additionalProperties": False},
+                    "description": "Any other TH DRM not covered above.",
+                },
+            },
+            "required": ["gun", "range_hexes"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": "thtk_odds",
+        "description": (
+            "Ordnance To Hit / To Kill odds when the numbers are already known: the "
+            "Modified TH#, the total TH DRM, and the Final TK# of the hit (or the IFT FP "
+            "vs personnel). Enumerates the 36 TH rolls (Critical/Multiple/Improbable "
+            "Hits, hull vs turret) and reads each hit against C7.7. If the question "
+            "DESCRIBES the situation instead, use ordnance_attack."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "modified_th": {"type": "integer", "description": "Modified TH# (Basic + C4 mods)."},
+                "drm": {"type": "integer", "description": "Total TH DRM (positive = harder)."},
+                "target_type": {"type": "string", "enum": thtk.get_options()["target_types"]},
+                "final_tk": {"type": "integer", "description": "Final TK# of a (hull) hit."},
+                "turret_final_tk": {"type": "integer", "description": "Final TK# of a turret hit, if different."},
+                "ch_final_tk": {"type": "integer", "description": "Final TK# of a Critical Hit."},
+                "he": {"type": "boolean", "description": "Hit is HE (HE Shock/Immobilization on Final TK# +1)."},
+                "unarmored": {"type": "boolean"},
+                "hull_down": {"type": "boolean"},
+                "multiple_hits": {"type": "boolean", "description": "15-40mm Gun eligible for Multiple Hits (C3.8)."},
+                "ift_fp": {"type": "number", "description": "IFT FP vs personnel (instead of final_tk)."},
+                "ch_ift_fp": {"type": "number", "description": "IFT FP of a Critical Hit vs personnel."},
+                "effects_drm": {"type": "integer", "description": "IFT Effects DRM vs personnel."},
+            },
+            "required": ["modified_th"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 # Name groups: calculators vs deterministic-lookup tools. The service exposes
@@ -888,7 +1073,7 @@ TOOL_SCHEMAS = [
 #   * OpenRouter path: calc + get_section + search_rules
 LOOKUP_TOOL_NAMES = {"get_section", "search_rules"}
 CALC_TOOL_NAMES = {"ift_odds", "ift_attack", "cc_attack", "resolve_attack", "resolve_cc",
-                   "blind_hexes"}
+                   "blind_hexes", "ordnance_attack", "thtk_odds"}
 
 
 def calc_tool_schemas(chat: bool = False) -> List[Dict[str, Any]]:
@@ -942,6 +1127,8 @@ TOOL_FUNCTIONS = {
     "resolve_attack": resolve_attack,
     "resolve_cc": resolve_cc,
     "blind_hexes": blind_hexes,
+    "ordnance_attack": ordnance_attack,
+    "thtk_odds": thtk_odds,
     "get_section": get_section,
     "search_rules": search_rules,
 }

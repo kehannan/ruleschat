@@ -1,0 +1,549 @@
+{% extends "base.html" %}
+
+{% set active_page = 'thtk' %}
+
+{% block title %}TH / TK Odds — ASL Ruleschat{% endblock %}
+
+{% block extra_css %}
+<style>
+  .site .ift-wrap { padding: 56px 0 80px; }
+  .site .ift-col { max-width: 860px; margin: 0 auto; padding: 0 32px; }
+  .site .ift-col h1 {
+    font-family: var(--display); font-weight: 800;
+    font-size: clamp(30px, 3.4vw, 42px);
+    line-height: 1.03; letter-spacing: -0.03em;
+    color: var(--ink);
+    margin: 0 0 14px; text-wrap: balance;
+  }
+  .site .ift-col h1 em { font-style: normal; font-weight: inherit; }
+  .site .ift-col .lede {
+    font-size: 16px; line-height: 1.55; color: var(--ink-2);
+    margin: 0 0 32px; text-wrap: pretty;
+  }
+  /* Mode tabs: Attack builder | Quick odds. */
+  .site .mode-tabs { display: flex; gap: 14px; margin: 0 0 18px; border-bottom: 1px solid var(--hair); }
+  .site .mode-tab {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+    background: none; border: none; cursor: pointer;
+    padding: 0 2px 9px; margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .site .mode-tab:hover { color: var(--ink-2); }
+  .site .mode-tab:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 12%, transparent);
+    border-radius: 2px;
+  }
+  .site .mode-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+  /* Input card */
+  .site .ift-form {
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    border: 1px solid var(--hair);
+    border-radius: 4px;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 18px 24px;
+    align-items: end;
+  }
+  .site .ift-form .field { margin-bottom: 0; }
+  .site .ift-form .cowering-field { grid-column: 1 / -1; }
+  .site .cowering-radios { display: flex; gap: 8px; flex-wrap: wrap; }
+  .site .cowering-radios label,
+  .site .chk {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 14px;
+    border: 1px solid var(--hair);
+    border-radius: 2px;
+    background: var(--paper-2);
+    font-family: var(--sans); font-size: 14px; color: var(--ink-2);
+    cursor: pointer;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .site .cowering-radios label:hover, .site .chk:hover { border-color: var(--ink-2); }
+  .site .cowering-radios input, .site .chk input { accent-color: var(--accent); margin: 0; }
+  .site .cowering-radios label:has(input:checked),
+  .site .chk:has(input:checked) {
+    border-color: var(--accent);
+    background: color-mix(in oklch, var(--accent) 10%, var(--paper));
+    color: var(--ink);
+  }
+  .site .cowering-note {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 8px; letter-spacing: .02em; line-height: 1.5;
+  }
+
+  /* DRM stepper: [−] [field] [+] */
+  .site .stepper { display: flex; align-items: stretch; gap: 6px; }
+  .site .stepper .input { flex: 1; min-width: 0; text-align: center; }
+  .site .step-btn {
+    flex: 0 0 auto; width: 38px;
+    border: 1px solid var(--hair); border-radius: 2px;
+    background: var(--paper-2);
+    color: var(--ink-2); font-family: var(--sans); font-size: 18px; line-height: 1;
+    cursor: pointer; user-select: none;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .site .step-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .site .step-btn:active { background: color-mix(in oklch, var(--accent) 12%, var(--paper)); }
+
+  /* Attack builder card: stacked sections in one bordered card. */
+  .site .builder-card {
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    border: 1px solid var(--hair);
+    border-radius: 4px;
+  }
+  .site .b-section { padding: 20px 24px; }
+  .site .b-section + .b-section { border-top: 1px solid var(--hair); }
+  .site .b-caption {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .site .unit-row, .site .other-row {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-bottom: 8px;
+  }
+  .site .unit-row .u-fp { width: 80px; text-align: center; }
+  .site .unit-row .u-pbf { width: 120px; }
+  .site .other-row .o-label { width: 160px; }
+  .site .other-row .o-stepper { width: 130px; }
+  .site .row-x {
+    width: 34px; height: 34px;
+    border: 1px solid var(--hair); border-radius: 2px;
+    background: var(--paper-2);
+    color: var(--muted); font-family: var(--sans); font-size: 16px; line-height: 1;
+    cursor: pointer;
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .site .row-x:hover:not(:disabled) { border-color: var(--fail); color: var(--fail); }
+  .site .row-x:disabled { opacity: .4; cursor: default; }
+  .site .add-btn {
+    border: 1px dashed var(--muted-2); border-radius: 2px;
+    background: none; color: var(--muted);
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 8px 14px; cursor: pointer; margin-top: 2px;
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .site .add-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .site .b-flags { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+  .site .b-fields { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: end; }
+  .site .b-fields .field { margin-bottom: 0; width: 140px; }
+  .site .b-fields .field.field-wide { width: auto; }
+  .site .b-note {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 10px; letter-spacing: .02em; line-height: 1.5;
+  }
+
+  /* Live math line — the per-unit fp_breakdown + DRM ledger rendered inline. */
+  .site .math-line {
+    margin-top: 18px; padding: 14px 18px;
+    border-left: 3px solid var(--accent);
+    background: color-mix(in oklch, var(--accent) 8%, var(--paper));
+    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    line-height: 1.8; letter-spacing: .01em;
+  }
+  .site .math-line b { color: var(--ink); font-weight: 600; }
+  .site .math-line .ml-warn { color: var(--fail); }
+
+  /* Results */
+  .site .ift-results { margin-top: 40px; }
+  .site .ift-results .res-caption {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 18px;
+  }
+  .site .ift-results .res-caption b { color: var(--accent); font-weight: 600; }
+
+  .site .summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;
+    margin-bottom: 32px;
+  }
+  .site .summary-cell {
+    border: 1px solid var(--hair); border-radius: 4px;
+    padding: 14px 16px;
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+  }
+  .site .summary-cell .s-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+  }
+  .site .summary-cell .s-pct {
+    font-family: var(--display); font-size: 28px; font-weight: 700;
+    letter-spacing: -0.02em; line-height: 1; color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .site .dist-rows { display: grid; gap: 8px; }
+  .site .dist-row {
+    display: grid; grid-template-columns: 70px 1fr 64px;
+    gap: 12px; align-items: center;
+  }
+  .site .dist-row .d-result {
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    color: var(--ink); text-align: right;
+  }
+  .site .dist-row .d-bar-track {
+    height: 18px; background: var(--paper-2);
+    border: 1px solid var(--hair); border-radius: 2px; overflow: hidden;
+  }
+  .site .dist-row .d-bar { height: 100%; background: var(--muted-2); }
+  .site .dist-row .d-bar.sev-kia    { background: var(--fail); }
+  .site .dist-row .d-bar.sev-k      { background: var(--accent); }
+  .site .dist-row .d-bar.sev-mc     { background: var(--brass); }
+  .site .dist-row .d-bar.sev-ptc    { background: var(--field); }
+  .site .dist-row .d-bar.sev-none   { background: var(--paper-3); }
+  .site .dist-row .d-pct {
+    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    font-variant-numeric: tabular-nums; text-align: right;
+  }
+
+  .site .ift-error {
+    margin-top: 24px; padding: 14px 18px;
+    border-left: 3px solid var(--fail);
+    background: color-mix(in oklch, var(--fail) 8%, var(--paper));
+    font-family: var(--mono); font-size: 12px; color: var(--ink);
+  }
+
+
+  .site .b-fields .field input[type=number] { text-align: center; }
+  .site .b-fields .field.f-narrow { width: 96px; }
+  .site .branch-table { width: 100%; border-collapse: collapse; margin-top: 32px; font-family: var(--mono); font-size: 12px; }
+  .site .branch-table th, .site .branch-table td { border-bottom: 1px solid var(--hair); padding: 8px 6px; text-align: left; vertical-align: top; }
+  .site .branch-table th { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  .site .branch-table td { color: var(--ink-2); }
+  .site .branch-table .tk-lines { color: var(--muted); font-size: 11px; }
+  .site .notes { margin-top: 24px; padding-left: 18px; font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .site .dist-row { grid-template-columns: 120px 1fr 64px; }
+  .site .dist-row .d-bar.sev-burn  { background: var(--fail); }
+  .site .dist-row .d-bar.sev-elim  { background: var(--accent); }
+  .site .dist-row .d-bar.sev-shock { background: var(--brass); }
+  .site .dist-row .d-bar.sev-immob { background: var(--field); }
+  .site .dist-row .d-bar.sev-miss  { background: var(--paper-3); }
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="ift-wrap">
+  <div class="ift-col">
+    {% include "_tools_subnav.html" %}
+    <div class="eyebrow"><span class="dot"></span><span>Deterministic tool · no AI</span></div>
+    <h1>Ordnance <em>To Hit / To Kill</em> probabilities.</h1>
+    <p class="lede">One ordnance shot, every roll counted: Basic TH# (C3) and Gun &amp; Ammo modifications (C4), the C5/C6 To Hit DRM, Critical / Multiple / Improbable Hits, hull vs turret, then the To Kill tables (C7) or the IFT vs personnel. Vehicle stats aren't looked up yet — enter the target's AF from its counter.</p>
+
+    <div class="mode-tabs" role="tablist">
+      <button type="button" class="mode-tab active" data-mode="builder">Attack builder</button>
+      <button type="button" class="mode-tab" data-mode="quick">Quick odds</button>
+    </div>
+
+    <!-- ===================== Attack builder ===================== -->
+    <div id="panel-builder">
+      <div class="builder-card">
+        <div class="b-section">
+          <div class="b-caption">Firing gun</div>
+          <div class="b-fields">
+            <div class="field f-narrow"><label for="g-gun">Gun</label><input id="g-gun" class="input" value="75L" /></div>
+            <div class="field"><label for="g-nat">Nationality</label>
+              <select id="g-nat" class="input">
+                {% for n in thtk_options.nationalities %}<option value="{{ n }}"{% if n == 'German' %} selected{% endif %}>{{ n }}</option>{% endfor %}
+              </select></div>
+            <div class="field f-narrow"><label for="g-year">Year</label><input id="g-year" class="input" type="number" placeholder="–" min="1936" max="1950" /></div>
+            <div class="field f-narrow"><label for="g-ammo">Ammo</label>
+              <select id="g-ammo" class="input">
+                {% for a in thtk_options.ammo_types %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+              </select></div>
+            <div class="field f-narrow"><label for="g-type">Gun type</label>
+              <select id="g-type" class="input">
+                {% for t in thtk_options.gun_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+              </select></div>
+            <div class="field f-narrow"><label for="g-color">TH# color</label>
+              <select id="g-color" class="input"><option value="">auto</option><option value="black">black</option><option value="red">red</option></select></div>
+            <div class="field f-narrow"><label for="g-b">B#</label><input id="g-b" class="input" type="number" value="12" min="2" max="12" /></div>
+            <div class="field f-narrow"><label for="g-rof">ROF</label><input id="g-rof" class="input" type="number" value="0" min="0" max="6" /></div>
+            <div class="field f-narrow"><label for="g-btk">Basic TK#</label><input id="g-btk" class="input" type="number" placeholder="table" /></div>
+          </div>
+          <div class="b-note">Gun as printed: 75L, 37*, 88LL. Gun type: T fast-traverse / mounted, ST slow-traverse turret, NT non-turreted. Basic TK# overrides the table for Vehicle-Note specials.</div>
+        </div>
+
+        <div class="b-section">
+          <div class="b-caption">Target</div>
+          <div class="b-fields">
+            <div class="field"><label for="t-type">Target Type</label>
+              <select id="t-type" class="input">
+                <option value="vehicle">Vehicle</option><option value="infantry">Infantry</option><option value="area">Area</option>
+              </select></div>
+            <div class="field f-narrow"><label for="t-range">Range</label><input id="t-range" class="input" type="number" value="8" min="0" /></div>
+            <div class="field"><label for="t-kind">Target</label>
+              <select id="t-kind" class="input">
+                <option value="armored">Armored vehicle</option><option value="unarmored">Unarmored vehicle</option><option value="personnel">Personnel</option>
+              </select></div>
+            <div class="field f-narrow t-armor"><label for="t-facing">Facing</label>
+              <select id="t-facing" class="input"><option>front</option><option>side</option><option>rear</option></select></div>
+            <div class="field f-narrow t-armor"><label for="t-haf">Hull AF</label><input id="t-haf" class="input" type="number" value="8" min="0" /></div>
+            <div class="field f-narrow t-armor"><label for="t-taf">Turret AF</label><input id="t-taf" class="input" type="number" value="8" min="0" /></div>
+            <div class="field f-narrow"><label for="t-tem">TEM</label><input id="t-tem" class="input" type="number" value="0" /></div>
+            <div class="field f-narrow t-pers"><label for="t-edrm">Effects DRM</label><input id="t-edrm" class="input" type="number" value="0" /></div>
+            <div class="field f-narrow t-pers"><label for="t-fp">FP override</label><input id="t-fp" class="input" type="number" placeholder="auto" /></div>
+            <div class="field field-wide t-armor"><label class="chk"><input type="checkbox" id="t-hd" /> Hull Down</label></div>
+          </div>
+        </div>
+
+        <div class="b-section">
+          <div class="b-caption">Firer To Hit DRM (C5)</div>
+          <div class="b-fields">
+            <div class="field f-narrow"><label for="f-ca">CA change</label><input id="f-ca" class="input" type="number" value="0" min="0" max="5" /></div>
+            <div class="field"><label for="f-aim">Bounding aim</label>
+              <select id="f-aim" class="input"><option value="normal">&gt;3 MP in LOS</option><option value="restricted">C1 restricted</option><option value="limited">C2 limited</option></select></div>
+            <div class="field f-narrow"><label for="f-lead">Leadership</label><input id="f-lead" class="input" type="number" value="0" max="0" min="-3" /></div>
+            <div class="field f-narrow"><label for="f-stun">Stun</label><input id="f-stun" class="input" type="number" value="0" min="0" /></div>
+            <div class="field f-narrow"><label for="f-over">Overstack</label><input id="f-over" class="input" type="number" value="0" min="0" /></div>
+          </div>
+          <div class="b-flags">
+            <label class="chk"><input type="checkbox" id="f-wbr" /> firer in woods/bldg/rubble</label>
+            <label class="chk"><input type="checkbox" id="f-afph" /> AFPh (B)</label>
+            <label class="chk"><input type="checkbox" id="f-bound" /> Bounding Fire (C)</label>
+            <label class="chk"><input type="checkbox" id="f-motion" /> Motion firer (C4)</label>
+            <label class="chk"><input type="checkbox" id="f-pin" /> pinned (D)</label>
+            <label class="chk"><input type="checkbox" id="f-int" /> Intensive Fire (F)</label>
+            <label class="chk"><input type="checkbox" id="f-capt" /> captured (H)</label>
+            <label class="chk"><input type="checkbox" id="f-bu" /> BU (I)</label>
+            <label class="chk"><input type="checkbox" id="f-cx" /> CX</label>
+            <label class="chk"><input type="checkbox" id="f-enc" /> encircled</label>
+            <label class="chk"><input type="checkbox" id="f-spot" /> Spotted Fire</label>
+          </div>
+        </div>
+
+        <div class="b-section">
+          <div class="b-caption">Target To Hit DRM (C6)</div>
+          <div class="b-fields">
+            <div class="field"><label for="d-move">Target moving</label>
+              <select id="d-move" class="input"><option value="no">no</option><option value="moving">moving (J +2)</option><option value="j1">DFF ≤3 MP (J1 +3)</option><option value="j2">DFF ≤1 MP (J2 +4)</option></select></div>
+            <div class="field f-narrow"><label for="d-acq">Acquired</label>
+              <select id="d-acq" class="input"><option value="0">0</option><option value="-1">−1</option><option value="-2">−2</option></select></div>
+            <div class="field f-narrow"><label for="d-size">Target size</label><input id="d-size" class="input" type="number" value="0" min="-2" max="2" /></div>
+            <div class="field f-narrow"><label for="d-hind">Hindrance</label><input id="d-hind" class="input" type="number" value="0" min="0" /></div>
+            <div class="field f-narrow"><label for="d-other">Other DRM</label><input id="d-other" class="input" type="number" value="0" /></div>
+          </div>
+          <div class="b-flags">
+            <label class="chk"><input type="checkbox" id="d-ffnam" /> FFNAM</label>
+            <label class="chk"><input type="checkbox" id="d-ffmo" /> FFMO</label>
+            <label class="chk"><input type="checkbox" id="d-conc" /> concealed (K)</label>
+            <label class="chk"><input type="checkbox" id="d-bore" /> Bore Sighted (M)</label>
+            <label class="chk"><input type="checkbox" id="d-haz" /> Hazardous Movement (O)</label>
+          </div>
+          <div class="b-note">Point Blank (L) and fire within hex (E) come from the range automatically.</div>
+        </div>
+      </div>
+      <div class="math-line" id="math-line" style="display:none;"></div>
+    </div>
+
+    <!-- ===================== Quick odds ===================== -->
+    <div id="panel-quick" style="display:none;">
+      <div class="builder-card">
+        <div class="b-section">
+          <div class="b-fields">
+            <div class="field f-narrow"><label for="q-th">Modified TH#</label><input id="q-th" class="input" type="number" value="9" /></div>
+            <div class="field f-narrow"><label for="q-drm">TH DRM</label><input id="q-drm" class="input" type="number" value="0" /></div>
+            <div class="field"><label for="q-type">Target Type</label>
+              <select id="q-type" class="input"><option value="vehicle">Vehicle</option><option value="infantry">Infantry</option><option value="area">Area</option></select></div>
+            <div class="field f-narrow"><label for="q-tk">Final TK#</label><input id="q-tk" class="input" type="number" placeholder="–" /></div>
+            <div class="field f-narrow"><label for="q-ttk">Turret TK#</label><input id="q-ttk" class="input" type="number" placeholder="= hull" /></div>
+            <div class="field f-narrow"><label for="q-chtk">CH TK#</label><input id="q-chtk" class="input" type="number" placeholder="–" /></div>
+            <div class="field f-narrow"><label for="q-fp">IFT FP</label><input id="q-fp" class="input" type="number" placeholder="–" /></div>
+            <div class="field f-narrow"><label for="q-chfp">CH IFT FP</label><input id="q-chfp" class="input" type="number" placeholder="–" /></div>
+            <div class="field f-narrow"><label for="q-edrm">Effects DRM</label><input id="q-edrm" class="input" type="number" value="0" /></div>
+          </div>
+          <div class="b-flags">
+            <label class="chk"><input type="checkbox" id="q-he" /> HE</label>
+            <label class="chk"><input type="checkbox" id="q-unarm" /> unarmored</label>
+            <label class="chk"><input type="checkbox" id="q-hd" /> Hull Down</label>
+            <label class="chk"><input type="checkbox" id="q-mult" /> 15–40mm (Multiple Hits)</label>
+          </div>
+          <div class="b-note">Give a Final TK# for a vehicle, or an IFT FP for personnel; leave both blank for just the hit odds.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ift-results" id="results" style="display:none;">
+      <div class="res-caption" id="res-caption"></div>
+      <div class="summary-grid" id="summary-grid"></div>
+      <div class="dist-rows" id="dist-rows"></div>
+      <table class="branch-table" id="branch-table" style="display:none;"></table>
+      <ul class="notes" id="notes"></ul>
+    </div>
+    <div class="ift-error" id="error" style="display:none;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const num = (id) => { const v = $(id).value.trim(); return v === '' ? null : Number(v); };
+  const chk = (id) => $(id).checked;
+  const pct = (p) => (p * 100).toFixed(p > 0 && p < 0.01 ? 2 : 1) + '%';
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  let mode = 'builder', timer = null, seq = 0;
+
+  function sev(r) {
+    if (r === 'Burn' || /KIA$/.test(r)) return 'burn';
+    if (r === 'Elim' || /^K\//.test(r)) return 'elim';
+    if (/Shock/.test(r) || /MC$/.test(r)) return 'shock';
+    if (r === 'Immobilized' || r === 'PTC') return 'immob';
+    return 'miss';
+  }
+
+  function builderPayload() {
+    const kind = $('t-kind').value, type = $('t-type').value;
+    const p = {
+      gun: $('g-gun').value.trim(), nationality: $('g-nat').value, ammo: $('g-ammo').value,
+      gun_type: $('g-type').value, b_number: num('g-b') ?? 12, rof: num('g-rof') ?? 0,
+      target_type: type, range_hexes: num('t-range') ?? 0, tem: num('t-tem') ?? 0,
+      ca_hexspines: num('f-ca') ?? 0, aim: $('f-aim').value, leadership: num('f-lead') ?? 0,
+      stun: num('f-stun') ?? 0, overstack: num('f-over') ?? 0,
+      firer_in_woods_building_rubble: chk('f-wbr'), afph: chk('f-afph'), bounding_fire: chk('f-bound'),
+      motion_firer: chk('f-motion'), pinned: chk('f-pin'), intensive_fire: chk('f-int'),
+      captured: chk('f-capt'), buttoned_up: chk('f-bu'), cx: chk('f-cx'), encircled: chk('f-enc'),
+      spotted_fire: chk('f-spot'), target_moving: $('d-move').value, acquired: Number($('d-acq').value),
+      target_size: num('d-size') ?? 0, hindrance: num('d-hind') ?? 0,
+      ffnam: chk('d-ffnam'), ffmo: chk('d-ffmo'), concealed: chk('d-conc'),
+      bore_sighted: chk('d-bore'), hazardous_movement: chk('d-haz'),
+    };
+    if (num('g-year') !== null) p.year = num('g-year');
+    if ($('g-color').value) p.th_color = $('g-color').value;
+    if (num('g-btk') !== null) p.basic_tk = num('g-btk');
+    if (num('d-other')) p.other_drm = [{label: 'Other DRM', drm: num('d-other')}];
+    if (kind === 'armored') {
+      p.target = {kind, facing: $('t-facing').value, hull_af: num('t-haf') ?? 0,
+                  turret_af: num('t-taf') ?? 0, hull_down: chk('t-hd')};
+    } else {
+      p.target = {kind};
+      if (kind === 'personnel') {
+        p.effects_drm = num('t-edrm') ?? 0;
+        if (num('t-fp') !== null) p.fp = num('t-fp');
+      }
+    }
+    return p;
+  }
+
+  function quickPayload() {
+    const p = {modified_th: num('q-th') ?? 0, drm: num('q-drm') ?? 0, target_type: $('q-type').value,
+               he: chk('q-he'), unarmored: chk('q-unarm'), hull_down: chk('q-hd'),
+               multiple_hits: chk('q-mult'), effects_drm: num('q-edrm') ?? 0};
+    for (const [k, id] of [['final_tk', 'q-tk'], ['turret_final_tk', 'q-ttk'], ['ch_final_tk', 'q-chtk'],
+                           ['ift_fp', 'q-fp'], ['ch_ift_fp', 'q-chfp']]) {
+      if (num(id) !== null) p[k] = num(id);
+    }
+    return p;
+  }
+
+  function syncTargetFields() {
+    const kind = $('t-kind').value;
+    document.querySelectorAll('.t-armor').forEach((el) => el.style.display = kind === 'armored' ? '' : 'none');
+    document.querySelectorAll('.t-pers').forEach((el) => el.style.display = kind === 'personnel' ? '' : 'none');
+  }
+
+  function render(r) {
+    $('error').style.display = 'none';
+    const th = r.to_hit || r;
+    const kills = (r.outcomes || []).filter((o) => o.result === 'Burn' || o.result === 'Elim' || /KIA$|^K\//.test(o.result))
+                    .reduce((a, o) => a + o.probability, 0);
+    const cells = [['Hit', th.p_hit], ['Critical Hit', th.p_critical]];
+    if (th.p_multiple) cells.push(['Multiple Hit', th.p_multiple]);
+    if ((r.outcomes || []).some((o) => o.result !== 'Hit' && o.result !== 'Miss')) cells.push(['Kill', kills]);
+    if (th.p_malfunction) cells.push(['Malfunction', th.p_malfunction]);
+    if (th.p_rof_retained) cells.push(['Keeps ROF', th.p_rof_retained]);
+    $('summary-grid').innerHTML = cells.map(([l, p]) =>
+      `<div class="summary-cell"><div class="s-label">${l}</div><div class="s-pct">${pct(p)}</div></div>`).join('');
+
+    const tht = th.modified_th;
+    $('res-caption').innerHTML = `Modified TH# <b>${tht}</b> · TH DRM <b>${th.total_drm ?? th.drm}</b> · hit on Original DR ≤ <b>${th.needed_original_dr}</b>`
+      + (th.improbable ? ' · <b>Improbable</b>' : '');
+    $('dist-rows').innerHTML = (r.outcomes || []).map((o) =>
+      `<div class="dist-row"><div class="d-result">${esc(o.result)}</div>`
+      + `<div class="d-bar-track"><div class="d-bar sev-${sev(o.result)}" style="width:${(o.probability * 100).toFixed(2)}%"></div></div>`
+      + `<div class="d-pct">${pct(o.probability)}</div></div>`).join('');
+
+    // Math line (builder only)
+    if (mode === 'builder' && r.to_hit) {
+      const mods = th.modifications.map((m) => `${m.label} ${m.mod > 0 ? '+' : ''}${m.mod}`).join(', ');
+      const drms = th.drm.map((d) => `${esc(d.label)} ${d.drm > 0 ? '+' : ''}${d.drm}`).join(', ');
+      $('math-line').innerHTML = `<b>Basic TH#</b> ${th.basic} (${th.range_band}, ${th.color})`
+        + (mods ? ` · ${esc(mods)}` : '') + ` → <b>Modified ${tht}</b><br>`
+        + `<b>TH DRM</b> ${drms || 'none'} = <b>${th.total_drm}</b>`;
+      $('math-line').style.display = 'block';
+    }
+
+    const tk = r.to_kill;
+    if (tk && tk.branches && tk.branches.length) {
+      const pers = tk.full_fp !== undefined;
+      const head = pers ? '<tr><th>Hit</th><th>P</th><th>IFT</th><th>Effects</th></tr>'
+                        : '<tr><th>Hit</th><th>P</th><th>Final TK#</th><th>Effects</th></tr>';
+      const rows = tk.branches.map((b) => {
+        const name = (b.critical ? 'Critical' : 'Normal') + (b.location ? ' ' + b.location : '')
+          + (b.multiple_hit_probability ? ` <span class="tk-lines">(${pct(b.multiple_hit_probability)} multiple)</span>` : '');
+        const mid = pers ? `${b.fp} FP → ${b.ift_column} col, DRM ${b.effects_drm}`
+          : `<b>${b.final_tk}</b>` + (b.tk_lines ? `<div class="tk-lines">${b.tk_lines.map((l) => `${esc(l.label)} ${l.value}`).join(' · ')}</div>` : '');
+        const eff = b.effects.map((e) => `${esc(e.result)} ${pct(e.probability)}`).join(' · ');
+        return `<tr><td>${name}</td><td>${pct(b.probability)}</td><td>${mid}</td><td>${eff}</td></tr>`;
+      }).join('');
+      $('branch-table').innerHTML = head + rows;
+      $('branch-table').style.display = '';
+    } else {
+      $('branch-table').style.display = 'none';
+    }
+    $('notes').innerHTML = (r.notes || []).map((n) => `<li>${esc(n)}</li>`).join('');
+    $('results').style.display = 'block';
+  }
+
+  function showError(msg) {
+    $('results').style.display = 'none';
+    $('error').textContent = msg;
+    $('error').style.display = 'block';
+  }
+
+  async function run() {
+    const my = ++seq;
+    const url = mode === 'builder' ? '/api/thtk/attack' : '/api/thtk/odds';
+    const body = mode === 'builder' ? builderPayload() : quickPayload();
+    try {
+      const res = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      const data = await res.json();
+      if (my !== seq) return;
+      if (!res.ok || data.error) return showError(data.error || data.detail || 'Request failed');
+      render(data);
+    } catch (e) {
+      if (my === seq) showError('Request failed: ' + e.message);
+    }
+  }
+  const schedule = () => { clearTimeout(timer); timer = setTimeout(run, 150); };
+
+  document.querySelectorAll('.mode-tab').forEach((b) => b.addEventListener('click', () => {
+    mode = b.dataset.mode;
+    document.querySelectorAll('.mode-tab').forEach((x) => x.classList.toggle('active', x === b));
+    $('panel-builder').style.display = mode === 'builder' ? 'block' : 'none';
+    $('panel-quick').style.display = mode === 'quick' ? 'block' : 'none';
+    $('math-line').style.display = 'none';
+    run();
+  }));
+  document.querySelectorAll('#panel-builder input, #panel-builder select, #panel-quick input, #panel-quick select')
+    .forEach((el) => { el.addEventListener('input', schedule); el.addEventListener('change', schedule); });
+  $('t-kind').addEventListener('change', syncTargetFields);
+  $('t-type').addEventListener('change', () => {
+    const t = $('t-type').value;
+    if (t !== 'vehicle' && $('t-kind').value === 'armored') $('t-kind').value = 'personnel';
+    if (t === 'vehicle' && $('t-kind').value === 'personnel') $('t-kind').value = 'armored';
+    if (t !== 'vehicle' && $('g-ammo').value === 'AP') $('g-ammo').value = 'HE';
+    syncTargetFields();
+  });
+  syncTargetFields();
+  run();
+})();
+</script>
+{% endblock %}
