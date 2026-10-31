@@ -43,7 +43,7 @@ warnings.filterwarnings("ignore")  # pdfplumber color-space noise on this PDF
 import pdfplumber
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PDF_PATH = REPO_ROOT / "static" / "rulebook" / "eASLRB_v3_14_INHERIT_ZOOM.pdf"
+PDF_PATH = REPO_ROOT / "data" / "rulebook" / "eASLRB_v3_14_INHERIT_ZOOM.pdf"
 INDEX_PATH = REPO_ROOT / "static" / "rulebook" / "section_pages.json"
 OUT_PATH = REPO_ROOT / "data" / "rulebook" / "sections.json"
 

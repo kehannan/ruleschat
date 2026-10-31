@@ -206,13 +206,13 @@ function makeSectionReferencesClickable(element) {
 
 const PDF_SOURCES = {
     rulebook: {
-        url: '/static/rulebook/eASLRB_v3_14_INHERIT_ZOOM.pdf',
+        url: '/rulebook/eASLRB_v3_14_INHERIT_ZOOM.pdf',
         title: 'ASL Rulebook (eASLRB v3.14)',
         doc: null,
         preloadPromise: null,
     },
     aslqa: {
-        url: '/static/rulebook/ASL-QA-v31.pdf',
+        url: '/rulebook/ASL-QA-v31.pdf',
         title: 'ASL Q&A (v31)',
         doc: null,
         preloadPromise: null,
@@ -226,14 +226,20 @@ let totalPages = 0;
 let scale = 1.5;
 const devicePixelRatio = window.devicePixelRatio || 1;
 
+// The PDFs are login-gated (/rulebook/...); a logged-out visitor (the public
+// demo) gets a 401, after which we stop retrying.
+let pdfLoginRequired = false;
+const PDF_LOGIN_MESSAGE = 'Log in to view the rulebook.';
+
 function preloadPdf(source = 'rulebook') {
     const s = PDF_SOURCES[source];
-    if (s.doc || s.preloadPromise) return s.preloadPromise;
+    if (pdfLoginRequired || s.doc || s.preloadPromise) return s.preloadPromise;
     s.preloadPromise = pdfjsLib.getDocument(s.url).promise.then(doc => {
         s.doc = doc;
         return doc;
     }).catch(err => {
-        console.warn(`PDF: Preload failed for ${source}:`, err);
+        if (err && err.status === 401) pdfLoginRequired = true;
+        else console.warn(`PDF: Preload failed for ${source}:`, err);
         s.preloadPromise = null;
     });
     return s.preloadPromise;
@@ -241,6 +247,7 @@ function preloadPdf(source = 'rulebook') {
 
 async function switchPdfSource(source) {
     const s = PDF_SOURCES[source];
+    if (pdfLoginRequired) throw { status: 401 };
     if (!s.doc) {
         if (s.preloadPromise) await s.preloadPromise;
         if (!s.doc) s.doc = await pdfjsLib.getDocument(s.url).promise;
@@ -268,6 +275,11 @@ async function openPdfModal(section, pageNum = null) {
         loading.classList.remove('show');
         updateControls();
     } catch (err) {
+        if (err && err.status === 401) {
+            pdfLoginRequired = true;
+            loading.textContent = PDF_LOGIN_MESSAGE;
+            return;
+        }
         console.error('Error loading PDF:', err);
         loading.textContent = 'Error loading PDF. Please try again.';
     }
@@ -286,6 +298,11 @@ async function openAslQaModal() {
         loading.classList.remove('show');
         updateControls();
     } catch (err) {
+        if (err && err.status === 401) {
+            pdfLoginRequired = true;
+            loading.textContent = PDF_LOGIN_MESSAGE;
+            return;
+        }
         console.error('Error loading ASL Q&A PDF:', err);
         loading.textContent = 'Error loading PDF. Please try again.';
     }

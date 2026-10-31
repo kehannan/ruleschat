@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from extract_rulebook_sections import page_column_text  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PDF_PATH = REPO_ROOT / "static" / "rulebook" / "ASL-QA-v31.pdf"
+PDF_PATH = REPO_ROOT / "data" / "rulebook" / "ASL-QA-v31.pdf"
 INDEX_PATH = REPO_ROOT / "static" / "rulebook" / "section_pages.json"
 OUT_PATH = REPO_ROOT / "data" / "rulebook" / "qa_entries.json"
 

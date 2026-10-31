@@ -761,8 +761,8 @@ public class AskRuleschatButton extends AbstractConfigurable {
   }
 
   // Served by the ruleschat site (same files as static/js/chat-shared.js).
-  private static final String RULEBOOK_PDF = "/static/rulebook/eASLRB_v3_14_INHERIT_ZOOM.pdf";
-  private static final String QA_PDF = "/static/rulebook/ASL-QA-v31.pdf";
+  private static final String RULEBOOK_PDF = "/rulebook/eASLRB_v3_14_INHERIT_ZOOM.pdf";
+  private static final String QA_PDF = "/rulebook/ASL-QA-v31.pdf";
   private static final Pattern SECTION_PAGE_ENTRY =
     Pattern.compile("\"([A-Z]?\\d+(?:\\.\\d+)+)\"\\s*:\\s*(\\d+)");
   private static volatile java.util.Map<String, Integer> sectionPages;
