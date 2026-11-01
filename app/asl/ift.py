@@ -244,11 +244,17 @@ def _resolve_unit_fp(
 
     val = fp
     steps: List[str] = []
+    # Same trail, structured for the /ift worksheet: one row per modifier.
+    ops: List[Dict[str, Any]] = []
+
+    def op(sym, label, rule):
+        ops.append({"op": sym, "label": label, "rule": rule, "value": _fnum(val)})
 
     # A7.21: PBF ×2 / TPBF ×3.
     if pbf != "none":
         val *= PBF_MULTIPLIER[pbf]
         steps.append(f"×{PBF_MULTIPLIER[pbf]} {pbf.upper()} = {_fnum(val)}")
+        op(f"×{PBF_MULTIPLIER[pbf]}", pbf.upper(), "A7.21")
     # A7.22: long range halves FP.
     if unit.get("long_range"):
         val /= 2
@@ -258,19 +264,23 @@ def _resolve_unit_fp(
             steps.append(f"÷2 long range (range {rg} > normal range {nr}) = {_fnum(val)}")
         else:
             steps.append(f"÷2 long range = {_fnum(val)}")
+        op("÷2", "Long Range", "A7.22")
     # A7.24: Advancing Fire halves FP — unless Opportunity Fire (A7.25).
     if afph and not opportunity_fire:
         val /= 2
         steps.append(f"÷2 AFPh = {_fnum(val)}")
+        op("÷2", "Advancing Fire", "A7.24")
     # A7.23 / A9.5 etc.: each area-fire condition (concealed target, spraying
     # fire, ...) halves again. Attack-wide: applies to every unit.
     for _ in range(area_fire_halvings):
         val /= 2
         steps.append(f"÷2 area fire = {_fnum(val)}")
+        op("÷2", "Area Fire", "A7.23")
     # A7.8: a pinned firer's FP is halved.
     if unit.get("pinned"):
         val /= 2
         steps.append(f"÷2 pinned = {_fnum(val)}")
+        op("÷2", "Pinned", "A7.8")
 
     # A7.36: assault fire adds +1 after all other modification, then the
     # unit's FP is rounded up. NA at long range or during opportunity fire.
@@ -278,6 +288,7 @@ def _resolve_unit_fp(
         if unit.get("long_range") or opportunity_fire:
             why = "long range" if unit.get("long_range") else "opportunity fire"
             steps.append(f"assault fire NA ({why})")
+            ops.append({"op": "NA", "label": "Assault Fire", "rule": "A7.36", "value": _fnum(val)})
             warnings.append(
                 f"Assault fire +1 dropped for the {unit['fp']} FP unit: NA at {why} (A7.36)."
             )
@@ -286,9 +297,10 @@ def _resolve_unit_fp(
             val = Fraction(math.ceil(val + 1))
             suffix = " (FRU)" if had_fraction else ""
             steps.append(f"+1 assault fire → {_fnum(val)}{suffix}")
+            op("+1" + (" FRU" if had_fraction else ""), "Assault Fire", "A7.36")
 
-    return {"fp": _fnum(Fraction(str(unit["fp"]))), "steps": steps, "final": _fnum(val),
-            "_exact": val}
+    return {"fp": _fnum(Fraction(str(unit["fp"]))), "steps": steps, "ops": ops,
+            "final": _fnum(val), "_exact": val}
 
 
 def _build_drm_ledger(
@@ -311,12 +323,12 @@ def _build_drm_ledger(
     """
     ledger: List[Dict[str, Any]] = []
     if tem:
-        ledger.append({"label": "TEM", "drm": tem})
+        ledger.append({"label": "TEM", "drm": tem, "side": "target"})
     if hindrance:
-        ledger.append({"label": "hindrance", "drm": hindrance})
+        ledger.append({"label": "hindrance", "drm": hindrance, "side": "target", "rule": "A6.7"})
     if ffnam:
         # A4.6: First Fire vs non-assault movement.
-        ledger.append({"label": "FFNAM", "drm": -1})
+        ledger.append({"label": "FFNAM", "drm": -1, "side": "target", "rule": "A4.6"})
     if ffmo:
         if hindrance > 0 or tem > 0:
             warnings.append(
@@ -324,15 +336,16 @@ def _build_drm_ledger(
                 "TEM in the target Location (A4.6)."
             )
         else:
-            ledger.append({"label": "FFMO", "drm": -1})
+            ledger.append({"label": "FFMO", "drm": -1, "side": "target", "rule": "A4.6"})
     if leadership:
         # A7.531: leader direction modifies the attack by his leadership DRM.
-        ledger.append({"label": "leadership", "drm": leadership})
+        ledger.append({"label": "leadership", "drm": leadership, "side": "firer", "rule": "A7.531"})
     if encircled_firer:
         # A7.7: an encircled unit attacks with a +1 DRM.
-        ledger.append({"label": "encircled firer", "drm": 1})
+        ledger.append({"label": "encircled firer", "drm": 1, "side": "firer", "rule": "A7.7"})
     for item in other_drm or []:
-        ledger.append({"label": str(item.get("label", "other")), "drm": int(item["drm"])})
+        ledger.append({"label": str(item.get("label", "other")), "drm": int(item["drm"]),
+                       "side": "other"})
     return ledger
 
 

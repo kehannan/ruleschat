@@ -376,6 +376,97 @@ def _short_drm_label(label: str) -> str:
     return f"{head} ({', '.join(refs)})" if refs else head
 
 
+_GOOD, _BAD = "#4F6B4A", "#A4453B"   # helps / hurts the firer
+
+
+def _sheet(title: str, rows: str) -> str:
+    """One worksheet: a muted caps title over a label | value(s) table."""
+    return (f"<div class='calcbargap'>&nbsp;</div><div class='calchead'>{_h(title)}</div>"
+            f"<table width='100%' cellspacing='0' cellpadding='1'>{rows}</table>")
+
+
+def _sheet_row(label: str, cells, *, indent=False, bold=False) -> str:
+    pad = "&nbsp;&nbsp;&nbsp;" if indent else ""
+    wrap = (lambda x: f"<b>{x}</b>") if bold else (lambda x: x)
+    return (f"<tr><td class='calck'>{pad}{wrap(label)}</td>"
+            + "".join(f"<td class='calcv' align='right' nowrap>{wrap(c)}</td>" for c in cells)
+            + "</tr>")
+
+
+def _colored(text: str, color: Optional[str]) -> str:
+    return f"<font color='{color}'>{_h(text)}</font>" if color else _h(text)
+
+
+# Per-unit FP rows in the order the IFT engine applies them (A7.2).
+_FP_ORDER = ["PBF", "TPBF", "Long Range", "Advancing Fire", "Area Fire", "Pinned", "Assault Fire"]
+
+
+def _firepower_sheet(result: dict) -> str:
+    """Printed FP per firer, each modifier with its running value, then the
+    total and the IFT column it lands in."""
+    firers = [f for f in result.get("firers") or [] if f.get("fp_resolution")]
+    if not firers:
+        return ""
+    labels = {}
+    for f in firers:
+        for o in f["fp_resolution"].get("ops") or []:
+            labels.setdefault(o["label"], o.get("rule"))
+    order = sorted(labels, key=lambda k: _FP_ORDER.index(k) if k in _FP_ORDER else 99)
+    rows = []
+    if len(firers) > 1:
+        rows.append("<tr><td class='calck'>&nbsp;</td>" + "".join(
+            f"<td class='calcv' align='right' nowrap><font color='{_MUTED}'>{_h(f.get('name'))}</font></td>"
+            for f in firers) + "</tr>")
+    rows.append(_sheet_row("Printed FP", [_h(f["fp_resolution"]["fp"]) for f in firers]))
+    for lab in order:
+        cells = []
+        for f in firers:
+            o = next((x for x in f["fp_resolution"].get("ops") or [] if x["label"] == lab), None)
+            if o is None:
+                cells.append(_colored("–", _HAIR))
+            elif o["op"] == "NA":
+                cells.append(_colored("NA", _MUTED))
+            else:
+                up = o["op"][0] in "×+"
+                cells.append(_colored(f"{o['op']} = {o['value']}", _GOOD if up else _BAD))
+        rule = f" <font color='{_MUTED}'>{_h(labels[lab])}</font>" if labels[lab] else ""
+        rows.append(_sheet_row(_h(lab) + rule, cells, indent=True))
+    rows.append(_sheet_row("Final FP", [_h(f["fp_resolution"]["final"]) for f in firers], bold=True))
+    span = len(firers)
+    tail = (f"<td class='calcv' align='right' nowrap colspan='{span}'>")
+    if len(firers) > 1:
+        rows.append(f"<tr><td class='calck'>Total FP</td>{tail}{_h(result.get('total_fp'))}</td></tr>")
+    col = result.get("column")
+    rows.append(f"<tr><td class='calck'><b>IFT column</b></td>{tail}<b>{_h(col)}</b></td></tr>")
+    return _sheet("FIREPOWER", "".join(rows))
+
+
+def _drm_sheet(result: dict) -> str:
+    """The DRM ledger grouped by who it comes from, with subtotals."""
+    groups = {"firer": [], "target": [], "other": []}
+    for d in result.get("drm_breakdown") or []:
+        groups.get(d.get("side"), groups["other"]).append(d)
+
+    def val(n: int) -> str:
+        return _colored(f"{n:+d}", None if not n else (_BAD if n > 0 else _GOOD))
+
+    rows = []
+    for key, title in (("firer", "Firer"), ("target", "Target"), ("other", "Other")):
+        items = groups[key]
+        if not items:
+            continue
+        rows.append(_sheet_row(f"<font color='{_MUTED}'>{title}</font>",
+                               [val(sum(int(d["drm"]) for d in items))]))
+        rows += [_sheet_row(_h(_short_drm_label(d["label"])), [val(int(d["drm"]))], indent=True)
+                 for d in items]
+    drm = result.get("drm")
+    rows.append(_sheet_row("Total DRM", ["per TEM group" if drm is None else f"{drm:+d}"], bold=True))
+    if result.get("cowering") and result["cowering"] != "none":
+        rows.append(_sheet_row(f"<font color='{_MUTED}'>Cowering possible on doubles (A7.9)</font>",
+                               [_h(result["cowering"])]))
+    return _sheet("DICE ROLL MODIFIERS", "".join(rows))
+
+
 def _calculator_html(result: dict, native_los: dict) -> str:
     """The calculator card as HTML 3.2 for the extension's Swing renderer
     (tables + bgcolor only: no flexbox, no rounded corners)."""
@@ -406,18 +497,7 @@ def _calculator_html(result: dict, native_los: dict) -> str:
         f"<td bgcolor='{_PAPER}' class='tile'><div class='tilelbl'>{_h(k)}</div>"
         f"<div class='tileval'>{_h(v)}</div></td>" for k, v in tiles)
 
-    rows = [(f"{f.get('name')}", f"{f.get('fp')} FP")
-            for f in result.get("firers") or []]
-    if len(rows) > 1:
-        rows.append(("Total", f"{result.get('total_fp')} FP"))
-    rows += [(_short_drm_label(d["label"]), f"{d['drm']:+d}")
-             for d in result.get("drm_breakdown") or []]
-    if result.get("cowering") and result["cowering"] != "none":
-        rows.append(("Cowering possible on doubles (A7.9)", result["cowering"]))
-    row_html = "".join(
-        f"<tr><td class='calck'>{_h(k)}</td><td class='calcv' align='right' "
-        f"nowrap>{_h(v)}</td></tr>"
-        for k, v in rows)
+    worksheets = _firepower_sheet(result) + _drm_sheet(result)
 
     odds_html = ""
     if "p_broken" in vt:
@@ -438,8 +518,7 @@ def _calculator_html(result: dict, native_los: dict) -> str:
     return card(
         f"<div class='calchead'>{_h(head)}</div>"
         f"<table width='100%' cellspacing='4' cellpadding='0'><tr>{tile_html}</tr></table>"
-        f"<table width='100%' cellspacing='0' cellpadding='0'>{row_html}</table>"
-        f"{odds_html}")
+        f"{worksheets}{odds_html}")
 
 
 # Appended to the system instructions for /api/ask: the answer is shown in

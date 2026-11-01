@@ -141,16 +141,65 @@
     margin-top: 10px; letter-spacing: .02em; line-height: 1.5;
   }
 
-  /* Live math line — the per-unit fp_breakdown + DRM ledger rendered inline. */
-  .site .math-line {
-    margin-top: 18px; padding: 14px 18px;
-    border-left: 3px solid var(--accent);
-    background: color-mix(in oklch, var(--accent) 8%, var(--paper));
-    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
-    line-height: 1.8; letter-spacing: .01em;
+  /* Worksheets: the TH and TK math as a ledger, value column right-aligned. */
+  .site .worksheets { display: grid; gap: 16px; margin-top: 18px; }
+  .site .ws {
+    border: 1px solid var(--hair); border-radius: 4px;
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    padding: 18px 22px; overflow-x: auto;
   }
-  .site .math-line b { color: var(--ink); font-weight: 600; }
-  .site .math-line .ml-warn { color: var(--fail); }
+  @media (max-width: 600px) {
+    .site .ws { padding: 14px; }
+    .site .ws-table th, .site .ws-table .val { padding-left: 8px; }
+  }
+  .site .ws-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .site .ws-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  .site .ws-table td, .site .ws-table th { padding: 5px 0; vertical-align: baseline; }
+  .site .ws-table th {
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 500; text-align: right; padding-left: 14px;
+  }
+  .site .ws-table th:first-child { text-align: left; padding-left: 0; }
+  .site .ws-table .lbl { color: var(--ink-2); }
+  .site .ws-table .lbl .rule { color: var(--muted); font-size: 10px; margin-left: 6px; }
+  .site .ws-table .val {
+    text-align: right; font-variant-numeric: tabular-nums; color: var(--ink);
+    padding-left: 14px; white-space: nowrap;
+  }
+  .site .ws-table .val.neg { color: var(--field); }
+  .site .ws-table .val.pos { color: var(--fail); }
+  .site .ws-table .val.dim { color: var(--muted-2); }
+  .site .ws-table tr.grp td {
+    padding-top: 12px; font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .site .ws-table tr.grp td.val { color: var(--ink-2); font-size: 12px; letter-spacing: 0; }
+  .site .ws-table tr.indent td.lbl { padding-left: 14px; }
+  .site .ws-table tr.sub td { border-top: 1px solid var(--hair); color: var(--ink); font-weight: 600; }
+  .site .ws-table tr.total td {
+    border-top: 2px solid var(--ink); padding-top: 9px;
+    font-size: 14px; font-weight: 700; color: var(--ink);
+  }
+  .site .ws-table tr.total td.val { color: var(--accent); }
+  .site .ws-table tr.note td { color: var(--muted); font-size: 11px; padding-top: 2px; }
+  .site .ws-table tr.bar td { padding-top: 10px; }
+  .site .ws-bar {
+    display: flex; height: 12px; border-radius: 2px; overflow: hidden;
+    border: 1px solid var(--hair); background: var(--paper-3); margin-left: auto; max-width: 160px;
+  }
+  .site .ws-bar span { display: block; height: 100%; }
+  .site .ws .sev-burn  { background: var(--fail); }
+  .site .ws .sev-elim  { background: var(--accent); }
+  .site .ws .sev-shock { background: var(--brass); }
+  .site .ws .sev-immob { background: var(--field); }
+  .site .ws .sev-miss  { background: var(--paper-3); }
+  .site .ws-kill { font-size: 11px; color: var(--muted); text-align: right; margin-top: 4px; }
+  .site .ws-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .site .ws-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 1px; margin-right: 5px; vertical-align: -1px; }
+  .site .ws-warn { font-family: var(--mono); font-size: 11px; color: var(--fail); line-height: 1.6; }
 
   /* Results */
   .site .ift-results { margin-top: 40px; }
@@ -372,7 +421,7 @@
         </div>
       </div>
 
-      <div class="math-line" id="math-line" style="display:none;"></div>
+      <div class="worksheets" id="worksheets" style="display:none;"></div>
     </div>
 
     <!-- ===================== Quick odds (original form) ===================== -->
@@ -585,7 +634,7 @@
   let mode = 'builder';
   const $panelBuilder = document.getElementById('panel-builder');
   const $panelQuick = document.getElementById('panel-quick');
-  const $mathLine = document.getElementById('math-line');
+  const $sheets = document.getElementById('worksheets');
 
   function setMode(m) {
     mode = m;
@@ -824,22 +873,63 @@
     return payload;
   }
 
-  // The live math line: per-unit fp_breakdown + DRM ledger + warnings.
-  function renderMathLine(data) {
-    const lines = [];
-    for (const u of data.fp_breakdown || []) {
-      const steps = u.steps.length ? ' · ' + u.steps.join(' · ') : '';
-      lines.push(`FP ${u.fp}${steps} → <b>${u.final}</b>`);
+  // The build, as two worksheets: per-unit FP → column, then the DRM ledger.
+  const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const rule = (r) => r ? `<span class="rule">${esc(r)}</span>` : '';
+  // good = the change helps the firer (more FP) vs hurts it (+DRM).
+  function opCell(o) {
+    if (!o) return '<td class="val dim">—</td>';
+    if (o.op === 'NA') return '<td class="val dim">NA</td>';
+    const up = o.op[0] === '×' || o.op[0] === '+';
+    return `<td class="val ${up ? 'neg' : 'pos'}">${esc(o.op)} <span class="rule">= ${o.value}</span></td>`;
+  }
+
+  function fpSheet(data) {
+    const us = data.fp_breakdown || [];
+    // Rows in the order the engine applies them (A7.2 sequence), not first-seen.
+    const ORDER = ['PBF', 'TPBF', 'Long Range', 'Advancing Fire', 'Area Fire', 'Pinned', 'Assault Fire'];
+    const keys = [];
+    for (const u of us) for (const o of u.ops) if (!keys.some(k => k.label === o.label)) keys.push(o);
+    keys.sort((x, y) => ORDER.indexOf(x.label) - ORDER.indexOf(y.label));
+    const head = '<tr><th></th>' + us.map((u, i) => `<th>Unit ${i + 1}</th>`).join('') + '</tr>';
+    const rows = ['<tr><td class="lbl">Printed FP</td>' + us.map(u => `<td class="val">${u.fp}</td>`).join('') + '</tr>'];
+    for (const k of keys) {
+      rows.push(`<tr class="indent"><td class="lbl">${esc(k.label)}${rule(k.rule)}</td>`
+        + us.map(u => opCell(u.ops.find(o => o.label === k.label))).join('') + '</tr>');
     }
-    const colStr = data.column ? `<b>${data.column} column</b>` : '<b>no attack</b>';
-    lines.push(`total <b>${data.total_fp} FP</b> → ${colStr}`);
-    const items = (data.drm_breakdown || []).map(d => `${fmtDrm(d.drm)} ${d.label}`).join(', ');
-    lines.push(`DRM: ${items || 'none'} = <b>${fmtDrm(data.drm)}</b> · cowering: ${data.cowering}`);
-    for (const w of data.warnings || []) {
-      lines.push(`<span class="ml-warn">△ ${w}</span>`);
+    rows.push('<tr class="sub"><td class="lbl">Final FP</td>' + us.map(u => `<td class="val">${u.final}</td>`).join('') + '</tr>');
+    const n = us.length + 1;
+    if (us.length > 1) rows.push(`<tr><td class="lbl">Total FP</td><td class="val" colspan="${n - 1}">${data.total_fp}</td></tr>`);
+    rows.push(`<tr class="total"><td class="lbl">IFT column</td><td class="val" colspan="${n - 1}">${data.column ? data.column + ' FP' : 'no attack'}</td></tr>`);
+    if (data.column && data.column !== data.total_fp) {
+      rows.push(`<tr class="note"><td colspan="${n}">${data.total_fp} FP falls in the ${data.column} column (A7.3)</td></tr>`);
     }
-    $mathLine.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
-    $mathLine.style.display = 'block';
+    return `<div class="ws"><div class="ws-title">Firepower</div><table class="ws-table">${head}${rows.join('')}</table></div>`;
+  }
+
+  function drmSheet(data) {
+    const groups = [['Firer', []], ['Target', []], ['Other', []]];
+    for (const d of data.drm_breakdown || []) {
+      groups[d.side === 'firer' ? 0 : d.side === 'target' ? 1 : 2][1].push(d);
+    }
+    const cell = (n) => `<td class="val ${!n ? 'dim' : n > 0 ? 'pos' : 'neg'}">${fmtDrm(n)}</td>`;
+    const rows = [];
+    for (const [name, lines] of groups) {
+      if (!lines.length) continue;
+      rows.push(`<tr class="grp"><td class="lbl">${name}</td>${cell(lines.reduce((a, d) => a + d.drm, 0))}</tr>`);
+      for (const d of lines) rows.push(`<tr class="indent"><td class="lbl">${esc(d.label)}${rule(d.rule)}</td>${cell(d.drm)}</tr>`);
+    }
+    if (!rows.length) rows.push('<tr><td class="lbl">No DRM</td><td class="val dim">0</td></tr>');
+    rows.push(`<tr class="total"><td class="lbl">Total DRM</td><td class="val">${fmtDrm(data.drm ?? 0)}</td></tr>`);
+    const cow = {none: 'No cowering', regular: 'Cowers 1 column on doubles', double: 'Cowers 2 columns on doubles'}[data.cowering];
+    if (cow) rows.push(`<tr class="note"><td colspan="2">${cow} (A7.9)</td></tr>`);
+    const warn = (data.warnings || []).map(w => `<div class="ws-warn">△ ${esc(w)}</div>`).join('');
+    return `<div class="ws"><div class="ws-title">Dice roll modifiers</div><table class="ws-table">${rows.join('')}</table>${warn}</div>`;
+  }
+
+  function renderWorksheets(data) {
+    $sheets.innerHTML = fpSheet(data) + drmSheet(data);
+    $sheets.style.display = 'grid';
   }
 
   // Headline cells: BREAK / PIN / CASUALTY / NO EFFECT vs a target, vehicle
@@ -871,7 +961,7 @@
   async function recomputeBuilder() {
     const payload = gatherPayload();
     if (!payload.units.length) {
-      $mathLine.style.display = 'none';
+      $sheets.style.display = 'none';
       showError('Add at least one firing unit with FP > 0.');
       return;
     }
@@ -885,12 +975,12 @@
       data = await res.json();
       if (!res.ok) throw new Error(data.error || data.detail || 'Request failed');
     } catch (e) {
-      $mathLine.style.display = 'none';
+      $sheets.style.display = 'none';
       showError('Could not compute: ' + e.message);
       return;
     }
 
-    renderMathLine(data);
+    renderWorksheets(data);
     if (data.error) {
       // Total FP below the 1 column — the math line shows how it got there.
       showError(data.error);

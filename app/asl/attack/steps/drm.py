@@ -13,7 +13,7 @@ def hindrance(ctx: AttackContext) -> None:
         ctx.drm_breakdown.append({
             "label": ctx.hindrance_label
                      or f"VASL native LOS hindrance (A6.7) +{ctx.hindrance}",
-            "drm": ctx.hindrance,
+            "drm": ctx.hindrance, "side": "target",
         })
 
 
@@ -57,7 +57,7 @@ def tem(ctx: AttackContext) -> None:
                       f"({ENTRENCHMENT_RULE}; entrenchment TEM REPLACES hex "
                       f"terrain TEM — not cumulative, the occupant is a "
                       f"separate Location for TEM, {ENTRENCHMENT_REPLACES_RULE})"),
-            "drm": ENTRENCHMENT_TEM,
+            "drm": ENTRENCHMENT_TEM, "side": "target",
         })
         if value > ENTRENCHMENT_TEM:
             ctx.warnings.append(
@@ -71,7 +71,7 @@ def tem(ctx: AttackContext) -> None:
                 "label": f"[replaced] {label} "
                          f"+{value} — superseded by the "
                          "entrenchment TEM (B27.3)",
-                "drm": 0,
+                "drm": 0, "side": "target",
             })
     elif mixed:
         in_names = ", ".join(u.get("name", "?") for u in in_ent)
@@ -80,12 +80,12 @@ def tem(ctx: AttackContext) -> None:
             "label": (f"IN {ent_kind} ({in_names}): TEM "
                       f"+{ENTRENCHMENT_TEM} ({ENTRENCHMENT_RULE}; replaces "
                       f"hex terrain TEM, {ENTRENCHMENT_REPLACES_RULE})"),
-            "drm": ENTRENCHMENT_TEM,
+            "drm": ENTRENCHMENT_TEM, "side": "target",
         })
         ctx.drm_breakdown.append({
             "label": (f"NOT in {ent_kind} ({out_names}): "
                       f"{label} +{value}"),
-            "drm": value,
+            "drm": value, "side": "target",
         })
         if value == ENTRENCHMENT_TEM:
             ctx.tem_groups = [{"tem": ENTRENCHMENT_TEM, "units": t_units,
@@ -114,7 +114,8 @@ def tem(ctx: AttackContext) -> None:
     else:
         ctx.tem_groups = [{"tem": value, "units": t_units,
                            "desc": "all target units (no entrenchment)"}]
-        ctx.drm_breakdown.append({"label": f"TEM: {label}", "drm": value})
+        ctx.drm_breakdown.append({"label": f"TEM: {label}", "drm": value,
+                                 "side": "target"})
 
 
 def firer_modifiers(ctx: AttackContext) -> None:
@@ -122,15 +123,17 @@ def firer_modifiers(ctx: AttackContext) -> None:
     if ctx.cx_present:
         ctx.other_drm.append({"label": "CX firer: +1 to the IFT DR (A4.51)",
                               "drm": CX_DRM})
-        ctx.drm_breakdown.append({"label": "CX firer (A4.51)", "drm": CX_DRM})
+        ctx.drm_breakdown.append({"label": "CX firer (A4.51)", "drm": CX_DRM,
+                                  "side": "firer"})
     if ctx.leader_directs and ctx.leadership:
         ctx.drm_breakdown.append({
             "label": f"leadership direction {ctx.leadership:+d} (A7.531; also "
                      "prevents cowering, A7.9)",
-            "drm": ctx.leadership,
+            "drm": ctx.leadership, "side": "firer",
         })
     if ctx.encircled_firer:
-        ctx.drm_breakdown.append({"label": "encircled firer +1 (A7.7)", "drm": 1})
+        ctx.drm_breakdown.append({"label": "encircled firer +1 (A7.7)", "drm": 1,
+                                  "side": "firer"})
 
 
 def ffmo_ffnam(ctx: AttackContext) -> None:
@@ -152,14 +155,14 @@ def ffmo_ffnam(ctx: AttackContext) -> None:
             "FFNAM is applied and FFMO is attempted (A4.6; FFMO is "
             "automatically negated by positive TEM or LOS hindrance)."
         )
-        ctx.drm_breakdown.append({"label": "FFNAM (A4.6)", "drm": -1})
+        ctx.drm_breakdown.append({"label": "FFNAM (A4.6)", "drm": -1, "side": "target"})
         if len(ctx.tem_groups) > 1:
             ctx.caveats.append(
                 "Target counters have different TEM groups: FFMO is checked "
                 "separately in each group resolution below."
             )
         elif ctx.terrain_tem_value == 0 and ctx.hindrance == 0:
-            ctx.drm_breakdown.append({"label": "FFMO (A4.6)", "drm": -1})
+            ctx.drm_breakdown.append({"label": "FFMO (A4.6)", "drm": -1, "side": "target"})
         else:
             ctx.warnings.append(
                 "Target is marked moved, but FFMO is negated by positive "

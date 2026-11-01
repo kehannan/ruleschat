@@ -465,6 +465,9 @@ def test_rich_client_gets_calculator_html_not_markdown(client):
     assert "57-H9 → 57-H8 · Prep Fire · range 1 (PBF)" in html
     assert "<div class='tileval'>16</div>" in html and "+2" in html
     assert "Broken" in html and "bgcolor" in html
+    # the build: per-firer FP worksheet, then the DRM grouped by side
+    assert "FIREPOWER" in html and "Printed FP" in html and "×2 = 12" in html
+    assert "DICE ROLL MODIFIERS" in html and "Target" in html and "Total DRM" in html
     # the answer text carries only the model's explanation
     assert "".join(l.get("delta", "") for l in lines) == "THE ANSWER"
     assert "ANSWER FORMAT" in client.fake_service.calls[-1]["extra_instructions"]
