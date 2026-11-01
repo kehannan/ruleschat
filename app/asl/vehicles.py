@@ -35,6 +35,20 @@ ALIASES = {
     "jagdpanther": ["JgdPz V"],
     "jagdtiger": ["JgdPz VI"],
     "firefly": ["Sherman VC(a)", "Sherman IIC(a)"],
+    # U.S. Shermans are listed by designation; a bare "Sherman" must not
+    # prefix-match the lone "Sherman Crab".
+    "sherman": ["M4", "M4A1", "M4A2", "M4A2 (L)", "M4A3", "M4A3(75)W", "M4A1(76)W",
+                "M4A3(76)W", "M4(105)", "M4A3(105)", "M4A3E2", "M4A3E8",
+                "Sherman II(a)", "Sherman III(a)", "Sherman V(a)", "Sherman IIA(a)",
+                "Sherman IIC(a)", "Sherman VC(a)", "Sherman IB(a)"],
+    "jumbo": ["M4A3E2", "M4A3E2 (L)"],
+    "hellcat": ["M18 GMC"],
+    "wolverine": ["M10 GMC", "Wolverine(a)"],
+    "jackson": ["M36 GMC"],
+    "pershing": ["M26"],
+    "chaffee": ["M24"],
+    "priest": ["M7 HMC"],
+    "easyeight": ["M4A3E8"],
 }
 
 
@@ -62,7 +76,8 @@ def reset() -> None:
 
 
 def _summary(v: Dict[str, Any]) -> str:
-    return f"{v['name']} ({v['nationality']})"
+    kind = f" {v['type']}" if v.get("type") else ""
+    return f"{v['name']}{kind} ({v['nationality']})"
 
 
 def find(query: str, nationality: Optional[str] = None) -> Dict[str, Any]:
@@ -96,9 +111,14 @@ def find(query: str, nationality: Optional[str] = None) -> Dict[str, Any]:
     exact = [v for v in pool if _norm(v["name"]) == q]
     if exact:
         return pick(exact)
+    # "M3 MT": name plus listing type code
+    typed = [v for v in pool if v.get("type") and _norm(v["name"] + v["type"]) == q]
+    if typed:
+        return pick(typed)
     if q in ALIASES:
         names = {_norm(n) for n in ALIASES[q]}
-        res = pick([v for v in rows if _norm(v["name"]) in names])
+        res = pick([v for v in pool if _norm(v["name"]) in names]
+                   or [v for v in rows if _norm(v["name"]) in names])
         if res:
             res["alias"] = query
             return res

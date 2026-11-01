@@ -401,5 +401,28 @@ def test_missing_listing_store_falls_back():
         vehicles.reset()
 
 
+
+def test_us_listing_from_decoded_fonts(listing):
+    # The U.S. listing is decoded from fonts without a character map.
+    m4a1 = listing.find("M4A1", "U.S.")["vehicle"]       # AF 11/4, TA -F/+SR
+    assert (m4a1["hull_front"], m4a1["hull_side"]) == (11, 4)
+    assert (m4a1["turret_front"], m4a1["turret_side"]) == (8, 6)
+    assert listing.find("Hellcat")["vehicle"]["name"] == "M18 GMC"
+    assert "candidates" in listing.find("Sherman", "U.S.")
+
+
+def test_us_glyph_tables_are_in_cp1252_order():
+    import json
+    tables = json.loads((Path(__file__).resolve().parent.parent / "scripts" / "data"
+                         / "us_listing_glyphs.json").read_text())
+    for tag, chars in tables.items():
+        if tag.startswith("_"):
+            continue
+        body = chars.lstrip("\x00")
+        keys = [c.encode("cp1252", "ignore") or b"\xff" for c in body]
+        assert keys == sorted(keys), tag
+        assert len(set(body)) == len(body), tag
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

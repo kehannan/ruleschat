@@ -1,0 +1,13 @@
+{
+ "_note": "eASLRB v3.14 U.S. vehicle listing (PDF pages 377-378, 0-based 377-378): the embedded TrueType subsets carry no cmap/ToUnicode, so extraction yields raw codes. Codes are assigned in Windows-1252 order of each subset's character set, so each entry is that set in code order (code i = character i). Built from rendered glyph sheets, 2026-11-01. NUL = an unidentified blank glyph that sorts first. NBSP = a second blank glyph that sorts last.",
+ "AZTWDW": "Tepy",
+ "CCPTYY": " ACDHLMSThtv",
+ "PFOVPM": "\u0000 ()*+,-./0123456789;ABCDEFGHIJKLMNOPRSTUVWYZabdehkmnoprstz†“” ",
+ "TXFMDI": " #&/012345689ABCDFGIMNOPRSTVWXaeimostz•",
+ "UVIBJN": " .CEGHILNSTUV",
+ "XOUUAI": "★",
+ "GVQVRQ": " ()*+,-./0123456789;ABCDFGHJKLMNOPQRSTUVWXYehmnoprst†",
+ "JKMEIR": " #&/1236ABCDFGIMNOPRSTVWaeimostz•",
+ "VOFSKH": "\u000024679ACLMPSTart",
+ "XTZLZI": " .CEGHILNSTUVcdnot’"
+}
