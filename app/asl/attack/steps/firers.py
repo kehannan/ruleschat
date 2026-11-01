@@ -6,6 +6,11 @@ from app.asl.attack_resolver import (
     _all_hex_markers, _is_hs_or_crew, _is_squad, classify_unit, ski_state,
 )
 
+# Exclusion reason for a Gun in the firing hex. app/api/ask.py matches on it to
+# skip the IFT calculator card when the only would-be firer is ordnance (the
+# ordnance_attack tool handles that shot).
+ORDNANCE_EXCLUSION = "resolves on the To-Hit process (C3)"
+
 
 def firing_side(ctx: AttackContext) -> None:
     """The side firing: most Good Order personnel in the firing hex."""
@@ -80,8 +85,8 @@ def eligible_firers(ctx: AttackContext) -> None:
             ctx.exclude(u, "BROKEN — broken units may not attack (A10.5x)")
             continue
         if cls["kind"] == "ordnance":
-            ctx.exclude(u, f"ordnance ({cls['detail']}) — resolves on the To-Hit "
-                           "process (C3), NOT the IFT; excluded from this attack")
+            ctx.exclude(u, f"ordnance ({cls['detail']}) — {ORDNANCE_EXCLUSION}, "
+                           "NOT the IFT; excluded from this attack")
             continue
         if ctx.phase == "prep" and "Prep Fire" in markers:
             ctx.exclude(u, "already marked Prep Fire — has fired this PFPh")

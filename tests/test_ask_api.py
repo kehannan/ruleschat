@@ -524,3 +524,17 @@ def test_rule_text_reflows_pdf_line_breaks(client, monkeypatch):
                    headers={"Authorization": f"Bearer {FakeUser.api_key}"})
     assert r.json()["text"] == ("9.31 The wall/hedge TEM is not cumulative "
                                 "with other terrain in that hex.")
+
+
+def test_precompute_skips_ordnance_only_no_attack():
+    # A Gun in the firing hex is excluded from the IFT attack; when nothing
+    # else fires, the plugin must not show an IFT "no attack" card above the
+    # ordnance_attack answer.
+    from app.api.ask import _ordnance_only
+    from app.asl.attack.steps.firers import ORDNANCE_EXCLUSION
+    gun_only = {"error": "All candidate firers in 46-Z1 were excluded (['ordnance (Gun) — "
+                         f"{ORDNANCE_EXCLUSION}, NOT the IFT; excluded from this attack'])."}
+    assert _ordnance_only(gun_only)
+    assert not _ordnance_only({"error": "LOS blocked at 46-W2"})
+    assert not _ordnance_only({"total_fp": 4, "column": 4})
+    assert not _ordnance_only(None)

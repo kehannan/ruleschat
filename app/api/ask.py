@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 from app import model_registry
 from app.asl import rules_lookup
 from app.asl.openrouter_client import OpenRouterClient
+from app.asl.attack.steps.firers import ORDNANCE_EXCLUSION
 from app.asl.tools import execute_tool
 from app.database import SessionLocal
 from app.models.user import User
@@ -288,10 +289,21 @@ def _precompute_attack(question: str, vsav_state: Optional[dict],
     if phase:
         args["phase"] = phase
     try:
-        return execute_tool("resolve_attack", args, context=context)
+        result = execute_tool("resolve_attack", args, context=context)
     except Exception:
         logging.error("ask: precomputed resolve_attack failed", exc_info=True)
         return None
+    if _ordnance_only(result):
+        # A Gun firing: not an IFT attack. The model resolves it with
+        # ordnance_attack; an IFT "no attack" card would contradict that.
+        return None
+    return result
+
+
+def _ordnance_only(result: Optional[dict]) -> bool:
+    """resolve_attack found no IFT attack because the firer is ordnance."""
+    return bool(result and result.get("error")
+                and ORDNANCE_EXCLUSION in result["error"])
 
 
 def _pct(p) -> str:
