@@ -1167,7 +1167,9 @@ def execute_tool(
         tool_name: Registered tool name.
         arguments: Model-supplied arguments (already JSON-decoded).
         context: Optional server-side context (e.g. {"vsav_state": ...});
-            injected only into CONTEXT_TOOLS, never model-controlled.
+            injected only into CONTEXT_TOOLS, never model-controlled. An
+            "on_tool_result" callable in it is called with (name, args, result)
+            after every tool runs.
 
     Raises:
         ValueError: If the tool name is not recognized.
@@ -1192,5 +1194,15 @@ def execute_tool(
                             tool_name, dropped)
             arguments = {k: v for k, v in arguments.items() if k in params}
     if tool_name in CONTEXT_TOOLS:
-        return fn(**arguments, _context=context)
-    return fn(**arguments)
+        result = fn(**arguments, _context=context)
+    else:
+        result = fn(**arguments)
+    # Callers can watch results (e.g. /api/ask turns an ordnance_attack result
+    # into a calculator card). The hook never affects what the model gets.
+    hook = (context or {}).get("on_tool_result")
+    if hook:
+        try:
+            hook(tool_name, arguments, result)
+        except Exception:
+            logging.warning("on_tool_result hook failed for %s", tool_name, exc_info=True)
+    return result

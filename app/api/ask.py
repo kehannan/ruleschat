@@ -521,6 +521,147 @@ def _calculator_html(result: dict, native_los: dict) -> str:
         f"{worksheets}{odds_html}")
 
 
+# --------------------------------------------------------------------------- #
+# TH/TK calculator card (from an ordnance_attack tool result). Same layout as
+# the /thtk page worksheets: To Hit ledger grouped by C5/C6, To Kill columns per
+# hit location, then the outcome bar.
+# --------------------------------------------------------------------------- #
+
+_SEV = {"Burn": "#A4453B", "Elim": "#1E2A33", "Shock": "#C98A2E", "Immobilized": "#4F6B4A",
+        "Possible Shock": "#E2C58F", "No effect": "#CFD6D5", "Miss": "#EEF1EF"}
+
+
+def _signed(n: int) -> str:
+    return f"{n:+d}" if n else "0"
+
+
+def _th_sheet(th: dict) -> str:
+    """Basic TH#, C4 mods, Modified TH#, DRM by source, the roll needed."""
+    good = lambda n: _colored(_signed(n), None if not n else (_GOOD if n > 0 else _BAD))
+    bad = lambda n: _colored(_signed(n), None if not n else (_BAD if n > 0 else _GOOD))
+    rows = [_sheet_row(f"Basic TH# <font color='{_MUTED}'>{_h(th.get('range_band'))} hexes · "
+                       f"{_h(th.get('color'))}</font>", [_h(th.get("basic"))])]
+    for m in th.get("modifications") or []:
+        rows.append(_sheet_row(f"{_h(m['label'])} ({_h(m.get('rule', ''))})", [good(int(m["mod"]))],
+                               indent=True))
+    if th.get("modifications"):
+        rows.append(_sheet_row("Modified TH#", [_h(th["modified_th"])], bold=True))
+    groups = [("Firer DRM · C5", []), ("Target DRM · C6", []), ("Other DRM", [])]
+    for d in th.get("drm") or []:
+        rule = d.get("rule") or ""
+        groups[1 if rule.startswith("C6") else (0 if rule else 2)][1].append(d)
+    for title, items in groups:
+        if not items:
+            continue
+        rows.append(_sheet_row(f"<font color='{_MUTED}'>{title}</font>",
+                               [bad(sum(int(d["drm"]) for d in items))]))
+        rows += [_sheet_row(_h(d["label"]), [bad(int(d["drm"]))], indent=True) for d in items]
+    rows.append(_sheet_row("Total TH DRM", [_signed(int(th.get("total_drm", 0)))], bold=True))
+    rows.append(_sheet_row("Hit on Original DR ≤", [_h(th.get("needed_original_dr"))], bold=True))
+    if th.get("improbable"):
+        rows.append(_sheet_row(f"<font color='{_MUTED}'>Improbable Hit (C3.6)</font>", [""]))
+    return _sheet("TO HIT", "".join(rows))
+
+
+def _tk_sheet(tk: dict) -> str:
+    """One column per hit branch: Basic TK#, its modifiers, AF, Final TK#."""
+    branches = tk.get("branches") or []
+    if not branches or "tk_lines" not in branches[0]:
+        return ""
+    is_af = lambda line: " AF (" in line["label"]
+    keys = []
+    for b in branches:
+        for line in b["tk_lines"]:
+            if not is_af(line) and line["label"] not in keys:
+                keys.append(line["label"])
+    head = "<tr><td class='calck'>&nbsp;</td>" + "".join(
+        f"<td class='calcv' align='right' nowrap><font color='{_MUTED}'>"
+        f"{'Critical ' if b['critical'] else ''}{_h(b['location'])}</font></td>" for b in branches) + "</tr>"
+    rows = [head]
+    for i, k in enumerate(keys):
+        cells = []
+        for b in branches:
+            line = next((x for x in b["tk_lines"] if x["label"] == k), None)
+            if line is None:
+                cells.append(f"<font color='{_MUTED}'>—</font>")
+            elif i == 0:
+                cells.append(_h(line["value"]))
+            elif "×2" in k:
+                cells.append(_colored("×2", _GOOD))
+            else:
+                v = int(line["value"])
+                cells.append(_colored(_signed(v), None if not v else (_GOOD if v > 0 else _BAD)))
+        rows.append(_sheet_row(_h(k), cells, indent=bool(i)))
+    rows.append(_sheet_row("Target armor (AF) (C7.11)", [
+        _colored(_signed(next((int(x["value"]) for x in b["tk_lines"] if is_af(x)), 0)), _BAD)
+        for b in branches]))
+    rows.append(_sheet_row("Final TK#", [_h(b["final_tk"]) for b in branches], bold=True))
+    rows.append(_sheet_row(f"<font color='{_MUTED}'>Chance of this hit</font>",
+                           [_pct(b["probability"]) for b in branches]))
+    rows.append(_sheet_row(f"<font color='{_MUTED}'>Kill if hit</font>", [
+        _pct(sum(e["probability"] for e in b["effects"] if e["result"] in ("Burn", "Elim")))
+        for b in branches]))
+    btk = tk.get("basic_tk") or {}
+    title = "TO KILL" + (f" · {btk.get('table')} table ({btk.get('rule')})"
+                         if btk.get("rule") and btk.get("rule") != "override" else "")
+    return _sheet(title, "".join(rows))
+
+
+def _ift_hits_sheet(tk: dict) -> str:
+    """Hits vs personnel: FP, IFT column and Effects DRM per branch."""
+    rows = [_sheet_row(f"{'Critical' if b['critical'] else 'Normal'} hit "
+                       f"<font color='{_MUTED}'>{_pct(b['probability'])}</font>",
+                       [f"{_h(b['fp'])} FP → {_h(b['ift_column'])} col, DRM {_signed(int(b['effects_drm']))}"])
+            for b in tk.get("branches") or []]
+    return _sheet(f"EFFECTS · {_h(tk.get('fp_source', 'IFT'))}", "".join(rows)) if rows else ""
+
+
+def _ordnance_card_hook(sink):
+    """on_tool_result hook: an ordnance_attack result -> sink(card_html)."""
+    def hook(name, args, result):
+        if name == "ordnance_attack" and isinstance(result, dict) and not result.get("error"):
+            sink(_thtk_calculator_html(result))
+    return hook
+
+
+def _thtk_calculator_html(result: dict) -> str:
+    """The TH/TK calculator card as HTML 3.2 for the extension's Swing renderer."""
+    th = result.get("to_hit") or {}
+    veh = result.get("vehicles") or {}
+    firer = (veh.get("firer") or {}).get("name")
+    target = (veh.get("target") or {}).get("name")
+    gun = f"{result.get('gun')} {result.get('ammo')}"
+    head = (f"{_h(firer + ' · ' if firer else '')}{_h(gun)} → "
+            f"{_h(target or result.get('target', {}).get('kind', 'target'))} · range {_h(result.get('range'))}")
+    outcomes = result.get("outcomes") or []
+    kill = sum(o["probability"] for o in outcomes
+               if o["result"] in ("Burn", "Elim") or str(o["result"]).endswith("KIA")
+               or str(o["result"]).startswith("K/"))
+    tiles = [("TH# / DRM", f"{th.get('modified_th')} / {_signed(int(th.get('total_drm', 0)))}"),
+             ("Hit", _pct(th.get("p_hit", 0)))]
+    if any(o["result"] not in ("Hit", "Miss", "SMOKE placed") for o in outcomes):
+        tiles.append(("Kill", _pct(kill)))
+    tile_html = "".join(
+        f"<td bgcolor='{_PAPER}' class='tile'><div class='tilelbl'>{_h(k)}</div>"
+        f"<div class='tileval'>{_h(v)}</div></td>" for k, v in tiles)
+    tk = result.get("to_kill") or {}
+    sheets = _th_sheet(th) + (_ift_hits_sheet(tk) if "full_fp" in tk else _tk_sheet(tk))
+    cells = "".join(
+        f"<td width='{max(1, round(100 * float(o['probability'])))}%' "
+        f"bgcolor='{_SEV.get(o['result'], _HAIR)}' class='bar'>&nbsp;</td>"
+        for o in outcomes if float(o["probability"]) > 0.004)
+    legend = " · ".join(f"{_h(o['result'])} {_pct(o['probability'])}" for o in outcomes
+                        if float(o["probability"]) > 0)
+    bar = ("<div class='calcbargap'>&nbsp;</div>"
+           f"<table width='100%' cellspacing='0' cellpadding='0'><tr>{cells}</tr></table>"
+           f"<div class='calcleg'>{legend}</div>") if outcomes else ""
+    return (f"<table width='100%' cellspacing='1' cellpadding='7' bgcolor='{_HAIR}'>"
+            f"<tr><td bgcolor='{_WHITE}' class='calc'>"
+            f"<div class='calchead'>{head}</div>"
+            f"<table width='100%' cellspacing='4' cellpadding='0'><tr>{tile_html}</tr></table>"
+            f"{sheets}{bar}</td></tr></table>")
+
+
 # Appended to the system instructions for /api/ask: the answer is shown in
 # the VASL extension's narrow side panel, so keep it short and structured.
 # The extension folds the trailing "Assumptions:" and "Rules:" sections.
@@ -533,6 +674,9 @@ ASK_ANSWER_FORMAT = (
     "- If a PRECOMPUTED ATTACK RESOLUTION is attached, the user already sees "
     "its numbers in a calculator card: explain them, don't repeat the "
     "FP/column/DRM/odds.\n"
+    "- Likewise an ordnance_attack result is shown as a TH/TK calculator card: "
+    "give the hit and kill chance in your first sentence, then explain why the "
+    "DRM and TK lines apply rather than listing them again.\n"
     "- Then, if there are any, a line 'Assumptions:' followed by one short "
     "bullet per assumption or warning to confirm.\n"
     "- End with one line 'Rules: ' listing the sections you cited, comma "
@@ -640,6 +784,7 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
         "selected_targets": payload.selected_targets,
         "summary": summary,
         "calculator_html": calculator_html,
+        "rich": bool(payload.rich),
     }
 
 
@@ -704,6 +849,7 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
     remaining = ctx["remaining"]
 
     t0 = time.monotonic()
+    ordnance_cards: List[str] = []
     try:
         result = service.get_answer(
             ctx["question"],
@@ -719,6 +865,7 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
             game_phase=ctx["game_phase"],
             selected_firers=ctx["selected_firers"],
             selected_targets=ctx["selected_targets"],
+            on_tool_result=_ordnance_card_hook(ordnance_cards.append),
             extra_instructions=ASK_ANSWER_FORMAT,
         )
     except HTTPException:
@@ -743,7 +890,9 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
     board = _board_summary(ctx)
     if board is not None:
         result["board"] = board
-    if ctx["calculator_html"]:
+    if ordnance_cards and payload.rich:
+        result["calculator_html"] = ordnance_cards[-1]
+    elif ctx["calculator_html"]:
         result["calculator_html"] = ctx["calculator_html"]
     return result
 
@@ -819,6 +968,8 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                     selected_targets=ctx["selected_targets"],
                     on_tool_call=lambda name, args: events.put(
                         ("status", _tool_status_label(name, args))),
+                    on_tool_result=_ordnance_card_hook(
+                        lambda html: events.put(("card", html))),
                     extra_instructions=ASK_ANSWER_FORMAT,
                 )))
             except Exception as e:
@@ -843,6 +994,9 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                 if kind == "status":
                     status = value
                     yield json.dumps({"status": status}) + "\n"
+                elif kind == "card":
+                    if ctx["rich"]:
+                        yield json.dumps({"calculator_html": value}) + "\n"
                 elif kind == "error":
                     raise value
                 else:
@@ -850,7 +1004,20 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                     break
             stream = result[0] if isinstance(result, tuple) else result
             timing = result[1] if isinstance(result, tuple) else {}
+
+            def queued_cards():
+                # API-model paths run tools while the stream is read, so a
+                # card can arrive after the result event.
+                while True:
+                    try:
+                        kind, value = events.get_nowait()
+                    except queue.Empty:
+                        return
+                    if kind == "card" and ctx["rich"]:
+                        yield json.dumps({"calculator_html": value}) + "\n"
+
             for delta in stream:
+                yield from queued_cards()
                 if not isinstance(delta, (str, dict)):
                     logging.error("ask: stream yielded %s, not text",
                                   type(delta).__name__)
@@ -860,6 +1027,7 @@ def ask_stream(payload: AskRequest, authorization: Optional[str] = Header(None))
                         {"status": delta.get("status", "")}) + "\n"
                 elif delta:
                     yield json.dumps({"delta": delta}) + "\n"
+            yield from queued_cards()
         except Exception as e:
             exc = _sanitize_llm_error(e, ctx["mode"])
             yield json.dumps({"error": exc.detail}) + "\n"

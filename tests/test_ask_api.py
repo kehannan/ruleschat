@@ -541,3 +541,78 @@ def test_precompute_skips_ordnance_only_no_attack():
     assert not _ordnance_only({"error": "LOS blocked at 46-W2"})
     assert not _ordnance_only({"total_fp": 4, "column": 4})
     assert not _ordnance_only(None)
+
+
+# --- TH/TK calculator card from an ordnance_attack result ---------------------
+
+def _ordnance_result():
+    from app.asl import thtk
+    return thtk.compute_attack(gun="76LL", nationality="British", range_hexes=6,
+                               target={"kind": "armored", "hull_af": 18, "turret_af": 14},
+                               target_moving="moving", acquired=-1, target_size=-1)
+
+
+def _run_hook(kwargs, name="ordnance_attack", result=None):
+    hook = kwargs.get("on_tool_result")
+    assert hook, "endpoint must pass an on_tool_result hook"
+    hook(name, {}, result if result is not None else _ordnance_result())
+
+
+@pytest.mark.parametrize("during_stream", [False, True])
+def test_stream_sends_thtk_card_when_model_calls_ordnance_attack(client, during_stream):
+    svc = client.fake_service
+    real = svc.get_answer
+
+    def get_answer(question, stream=False, **kwargs):
+        if not during_stream:          # CLI path: tools run before the stream
+            _run_hook(kwargs)
+            return real(question, stream=stream, **kwargs)
+        gen, timing = real(question, stream=stream, **kwargs)
+
+        def gen2():                    # API path: tools run while streaming
+            _run_hook(kwargs)
+            yield from gen
+        return gen2(), timing
+    svc.get_answer = get_answer
+
+    r = client.post("/api/ask/stream", json={"question": "TH/TK?", "rich": True},
+                    headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    lines = [json.loads(l) for l in r.text.strip().splitlines()]
+    cards = [l["calculator_html"] for l in lines if "calculator_html" in l]
+    assert len(cards) == 1
+    html = cards[0]
+    assert "76LL AP" in html and "TO HIT" in html and "TO KILL" in html
+    assert "Target DRM · C6" in html and "Final TK#" in html and "Hit on Original DR" in html
+    assert "".join(l.get("delta", "") for l in lines) == "THE ANSWER"
+
+
+def test_plain_client_and_errors_get_no_thtk_card(client):
+    svc = client.fake_service
+    real = svc.get_answer
+
+    def get_answer(question, stream=False, **kwargs):
+        _run_hook(kwargs, result={"error": "ambiguous"})
+        _run_hook(kwargs, name="ift_attack", result={"column": 4})
+        return real(question, stream=stream, **kwargs)
+    svc.get_answer = get_answer
+    r = client.post("/api/ask/stream", json={"question": "q", "rich": True},
+                    headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert "calculator_html" not in r.text
+    svc.get_answer = lambda question, stream=False, **kw: (_run_hook(kw), real(question, stream, **kw))[1]
+    r = client.post("/api/ask", json={"question": "q"},
+                    headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert "calculator_html" not in r.json()          # not a rich client
+    r = client.post("/api/ask", json={"question": "q", "rich": True},
+                    headers={"Authorization": f"Bearer {FakeUser.api_key}"})
+    assert "TO KILL" in r.json()["calculator_html"]
+
+
+def test_execute_tool_reports_results_to_hook():
+    from app.asl.tools import execute_tool
+    seen = []
+    r = execute_tool("thtk_odds", {"modified_th": 9},
+                     context={"on_tool_result": lambda n, a, res: seen.append((n, res))})
+    assert seen == [("thtk_odds", r)]
+    # a failing hook never breaks the tool call
+    assert execute_tool("thtk_odds", {"modified_th": 9},
+                        context={"on_tool_result": lambda *a: 1 / 0})["p_hit"] > 0

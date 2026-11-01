@@ -733,6 +733,7 @@ Your response:"""
         use_cite_check: bool = False,
         trace_ctx: Optional[Dict[str, Any]] = None,
         on_tool_call: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        on_tool_result: Optional[Callable[[str, Dict[str, Any], Any], None]] = None,
         extra_instructions: Optional[str] = None,
     ):
         """Public entry point. See _get_answer_impl for the full contract.
@@ -743,6 +744,9 @@ Your response:"""
         on_tool_call(name, args) is invoked as the subscription CLI models
         call tools through the MCP bridge (their loop runs inside one
         blocking call, so this is the only progress signal).
+
+        on_tool_result(name, args, result) is invoked after any agentic tool
+        runs, on every model path (it rides in the tool context).
 
         trace_ctx optionally attributes the Langfuse trace: keys user_id,
         session_id, tags (all optional). No-op when tracing is unconfigured.
@@ -778,6 +782,7 @@ Your response:"""
             force_tool=force_tool,
             trace_ctx=trace_ctx,
             on_tool_call=on_tool_call,
+            on_tool_result=on_tool_result,
             extra_instructions=extra_instructions,
         )
         if not use_cite_check:
@@ -906,6 +911,7 @@ Your response:"""
         force_tool: Optional[str] = None,
         trace_ctx: Optional[Dict[str, Any]] = None,
         on_tool_call: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        on_tool_result: Optional[Callable[[str, Dict[str, Any], Any], None]] = None,
         extra_instructions: Optional[str] = None,
     ):
         """
@@ -998,6 +1004,8 @@ Your response:"""
             tool_context["selected_targets"] = selected_targets
         if on_tool_call:
             tool_context["on_tool_call"] = on_tool_call
+        if on_tool_result:
+            tool_context["on_tool_result"] = on_tool_result
 
         # Start timing for RAG latency measurement
         api_call_start_time = time.time()
