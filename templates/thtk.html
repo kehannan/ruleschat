@@ -247,6 +247,7 @@
         <div class="b-section">
           <div class="b-caption">Firing gun</div>
           <div class="b-fields">
+            <div class="field"><label for="g-veh">Firing vehicle</label><input id="g-veh" class="input" placeholder="optional, e.g. PzKpfw IVH" /></div>
             <div class="field f-narrow"><label for="g-gun">Gun</label><input id="g-gun" class="input" value="75L" /></div>
             <div class="field"><label for="g-nat">Nationality</label>
               <select id="g-nat" class="input">
@@ -267,7 +268,7 @@
             <div class="field f-narrow"><label for="g-rof">ROF</label><input id="g-rof" class="input" type="number" value="0" min="0" max="6" /></div>
             <div class="field f-narrow"><label for="g-btk">Basic TK#</label><input id="g-btk" class="input" type="number" placeholder="table" /></div>
           </div>
-          <div class="b-note">Gun as printed: 75L, 37*, 88LL. Gun type: T fast-traverse / mounted, ST slow-traverse turret, NT non-turreted. Basic TK# overrides the table for Vehicle-Note specials.</div>
+          <div class="b-note">A firing vehicle fills in its gun, nationality and gun type from the Chapter H listing (clear Gun to use it). Gun as printed: 75L, 37*, 88LL. Gun type: T fast-traverse / mounted, ST slow-traverse turret, NT non-turreted. Basic TK# overrides the table for Vehicle-Note specials.</div>
         </div>
 
         <div class="b-section">
@@ -278,6 +279,7 @@
                 <option value="vehicle">Vehicle</option><option value="infantry">Infantry</option><option value="area">Area</option>
               </select></div>
             <div class="field f-narrow"><label for="t-range">Range</label><input id="t-range" class="input" type="number" value="8" min="0" /></div>
+            <div class="field t-veh"><label for="t-veh">Target vehicle</label><input id="t-veh" class="input" placeholder="e.g. Panther, KV-1E" /></div>
             <div class="field"><label for="t-kind">Target</label>
               <select id="t-kind" class="input">
                 <option value="armored">Armored vehicle</option><option value="unarmored">Unarmored vehicle</option><option value="personnel">Personnel</option>
@@ -291,6 +293,7 @@
             <div class="field f-narrow t-pers"><label for="t-fp">FP override</label><input id="t-fp" class="input" type="number" placeholder="auto" /></div>
             <div class="field field-wide t-armor"><label class="chk"><input type="checkbox" id="t-hd" /> Hull Down</label></div>
           </div>
+          <div class="b-note">A target vehicle supplies its AF for the facing, turret armor and Target Size from the Chapter H listing; the AF boxes are then ignored.</div>
         </div>
 
         <div class="b-section">
@@ -325,7 +328,7 @@
               <select id="d-move" class="input"><option value="no">no</option><option value="moving">moving (J +2)</option><option value="j1">DFF ≤3 MP (J1 +3)</option><option value="j2">DFF ≤1 MP (J2 +4)</option></select></div>
             <div class="field f-narrow"><label for="d-acq">Acquired</label>
               <select id="d-acq" class="input"><option value="0">0</option><option value="-1">−1</option><option value="-2">−2</option></select></div>
-            <div class="field f-narrow"><label for="d-size">Target size</label><input id="d-size" class="input" type="number" value="0" min="-2" max="2" /></div>
+            <div class="field f-narrow"><label for="d-size">Target size</label><input id="d-size" class="input" type="number" placeholder="auto" min="-2" max="2" /></div>
             <div class="field f-narrow"><label for="d-hind">Hindrance</label><input id="d-hind" class="input" type="number" value="0" min="0" /></div>
             <div class="field f-narrow"><label for="d-other">Other DRM</label><input id="d-other" class="input" type="number" value="0" /></div>
           </div>
@@ -411,14 +414,23 @@
       motion_firer: chk('f-motion'), pinned: chk('f-pin'), intensive_fire: chk('f-int'),
       captured: chk('f-capt'), buttoned_up: chk('f-bu'), cx: chk('f-cx'), encircled: chk('f-enc'),
       spotted_fire: chk('f-spot'), target_moving: $('d-move').value, acquired: Number($('d-acq').value),
-      target_size: num('d-size') ?? 0, hindrance: num('d-hind') ?? 0,
+      hindrance: num('d-hind') ?? 0,
       ffnam: chk('d-ffnam'), ffmo: chk('d-ffmo'), concealed: chk('d-conc'),
       bore_sighted: chk('d-bore'), hazardous_movement: chk('d-haz'),
     };
     if (num('g-year') !== null) p.year = num('g-year');
+    if (num('d-size') !== null) p.target_size = num('d-size');
     if ($('g-color').value) p.th_color = $('g-color').value;
     if (num('g-btk') !== null) p.basic_tk = num('g-btk');
     if (num('d-other')) p.other_drm = [{label: 'Other DRM', drm: num('d-other')}];
+    const fveh = $('g-veh').value.trim(), tveh = $('t-veh').value.trim();
+    if (fveh) { p.firer_vehicle = fveh; if (!p.gun) delete p.gun; }
+    if (tveh && type === 'vehicle') {
+      p.target_vehicle = tveh;
+      p.target = {facing: $('t-facing').value, hull_down: chk('t-hd')};
+      if (kind === 'unarmored') p.target.kind = 'unarmored';
+      return p;
+    }
     if (kind === 'armored') {
       p.target = {kind, facing: $('t-facing').value, hull_af: num('t-haf') ?? 0,
                   turret_af: num('t-taf') ?? 0, hull_down: chk('t-hd')};
@@ -447,6 +459,7 @@
     const kind = $('t-kind').value;
     document.querySelectorAll('.t-armor').forEach((el) => el.style.display = kind === 'armored' ? '' : 'none');
     document.querySelectorAll('.t-pers').forEach((el) => el.style.display = kind === 'personnel' ? '' : 'none');
+    document.querySelectorAll('.t-veh').forEach((el) => el.style.display = $('t-type').value === 'vehicle' ? '' : 'none');
   }
 
   function render(r) {

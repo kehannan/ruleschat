@@ -951,15 +951,26 @@ TOOL_SCHEMAS = [
             "minus the struck aspect's AF -> Burn/Elim/Immobilized/Shock/Possible Shock) "
             "or the IFT result vs personnel. Use whenever a question DESCRIBES an "
             "ordnance shot; if the Modified TH#, TH DRM and Final TK# are already "
-            "known, use thtk_odds. Vehicle stats are NOT looked up: supply the target's "
-            "AF for the facing fired on (from the counter) and the firing gun's size. "
-            "NEVER hand-derive TH#/TK# — present the tool's ledgers and odds."
+            "known, use thtk_odds. Name the vehicles (target_vehicle, firer_vehicle) and "
+            "the tool reads AF, turret armor, Target Size and the MA gun from the eASLRB "
+            "Chapter H listings; an ambiguous name returns the candidates to choose from. "
+            "Explicit AF/gun values override the listing. NEVER hand-derive TH#/TK# or "
+            "quote AF from memory — present the tool's ledgers and odds."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "gun": {"type": "string",
-                        "description": "Firing gun size as on the counter: '75L', '37*', '88LL', '57'."},
+                        "description": "Firing gun size as on the counter: '75L', '37*', '88LL', '57'. "
+                                       "Omit when firer_vehicle is given (its MA is used)."},
+                "firer_vehicle": {"type": "string",
+                                  "description": "Firing vehicle's name, e.g. 'PzKpfw IVH', 'T-34 M43', "
+                                                 "'Sherman VC(a)' — supplies gun, nationality, gun type, ROF, B#."},
+                "target_vehicle": {"type": "string",
+                                   "description": "Target vehicle's name, e.g. 'Panther', 'PzKpfw VG', "
+                                                  "'KV-1E' — supplies AF for the facing, turret armor, Target Size."},
+                "target_nationality": {"type": "string",
+                                       "description": "Target's nationality, to pick between listings with the same name."},
                 "nationality": {"type": "string",
                                 "enum": thtk.get_options()["nationalities"],
                                 "description": "Firer's nationality — picks red/black TH# and color-coded TK# rows."},
@@ -1030,7 +1041,7 @@ TOOL_SCHEMAS = [
                     "description": "Any other TH DRM not covered above.",
                 },
             },
-            "required": ["gun", "range_hexes"],
+            "required": ["range_hexes"],
             "additionalProperties": False,
         },
     },

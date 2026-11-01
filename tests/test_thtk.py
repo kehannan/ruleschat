@@ -319,9 +319,86 @@ def test_tool_schema_properties_match_engine():
     import inspect
     props = set(next(s for s in TOOL_SCHEMAS if s["name"] == "ordnance_attack")
                 ["parameters"]["properties"])
-    accepted = (set(inspect.signature(thtk.compute_shot).parameters) | thtk._DRM_KEYS) \
+    accepted = (set(inspect.signature(thtk.compute_shot).parameters) | thtk._DRM_KEYS
+                | thtk.VEHICLE_KEYS) \
         - {"th_drm", "double_lower_dr", "mm", "barrel"}
     assert props <= accepted, props - accepted
+
+
+# --- Chapter H vehicle listings ----------------------------------------------
+
+@pytest.fixture
+def listing():
+    from app.asl import vehicles
+    vehicles.load(str(Path(__file__).resolve().parent / "fixtures" / "vehicles_fixture.json"))
+    yield vehicles
+    vehicles.reset()
+
+
+def test_vehicle_find_alias_prefix_and_ambiguity(listing):
+    hit = listing.find("Panther")
+    assert hit["vehicle"]["hull_front"] == 18 and hit["vehicle"]["turret_front"] == 14
+    assert listing.find("pzkpfw ivh")["vehicle"]["name"] == "PzKpfw IVH"
+    assert listing.find("KV-1E")["vehicle"]["hull_side"] == 8      # C7.24 EX: rear hull AF 8
+    assert "candidates" in listing.find("Sherman")
+    assert "error" in listing.find("Maus")
+
+
+def test_turret_armor_from_ta(listing):
+    ivh = listing.find("PzKpfw IVH")["vehicle"]          # AF 8/3, TA -F/+SR (D1.63-.64)
+    assert (ivh["turret_front"], ivh["turret_side"]) == (6, 4)
+    assert listing.armor_for(ivh, "rear") == {"hull_af": 3, "turret_af": 4}
+
+
+def test_compute_attack_reads_target_vehicle(listing):
+    r = thtk.compute_attack(gun="76LL", nationality="British", range_hexes=6,
+                            target_vehicle="Panther")
+    assert r["target"]["hull_af"] == 18 and r["target"]["turret_af"] == 14
+    assert {"label": "Case P: target size", "drm": -1, "rule": "C6.7"} in r["to_hit"]["drm"]
+    turret = next(b for b in r["to_kill"]["branches"]
+                  if b["location"] == "turret" and not b["critical"])
+    assert turret["final_tk"] == 23 - 14
+    assert r["vehicles"]["target"]["page"]
+
+
+def test_explicit_values_override_listing(listing):
+    r = thtk.compute_attack(gun="76LL", nationality="British", range_hexes=6,
+                            target_vehicle="Panther", target_size=0,
+                            target={"turret_af": 11})
+    assert r["target"]["turret_af"] == 11 and r["to_hit"]["total_drm"] == 0
+
+
+def test_firer_vehicle_supplies_gun(listing):
+    r = thtk.compute_attack(firer_vehicle="PzKpfw IVH", range_hexes=8,
+                            target_vehicle="T-34 M43", target={"facing": "side"})
+    assert (r["gun"], r["nationality"]) == ("75L", "German")
+    assert r["target"]["hull_af"] == 6
+
+
+def test_unarmored_target_vehicle(listing):
+    truck = next(v for v in listing.load() if v["armor"] == "unarmored")
+    r = thtk.compute_attack(gun="75", nationality="Russian", ammo="HE", range_hexes=5,
+                            target_vehicle=truck["name"])
+    assert r["target"]["kind"] == "unarmored"
+
+
+def test_ambiguous_vehicle_is_a_tool_error(listing):
+    from app.asl.tools import execute_tool
+    r = execute_tool("ordnance_attack", {"gun": "75L", "range_hexes": 5,
+                                         "target_vehicle": "Sherman"})
+    assert "ambiguous" in r["error"]
+
+
+def test_missing_listing_store_falls_back():
+    from app.asl import vehicles
+    vehicles.load("/nonexistent/vehicles.json")
+    try:
+        assert "error" in vehicles.find("Panther")
+        r = thtk.compute_attack(gun="76LL", nationality="British", range_hexes=6,
+                                target={"kind": "armored", "hull_af": 18, "turret_af": 14})
+        assert r["to_hit"]["p_hit"] > 0
+    finally:
+        vehicles.reset()
 
 
 if __name__ == "__main__":

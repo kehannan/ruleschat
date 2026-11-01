@@ -819,16 +819,95 @@ def build_th_drm(
 _DRM_KEYS = set(build_th_drm.__code__.co_varnames[:build_th_drm.__code__.co_kwonlyargcount])
 
 
+# compute_attack inputs resolved against the Chapter H listings.
+VEHICLE_KEYS = {"firer_vehicle", "target_vehicle", "target_nationality"}
+_GUN_TYPE_FROM_GT = {"T": "T", "ST": "ST", "RST": "ST", "1MT": "ST", "NT": "NT"}
+
+
+def _apply_vehicles(kw: Dict[str, Any]) -> Dict[str, Any]:
+    """Fill gun / AF / target size from the Chapter H listings for
+    firer_vehicle / target_vehicle. Values the caller gave always win."""
+    from app.asl import vehicles
+
+    used: Dict[str, Any] = {}
+    notes: List[str] = []
+    firer_name = kw.pop("firer_vehicle", None)
+    target_name = kw.pop("target_vehicle", None)
+    target_nat = kw.pop("target_nationality", None)
+
+    def resolve(name, nat, role):
+        hit = vehicles.find(name, nat)
+        if "vehicle" not in hit:
+            if "candidates" in hit:
+                raise ValueError(f"{role} vehicle {name!r} is ambiguous: "
+                                 + "; ".join(hit["candidates"]) + ". Name one of them.")
+            raise ValueError(f"{role} vehicle {name!r}: {hit['error']}")
+        if hit.get("note"):
+            notes.append(hit["note"])
+        return hit["vehicle"]
+
+    if firer_name:
+        v = resolve(firer_name, kw.get("nationality"), "Firing")
+        if not kw.get("gun"):
+            if not v.get("gun"):
+                raise ValueError(f"{v['name']} has no Gun MA ({v.get('ma') or 'none'}).")
+            kw["gun"] = v["gun"]
+        kw.setdefault("nationality", v["nationality"])
+        gt = _GUN_TYPE_FROM_GT.get((v.get("gun_traverse") or "").split("-")[0])
+        if gt and "gun_type" not in kw:
+            kw["gun_type"] = gt
+        used["firer"] = {k: v.get(k) for k in ("name", "nationality", "ma", "gun_traverse",
+                                                "rof", "b_number", "special_ammo", "page")}
+        if kw.get("rof") is None and (v.get("rof") or "").split(" ")[0].isdigit():
+            kw["rof"] = int(v["rof"].split(" ")[0])
+        if kw.get("b_number") is None and re.fullmatch(r"\d+", v.get("b_number") or ""):
+            kw["b_number"] = int(v["b_number"])
+
+    if target_name:
+        v = resolve(target_name, target_nat, "Target")
+        target = dict(kw.get("target") or {})
+        facing = (target.get("facing") or "front").lower()
+        if v["armor"] == "unarmored":
+            target.setdefault("kind", "unarmored")
+        else:
+            target.setdefault("kind", "armored")
+            target.setdefault("facing", facing)
+            for k, val in vehicles.armor_for(v, facing).items():
+                target.setdefault(k, val)
+            if v["armor"] == "partial":
+                notes.append(f"{v['name']} is partially armored ({v['af_raw']}): a rear "
+                             "Target Facing hit may be vs an unarmored aspect (D1.22).")
+        kw["target"] = target
+        if "target_size" not in kw and v.get("size") is not None:
+            kw["target_size"] = v["size"]
+        if v.get("open_topped"):
+            notes.append(f"{v['name']} is Open-Topped (D1.23).")
+        used["target"] = {k: v.get(k) for k in ("name", "nationality", "type", "af_raw", "ta",
+                                                "hull_front", "hull_side", "turret_front",
+                                                "turret_side", "size", "armor", "page")}
+    for k in ("rof", "b_number"):
+        if kw.get(k) is None:
+            kw.pop(k, None)
+    return {"used": used, "notes": notes}
+
+
 def compute_attack(**kw) -> Dict[str, Any]:
-    """Describe the situation, get the shot: build the TH DRM ledger from the
+    """Describe the situation, get the shot: look up firer_vehicle /
+    target_vehicle in the Chapter H listings, build the TH DRM ledger from the
     C5/C6 cases (see build_th_drm) and resolve it with compute_shot."""
+    looked_up = _apply_vehicles(kw)
     drm_kw = {k: kw.pop(k) for k in list(kw) if k in _DRM_KEYS
               and k not in ("target_type", "range_hexes")}
     ledger = build_th_drm(target_type=kw.get("target_type", "vehicle"),
                           range_hexes=kw.get("range_hexes", 0), **drm_kw)
     result = compute_shot(th_drm=ledger["lines"], double_lower_dr=ledger["double_lower_dr"],
                           **kw)
-    result["notes"] = ledger["warnings"] + result["notes"]
+    result["notes"] = looked_up["notes"] + ledger["warnings"] + result["notes"]
+    if looked_up["used"]:
+        result["vehicles"] = looked_up["used"]
+        result["notes"].insert(0, "Vehicle stats from the eASLRB Chapter H listing ("
+                               + ", ".join(f"{u['name']} p.{u['page']}"
+                                           for u in looked_up["used"].values()) + ").")
     return result
 
 

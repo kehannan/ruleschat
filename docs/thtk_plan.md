@@ -157,7 +157,20 @@ Gun-vs-Gun duels across fire phases.
    (a) hand-build `vehicle_data.json` for the ~40 most common AFVs/Guns, keyed
    by VASL piece name, and grow it;
    (b) no table, where the user or model supplies AF/gun every time.
-   **Decided (2026-10-30): (a), built later from vehicle info Kevin will
+   **Built (2026-11-01):** `scripts/extract_vehicle_listings.py` parses the
+   eASLRB Chapter H vehicle listings into the gitignored
+   `data/rulebook/vehicles.json` (596 vehicles: AF, TA → turret AF per
+   D1.63-.64, Size, MA gun, GT, ROF, B#, special ammo). `app/asl/vehicles.py`
+   resolves names and nicknames. `ordnance_attack` takes
+   `target_vehicle` / `firer_vehicle`, and explicit values still win.
+   Gaps:
+   - **U.S. listing (H30-H32, PDF p.377) not covered.** Its font has no
+     character map, so it needs OCR.
+   - Landing craft.
+   - Ordnance (Gun) listings are not parsed yet.
+   - Prod needs the JSON copied to `data/rulebook/`, like `sections.json`.
+
+   Original decision (2026-10-30): (a), built later from vehicle info Kevin will
    supply. Until then every tool takes user-supplied AF/gun/size (b).** Design
    the tool inputs and `vehicle_data.json` schema so a table row and
    user-supplied values are interchangeable, and a user value always overrides

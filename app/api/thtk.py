@@ -22,7 +22,7 @@ from app.templating import templates
 router = APIRouter()
 
 _SHOT_KEYS = set(inspect.signature(thtk.compute_shot).parameters) - {"th_drm", "double_lower_dr"}
-_ATTACK_KEYS = _SHOT_KEYS | thtk._DRM_KEYS
+_ATTACK_KEYS = _SHOT_KEYS | thtk._DRM_KEYS | thtk.VEHICLE_KEYS
 _ODDS_KEYS = set(inspect.signature(thtk.quick_odds).parameters)
 
 
