@@ -409,7 +409,8 @@ def compute_shot(
     effects_drm: int = 0,
     double_lower_dr: bool = False,
 ) -> Dict[str, Any]:
-    """Resolve one ordnance shot. See the module docstring for the rules.
+    """Resolve one ordnance shot. See the module docstring for the rules; the
+    steps run in order from app/asl/ordnance/pipeline.py STEPS.
 
     gun / mm+barrel: firing weapon ('75L', or mm=75, barrel='L').
     th_color: 'black'/'red' override; default from nationality (and year).
@@ -424,259 +425,12 @@ def compute_shot(
     fp: override the IFT FP vs personnel (default: HE FP by caliber / C8.31).
     effects_drm: other IFT DRM vs personnel (FFMO/FFNAM, Air Burst...).
     """
-    t = _load()
-    if gun:
-        mm, barrel = parse_gun(gun)
-    if not mm or mm <= 0:
-        raise ValueError("Give the gun size, e.g. gun='75L' or mm=75, barrel='L'.")
-    barrel = (barrel or "").upper()
-    if barrel not in t["barrels"]:
-        raise ValueError(f"Invalid barrel {barrel!r}. One of {t['barrels']}.")
-    ammo = (ammo or "").upper()
-    if ammo not in t["ammo_types"]:
-        raise ValueError(f"Invalid ammo {ammo!r}. One of {t['ammo_types']}.")
-    if target_type not in t["target_types"]:
-        raise ValueError(f"Invalid target_type {target_type!r}. One of {t['target_types']}.")
-    if range_hexes is None or range_hexes < 0:
-        raise ValueError("range_hexes must be >= 0.")
-
-    target = dict(target or {})
-    kind = target.get("kind") or ("armored" if target_type == "vehicle" else "personnel")
-    notes: List[str] = []
-
-    # --- legality (C3.31-.33) ---
-    if ammo == "SMOKE" and target_type != "area":
-        raise ValueError("SMOKE must use the Area Target Type (C3.33).")
-    if target_type == "area" and ammo not in ("HE", "SMOKE"):
-        raise ValueError("The Area Target Type is for HE or SMOKE only (C3.33).")
-    if target_type == "area" and range_hexes == 0:
-        raise ValueError("The Area Target Type can't be used in the firer's own hex (C3.33).")
-    if target_type == "infantry" and kind == "armored":
-        raise ValueError("The Infantry Target Type can't attack an AFV (C3.32/C3.41).")
-    if target_type == "vehicle" and kind == "personnel":
-        raise ValueError("The Vehicle Target Type fires only at a vehicle (C3.31).")
-    if target_type == "infantry" and ammo != "HE" and kind == "personnel" and ammo != "SMOKE":
-        notes.append("AP/HEAT on the Infantry Target Type is only allowed vs an unarmored "
-                     "target (C3.32); HEAT vs Infantry also needs wall/building/rubble/"
-                     "pillbox TEM (C8.31).")
-
-    # --- To Hit ---
-    if th_color:
-        color = th_color.lower()
-        if color not in ("black", "red"):
-            raise ValueError("th_color must be 'black' or 'red'.")
-    else:
-        color, note = th_color_for(nationality, year)
-        if note:
-            notes.append(note)
-    mth = modified_to_hit(target_type, range_hexes, mm, barrel, ammo, color, nationality)
-    drm_lines = [{"label": str(d.get("label", "DRM")), "drm": int(d.get("drm", 0)),
-                  **({"rule": d["rule"]} if d.get("rule") else {})}
-                 for d in th_drm]
-    hull_down = bool(target.get("hull_down")) and kind == "armored"
-    # Case Q (C6.8): TEM is a TH DRM on the Vehicle/Infantry Target Type, but
-    # not on the Area Target Type (C3.331) nor when it is what makes the AFV HD.
-    if tem and target_type != "area" and not hull_down:
-        q = _case("Q")
-        drm_lines.append({"label": q["label"], "drm": int(tem), "rule": q["rule"]})
-    total_drm = sum(d["drm"] for d in drm_lines)
-
-    multiple_ok = 15 <= mm <= 40 and target_type in ("vehicle", "infantry") and ammo != "SMOKE"
-    events = _th_events(target_type, mth["modified"], total_drm, hull_down, multiple_ok,
-                        double_lower_dr)
-
-    p_hit = sum(e["p"] for e in events if e["hit"])
-    p_ch = sum(e["p"] for e in events if e["hit"] and e["ch"])
-    p_mult = sum(e["p"] for e in events if e["hit"] and e["multiple"])
-    to_hit = {
-        **mth,
-        "modified_th": mth["modified"],
-        "drm": drm_lines,
-        "total_drm": total_drm,
-        "needed_original_dr": mth["modified"] - total_drm,
-        "improbable": 2 + total_drm > mth["modified"],
-        "p_hit": round(float(p_hit), 4),
-        "p_critical": round(float(p_ch), 4),
-        "p_multiple": round(float(p_mult), 4),
-        "p_turret": round(float(sum(e["p"] for e in events if e["hit"] and e["loc"] == "turret")), 4),
-        "p_hull": round(float(sum(e["p"] for e in events if e["hit"] and e["loc"] == "hull")), 4),
-        "p_malfunction": round(sum(1 for c, w in _DICE if c + w >= b_number) / 36, 4),
-        "p_rof_retained": round(sum(1 for c, w in _DICE if c <= rof) / 36, 4),
-    }
-    del to_hit["modified"]
-    if double_lower_dr:
-        notes.append("Case C4 Motion Firer: the lower dr of the TH DR is doubled (C5.35).")
-    if to_hit["improbable"]:
-        notes.append("Improbable Hit: only an Original 2 followed by a dr of 1-3 hits (C3.6).")
-
-    result: Dict[str, Any] = {
-        "gun": f"{mm}{barrel}", "mm": mm, "barrel": barrel, "nationality": nationality,
-        "ammo": ammo, "target_type": target_type, "range": range_hexes,
-        "target": {**target, "kind": kind}, "to_hit": to_hit, "notes": notes,
-    }
-
-    # --- Effects ---
-    if ammo == "SMOKE":
-        result["outcomes"] = [{"result": "SMOKE placed", "probability": to_hit["p_hit"]},
-                              {"result": "Miss", "probability": round(1 - to_hit["p_hit"], 4)}]
-        return result
-    if target_type == "area" and kind != "personnel":
-        notes.append("An Area Target Type hit vs a vehicle is resolved on the IFT (C1.55/"
-                     "C3.332); not modelled here.")
-        result["outcomes"] = [{"result": "Hit", "probability": to_hit["p_hit"]},
-                              {"result": "Miss", "probability": round(1 - to_hit["p_hit"], 4)}]
-        return result
-
-    total: Dict[str, Fraction] = defaultdict(Fraction)
-    total["Miss"] += 1 - p_hit
-
-    if kind == "personnel":
-        result["to_kill"] = _personnel_effects(mm, ammo, target_type, tem, fp,
-                                               effects_drm, events, total, notes)
-        result["outcomes"] = _fmt(total)
-        return result
-
-    armored = kind == "armored"
-    he = ammo == "HE"
-    if armored:
-        for k in ("hull_af", "turret_af"):
-            if target.get(k) is None:
-                raise ValueError(f"Armored target needs {k} (AF of the facing being fired on).")
-        facing = (target.get("facing") or "front").lower()
-        if facing not in ("front", "side", "rear"):
-            raise ValueError("target facing must be front, side or rear.")
-        if basic_tk is not None:
-            btk = {"basic": int(basic_tk), "table": ammo, "rule": "override"}
-        else:
-            btk = basic_to_kill(mm, barrel, ammo, nationality)
-        case_d = None
-        if ammo == "AP":
-            case_d = _ap_case_d(mm, range_hexes)
-        elif ammo in ("APCR", "APDS"):
-            case_d = _apcr_case_d(mm, range_hexes, ammo)
-        cannot_kill = ammo in ("AP", "APCR", "APDS") and case_d is None
-        if cannot_kill:
-            notes.append(f"Case D is NA at {range_hexes} hexes: this gun can't kill an AFV "
-                         "at that range (C7.24).")
-
-        def final_tk(ch: bool, loc: str) -> Dict[str, Any]:
-            lines = [{"label": f"Basic TK# ({btk['table']})", "value": btk["basic"]}]
-            v = btk["basic"]
-            if ch:
-                lines.append({"label": "Critical Hit ×2 (C7.23)", "value": v})
-                v *= 2
-            if facing == "rear":
-                lines.append({"label": "Rear Target Facing (C7.21)", "value": 1})
-                v += 1
-            if case_d is not None and case_d != 0:
-                lines.append({"label": "Case D range (C7.24)", "value": case_d})
-                v += case_d
-            af = int(target["turret_af" if loc == "turret" else "hull_af"])
-            lines.append({"label": f"{loc} AF (C7.11)", "value": -af})
-            return {"final": v - af, "lines": lines}
-
-        branches = []
-        for ch in (False, True):
-            for loc in ("hull", "turret"):
-                p = sum(e["p"] for e in events if e["hit"] and e["ch"] == ch and e["loc"] == loc)
-                if not p:
-                    continue
-                single = sum(e["p"] for e in events if e["hit"] and e["ch"] == ch
-                             and e["loc"] == loc and not e["multiple"])
-                mult = p - single
-                tk = final_tk(ch, loc)
-                if cannot_kill:
-                    dist = {"No effect": Fraction(1)}
-                else:
-                    dist = _tk_dist(tk["final"], loc, he, True)
-                for r, q in dist.items():
-                    total[r] += single * q
-                if mult and cannot_kill:
-                    total["No effect"] += mult
-                elif mult:
-                    other = "turret" if loc == "hull" else "hull"
-                    ftk = {loc: tk["final"], other: final_tk(ch, other)["final"]}
-                    for r, q in _tk_multiple(ftk, loc, he, True).items():
-                        total[r] += mult * q
-                branches.append({
-                    "critical": ch, "location": loc, "probability": round(float(p), 4),
-                    "multiple_hit_probability": round(float(mult), 4),
-                    "final_tk": tk["final"], "tk_lines": tk["lines"],
-                    "effects": _fmt(dist, VEHICLE_RESULTS),
-                })
-        result["to_kill"] = {"basic_tk": btk, "case_d": case_d, "branches": branches}
-        notes.append("Possible Shock = the AFV takes a NTC; failure means Shock (C7.41).")
-    else:
-        base = unarmored_final_tk(mm, ammo)
-        branches = []
-        for ch in (False, True):
-            p = sum(e["p"] for e in events if e["hit"] and e["ch"] == ch)
-            if not p:
-                continue
-            ftk = base * 2 if ch else base
-            single = sum(e["p"] for e in events if e["hit"] and e["ch"] == ch and not e["multiple"])
-            dist = _tk_dist(ftk, "hull", he, False)
-            for r, q in dist.items():
-                total[r] += single * q
-            if p - single:
-                for r, q in _tk_multiple({"hull": ftk, "turret": ftk}, "hull", he, False).items():
-                    total[r] += (p - single) * q
-            branches.append({"critical": ch, "probability": round(float(p), 4),
-                             "final_tk": ftk, "effects": _fmt(dist, VEHICLE_RESULTS)})
-        result["to_kill"] = {"unarmored_final_tk": base, "branches": branches}
-
-    result["outcomes"] = _fmt(total, VEHICLE_RESULTS + ["Miss"])
-    return result
-
-
-def _personnel_effects(mm, ammo, target_type, tem, fp_override, effects_drm,
-                       events, total, notes) -> Dict[str, Any]:
-    t = _load()
-    if fp_override is not None:
-        full = float(fp_override)
-        source = "override"
-    elif ammo == "HE":
-        full = he_fp(mm)
-        source = "HE FP by caliber (IFT)"
-        if full is None:
-            raise ValueError(f"{mm}mm has no HE FP on the IFT (20mm+).")
-    elif ammo in ("AP", "APCR", "APDS"):
-        eq = t["he_equivalency"]
-        full = eq["ap_lt37"] if mm < 37 else eq["ap_ge37"]
-        source = "AP HE Equivalency (C8.31)"
-    else:  # HEAT: column left of the gun's normal HE FP
-        cols = ift.valid_columns()
-        normal = _ift_column(he_fp(mm) or 0)
-        full = cols[cols.index(normal) - 1] if normal and cols.index(normal) > 0 else None
-        source = "HEAT HE Equivalency (C8.31)"
-        if full is None:
-            raise ValueError("No HEAT HE Equivalency for this gun; pass fp.")
-
-    normal_fp = full / 2 if target_type == "area" else full
-    normal_drm = effects_drm + (tem if target_type == "area" else 0)
-    ch_fp = full * 2
-    ch_drm = effects_drm - max(tem, 0)
-    if target_type == "area":
-        notes.append("Area Target Type: half FP, TEM applies to the Effects DR (C3.33/C3.331).")
-
-    branches = []
-    for ch in (False, True):
-        p = sum(e["p"] for e in events if e["hit"] and e["ch"] == ch)
-        if not p:
-            continue
-        fpv, drm = (ch_fp, ch_drm) if ch else (normal_fp, normal_drm)
-        col = _ift_column(fpv)
-        single = sum(e["p"] for e in events if e["hit"] and e["ch"] == ch and not e["multiple"])
-        dist = _ift_dist(col, drm, False)
-        for r, q in dist.items():
-            total[r] += single * q
-        if p - single:
-            for r, q in _ift_dist(col, drm, True).items():
-                total[r] += (p - single) * q
-        branches.append({"critical": ch, "probability": round(float(p), 4),
-                         "fp": fpv, "ift_column": col, "effects_drm": drm,
-                         "effects": _fmt(dist)})
-    return {"fp_source": source, "full_fp": full, "branches": branches}
+    from app.asl.ordnance.pipeline import run_shot   # steps import this module
+    return run_shot(gun=gun, mm=mm, barrel=barrel, nationality=nationality, year=year,
+                    th_color=th_color, ammo=ammo, target_type=target_type,
+                    range_hexes=range_hexes, th_drm=th_drm, tem=tem, target=target,
+                    basic_tk=basic_tk, b_number=b_number, rof=rof, fp=fp,
+                    effects_drm=effects_drm, double_lower_dr=double_lower_dr)
 
 
 # ---------------------------------------------------------------------------
@@ -939,21 +693,10 @@ def _apply_vehicles(kw: Dict[str, Any]) -> Dict[str, Any]:
 def compute_attack(**kw) -> Dict[str, Any]:
     """Describe the situation, get the shot: look up firer_vehicle /
     target_vehicle in the Chapter H listings, build the TH DRM ledger from the
-    C5/C6 cases (see build_th_drm) and resolve it with compute_shot."""
-    looked_up = _apply_vehicles(kw)
-    drm_kw = {k: kw.pop(k) for k in list(kw) if k in _DRM_KEYS
-              and k not in ("target_type", "range_hexes")}
-    ledger = build_th_drm(target_type=kw.get("target_type", "vehicle"),
-                          range_hexes=kw.get("range_hexes", 0), **drm_kw)
-    result = compute_shot(th_drm=ledger["lines"], double_lower_dr=ledger["double_lower_dr"],
-                          **kw)
-    result["notes"] = looked_up["notes"] + ledger["warnings"] + result["notes"]
-    if looked_up["used"]:
-        result["vehicles"] = looked_up["used"]
-        result["notes"].insert(0, "Vehicle stats from the eASLRB Chapter H listing ("
-                               + ", ".join(f"{u['name']} p.{u['page']}"
-                                           for u in looked_up["used"].values()) + ").")
-    return result
+    C5/C6 cases (see build_th_drm) and resolve it with compute_shot. Runs as
+    app.asl.ordnance.pipeline PREP_STEPS + STEPS."""
+    from app.asl.ordnance.pipeline import run_attack
+    return run_attack(**kw)
 
 
 def quick_odds(

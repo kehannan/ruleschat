@@ -492,5 +492,19 @@ def test_th_case_values_come_from_tables(monkeypatch):
     assert {"label": "Case I: Buttoned Up", "drm": 5, "rule": "C5.9"} in lines
 
 
+
+def test_ordnance_pipeline_contract():
+    # compute_shot / compute_attack are thin wrappers over the step pipeline.
+    from app.asl.ordnance import pipeline
+    names = [f.__name__ for f in pipeline.STEPS]
+    assert names[:3] == ["gun_size", "target_kind", "legality"]
+    assert names.index("hit_tree") < names.index("to_hit_summary") < names.index("armored")
+    assert names[-1] == "outcomes"
+    assert all(f.__doc__ for f in pipeline.STEPS + pipeline.PREP_STEPS)
+    shot = dict(gun="75L", nationality="German", range_hexes=8,
+                target={"kind": "armored", "hull_af": 8, "turret_af": 8})
+    assert pipeline.run_shot(**shot) == compute_shot(**shot)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
