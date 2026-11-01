@@ -1,10 +1,24 @@
 {
   "_note": "ASL ordnance To Hit / To Kill data, transcribed from the eASLRB v3.14 Chapter C divider (C3 To Hit Table, C4 modifications, C7.31-.34 To Kill Tables, C7.7 destruction results, C8.31 HE Equivalency) and the A./G. National Capabilities Chart (Ordnance TH# color). TH#/TK# are 2d6 totals you must roll AT OR UNDER. Range-indexed rows align with the `range_bands` of their section.",
-
-  "barrels": ["", "*", "L", "LL"],
-  "ammo_types": ["AP", "HE", "HEAT", "APCR", "APDS", "SMOKE"],
-  "target_types": ["vehicle", "infantry", "area"],
-
+  "barrels": [
+    "",
+    "*",
+    "L",
+    "LL"
+  ],
+  "ammo_types": [
+    "AP",
+    "HE",
+    "HEAT",
+    "APCR",
+    "APDS",
+    "SMOKE"
+  ],
+  "target_types": [
+    "vehicle",
+    "infantry",
+    "area"
+  ],
   "th_color": {
     "_note": "A./G. National Capabilities Chart 'Ordnance TH# Color'. American: red before 1944, black 1944+. French vehicles use red. Axis Minor (g)/(t) equipment uses black (A25.83). British Vehicle Note A: some MA uses red pre-44. ATR/MG use black unless captured. Captured/non-qualified use red (C5.8).",
     "German": "black",
@@ -20,104 +34,623 @@
     "Dutch": "red",
     "Chinese": "red",
     "Partisan": "red",
-    "American": {"before_1944": "red", "from_1944": "black"}
+    "American": {
+      "before_1944": "red",
+      "from_1944": "black"
+    }
   },
-
   "to_hit": {
-    "range_bands": [6, 12, 18, 24, 30, 36, 42, 48, 54, 99999],
-    "range_labels": ["0-6", "7-12", "13-18", "19-24", "25-30", "31-36", "37-42", "43-48", "49-54", ">54"],
+    "range_bands": [
+      6,
+      12,
+      18,
+      24,
+      30,
+      36,
+      42,
+      48,
+      54,
+      99999
+    ],
+    "range_labels": [
+      "0-6",
+      "7-12",
+      "13-18",
+      "19-24",
+      "25-30",
+      "31-36",
+      "37-42",
+      "43-48",
+      "49-54",
+      ">54"
+    ],
     "basic": {
-      "vehicle":  {"black": [10, 9, 8, 7, 6, 6, 5, 4, 3, 2],   "red": [10, 8, 7, 6, 5, 4, 3, 2, 1, 0]},
-      "infantry": {"black": [8, 7, 6, 5, 4, 3, 2, 1, 0, -1],  "red": [8, 6, 5, 4, 3, 2, 1, 0, -1, -2]},
-      "area":     {"black": [7, 7, 8, 8, 7, 7, 6, 6, 5, 5],   "red": [7, 7, 8, 8, 7, 7, 6, 6, 5, 5]}
+      "vehicle": {
+        "black": [
+          10,
+          9,
+          8,
+          7,
+          6,
+          6,
+          5,
+          4,
+          3,
+          2
+        ],
+        "red": [
+          10,
+          8,
+          7,
+          6,
+          5,
+          4,
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      "infantry": {
+        "black": [
+          8,
+          7,
+          6,
+          5,
+          4,
+          3,
+          2,
+          1,
+          0,
+          -1
+        ],
+        "red": [
+          8,
+          6,
+          5,
+          4,
+          3,
+          2,
+          1,
+          0,
+          -1,
+          -2
+        ]
+      },
+      "area": {
+        "black": [
+          7,
+          7,
+          8,
+          8,
+          7,
+          7,
+          6,
+          6,
+          5,
+          5
+        ],
+        "red": [
+          7,
+          7,
+          8,
+          8,
+          7,
+          7,
+          6,
+          6,
+          5,
+          5
+        ]
+      }
     },
     "_mods_note": "C4 Basic TH# modifications are computed from the rule text (they extend past the printed >54 band): * -1 at >12 (C4.11); L +1 at >12 (C4.12); LL +1 at >12, +2 at >24 (C4.13); <=57mm -1 per 12 hexes or fraction beyond 12 (C4.2); <=40mm a further -1 at >12 (C4.2); APCR/APDS -1 per 12 hexes or fraction beyond 12 (C4.3; German 28LL/40LL use it even firing HE); SMOKE +2 at <=12 (C4.4)."
   },
-
   "ap": {
     "_note": "C7.31 AP TO KILL TABLE. A value is an int, or {nationality: int, 'default': int}; no default = that size exists only for the listed nationalities. Color-coded duplicates: brown 76L/76LL = Russian/Japanese; grey 90L = Italian; blue 88 = British 25pdr; yellow 88* = Australian Baby 25pdr. Vehicle-Note specials (Grant 75 = 13, Japanese 75* Year-38 = 12) need an explicit basic_tk override. MG/ATR rows are not ordnance TH attacks and are omitted.",
     "basic_tk": {
-      "20L": 6, "20LL": 7, "25LL": 7, "37*": 7,
-      "37": 8, "47*": 8, "57*": 8, "70*": 8,
-      "37L": 9, "40": 9, "57": 9, "65*": 9, "76*": 9,
-      "40L": 10, "45L": 10, "47": 10, "75*": 10,
-      "37LL": 11, "45LL": 11, "47L": 11, "50": 11, "88*": {"Australian": 11},
-      "76": 12, "84*": 12,
-      "50L": 13, "88": {"British": 13, "Australian": 13}, "120*": 13,
-      "75": 14, "105": 14,
-      "57L": 15, "57LL": 15,
-      "76LL": {"Russian": 16, "Japanese": 16, "default": 23},
-      "75L": 17, "76L": {"Russian": 13, "Japanese": 13, "default": 17},
-      "80L": 17, "83L": 17, "85L": 17, "150*": 17, "152*": 17,
-      "77L": 19, "200L": 19,
-      "88L": 20, "90L": {"Italian": 20, "default": 21},
-      "105L": 21, "150": 21, "152": 21, "155": 21,
+      "20L": 6,
+      "20LL": 7,
+      "25LL": 7,
+      "37*": 7,
+      "37": 8,
+      "47*": 8,
+      "57*": 8,
+      "70*": 8,
+      "37L": 9,
+      "40": 9,
+      "57": 9,
+      "65*": 9,
+      "76*": 9,
+      "40L": 10,
+      "45L": 10,
+      "47": 10,
+      "75*": 10,
+      "37LL": 11,
+      "45LL": 11,
+      "47L": 11,
+      "50": 11,
+      "88*": {
+        "Australian": 11
+      },
+      "76": 12,
+      "84*": 12,
+      "50L": 13,
+      "88": {
+        "British": 13,
+        "Australian": 13
+      },
+      "120*": 13,
+      "75": 14,
+      "105": 14,
+      "57L": 15,
+      "57LL": 15,
+      "76LL": {
+        "Russian": 16,
+        "Japanese": 16,
+        "default": 23
+      },
+      "75L": 17,
+      "76L": {
+        "Russian": 13,
+        "Japanese": 13,
+        "default": 17
+      },
+      "80L": 17,
+      "83L": 17,
+      "85L": 17,
+      "150*": 17,
+      "152*": 17,
+      "77L": 19,
+      "200L": 19,
+      "88L": 20,
+      "90L": {
+        "Italian": 20,
+        "default": 21
+      },
+      "105L": 21,
+      "150": 21,
+      "152": 21,
+      "155": 21,
       "75LL": 23,
       "122L": 25,
-      "88LL": 27, "100L": 27, "120L": 27,
-      "150L": 28, "155L": 28,
+      "88LL": 27,
+      "100L": 27,
+      "120L": 27,
+      "150L": 28,
+      "155L": 28,
       "140L": 32,
-      "128L": 33, "170L": 33
+      "128L": 33,
+      "170L": 33
     },
     "case_d": {
-      "range_bands": [1, 2, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 99999],
+      "range_bands": [
+        1,
+        2,
+        6,
+        12,
+        18,
+        24,
+        30,
+        36,
+        42,
+        48,
+        54,
+        60,
+        66,
+        72,
+        78,
+        99999
+      ],
       "_note": "Rows by caliber: <=25mm, 37-57mm, >=65mm. null = NA (cannot kill). Calibers in the printed gaps are an assumption: <37mm uses the <=25mm row, 58-64mm the 37-57mm row.",
-      "le25": [2, 1, 1, 0, 0, -1, -2, -3, -4, -5, null, null, null, null, null, null],
-      "37_57": [1, 1, 0, 0, 0, -1, -2, -2, -3, -4, -4, -5, null, null, null, null],
-      "ge65": [1, 0, 0, 0, 0, -1, -1, -2, -2, -3, -3, -4, -4, -5, -5, null]
+      "le25": [
+        2,
+        1,
+        1,
+        0,
+        0,
+        -1,
+        -2,
+        -3,
+        -4,
+        -5,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "37_57": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        -1,
+        -2,
+        -2,
+        -3,
+        -4,
+        -4,
+        -5,
+        null,
+        null,
+        null,
+        null
+      ],
+      "ge65": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        -2,
+        -2,
+        -3,
+        -3,
+        -4,
+        -4,
+        -5,
+        -5,
+        null
+      ]
     },
     "unarmored_final_tk": {
       "_note": "C7.31 UNARMORED TARGET Final TK# by caliber (C7.311; also APCR/APDS per C7.321). Doubled on a CH. Thresholds are the lower bound of each printed bucket (ATR-28mm, 37-57, 65-84, 85-95, 100+).",
-      "min_mm": [0, 37, 65, 85, 100],
-      "tk": [7, 8, 9, 10, 11]
+      "min_mm": [
+        0,
+        37,
+        65,
+        85,
+        100
+      ],
+      "tk": [
+        7,
+        8,
+        9,
+        10,
+        11
+      ]
     }
   },
-
   "apcr_apds": {
     "_note": "C7.32. Keys prefixed 'D' are APDS. Brown 76L/76LL = Russian, olive 76L = U.S. German 28LL/40LL always use this table unless firing HE (C7.32). Unarmored target: use the AP unarmored Final TK# (C7.321).",
     "basic_tk": {
       "37L": 10,
-      "28LL": 12, "45L": 12,
-      "45LL": 13, "47L": 13,
-      "40LL": 14, "50": 14,
+      "28LL": 12,
+      "45L": 12,
+      "45LL": 13,
+      "47L": 13,
+      "40LL": 14,
+      "50": 14,
       "50L": 17,
-      "57LL": 18, "D57L": 18, "76LL": {"Russian": 18},
+      "57LL": 18,
+      "D57L": 18,
+      "76LL": {
+        "Russian": 18
+      },
       "85L": 19,
-      "75L": 20, "76L": {"Russian": 14, "American": 22, "default": 20},
+      "75L": 20,
+      "76L": {
+        "Russian": 14,
+        "American": 22,
+        "default": 20
+      },
       "88L": 23,
       "D76LL": 25,
       "90L": 27
     },
     "case_d": {
-      "range_bands": [1, 2, 6, 12, 18, 24, 30, 36, 42, 48, 99999],
-      "apcr_le57": [3, 2, 1, 0, -2, -4, -6, null, null, null, null],
-      "apcr_ge75": [3, 2, 1, 0, -1, -3, -4, -5, -6, -7, null],
-      "apds": [1, 0, 0, 0, 0, 0, -1, -2, -3, -4, null]
+      "range_bands": [
+        1,
+        2,
+        6,
+        12,
+        18,
+        24,
+        30,
+        36,
+        42,
+        48,
+        99999
+      ],
+      "apcr_le57": [
+        3,
+        2,
+        1,
+        0,
+        -2,
+        -4,
+        -6,
+        null,
+        null,
+        null,
+        null
+      ],
+      "apcr_ge75": [
+        3,
+        2,
+        1,
+        0,
+        -1,
+        -3,
+        -4,
+        -5,
+        -6,
+        -7,
+        null
+      ],
+      "apds": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -2,
+        -3,
+        -4,
+        null
+      ]
     }
   },
-
   "heat": {
     "_note": "C7.33 HEAT TO KILL TABLE, by caliber (any barrel). No Case D (C7.332). Unarmored target Final TK# 11, 22 on a CH (C7.331).",
-    "basic_tk_by_mm": {"37": 26, "40": 26, "47": 26, "57": 11, "65": 11, "70": 12, "75": 13, "76": 13, "94": 11, "95": 16, "100": 14, "105": 15, "114": 15, "122": 17, "150": 21},
+    "basic_tk_by_mm": {
+      "37": 26,
+      "40": 26,
+      "47": 26,
+      "57": 11,
+      "65": 11,
+      "70": 12,
+      "75": 13,
+      "76": 13,
+      "94": 11,
+      "95": 16,
+      "100": 14,
+      "105": 15,
+      "114": 15,
+      "122": 17,
+      "150": 21
+    },
     "unarmored_final_tk": 11
   },
-
   "he": {
     "_note": "C7.34 HE TO KILL TABLE (no mortars): use the highest caliber column not exceeding the gun's caliber (C7.34). No Case D (C7.341). Unarmored Final TK# is final (C7.342), doubled on a CH.",
-    "min_mm": [20, 30, 40, 50, 70, 80, 100, 120, 150],
-    "armored_basic_tk": [3, 4, 5, 6, 7, 8, 10, 12, 16],
-    "unarmored_final_tk": [6, 8, 9, 10, 12, 14, 16, 18, 20]
+    "min_mm": [
+      20,
+      30,
+      40,
+      50,
+      70,
+      80,
+      100,
+      120,
+      150
+    ],
+    "armored_basic_tk": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      10,
+      12,
+      16
+    ],
+    "unarmored_final_tk": [
+      6,
+      8,
+      9,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20
+    ]
   },
-
   "he_fp": {
     "_note": "A7 IFT column headers 'FP/mm': ordnance HE FP is the highest column whose mm does not exceed the gun's caliber.",
-    "min_mm": [20, 30, 37, 50, 60, 70, 80, 100, 120, 150, 200],
-    "fp": [1, 2, 4, 6, 8, 12, 16, 20, 24, 30, 36]
+    "min_mm": [
+      20,
+      30,
+      37,
+      50,
+      60,
+      70,
+      80,
+      100,
+      120,
+      150,
+      200
+    ],
+    "fp": [
+      1,
+      2,
+      4,
+      6,
+      8,
+      12,
+      16,
+      20,
+      24,
+      30,
+      36
+    ]
   },
-
   "he_equivalency": {
     "_note": "C8.31: AP <37mm = 1 FP, >=37mm = 2 FP (includes APCR/APDS); ordnance HEAT uses the IFT column left of the gun's normal HE FP.",
     "ap_lt37": 1,
     "ap_ge37": 2
+  },
+  "th_cases": {
+    "_note": "C5/C6 To Hit DRM values, labels and rules (C To Hit Table, Chapter C divider). Which case applies when is rules logic in thtk.build_th_drm; the numbers live here. 'woods' = value when the firer is in woods/building/rubble.",
+    "A": {
+      "label": "Case A: CA change",
+      "rule": "C5.1",
+      "first_hexspine": {
+        "T": 1,
+        "ST": 2,
+        "NT": 3
+      },
+      "each_additional": 1,
+      "woods_multiplier": 2
+    },
+    "B": {
+      "label": "Case B: AFPh",
+      "rule": "C5.2",
+      "drm": 2,
+      "woods": 3
+    },
+    "C": {
+      "label": "Case C: Bounding Firer",
+      "rule": "C5.3",
+      "includes_case_b": 2,
+      "gun_type": {
+        "stabilized": 1,
+        "T": 2,
+        "ST": 2,
+        "NT": 3
+      }
+    },
+    "C1": {
+      "label": "Case C1: Restricted Aim",
+      "rule": "C5.31",
+      "drm": 1
+    },
+    "C2": {
+      "label": "Case C2: Limited Aim",
+      "rule": "C5.32",
+      "drm": 2
+    },
+    "C4": {
+      "label": "Case C4: Motion Firer, Gyrostabilizer",
+      "rule": "C5.35",
+      "stabilized_drm": 1
+    },
+    "D": {
+      "label": "Case D: Pinned firer",
+      "rule": "C5.4",
+      "drm": 2
+    },
+    "E": {
+      "label": "Case E: fire within hex",
+      "rule": "C5.5",
+      "drm": 2,
+      "woods": 4
+    },
+    "F": {
+      "label": "Case F: Intensive Fire",
+      "rule": "C5.6",
+      "drm": 2
+    },
+    "H": {
+      "label": "Case H: Captured / non-qualified",
+      "rule": "C5.8",
+      "drm": 2
+    },
+    "I": {
+      "label": "Case I: Buttoned Up",
+      "rule": "C5.9",
+      "drm": 1
+    },
+    "CX": {
+      "label": "CX",
+      "rule": "A4.51",
+      "drm": 1
+    },
+    "encircled": {
+      "label": "Encircled firer",
+      "rule": "A7.7",
+      "drm": 1
+    },
+    "leadership": {
+      "label": "Leadership",
+      "rule": "A7.531"
+    },
+    "stun": {
+      "label": "Stun",
+      "rule": "D5.34"
+    },
+    "spotted": {
+      "label": "Spotted Fire",
+      "rule": "C9.31",
+      "drm": 2
+    },
+    "overstack": {
+      "label": "Overstacked firer",
+      "rule": "A5.12"
+    },
+    "J": {
+      "label": "Case J: moving/Motion target",
+      "rule": "C6.1",
+      "drm": 2
+    },
+    "J1": {
+      "label": "Case J1: Restricted Aim",
+      "rule": "C6.11",
+      "drm": 3
+    },
+    "J2": {
+      "label": "Case J2: Limited Aim",
+      "rule": "C6.12",
+      "drm": 4
+    },
+    "J3": {
+      "label": "Case J3: FFNAM",
+      "rule": "C6.13",
+      "drm": -1
+    },
+    "J4": {
+      "label": "Case J4: FFMO",
+      "rule": "C6.14",
+      "drm": -1
+    },
+    "K": {
+      "label": "Case K: concealed target",
+      "rule": "C6.2",
+      "drm": 2
+    },
+    "L": {
+      "label": "Case L: Point Blank",
+      "rule": "C6.3",
+      "by_range": {
+        "1": -2,
+        "2": -1
+      }
+    },
+    "M": {
+      "label": "Case M: Bore Sighted",
+      "rule": "C6.4",
+      "drm": -2
+    },
+    "N": {
+      "label": "Case N: Acquired target",
+      "rule": "C6.5",
+      "min": -2
+    },
+    "O": {
+      "label": "Case O: Hazardous Movement",
+      "rule": "C6.6",
+      "drm": -2
+    },
+    "P": {
+      "label": "Case P: target size",
+      "rule": "C6.7"
+    },
+    "Q": {
+      "label": "TEM (Case Q)",
+      "rule": "C6.8"
+    },
+    "R": {
+      "label": "Case R: Hindrance",
+      "rule": "C6.9"
+    }
   }
 }

@@ -1,0 +1,7 @@
+{
+  "_note": "Corrections to the extracted Chapter H listings (data/rulebook/vehicles.json), applied every time the table loads, so a fix ships with a normal deploy and survives re-running scripts/extract_vehicle_listings.py. Each 'vehicles'/'guns' entry matches rows by exact name (and nationality, if given) and sets the listed fields; give a reason. 'add_vehicles'/'add_guns' append whole rows the extractor misses (same fields as vehicles.json). Example: {\"name\": \"M3A1\", \"nationality\": \"UN Forces\", \"set\": {\"armor\": \"partial\", \"hull_front\": 0, \"hull_side\": 0}, \"reason\": \"AF misread\"}.",
+  "vehicles": [],
+  "guns": [],
+  "add_vehicles": [],
+  "add_guns": []
+}

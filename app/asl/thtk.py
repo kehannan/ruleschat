@@ -477,7 +477,8 @@ def compute_shot(
     # Case Q (C6.8): TEM is a TH DRM on the Vehicle/Infantry Target Type, but
     # not on the Area Target Type (C3.331) nor when it is what makes the AFV HD.
     if tem and target_type != "area" and not hull_down:
-        drm_lines.append({"label": "TEM (Case Q)", "drm": int(tem), "rule": "C6.8"})
+        q = _case("Q")
+        drm_lines.append({"label": q["label"], "drm": int(tem), "rule": q["rule"]})
     total_drm = sum(d["drm"] for d in drm_lines)
 
     multiple_ok = 15 <= mm <= 40 and target_type in ("vehicle", "infantry") and ammo != "SMOKE"
@@ -682,9 +683,11 @@ def _personnel_effects(mm, ammo, target_type, tem, fp_override, effects_drm,
 # Situation -> TH DRM ledger (C5 firer-based, C6 target-based cases)
 # ---------------------------------------------------------------------------
 
-_CASE_A_FIRST = {"T": 1, "ST": 2, "NT": 3}
-_CASE_C_GUN = {"stabilized": 1, "T": 2, "ST": 2, "NT": 3}
-_MOVING_TARGET = {"moving": 2, "j1": 3, "j2": 4}
+_MOVING_TARGET = {"moving": "J", "j1": "J1", "j2": "J2"}
+
+
+def _case(key: str) -> Dict[str, Any]:
+    return _load()["th_cases"][key]
 
 
 def build_th_drm(
@@ -735,11 +738,17 @@ def build_th_drm(
     warnings: List[str] = []
     double_lower = False
     in_hex = range_hexes == 0
-    gun_type = gun_type if gun_type in _CASE_C_GUN else "T"
+    woods = firer_in_woods_building_rubble
+    gun_type = gun_type if gun_type in _case("C")["gun_type"] else "T"
 
     def add(label, drm, rule):
         if drm:
             lines.append({"label": label, "drm": int(drm), "rule": rule})
+
+    def flag(key, on, value=None):
+        c = _case(key)
+        if on:
+            add(c["label"], c["drm"] if value is None else value, c["rule"])
 
     # --- C5 firer-based ---
     if ca_hexspines > 0:
@@ -747,70 +756,65 @@ def build_th_drm(
             warnings.append("Case A is NA to Bounding First Fire: a Bounding First Firer "
                             "changes CA only by spending MP (C5.13).")
         else:
-            first = _CASE_A_FIRST.get(gun_type, 1)
-            drm = first + (ca_hexspines - 1)
-            if firer_in_woods_building_rubble:
-                drm *= 2
-            add(f"Case A: CA change {ca_hexspines} hexspine(s), {gun_type}"
-                + (" ×2 woods/building/rubble" if firer_in_woods_building_rubble else ""),
-                drm, "C5.1")
+            c = _case("A")
+            drm = c["first_hexspine"].get(gun_type, 1) + c["each_additional"] * (ca_hexspines - 1)
+            if woods:
+                drm *= c["woods_multiplier"]
+            add(f"{c['label']} {ca_hexspines} hexspine(s), {gun_type}"
+                + (" ×2 woods/building/rubble" if woods else ""), drm, c["rule"])
     if bounding_fire:
-        add(f"Case C: Bounding Firer ({gun_type}) incl. Case B +2", 2 + _CASE_C_GUN[gun_type],
-            "C5.3")
+        c = _case("C")
+        add(f"{c['label']} ({gun_type}) incl. Case B +{c['includes_case_b']}",
+            c["includes_case_b"] + c["gun_type"][gun_type], c["rule"])
         if not area and not afph:
-            if aim == "restricted":
-                add("Case C1: Restricted Aim", 1, "C5.31")
-            elif aim == "limited":
-                add("Case C2: Limited Aim", 2, "C5.32")
+            flag("C1", aim == "restricted")
+            flag("C2", aim == "limited")
     elif afph:
-        add("Case B: AFPh" + (" in woods/building/rubble" if firer_in_woods_building_rubble else ""),
-            3 if firer_in_woods_building_rubble else 2, "C5.2")
+        c = _case("B")
+        add(c["label"] + (" in woods/building/rubble" if woods else ""),
+            c["woods"] if woods else c["drm"], c["rule"])
     if motion_firer and not area:
         if gun_type == "stabilized":
-            add("Case C4: Motion Firer, Gyrostabilizer", 1, "C5.35")
+            c = _case("C4")
+            add(c["label"], c["stabilized_drm"], c["rule"])
         else:
             double_lower = True
         if not bounding_fire:
             warnings.append("Case C4 adds to the Case C/C1/C2 DRM; set bounding_fire too.")
-    if pinned:
-        add("Case D: Pinned firer", 2, "C5.4")
+    flag("D", pinned)
     if in_hex and not area:
-        add("Case E: fire within hex" + (" ×2 woods/building/rubble"
-                                          if firer_in_woods_building_rubble else ""),
-            4 if firer_in_woods_building_rubble else 2, "C5.5")
-    if intensive_fire:
-        add("Case F: Intensive Fire", 2, "C5.6")
-    if captured:
-        add("Case H: Captured / non-qualified", 2, "C5.8")
-    if buttoned_up:
-        add("Case I: Buttoned Up", 1, "C5.9")
-    add("CX", 1 if cx else 0, "A4.51")
-    add("Encircled firer", 1 if encircled else 0, "A7.7")
-    add("Leadership", leadership, "A7.531")
-    add("Stun", stun, "D5.34")
-    add("Spotted Fire", 2 if spotted_fire else 0, "C9.31")
-    add("Overstacked firer", overstack, "A5.12")
+        c = _case("E")
+        add(c["label"] + (" ×2 woods/building/rubble" if woods else ""),
+            c["woods"] if woods else c["drm"], c["rule"])
+    flag("F", intensive_fire)
+    flag("H", captured)
+    flag("I", buttoned_up)
+    flag("CX", cx)
+    flag("encircled", encircled)
+    flag("leadership", leadership, leadership)
+    flag("stun", stun, stun)
+    flag("spotted", spotted_fire)
+    flag("overstack", overstack, overstack)
 
     # --- C6 target-based ---
     j_na = ffnam or ffmo or hazardous_movement
     if target_moving in _MOVING_TARGET and not j_na:
-        names = {"moving": "Case J: moving/Motion target", "j1": "Case J1: Restricted Aim",
-                 "j2": "Case J2: Limited Aim"}
-        add(names[target_moving], _MOVING_TARGET[target_moving], "C6.1")
+        flag(_MOVING_TARGET[target_moving], True)
     if not in_hex:
-        add("Case J3: FFNAM", -1 if ffnam else 0, "C6.13")
-        add("Case J4: FFMO", -1 if ffmo else 0, "C6.14")
-    add("Case K: concealed target", 2 if concealed else 0, "C6.2")
+        flag("J3", ffnam)
+        flag("J4", ffmo)
+    flag("K", concealed)
     pb_na = area or in_hex or motion_firer or target_moving != "no"
     if not pb_na and range_hexes in (1, 2):
-        add(f"Case L: Point Blank ({range_hexes} hex)", -2 if range_hexes == 1 else -1, "C6.3")
-    if bore_sighted and not in_hex:
-        add("Case M: Bore Sighted", -2, "C6.4")
+        c = _case("L")
+        add(f"{c['label']} ({range_hexes} hex)", c["by_range"][str(range_hexes)], c["rule"])
+    flag("M", bore_sighted and not in_hex)
     if acquired and not bore_sighted:
-        add("Case N: Acquired target", max(-2, min(0, acquired)), "C6.5")
-    add("Case O: Hazardous Movement", -2 if hazardous_movement else 0, "C6.6")
-    add("Case P: target size", target_size, "C6.7")
-    add("Case R: Hindrance", hindrance, "C6.9")
+        c = _case("N")
+        add(c["label"], max(c["min"], min(0, acquired)), c["rule"])
+    flag("O", hazardous_movement)
+    flag("P", target_size, target_size)
+    flag("R", hindrance, hindrance)
     for d in other_drm or ():
         add(str(d.get("label", "other")), int(d.get("drm", 0)), d.get("rule", ""))
     return {"lines": lines, "double_lower_dr": double_lower, "warnings": warnings}

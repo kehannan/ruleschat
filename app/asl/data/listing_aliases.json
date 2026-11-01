@@ -1,0 +1,41 @@
+{
+  "_note": "Common names -> Chapter H listing names (the listings use official designations). Keys are matched case-, space- and punctuation-insensitively ('King Tiger' = 'kingtiger'; 'pdr' = 'pounder'). Several targets with different stats come back to the caller as candidates to choose from. Edit freely: no code change or deploy of the listing table is needed.",
+  "vehicles": {
+    "Panther": ["PzKpfw VG", "PzKpfw VD"],
+    "Panther G": ["PzKpfw VG"],
+    "Panther D": ["PzKpfw VD"],
+    "Tiger": ["PzKpfw VIE"],
+    "Tiger I": ["PzKpfw VIE"],
+    "Tiger E": ["PzKpfw VIE"],
+    "King Tiger": ["PzKpfw VIB"],
+    "Tiger II": ["PzKpfw VIB"],
+    "Konigstiger": ["PzKpfw VIB"],
+    "Koenigstiger": ["PzKpfw VIB"],
+    "Jagdpanther": ["JgdPz V"],
+    "Jagdtiger": ["JgdPz VI"],
+    "Firefly": ["Sherman VC(a)", "Sherman IIC(a)"],
+    "Sherman": ["M4", "M4A1", "M4A2", "M4A2 (L)", "M4A3", "M4A3(75)W", "M4A1(76)W",
+                "M4A3(76)W", "M4(105)", "M4A3(105)", "M4A3E2", "M4A3E8",
+                "Sherman II(a)", "Sherman III(a)", "Sherman V(a)", "Sherman IIA(a)",
+                "Sherman IIC(a)", "Sherman VC(a)", "Sherman IB(a)"],
+    "Jumbo": ["M4A3E2", "M4A3E2 (L)"],
+    "Hellcat": ["M18 GMC"],
+    "Wolverine": ["M10 GMC", "Wolverine(a)"],
+    "Jackson": ["M36 GMC"],
+    "Pershing": ["M26"],
+    "Chaffee": ["M24"],
+    "Priest": ["M7 HMC"],
+    "Easy Eight": ["M4A3E8"]
+  },
+  "guns": {
+    "17pdr": ["OQF 17-Pounder"],
+    "6pdr": ["OQF 6-Pounder 7-cwt"],
+    "2pdr": ["OQF 2-Pounder"],
+    "25pdr": ["OQF 25-Pounder Gun-How."],
+    "PaK 40": ["7.5cm PaK 40"],
+    "PaK 38": ["5cm PaK 38"],
+    "PaK 43": ["8.8cm PaK 43"],
+    "FlaK 18": ["8.8cm FlaK 18 o. 36"],
+    "88 FlaK": ["8.8cm FlaK 18 o. 36"]
+  }
+}

@@ -183,3 +183,17 @@ Gun-vs-Gun duels across fire phases.
 2. **Branch handling.** Recommended: cherry-pick only the engine and tables
    onto a fresh `feature/thtk` from main, and rebuild the page. The branch
    predates the history scrub, so its SHAs are stale anyway.
+
+## Maintaining the data (no Python edits)
+
+| To change | Edit | Ships with |
+|---|---|---|
+| A rulebook number (TH table, C4 mods, TK tables, HE FP) | `app/asl/thtk_tables.json` | normal deploy |
+| A C5/C6 To Hit case value, label or rule ref | `thtk_tables.json` → `th_cases` | normal deploy |
+| A nickname (Panther, 17pdr, ...) | `app/asl/data/listing_aliases.json` | normal deploy |
+| One wrong / missing vehicle or Gun row | `app/asl/data/listing_overrides.json` (`set` with a `reason`, or `add_*`) | normal deploy |
+| The whole listing table (new eASLRB edition) | re-run `scripts/extract_vehicle_listings.py`, check its report, copy `data/rulebook/vehicles.json` to prod | manual copy |
+
+Rules *processes* (Critical/Multiple/Improbable Hits, hit location, C7.7
+result reading, when each To Hit case applies) stay in `app/asl/thtk.py`.
+`tests/test_thtk.py` pins them to the rulebook's own examples.

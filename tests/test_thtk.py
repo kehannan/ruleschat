@@ -448,5 +448,49 @@ def test_target_gun_needs_infantry_target_type(listing):
     assert {"label": "Case P: target size", "drm": 1, "rule": "C6.7"} in r["to_hit"]["drm"]
 
 
+
+def test_listing_overrides_set_and_add(tmp_path, monkeypatch):
+    import json
+    from app.asl import vehicles
+    fixes = tmp_path / "overrides.json"
+    fixes.write_text(json.dumps({
+        "vehicles": [{"name": "PzKpfw IVH", "set": {"turret_front": 8}, "reason": "test fix"}],
+        "add_vehicles": [{"name": "Test Tank", "nationality": "German", "type": "MT",
+                          "hull_front": 4, "hull_side": 2, "turret_front": 4,
+                          "turret_side": 2, "armor": "full", "gun": "75", "size": 0,
+                          "page": 0}],
+    }))
+    monkeypatch.setattr(vehicles, "OVERRIDES_PATH", fixes)
+    vehicles.load(str(Path(__file__).resolve().parent / "fixtures" / "vehicles_fixture.json"))
+    try:
+        ivh = vehicles.find("PzKpfw IVH")["vehicle"]
+        assert ivh["turret_front"] == 8 and ivh["override"] == "test fix"
+        assert vehicles.find("Test Tank")["vehicle"]["hull_front"] == 4
+    finally:
+        vehicles.reset()
+
+
+def test_committed_overrides_and_aliases_are_valid():
+    import json
+    from app.asl import vehicles
+    fixes = json.loads(vehicles.OVERRIDES_PATH.read_text())
+    assert set(fixes) >= {"vehicles", "guns", "add_vehicles", "add_guns"}
+    for kind in ("vehicles", "guns"):
+        for fix in fixes[kind]:
+            assert fix.get("name") and fix.get("set") and fix.get("reason"), fix
+    aliases = json.loads(vehicles.ALIASES_PATH.read_text())
+    for kind in ("vehicles", "guns"):
+        keys = [vehicles._norm(k) for k in aliases[kind]]
+        assert len(keys) == len(set(keys)), f"duplicate {kind} alias after normalizing"
+        assert all(isinstance(v, list) and v for v in aliases[kind].values())
+
+
+def test_th_case_values_come_from_tables(monkeypatch):
+    t = thtk._load()
+    monkeypatch.setitem(t["th_cases"]["I"], "drm", 5)
+    lines = thtk.build_th_drm(range_hexes=6, buttoned_up=True)["lines"]
+    assert {"label": "Case I: Buttoned Up", "drm": 5, "rule": "C5.9"} in lines
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
