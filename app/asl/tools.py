@@ -333,9 +333,9 @@ def ordnance_attack(**kwargs) -> Dict[str, Any]:
     except (ValueError, TypeError) as e:
         return {"error": str(e)}
     logging.info(
-        "💥 ordnance_attack(%s %s, %s target @%s) -> TH# %s drm %s, hit %s",
+        "💥 ordnance_attack(%s %s, %s target %s @%s) -> TH# %s drm %s, hit %s",
         result.get("gun"), result.get("ammo"), result.get("target_type"),
-        result.get("range"), result["to_hit"].get("modified_th"),
+        (result.get("target") or {}).get("facing", ""), result.get("range"), result["to_hit"].get("modified_th"),
         result["to_hit"].get("total_drm"), result["to_hit"].get("p_hit"),
     )
     return result

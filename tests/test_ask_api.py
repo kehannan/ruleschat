@@ -616,3 +616,19 @@ def test_execute_tool_reports_results_to_hook():
     # a failing hook never breaks the tool call
     assert execute_tool("thtk_odds", {"modified_th": 9},
                         context={"on_tool_result": lambda *a: 1 / 0})["p_hit"] > 0
+
+
+def test_only_first_ordnance_call_is_carded_and_facing_is_labelled():
+    from app.asl import thtk
+    shot = lambda facing: thtk.compute_attack(
+        gun="76LL", nationality="British", range_hexes=6,
+        target={"kind": "armored", "facing": facing, "hull_af": 18 if facing == "front" else 6,
+                "turret_af": 14 if facing == "front" else 6})
+    cards = []
+    hook = ask_module._ordnance_card_hook(cards.append)
+    hook("ordnance_attack", {}, {"error": "bad gun"})       # failed tries don't count
+    hook("ordnance_attack", {}, shot("front"))
+    hook("ordnance_attack", {}, shot("side"))                # the model's what-if
+    assert len(cards) == 1
+    assert "(front)" in cards[0] and "Target front armor (AF)" in cards[0]
+    assert "-18" in cards[0] and "(side)" not in cards[0]

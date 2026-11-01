@@ -563,7 +563,7 @@ def _th_sheet(th: dict) -> str:
     return _sheet("TO HIT", "".join(rows))
 
 
-def _tk_sheet(tk: dict) -> str:
+def _tk_sheet(tk: dict, facing: str = "") -> str:
     """One column per hit branch: Basic TK#, its modifiers, AF, Final TK#."""
     branches = tk.get("branches") or []
     if not branches or "tk_lines" not in branches[0]:
@@ -592,7 +592,7 @@ def _tk_sheet(tk: dict) -> str:
                 v = int(line["value"])
                 cells.append(_colored(_signed(v), None if not v else (_GOOD if v > 0 else _BAD)))
         rows.append(_sheet_row(_h(k), cells, indent=bool(i)))
-    rows.append(_sheet_row("Target armor (AF) (C7.11)", [
+    rows.append(_sheet_row(f"Target {_h(facing) + ' ' if facing else ''}armor (AF) (C7.11)", [
         _colored(_signed(next((int(x["value"]) for x in b["tk_lines"] if is_af(x)), 0)), _BAD)
         for b in branches]))
     rows.append(_sheet_row("Final TK#", [_h(b["final_tk"]) for b in branches], bold=True))
@@ -617,9 +617,16 @@ def _ift_hits_sheet(tk: dict) -> str:
 
 
 def _ordnance_card_hook(sink):
-    """on_tool_result hook: an ordnance_attack result -> sink(card_html)."""
+    """on_tool_result hook: the FIRST good ordnance_attack result -> sink(card_html).
+
+    Later calls are the model's what-ifs (e.g. the same shot vs a side aspect);
+    carding them would replace the card for the shot the user asked about."""
+    sent = []
+
     def hook(name, args, result):
-        if name == "ordnance_attack" and isinstance(result, dict) and not result.get("error"):
+        if (name == "ordnance_attack" and not sent and isinstance(result, dict)
+                and not result.get("error")):
+            sent.append(True)
             sink(_thtk_calculator_html(result))
     return hook
 
@@ -630,9 +637,11 @@ def _thtk_calculator_html(result: dict) -> str:
     veh = result.get("vehicles") or {}
     firer = (veh.get("firer") or {}).get("name")
     target = (veh.get("target") or {}).get("name")
+    tgt = result.get("target") or {}
+    facing = tgt.get("facing") if tgt.get("kind") == "armored" else ""
     gun = f"{result.get('gun')} {result.get('ammo')}"
     head = (f"{_h(firer + ' · ' if firer else '')}{_h(gun)} → "
-            f"{_h(target or result.get('target', {}).get('kind', 'target'))} · range {_h(result.get('range'))}")
+            f"{_h(target or tgt.get('kind', 'target'))}{f' ({_h(facing)})' if facing else ''} · range {_h(result.get('range'))}")
     outcomes = result.get("outcomes") or []
     kill = sum(o["probability"] for o in outcomes
                if o["result"] in ("Burn", "Elim") or str(o["result"]).endswith("KIA")
@@ -645,7 +654,7 @@ def _thtk_calculator_html(result: dict) -> str:
         f"<td bgcolor='{_PAPER}' class='tile'><div class='tilelbl'>{_h(k)}</div>"
         f"<div class='tileval'>{_h(v)}</div></td>" for k, v in tiles)
     tk = result.get("to_kill") or {}
-    sheets = _th_sheet(th) + (_ift_hits_sheet(tk) if "full_fp" in tk else _tk_sheet(tk))
+    sheets = _th_sheet(th) + (_ift_hits_sheet(tk) if "full_fp" in tk else _tk_sheet(tk, facing))
     cells = "".join(
         f"<td width='{max(1, round(100 * float(o['probability'])))}%' "
         f"bgcolor='{_SEV.get(o['result'], _HAIR)}' class='bar'>&nbsp;</td>"
@@ -676,7 +685,9 @@ ASK_ANSWER_FORMAT = (
     "FP/column/DRM/odds.\n"
     "- Likewise an ordnance_attack result is shown as a TH/TK calculator card: "
     "give the hit and kill chance in your first sentence, then explain why the "
-    "DRM and TK lines apply rather than listing them again.\n"
+    "DRM and TK lines apply rather than listing them again. Only your FIRST "
+    "ordnance_attack call is carded, so make it the shot the user asked about "
+    "(their stated facing, else front) before any what-if calls.\n"
     "- Then, if there are any, a line 'Assumptions:' followed by one short "
     "bullet per assumption or warning to confirm.\n"
     "- End with one line 'Rules: ' listing the sections you cited, comma "
@@ -891,7 +902,7 @@ def ask(payload: AskRequest, authorization: Optional[str] = Header(None)):
     if board is not None:
         result["board"] = board
     if ordnance_cards and payload.rich:
-        result["calculator_html"] = ordnance_cards[-1]
+        result["calculator_html"] = ordnance_cards[0]
     elif ctx["calculator_html"]:
         result["calculator_html"] = ctx["calculator_html"]
     return result
