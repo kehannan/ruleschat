@@ -140,17 +140,6 @@
     margin-top: 10px; letter-spacing: .02em; line-height: 1.5;
   }
 
-  /* Live math line — the per-unit fp_breakdown + DRM ledger rendered inline. */
-  .site .math-line {
-    margin-top: 18px; padding: 14px 18px;
-    border-left: 3px solid var(--accent);
-    background: color-mix(in oklch, var(--accent) 8%, var(--paper));
-    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
-    line-height: 1.8; letter-spacing: .01em;
-  }
-  .site .math-line b { color: var(--ink); font-weight: 600; }
-  .site .math-line .ml-warn { color: var(--fail); }
-
   /* Results */
   .site .ift-results { margin-top: 40px; }
   .site .ift-results .res-caption {
@@ -225,6 +214,66 @@
   .site .dist-row .d-bar.sev-shock { background: var(--brass); }
   .site .dist-row .d-bar.sev-immob { background: var(--field); }
   .site .dist-row .d-bar.sev-miss  { background: var(--paper-3); }
+
+  /* Worksheets: the TH and TK math as a ledger, value column right-aligned. */
+  .site .worksheets { display: grid; gap: 16px; margin-bottom: 32px; }
+  .site .ws {
+    border: 1px solid var(--hair); border-radius: 4px;
+    background: color-mix(in oklch, var(--paper) 50%, white 50%);
+    padding: 18px 22px; overflow-x: auto;
+  }
+  @media (max-width: 600px) {
+    .site .ws { padding: 14px; }
+    .site .ws-table th, .site .ws-table .val { padding-left: 8px; }
+    .site .ws-bar { max-width: 72px; }
+  }
+  .site .ws-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .site .ws-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  .site .ws-table td, .site .ws-table th { padding: 5px 0; vertical-align: baseline; }
+  .site .ws-table th {
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 500; text-align: right; padding-left: 14px;
+  }
+  .site .ws-table th:first-child { text-align: left; padding-left: 0; }
+  .site .ws-table .lbl { color: var(--ink-2); }
+  .site .ws-table .lbl .rule { color: var(--muted); font-size: 10px; margin-left: 6px; }
+  .site .ws-table .val {
+    text-align: right; font-variant-numeric: tabular-nums; color: var(--ink);
+    padding-left: 14px; white-space: nowrap;
+  }
+  .site .ws-table .val.neg { color: var(--field); }
+  .site .ws-table .val.pos { color: var(--fail); }
+  .site .ws-table .val.dim { color: var(--muted-2); }
+  .site .ws-table tr.grp td {
+    padding-top: 12px; font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .site .ws-table tr.grp td.val { color: var(--ink-2); font-size: 12px; letter-spacing: 0; }
+  .site .ws-table tr.indent td.lbl { padding-left: 14px; }
+  .site .ws-table tr.sub td { border-top: 1px solid var(--hair); color: var(--ink); font-weight: 600; }
+  .site .ws-table tr.total td {
+    border-top: 2px solid var(--ink); padding-top: 9px;
+    font-size: 14px; font-weight: 700; color: var(--ink);
+  }
+  .site .ws-table tr.total td.val { color: var(--accent); }
+  .site .ws-table tr.note td { color: var(--muted); font-size: 11px; padding-top: 2px; }
+  .site .ws-table tr.bar td { padding-top: 10px; }
+  .site .ws-bar {
+    display: flex; height: 12px; border-radius: 2px; overflow: hidden;
+    border: 1px solid var(--hair); background: var(--paper-3); margin-left: auto; max-width: 160px;
+  }
+  .site .ws-bar span { display: block; height: 100%; }
+  .site .ws .sev-burn  { background: var(--fail); }
+  .site .ws .sev-elim  { background: var(--accent); }
+  .site .ws .sev-shock { background: var(--brass); }
+  .site .ws .sev-immob { background: var(--field); }
+  .site .ws .sev-miss  { background: var(--paper-3); }
+  .site .ws-kill { font-size: 11px; color: var(--muted); text-align: right; margin-top: 4px; }
+  .site .ws-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .site .ws-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 1px; margin-right: 5px; vertical-align: -1px; }
 </style>
 {% endblock %}
 
@@ -342,7 +391,6 @@
           <div class="b-note">Point Blank (L) and fire within hex (E) come from the range automatically.</div>
         </div>
       </div>
-      <div class="math-line" id="math-line" style="display:none;"></div>
     </div>
 
     <!-- ===================== Quick odds ===================== -->
@@ -375,6 +423,7 @@
     <div class="ift-results" id="results" style="display:none;">
       <div class="res-caption" id="res-caption"></div>
       <div class="summary-grid" id="summary-grid"></div>
+      <div class="worksheets" id="worksheets"></div>
       <div class="dist-rows" id="dist-rows"></div>
       <table class="branch-table" id="branch-table" style="display:none;"></table>
       <ul class="notes" id="notes"></ul>
@@ -462,6 +511,88 @@
     document.querySelectorAll('.t-veh').forEach((el) => el.style.display = $('t-type').value === 'vehicle' ? '' : 'none');
   }
 
+  // Signed value cell; good = +N helps the firer (TH#, TK#) vs hurts it (TH DRM).
+  const signed = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+  function valCell(n, good) {
+    const cls = !n ? 'dim' : ((n > 0) === good ? 'neg' : 'pos');
+    return `<td class="val ${cls}">${signed(n)}</td>`;
+  }
+  const rule = (r) => r ? `<span class="rule">${esc(r)}</span>` : '';
+
+  function thSheet(th) {
+    const rows = [`<tr><td class="lbl">Basic TH# <span class="rule">${esc(th.range_band)} hexes · ${esc(th.color)}</span></td><td class="val">${th.basic}</td></tr>`];
+    for (const m of th.modifications) {
+      rows.push(`<tr class="indent"><td class="lbl">${esc(m.label)}${rule(m.rule)}</td>${valCell(m.mod, true)}</tr>`);
+    }
+    if (th.modifications.length) rows.push(`<tr class="sub"><td class="lbl">Modified TH#</td><td class="val">${th.modified_th}</td></tr>`);
+
+    const groups = [['Firer DRM · C5', []], ['Target DRM · C6', []], ['Other DRM', []]];
+    for (const d of th.drm) {
+      const g = !d.rule ? 2 : d.rule.startsWith('C6') ? 1 : 0;
+      groups[g][1].push(d);
+    }
+    for (const [name, lines] of groups) {
+      if (!lines.length) continue;
+      const sub = lines.reduce((a, d) => a + d.drm, 0);
+      rows.push(`<tr class="grp"><td class="lbl">${name}</td>${valCell(sub, false)}</tr>`);
+      for (const d of lines) {
+        rows.push(`<tr class="indent"><td class="lbl">${esc(d.label)}${rule(d.rule)}</td>${valCell(d.drm, false)}</tr>`);
+      }
+    }
+    if (!th.drm.length) rows.push(`<tr class="grp"><td class="lbl">TH DRM</td><td class="val dim">none</td></tr>`);
+    else rows.push(`<tr class="sub"><td class="lbl">Total TH DRM</td>${valCell(th.total_drm, false)}</tr>`);
+    rows.push(`<tr class="total"><td class="lbl">Hit on Original DR ≤</td><td class="val">${th.needed_original_dr}</td></tr>`);
+    rows.push(`<tr class="note"><td colspan="2">Modified TH# ${th.modified_th} − DRM ${th.total_drm}`
+      + (th.improbable ? ' · Improbable Hit (C3.6)' : '') + ` · ${pct(th.p_hit)} to hit</td></tr>`);
+    return `<div class="ws"><div class="ws-title">To Hit</div><table class="ws-table">${rows.join('')}</table></div>`;
+  }
+
+  function tkSheet(tk) {
+    const bs = tk.branches;
+    const isAf = (l) => / AF \(/.test(l.label);
+    // Union of modifier rows in first-seen order (Basic first, AF handled separately).
+    const keys = [];
+    for (const b of bs) for (const l of b.tk_lines) if (!isAf(l) && !keys.includes(l.label)) keys.push(l.label);
+    const x2 = keys.findIndex((k) => /×2/.test(k));
+    if (x2 > 1) keys.splice(1, 0, keys.splice(x2, 1)[0]);  // CH doubling reads right after Basic
+    const head = '<tr><th></th>' + bs.map((b) => `<th>${b.critical ? 'Critical ' : ''}${esc(b.location)}</th>`).join('') + '</tr>';
+    const rows = [];
+    let subs = bs.map(() => 0);
+    keys.forEach((k, i) => {
+      const cells = bs.map((b, j) => {
+        const l = b.tk_lines.find((x) => x.label === k);
+        if (!l) return '<td class="val dim">—</td>';
+        subs[j] += l.value;
+        if (i === 0) return `<td class="val">${l.value}</td>`;
+        if (/×2/.test(k)) return `<td class="val neg">×2</td>`;
+        return valCell(l.value, true);
+      }).join('');
+      const m = k.match(/^(.*?)\s*\((C[\d.]+)\)$/);
+      const lbl = m ? `${esc(m[1])}${rule(m[2])}` : esc(k);
+      rows.push(`<tr class="${i ? 'indent' : ''}"><td class="lbl">${lbl}</td>${cells}</tr>`);
+    });
+    if (keys.length > 1) {
+      rows.push('<tr class="sub"><td class="lbl">Modified TK#</td>' + subs.map((s) => `<td class="val">${s}</td>`).join('') + '</tr>');
+    }
+    rows.push('<tr><td class="lbl">Target armor (AF)' + rule('C7.11') + '</td>' + bs.map((b) => {
+      const l = b.tk_lines.find(isAf);
+      return `<td class="val pos">−${Math.abs(l ? l.value : 0)}</td>`;
+    }).join('') + '</tr>');
+    rows.push('<tr class="total"><td class="lbl">Final TK#</td>' + bs.map((b) => `<td class="val">${b.final_tk}</td>`).join('') + '</tr>');
+    rows.push('<tr class="note"><td>Chance of this hit</td>' + bs.map((b) => `<td class="val">${pct(b.probability)}`
+      + (b.multiple_hit_probability ? `<br>${pct(b.multiple_hit_probability)} mult.` : '') + '</td>').join('') + '</tr>');
+    rows.push('<tr class="bar"><td class="lbl">Effect if hit</td>' + bs.map((b) => {
+      const segs = b.effects.map((e) => `<span class="sev-${sev(e.result)}" title="${esc(e.result)} ${pct(e.probability)}" style="width:${(e.probability * 100).toFixed(2)}%"></span>`).join('');
+      const kill = b.effects.filter((e) => e.result === 'Burn' || e.result === 'Elim').reduce((a, e) => a + e.probability, 0);
+      return `<td class="val"><div class="ws-bar">${segs}</div><div class="ws-kill">${pct(kill)} kill</div></td>`;
+    }).join('') + '</tr>');
+    const legend = [['burn', 'Burn'], ['elim', 'Elim'], ['shock', 'Shock'], ['immob', 'Immobilized'], ['miss', 'No effect']]
+      .map(([c, l]) => `<span><i class="sev-${c}"></i>${l}</span>`).join('');
+    const btk = tk.basic_tk ? ` · Basic TK# from ${esc(tk.basic_tk.table)} table${tk.basic_tk.rule && tk.basic_tk.rule !== 'override' ? ' (' + esc(tk.basic_tk.rule) + ')' : ''}` : '';
+    return `<div class="ws"><div class="ws-title">To Kill${btk}</div><table class="ws-table">${head}${rows.join('')}</table>`
+      + `<div class="ws-legend">${legend}</div></div>`;
+  }
+
   function render(r) {
     $('error').style.display = 'none';
     const th = r.to_hit || r;
@@ -483,18 +614,14 @@
       + `<div class="d-bar-track"><div class="d-bar sev-${sev(o.result)}" style="width:${(o.probability * 100).toFixed(2)}%"></div></div>`
       + `<div class="d-pct">${pct(o.probability)}</div></div>`).join('');
 
-    // Math line (builder only)
-    if (mode === 'builder' && r.to_hit) {
-      const mods = th.modifications.map((m) => `${m.label} ${m.mod > 0 ? '+' : ''}${m.mod}`).join(', ');
-      const drms = th.drm.map((d) => `${esc(d.label)} ${d.drm > 0 ? '+' : ''}${d.drm}`).join(', ');
-      $('math-line').innerHTML = `<b>Basic TH#</b> ${th.basic} (${th.range_band}, ${th.color})`
-        + (mods ? ` · ${esc(mods)}` : '') + ` → <b>Modified ${tht}</b><br>`
-        + `<b>TH DRM</b> ${drms || 'none'} = <b>${th.total_drm}</b>`;
-      $('math-line').style.display = 'block';
-    }
-
     const tk = r.to_kill;
-    if (tk && tk.branches && tk.branches.length) {
+    const sheets = [];
+    if (mode === 'builder' && r.to_hit) sheets.push(thSheet(th));
+    const armoredTk = tk && tk.branches && tk.branches.length && tk.branches[0].tk_lines;
+    if (armoredTk) sheets.push(tkSheet(tk));
+    $('worksheets').innerHTML = sheets.join('');
+
+    if (tk && tk.branches && tk.branches.length && !armoredTk) {
       const pers = tk.full_fp !== undefined;
       const head = pers ? '<tr><th>Hit</th><th>P</th><th>IFT</th><th>Effects</th></tr>'
                         : '<tr><th>Hit</th><th>P</th><th>Final TK#</th><th>Effects</th></tr>';
@@ -542,7 +669,6 @@
     document.querySelectorAll('.mode-tab').forEach((x) => x.classList.toggle('active', x === b));
     $('panel-builder').style.display = mode === 'builder' ? 'block' : 'none';
     $('panel-quick').style.display = mode === 'quick' ? 'block' : 'none';
-    $('math-line').style.display = 'none';
     run();
   }));
   document.querySelectorAll('#panel-builder input, #panel-builder select, #panel-quick input, #panel-quick select')
