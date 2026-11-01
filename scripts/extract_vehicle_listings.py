@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Extract the Chapter H vehicle listings (AF, TA, Size, MA, ...) from the eASLRB
-PDF into data/rulebook/vehicles.json, the vehicle table behind the TH/TK tools.
+Extract the Chapter H vehicle listings (AF, TA, Size, MA, ...) and ordnance
+(Gun) listings (CSize, ROF, B#, Target Size, ...) from the eASLRB PDF into
+data/rulebook/vehicles.json, the vehicle/Gun table behind the TH/TK tools.
 
 The listing pages are rotated tables: each column runs along the page's y axis
 and each vehicle is a strip at one x. Words are placed by position: rows by x,
@@ -22,6 +23,9 @@ columns by the y of the column headers (read off the header strip that holds
     scripts/data/us_listing_glyphs.json holds each subset's characters in
     code order (read off rendered glyph sheets) and those pages are decoded
     via pdfminer, which reports each character's subset font and code.
+
+The ordnance listings are flat (unrotated) tables: columns by header x, and
+wrapped names attached to the nearest data row (a row with a Type code).
 
 NOT covered: landing craft (H112) use a different layout.
 
@@ -85,7 +89,7 @@ def _headers(words, name_x):
     return cols  # (name, start_y, end_y), reading order
 
 
-def _decoded_words(pno, xmax, pdf=PDF):
+def _decoded_words(pno, xmax, pdf=PDF, flat=False):
     """Words (x0, y0, x1, y1, text) in PyMuPDF coordinates for a page whose
     fonts have no character map, decoded with the per-subset glyph table."""
     import logging
@@ -115,8 +119,9 @@ def _decoded_words(pno, xmax, pdf=PDF):
                     ch = cs[code] if code < len(cs) else "?"
                 else:
                     ch = o.get_text()
-                # matrix[5] grows along the reading direction of rotated text
-                chars.append((o.x0, height - o.y1, o.x1, height - o.y0, ch, o.matrix[5]))
+                # reading-direction coordinate: matrix[5] for rotated text, x for flat
+                along = o.x0 if flat else o.matrix[5]
+                chars.append((o.x0, height - o.y1, o.x1, height - o.y0, ch, along))
             elif hasattr(o, "__iter__"):
                 for x in o:
                     walk(x)
@@ -124,13 +129,16 @@ def _decoded_words(pno, xmax, pdf=PDF):
 
     lines = collections.defaultdict(list)
     for c in chars:
-        lines[round(c[0], 1)].append(c)
+        lines[round(c[3], 0) if flat else round(c[0], 1)].append(c)
     words = []
     for line in lines.values():
         line.sort(key=lambda c: c[5])
         cur = []
         for c in line:
-            gap = cur and (cur[-1][1] - c[3]) > 1.2   # PyMuPDF y shrinks as text reads on
+            if flat:
+                gap = cur and (c[0] - cur[-1][2]) > 1.2
+            else:
+                gap = cur and (cur[-1][1] - c[3]) > 1.2   # PyMuPDF y shrinks as text reads on
             if c[4] in (" ", "\u00a0", "\x00") or gap:
                 if cur:
                     words.append(cur)
@@ -324,18 +332,135 @@ def extract(pdf=PDF):
     return [v for v in out if v["name"] not in seen]
 
 
+# ---------------------------------------------------------------------------
+# Ordnance (Gun) listings: flat tables, one row per Gun.
+# ---------------------------------------------------------------------------
+
+# 0-based page -> nationality of that ordnance listing.
+GUN_PAGES = {
+    350: "German", 362: "Russian", 425: "British", 442: "Italian", 455: "Japanese",
+    466: "Chinese", 489: "French", 508: "Allied Minor", 525: "Axis Minor",
+    526: "Axis Minor", 576: "UN Forces", 590: "Communist Forces",
+}
+DECODED_GUN_PAGES = {391: ("U.S.", 999)}
+GUN_HEADER_ALIAS = {"ROF(IFE)": "ROF", "(IFE)": "ROF", "#*": "#"}
+
+
+def _gun_rows(words):
+    """Rows of a flat ordnance table: words -> [{column: text}] per Gun."""
+    heads = [w for w in words if w[4] == "CSize"]
+    out = []
+    for h in heads:
+        y = h[1]
+        hdr = sorted((w for w in words if abs(w[1] - y) < 3), key=lambda w: w[0])
+        cols = [(GUN_HEADER_ALIAS.get(w[4], w[4]), w[0]) for w in hdr]
+        if cols and cols[0][0] == "Name":   # some tables print no '#' header
+            cols.insert(0, ("#", cols[0][1] - 10))
+        # "ROF" and "(IFE)" may print as two header words
+        cols = [c for i, c in enumerate(cols) if not (c[0] == "ROF" and i and cols[i - 1][0] == "ROF")]
+        nxt = [o[1] for o in heads if o[1] > y + 5]
+        stop = min(nxt) if nxt else 9999
+        lines = collections.defaultdict(list)
+        for w in words:
+            if y + 3 < w[1] < stop and w[0] >= cols[0][1] - 4:
+                lines[round(w[1] / 2.2)].append(w)
+        parsed = []   # (y, {column: [words]})
+        for k in sorted(lines):
+            line = sorted(lines[k], key=lambda w: w[0])
+            text = " ".join(w[4] for w in line)
+            if re.search(r"LISTINGS? KEY|NOTES|^Key\b", text):
+                break
+            cells = collections.defaultdict(list)
+            for w in line:
+                col = max((c for c in cols if c[1] <= w[0] + 3), key=lambda c: c[1], default=cols[0])
+                cells[col[0]].append(w[4])
+            parsed.append((sum(w[1] for w in line) / len(line), cells))
+        # A data line has an ordnance Type code; other lines are
+        # wrapped names (above or below the data line) and continuations.
+        def is_data(c):
+            return bool(c.get("Type")) and c["Type"][0].rstrip("†") in GUN_TYPES | {"—"}
+        rows = [(y, {k: list(v) for k, v in c.items()}) for y, c in parsed if is_data(c)]
+        for y, c in parsed:
+            if is_data(c):
+                continue
+            if not rows or not set(c) <= {"#", "Name", "Special", "Notes"} \
+                    or len(c.get("Name", [])) > 5:
+                continue   # a footnote line spanning the table, not a wrapped cell
+            near = min(rows, key=lambda r: abs(r[0] - y))
+            if abs(near[0] - y) > 14:
+                continue
+            for k, v in c.items():
+                if k in ("Name", "Special", "Notes", "#"):
+                    tgt = near[1].setdefault(k, [])
+                    if y < near[0]:
+                        tgt[:0] = v       # line above the data line comes first
+                    else:
+                        tgt.extend(v)
+        rows = [{k: " ".join(v) for k, v in r.items()} for _, r in rows]
+        out.extend(rows)
+    return out
+
+
+GUN_TYPES = {"MTR", "AT", "INF", "ART", "AA", "RCL", "ATR"}
+# Sub-listing labels inside a table ("ROMANIAN", "COMMON, continued", "U.S./ROK/OUNC")
+SECTION_LABEL = re.compile(r"^(?:[A-Z]{5,}|[A-Z.]+(?:/[A-Z.]+)+)(?:,? continued)?\s+")
+
+
+def _gun_record(r, nat, page):
+    csize = _clean(r.get("CSize", "")).split()
+    m = re.match(r"^(\d+(?:\.\d+)?)(LL|L|\*)?$", csize[0]) if csize else None
+    rof = _clean(r.get("ROF", ""))
+    special = _clean(r.get("Special", ""))
+    return {
+        "name": SECTION_LABEL.sub("", re.sub(r"\s+", " ", r.get("Name", "")).strip()),
+        "nationality": nat,
+        "type": _clean(r.get("Type", "")),
+        "gun": f"{int(float(m.group(1)))}{m.group(2) or ''}" if m and "." not in m.group(1)
+               else (csize[0] if csize else None),
+        "csize_raw": r.get("CSize", ""),
+        "rof": rof,
+        "b_number": _clean(r.get("B#", "")),
+        "range": _clean(r.get("Range", "")),
+        "m_number": _clean(r.get("M#", "")),
+        "size": _int(r.get("TSize")),
+        "dates": _clean(r.get("Dates", "")),
+        "special": special,
+        # C2.3: a Gun is NT unless its Special column marks a 360° mount (T)
+        "gun_traverse": "T" if re.match(r"T\b", special) else "NT",
+        "notes_raw": r.get("Notes", ""),
+        "page": page + 1,
+    }
+
+
+def extract_guns(pdf=PDF):
+    doc = fitz.open(str(pdf))
+    sources = [(pno, nat, doc[pno].get_text("words")) for pno, nat in GUN_PAGES.items()]
+    sources += [(pno, nat, _decoded_words(pno, xmax, pdf, flat=True))
+                for pno, (nat, xmax) in DECODED_GUN_PAGES.items()]
+    guns = []
+    for pno, nat, words in sources:
+        for r in _gun_rows(words):
+            g = _gun_record(r, nat, pno)
+            if g["type"] in GUN_TYPES and g["name"]:
+                guns.append(g)
+    return guns
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--show", help="print matching vehicles instead of writing")
     args = ap.parse_args()
     vehicles = extract()
+    guns = extract_guns()
     if args.show:
-        for v in vehicles:
+        for v in vehicles + guns:
             if args.show.lower() in v["name"].lower():
                 print(json.dumps(v, ensure_ascii=False))
         return
-    OUT.write_text(json.dumps({"source": PDF.name, "vehicles": vehicles},
+    OUT.write_text(json.dumps({"source": PDF.name, "vehicles": vehicles, "guns": guns},
                               ensure_ascii=False, indent=1))
+    print(f"guns: {len(guns)} "
+          + ", ".join(f"{k} {n}" for k, n in collections.Counter(g["nationality"] for g in guns).items()))
     by_nat = collections.Counter(v["nationality"] for v in vehicles)
     blank = [v["name"] for v in vehicles if "af_blank" in v["armor_flags"]]
     bad_af = [v["name"] for v in vehicles if v["armor"] != "unarmored"

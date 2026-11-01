@@ -331,6 +331,69 @@
    "special_ammo": "A 5 /6",
    "notes_raw": "",
    "page": 378
+  },
+  {
+   "name": "M3A3(a) PaK 40",
+   "nationality": "Allied Minor",
+   "type": "TD",
+   "dates": "10/44-45",
+   "size": 1,
+   "af_raw": "6/3/★T†",
+   "ta": "",
+   "hull_front": 6,
+   "hull_side": 3,
+   "turret_front": 6,
+   "turret_side": 3,
+   "armor": "partial",
+   "armor_flags": [
+    "partial_rear_turret_unarmored"
+   ],
+   "open_topped": false,
+   "ma": "B75L",
+   "ma_mount": "B",
+   "gun_traverse": "NT",
+   "gun": "75L",
+   "rof": "1",
+   "b_number": "10",
+   "special_ammo": "",
+   "notes_raw": "21†, A, H†1, L",
+   "page": 500
+  }
+ ],
+ "guns": [
+  {
+   "name": "7.5cm PaK 40",
+   "nationality": "German",
+   "type": "AT",
+   "gun": "75L",
+   "csize_raw": "75L",
+   "rof": "2",
+   "b_number": "",
+   "range": "192",
+   "m_number": "8",
+   "size": 1,
+   "dates": "42-45",
+   "special": "NT, QSU, A52/43/34, s7",
+   "gun_traverse": "NT",
+   "notes_raw": "",
+   "page": 351
+  },
+  {
+   "name": "OQF 17-Pounder",
+   "nationality": "British",
+   "type": "AT",
+   "gun": "76LL",
+   "csize_raw": "76LL†",
+   "rof": "2",
+   "b_number": "",
+   "range": "263",
+   "m_number": "",
+   "size": 0,
+   "dates": "",
+   "special": "NT, HE8J4+, D5S4/65",
+   "gun_traverse": "NT",
+   "notes_raw": "",
+   "page": 426
   }
  ]
 }

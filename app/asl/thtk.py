@@ -820,34 +820,61 @@ _DRM_KEYS = set(build_th_drm.__code__.co_varnames[:build_th_drm.__code__.co_kwon
 
 
 # compute_attack inputs resolved against the Chapter H listings.
-VEHICLE_KEYS = {"firer_vehicle", "target_vehicle", "target_nationality"}
+VEHICLE_KEYS = {"firer_vehicle", "target_vehicle", "target_nationality", "firer_gun",
+                "target_gun"}
 _GUN_TYPE_FROM_GT = {"T": "T", "ST": "ST", "RST": "ST", "1MT": "ST", "NT": "NT"}
 
 
 def _apply_vehicles(kw: Dict[str, Any]) -> Dict[str, Any]:
     """Fill gun / AF / target size from the Chapter H listings for
-    firer_vehicle / target_vehicle. Values the caller gave always win."""
+    firer_vehicle / firer_gun / target_vehicle / target_gun. A vehicle name
+    that matches no vehicle is tried as a Gun. Values the caller gave win."""
     from app.asl import vehicles
 
     used: Dict[str, Any] = {}
     notes: List[str] = []
     firer_name = kw.pop("firer_vehicle", None)
+    firer_gun = kw.pop("firer_gun", None)
     target_name = kw.pop("target_vehicle", None)
+    target_gun = kw.pop("target_gun", None)
     target_nat = kw.pop("target_nationality", None)
+    v = kind = None
 
-    def resolve(name, nat, role):
-        hit = vehicles.find(name, nat)
-        if "vehicle" not in hit:
+    def resolve(name, nat, role, kind):
+        hit = vehicles.find_gun(name, nat) if kind == "gun" else vehicles.find(name, nat)
+        if kind == "vehicle" and hit.get("match") != "exact":
+            # "PaK 40" names a Gun even though a vehicle name contains it.
+            gun_hit = vehicles.find_gun(name, nat)
+            if gun_hit.get("match") in ("exact", "alias") or (
+                    "error" in hit and "error" not in gun_hit):
+                return resolve(name, nat, role, "gun")
+        if kind not in hit:
             if "candidates" in hit:
-                raise ValueError(f"{role} vehicle {name!r} is ambiguous: "
+                raise ValueError(f"{role} {kind} {name!r} is ambiguous: "
                                  + "; ".join(hit["candidates"]) + ". Name one of them.")
-            raise ValueError(f"{role} vehicle {name!r}: {hit['error']}")
+            raise ValueError(f"{role} {kind} {name!r}: {hit['error']}")
         if hit.get("note"):
             notes.append(hit["note"])
-        return hit["vehicle"]
+        return kind, hit[kind]
 
-    if firer_name:
-        v = resolve(firer_name, kw.get("nationality"), "Firing")
+    if firer_name or firer_gun:
+        kind, v = resolve(firer_gun or firer_name, kw.get("nationality"), "Firing",
+                          "gun" if firer_gun else "vehicle")
+        if kind == "gun":
+            if not kw.get("gun"):
+                if not v.get("gun") or not re.match(r"\d", v["gun"]):
+                    raise ValueError(f"{v['name']} has no usable caliber ({v.get('csize_raw')}).")
+                kw["gun"] = v["gun"]
+            kw.setdefault("nationality", v["nationality"])
+            kw.setdefault("gun_type", v.get("gun_traverse") or "NT")
+            used["firer"] = {k: v.get(k) for k in ("name", "nationality", "type", "gun", "rof",
+                                                    "b_number", "special", "page")}
+            if kw.get("rof") is None and (v.get("rof") or "").split(" ")[0].isdigit():
+                kw["rof"] = int(v["rof"].split(" ")[0])
+            if kw.get("b_number") is None and re.fullmatch(r"\d+", v.get("b_number") or ""):
+                kw["b_number"] = int(v["b_number"])
+            v = None
+    if (firer_name or firer_gun) and v is not None:
         if not kw.get("gun"):
             if not v.get("gun"):
                 raise ValueError(f"{v['name']} has no Gun MA ({v.get('ma') or 'none'}).")
@@ -863,8 +890,22 @@ def _apply_vehicles(kw: Dict[str, Any]) -> Dict[str, Any]:
         if kw.get("b_number") is None and re.fullmatch(r"\d+", v.get("b_number") or ""):
             kw["b_number"] = int(v["b_number"])
 
-    if target_name:
-        v = resolve(target_name, target_nat, "Target")
+    if target_gun or target_name:
+        kind, v = resolve(target_gun or target_name, target_nat, "Target",
+                          "gun" if target_gun else "vehicle")
+    if (target_gun or target_name) and kind == "gun":
+        # A Gun is attacked as an unarmored target; its size is C2.271/C6.7.
+        if kw.get("target_type", "vehicle") == "vehicle":
+            raise ValueError(f"{v['name']} is a Gun: fire on it with the Infantry (or Area) "
+                             "Target Type; the Vehicle Target Type is for vehicles (C3.31, C3.41).")
+        kw["target"] = {**(kw.get("target") or {}), "kind": "personnel"}
+        if "target_size" not in kw and v.get("size") is not None:
+            kw["target_size"] = v["size"]
+        notes.append(f"Target Gun {v['name']}: a hit is resolved vs its crew on the IFT and on "
+                     "the C11.6 Gun Destruction Table (not modelled); Gunshield TEM may apply "
+                     "(C11.5).")
+        used["target"] = {k: v.get(k) for k in ("name", "nationality", "type", "size", "page")}
+    elif target_gun or target_name:
         target = dict(kw.get("target") or {})
         facing = (target.get("facing") or "front").lower()
         if v["armor"] == "unarmored":

@@ -951,9 +951,9 @@ TOOL_SCHEMAS = [
             "minus the struck aspect's AF -> Burn/Elim/Immobilized/Shock/Possible Shock) "
             "or the IFT result vs personnel. Use whenever a question DESCRIBES an "
             "ordnance shot; if the Modified TH#, TH DRM and Final TK# are already "
-            "known, use thtk_odds. Name the vehicles (target_vehicle, firer_vehicle) and "
-            "the tool reads AF, turret armor, Target Size and the MA gun from the eASLRB "
-            "Chapter H listings; an ambiguous name returns the candidates to choose from. "
+            "known, use thtk_odds. Name the vehicles/Guns (target_vehicle, firer_vehicle, "
+            "firer_gun, target_gun) and the tool reads AF, turret armor, Target Size, the "
+            "MA or Gun caliber, ROF and B# from the eASLRB Chapter H listings; an ambiguous name returns the candidates to choose from. "
             "Explicit AF/gun values override the listing. NEVER hand-derive TH#/TK# or "
             "quote AF from memory — present the tool's ledgers and odds."
         ),
@@ -969,6 +969,12 @@ TOOL_SCHEMAS = [
                 "target_vehicle": {"type": "string",
                                    "description": "Target vehicle's name, e.g. 'Panther', 'PzKpfw VG', "
                                                   "'KV-1E' — supplies AF for the facing, turret armor, Target Size."},
+                "firer_gun": {"type": "string",
+                              "description": "Firing Gun's name, e.g. '17pdr', 'PaK 40', 'M1 57mm AT Gun' — "
+                                             "supplies caliber, nationality, mount (NT/T), ROF, B#."},
+                "target_gun": {"type": "string",
+                               "description": "Target Gun's name — supplies its Target Size (use the "
+                                              "Infantry Target Type vs a Gun)."},
                 "target_nationality": {"type": "string",
                                        "description": "Target's nationality, to pick between listings with the same name."},
                 "nationality": {"type": "string",

@@ -389,9 +389,10 @@ def test_ambiguous_vehicle_is_a_tool_error(listing):
     assert "ambiguous" in r["error"]
 
 
-def test_missing_listing_store_falls_back():
+def test_missing_listing_store_falls_back(monkeypatch):
     from app.asl import vehicles
-    vehicles.load("/nonexistent/vehicles.json")
+    monkeypatch.setattr(vehicles, "_PATH", Path("/nonexistent/vehicles.json"))
+    vehicles.reset()
     try:
         assert "error" in vehicles.find("Panther")
         r = thtk.compute_attack(gun="76LL", nationality="British", range_hexes=6,
@@ -422,6 +423,29 @@ def test_us_glyph_tables_are_in_cp1252_order():
         keys = [c.encode("cp1252", "ignore") or b"\xff" for c in body]
         assert keys == sorted(keys), tag
         assert len(set(body)) == len(body), tag
+
+
+
+def test_gun_lookup_and_firer_gun(listing):
+    g = listing.find_gun("17pdr")["gun"]
+    assert (g["name"], g["gun"]) == ("OQF 17-Pounder", "76LL")
+    r = thtk.compute_attack(firer_gun="17pdr", range_hexes=6, target_vehicle="Panther")
+    assert (r["gun"], r["nationality"]) == ("76LL", "British")
+    assert {"label": "Case P: target size", "drm": -1, "rule": "C6.7"} in r["to_hit"]["drm"]
+
+
+def test_firer_name_prefers_gun_over_partial_vehicle_match(listing):
+    # "PaK 40" is a German Gun even though "M3A3(a) PaK 40" contains it.
+    r = thtk.compute_attack(firer_vehicle="PaK 40", range_hexes=8, target_vehicle="T-34 M43")
+    assert r["vehicles"]["firer"]["name"] == "7.5cm PaK 40" and r["gun"] == "75L"
+
+
+def test_target_gun_needs_infantry_target_type(listing):
+    with pytest.raises(ValueError, match="Infantry"):
+        thtk.compute_attack(firer_vehicle="PzKpfw IVH", range_hexes=5, target_gun="PaK 40")
+    r = thtk.compute_attack(firer_vehicle="PzKpfw IVH", ammo="HE", target_type="infantry",
+                            range_hexes=5, target_gun="PaK 40")
+    assert {"label": "Case P: target size", "drm": 1, "rule": "C6.7"} in r["to_hit"]["drm"]
 
 
 if __name__ == "__main__":

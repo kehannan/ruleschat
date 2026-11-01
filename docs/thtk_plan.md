@@ -168,7 +168,10 @@ Gun-vs-Gun duels across fire phases.
      decoded with per-font character tables
      (`scripts/data/us_listing_glyphs.json`, codes in Windows-1252 order).
    - Landing craft.
-   - Ordnance (Gun) listings are not parsed yet.
+   - Ordnance (Gun) listings are parsed too: 380 Guns (CSize, ROF, B#,
+     Target Size, mount). The U.S. one (H46) is decoded the same way as the
+     U.S. vehicles. Use `firer_gun` / `target_gun`; a firer or target name
+     that only loosely matches a vehicle is tried as a Gun.
    - Prod needs the JSON copied to `data/rulebook/`, like `sections.json`.
 
    Original decision (2026-10-30): (a), built later from vehicle info Kevin will
