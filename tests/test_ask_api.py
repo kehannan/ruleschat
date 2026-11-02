@@ -317,6 +317,7 @@ def admin_client(client, monkeypatch):
 
 @pytest.mark.parametrize("key,slug", [
     ("claude-fable-sub", "claude-cli/claude-fable-5-1"),
+    ("claude-opus-sub", "claude-cli/claude-opus-5-5"),
     ("gpt-6-astra-sub", "codex-cli/gpt-6-astra"),
 ])
 def test_admin_subscription_model_with_vsav_runs_agentic(admin_client, key, slug):

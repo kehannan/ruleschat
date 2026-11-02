@@ -91,6 +91,9 @@ MODELS: tuple = (
     ModelSpec("claude-fable-sub", "claude-fable · subscription", "claude-cli/claude-fable-5-1",
               True,  False, True,    0.0,   0.0,
               True),
+    ModelSpec("claude-opus-sub", "claude-opus-5.5 · subscription", "claude-cli/claude-opus-5-5",
+              True,  False, True,    0.0,   0.0,
+              True),
     # Same idea via the headless Codex CLI on the server's ChatGPT login
     # (app/asl/codex_cli_client.py).
     ModelSpec("gpt-6-astra-sub", "gpt-6-astra · subscription", "codex-cli/gpt-6-astra",
