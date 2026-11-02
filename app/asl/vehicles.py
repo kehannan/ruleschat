@@ -28,7 +28,8 @@ OVERRIDES_PATH = _DATA / "listing_overrides.json"
 
 def _norm(s: str) -> str:
     s = re.sub(r"[^a-z0-9]", "", (s or "").lower())
-    return s.replace("pdr", "pounder")
+    # VASL counters say "PzKw IVJ"; the listings say "PzKpfw IVJ".
+    return s.replace("pdr", "pounder").replace("pzkw", "pzkpfw")
 
 
 def _aliases(kind: str) -> Dict[str, List[str]]:

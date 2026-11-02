@@ -371,6 +371,35 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return (dash >= 0 ? hexRef.substring(dash + 1) : hexRef).toUpperCase();
   }
 
+  /** The Hex a question names. "46-W7" is looked up on that board. A bare
+   *  "W7" on a multi-board map goes to the board whose W7 holds visible units
+   *  (losMap.getHex("W7") takes the first board, which can be the wrong one),
+   *  else the first board that has it. boardOut[0] gets the board used. */
+  static Hex resolveHex(String ref, VASL.LOS.Map.Map losMap, ASLMap gameMap,
+                        VASLGameInterface game, String[] boardOut) {
+    if (ref.indexOf('-') > 0) {
+      boardOut[0] = ref.substring(0, ref.indexOf('-'));
+      final Hex h = losMap.getHex(mapAwareLookupName(ref), gameMap);
+      return h != null ? h : losMap.getHex(bareHex(ref));
+    }
+    Hex first = null;
+    for (String name : boardNames(gameMap)) {
+      final Hex h = losMap.getHex(name + ref, gameMap);
+      if (h == null) {
+        continue;
+      }
+      if (unitLocation(gameMap, game, h) != null) {
+        boardOut[0] = name;
+        return h;
+      }
+      if (first == null) {
+        first = h;
+        boardOut[0] = name;
+      }
+    }
+    return first != null ? first : losMap.getHex(ref);
+  }
+
   /** Board names as getHex(name + hex, map) matches them (its localized name, "r43" kept). */
   static List<String> boardNames(ASLMap map) {
     final List<String> names = new ArrayList<>();
@@ -1218,43 +1247,13 @@ public class AskRuleschatButton extends AbstractConfigurable {
       VASL.LOS.Map.Map losMap = gameMap.getVASLMap();
       VASLGameInterface game = new VASLGameInterface(gameMap, losMap);
       game.updatePieces();
-      Hex source = null;
-      Hex target = null;
-      String board = from.indexOf('-') > 0 ? from.substring(0, from.indexOf('-')) : null;
-      // A bare "W7" on a multi-board map: use the board whose W7 holds the
-      // units the question is about. losMap.getHex("W7") takes the first
-      // board, which can be the wrong one.
-      if (from.indexOf('-') < 0 && to.indexOf('-') < 0) {
-        int bestScore = 0;
-        for (String name : boardNames(gameMap)) {
-          final Hex s = losMap.getHex(name + from, gameMap);
-          final Hex t = losMap.getHex(name + to, gameMap);
-          if (s == null || t == null) {
-            continue;
-          }
-          final int score = (unitLocation(gameMap, game, s) != null ? 1 : 0)
-            + (unitLocation(gameMap, game, t) != null ? 1 : 0);
-          if (score > bestScore) {
-            bestScore = score;
-            source = s;
-            target = t;
-            board = name;
-          }
-        }
-      }
-      if (source == null || target == null) {
-        source = losMap.getHex(mapAwareLookupName(from), gameMap);
-        target = losMap.getHex(mapAwareLookupName(to), gameMap);
-      }
-      if (source == null) {
-        source = losMap.getHex(bareHex(from));
-      }
-      if (target == null) {
-        target = losMap.getHex(bareHex(to));
-      }
+      final String[] sourceBoard = new String[1];
+      final Hex source = resolveHex(from, losMap, gameMap, game, sourceBoard);
+      final Hex target = resolveHex(to, losMap, gameMap, game, new String[1]);
       if (source == null || target == null) {
         return null;
       }
+      final String board = sourceBoard[0];
       LOSResult result = new LOSResult();
       // Check LOS from where the units actually are (e.g. a building's first
       // floor), not from the hex's ground level.

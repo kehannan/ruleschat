@@ -10,6 +10,7 @@ standalone tool always agree. Tool schemas pull their enums live from the
 engine, so they can never drift from the underlying tables.
 """
 import logging
+import re
 from typing import Dict, Any, List, Optional
 
 from app.asl import ift
@@ -320,7 +321,32 @@ def thtk_odds(
     return result
 
 
-def ordnance_attack(**kwargs) -> Dict[str, Any]:
+_ACQ_COUNTER = re.compile(r"^\s*(-[12])\b.*\bAcq\b", re.I)
+
+
+def _vasl_acquisition(kwargs: Dict[str, Any], native_los: Optional[dict]) -> Optional[str]:
+    """Default `acquired` from an Acq counter VASL reports in the target hex.
+
+    Only when the model left acquisition unset and the shot is the LOS pair
+    the extension measured (same range). Returns the note to show, or None."""
+    if not native_los or kwargs.get("acquired") is not None or kwargs.get("bore_sighted"):
+        return None
+    facts = native_los.get("facts") or {}
+    if native_los.get("range") is None or native_los.get("range") != kwargs.get("range_hexes"):
+        return None
+    for h in facts.get("hexes") or []:
+        if not isinstance(h, dict) or h.get("role") != "target":
+            continue
+        for c in h.get("counters") or []:
+            m = _ACQ_COUNTER.match(str((c or {}).get("name") or ""))
+            if m:
+                kwargs["acquired"] = int(m.group(1))
+                return (f"Acquisition {m.group(1)} taken from the '{c['name']}' counter in "
+                        f"{h.get('hex')} (C6.5); this assumes it is the firing Gun's own.")
+    return None
+
+
+def ordnance_attack(_context: Optional[dict] = None, **kwargs) -> Dict[str, Any]:
     """
     Build and resolve one ordnance shot from the SITUATION (ASL Chapter C):
     gun + ammo + range + target -> Modified TH# (C3/C4), an itemized TH DRM
@@ -328,10 +354,13 @@ def ordnance_attack(**kwargs) -> Dict[str, Any]:
     Hits, hull/turret) and the To Kill / IFT outcome distribution. See
     `thtk.compute_attack`.
     """
+    acq_note = _vasl_acquisition(kwargs, (_context or {}).get("native_los"))
     try:
         result = thtk.compute_attack(**kwargs)
     except (ValueError, TypeError) as e:
         return {"error": str(e)}
+    if acq_note:
+        result.setdefault("notes", []).append(acq_note)
     logging.info(
         "💥 ordnance_attack(%s %s, %s target %s @%s) -> TH# %s drm %s, hit %s",
         result.get("gun"), result.get("ammo"), result.get("target_type"),
@@ -1153,7 +1182,7 @@ TOOL_FUNCTIONS = {
 # Tools that receive the server-side execution context (parsed .vsav state,
 # retrieval client, ...) as a hidden `_context` kwarg. The model never sees or
 # supplies it.
-CONTEXT_TOOLS = {"resolve_attack", "resolve_cc", "search_rules"}
+CONTEXT_TOOLS = {"resolve_attack", "resolve_cc", "search_rules", "ordnance_attack"}
 
 
 def execute_tool(

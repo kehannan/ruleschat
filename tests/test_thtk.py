@@ -508,3 +508,26 @@ def test_ordnance_pipeline_contract():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_ordnance_attack_takes_acquisition_from_vasl_counter():
+    from app.asl.tools import execute_tool
+    los = {"range": 4, "facts": {"hexes": [
+        {"hex": "K1", "role": "firer", "counters": []},
+        {"hex": "Y3", "role": "target", "counters": [{"name": "-2 GE Acq"}]}]}}
+    args = {"gun": "75L", "nationality": "German", "ammo": "HE", "range_hexes": 4,
+            "target_type": "infantry"}
+    r = execute_tool("ordnance_attack", dict(args), context={"native_los": los})
+    labels = [d["label"] for d in r["to_hit"]["drm"]]
+    assert any("Acquired" in l for l in labels), labels
+    assert any("-2 GE Acq" in n for n in r["notes"])
+    # The model's own value wins, and a different shot (range) is left alone.
+    r = execute_tool("ordnance_attack", {**args, "acquired": 0}, context={"native_los": los})
+    assert not any("Acquired" in d["label"] for d in r["to_hit"]["drm"])
+    r = execute_tool("ordnance_attack", {**args, "range_hexes": 7}, context={"native_los": los})
+    assert not any("Acquired" in d["label"] for d in r["to_hit"]["drm"])
+
+
+def test_vasl_pzkw_spelling_matches_listing():
+    from app.asl import vehicles
+    assert vehicles._norm("PzKw IVJ") == vehicles._norm("PzKpfw IVJ")

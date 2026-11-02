@@ -1,6 +1,7 @@
 """Who fires, with what FP: side, eligibility, PBF, SW manning (A7, A9)."""
 from typing import Dict, List, Set
 
+from app.asl import vehicles
 from app.asl.attack.context import AttackContext, NoAttack
 from app.asl.attack_resolver import (
     _all_hex_markers, _is_hs_or_crew, _is_squad, classify_unit, ski_state,
@@ -106,7 +107,12 @@ def eligible_firers(ctx: AttackContext) -> None:
             ctx.exclude(u, "hero/SMC inherent FP not modeled")  # VERIFY (V11)
             continue
         if cls["kind"] == "unknown":
-            ctx.exclude(u, "unrecognized counter name — could not derive FP")
+            veh = vehicles.find(u.get("name") or "")
+            if veh.get("vehicle") and veh.get("match") in ("exact", "alias"):
+                ctx.exclude(u, f"vehicle ({veh['vehicle']['name']}) — its MA "
+                               f"{ORDNANCE_EXCLUSION}, NOT the IFT; excluded from this attack")
+            else:
+                ctx.exclude(u, "unrecognized counter name — could not derive FP")
             continue
         if cls["kind"] == "personnel":
             ctx.personnel.append((u, cls))
