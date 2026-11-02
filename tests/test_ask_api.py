@@ -633,3 +633,14 @@ def test_only_first_ordnance_call_is_carded_and_facing_is_labelled():
     assert len(cards) == 1
     assert "(front)" in cards[0] and "Target front armor (AF)" in cards[0]
     assert "-18" in cards[0] and "(side)" not in cards[0]
+
+
+def test_board_less_vasl_los_dropped_on_multi_board_map():
+    two = {"boards": [{"name": "r43"}, {"name": "46"}]}
+    bare = {"source": "T8", "target": "W7", "hindrance": 2}
+    assert ask_module._native_los_board_unknown(bare, two)
+    assert not ask_module._native_los_board_unknown({**bare, "board": "46"}, two)
+    assert not ask_module._native_los_board_unknown(
+        {**bare, "source": "46-T8", "target": "46-W7"}, two)
+    assert not ask_module._native_los_board_unknown(bare, {"boards": [{"name": "46"}]})
+    assert not ask_module._native_los_board_unknown(None, two)

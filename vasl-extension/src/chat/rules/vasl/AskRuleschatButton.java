@@ -122,7 +122,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
   private static final int MAX_HISTORY_PAIRS = 6;
   // The trailing guard keeps rule references like "A7.22" from matching as hex A7.
   private static final Pattern HEX_REFERENCE = Pattern.compile(
-    "(?i)\\b(?:(\\d+)-)?([A-Z]+\\d+)\\b(?!\\.\\d)");
+    "(?i)\\b(?:(\\d+)-?)?([A-Z]+\\d+)\\b(?!\\.\\d)");
 
   private static final ModelOption[] MODEL_OPTIONS = new ModelOption[] {
     new ModelOption(DEFAULT_MODEL, "GPT-5.4 (recommended)"),
@@ -1220,14 +1220,15 @@ public class AskRuleschatButton extends AbstractConfigurable {
       game.updatePieces();
       Hex source = null;
       Hex target = null;
+      String board = from.indexOf('-') > 0 ? from.substring(0, from.indexOf('-')) : null;
       // A bare "W7" on a multi-board map: use the board whose W7 holds the
       // units the question is about. losMap.getHex("W7") takes the first
       // board, which can be the wrong one.
       if (from.indexOf('-') < 0 && to.indexOf('-') < 0) {
         int bestScore = 0;
-        for (String board : boardNames(gameMap)) {
-          final Hex s = losMap.getHex(board + from, gameMap);
-          final Hex t = losMap.getHex(board + to, gameMap);
+        for (String name : boardNames(gameMap)) {
+          final Hex s = losMap.getHex(name + from, gameMap);
+          final Hex t = losMap.getHex(name + to, gameMap);
           if (s == null || t == null) {
             continue;
           }
@@ -1237,6 +1238,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
             bestScore = score;
             source = s;
             target = t;
+            board = name;
           }
         }
       }
@@ -1285,6 +1287,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
       }
       return "{\"source\":" + Json.quote(from)
         + ",\"target\":" + Json.quote(to)
+        + (board == null ? "" : ",\"board\":" + Json.quote(board))
         + ",\"blocked\":" + result.isBlocked()
         + ",\"reason\":" + Json.quote(result.getReason() == null ? "" : result.getReason())
         + ",\"hindrance\":" + result.getHindrance()

@@ -220,6 +220,16 @@ def _is_subscription(model: Optional[str]) -> bool:
     return uses_claude_cli(model) or uses_codex_cli(model)
 
 
+def _native_los_board_unknown(native_los: Optional[dict], vsav_state: Optional[dict]) -> bool:
+    """True when VASL's LOS names bare hexes on a multi-board map without saying
+    which board it measured on (the extension adds "board" from 0.7.2)."""
+    if not native_los or not vsav_state or len(vsav_state.get("boards") or []) < 2:
+        return False
+    if native_los.get("board"):
+        return False
+    return not all("-" in str(native_los.get(k) or "") for k in ("source", "target"))
+
+
 def _render_native_los(native_los: Optional[dict]) -> Optional[str]:
     """One-line summary of the VASL client's own LOS check, for the model."""
     if not native_los or not native_los.get("source") or not native_los.get("target"):
@@ -737,6 +747,13 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
             logging.error("ask: vsav parse failed", exc_info=True)
             raise HTTPException(status_code=400,
                                 detail="Could not parse the VASL save")
+        if _native_los_board_unknown(payload.native_los, vsav_state):
+            # Extensions < 0.7.2 measured a bare "W7" on the FIRST board, which
+            # on a multi-board map can be the wrong one: trust the save instead.
+            logging.warning("ask: dropping VASL LOS facts: bare %s -> %s on a %d-board map",
+                            payload.native_los.get("source"), payload.native_los.get("target"),
+                            len(vsav_state.get("boards") or []))
+            payload.native_los = None
         perspective = _resolve_perspective(vsav_state, payload.side, payload.player)
         board_state = render_board_state(vsav_state, perspective_side=perspective)
         los_line = _render_native_los(payload.native_los)
