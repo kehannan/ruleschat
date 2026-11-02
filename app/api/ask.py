@@ -744,8 +744,13 @@ def _prepare_ask(payload: AskRequest, authorization: Optional[str]) -> dict:
             board_state = f"{board_state}\n\n{los_line}"
 
     if payload.native_los and payload.native_los.get("facts"):
-        logging.info("ask: VASL LOS facts %s",
-                     json.dumps(payload.native_los, default=str)[:3000])
+        # Drop the per-hexside detail so every hex (target included) fits.
+        facts = payload.native_los["facts"]
+        compact = {**payload.native_los, "facts": {
+            **{k: v for k, v in facts.items() if k not in ("hexes", "path")},
+            "hexes": [{k: v for k, v in h.items() if k != "sides"}
+                      for h in facts.get("hexes") or [] if isinstance(h, dict)]}}
+        logging.info("ask: VASL LOS facts %s", json.dumps(compact, default=str)[:6000])
     precomputed = _precompute_attack(
         payload.question, vsav_state, payload.native_los, payload.game_phase,
         payload.selected_firers, payload.selected_targets)
