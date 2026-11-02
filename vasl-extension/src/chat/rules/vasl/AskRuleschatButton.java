@@ -106,7 +106,7 @@ import java.util.regex.Pattern;
  */
 public class AskRuleschatButton extends AbstractConfigurable {
 
-  static final String VERSION = "0.7.1";
+  static final String VERSION = "0.7.2";
 
   // --- settings (own properties file in VASSAL's prefs dir) ---------------
   private static final String SETTINGS_FILE = "AskRuleschat.properties";
@@ -131,6 +131,7 @@ public class AskRuleschatButton extends AbstractConfigurable {
     // CLIs, with the same calculator tools as the API models. Non-admin keys
     // fall back to the server default.
     new ModelOption("claude-fable-sub", "Claude Fable (subscription, admin)"),
+    new ModelOption("claude-opus-sub", "Claude Opus 5.5 (subscription, admin)"),
     new ModelOption("gpt-6-astra-sub", "GPT-6 Astra (subscription, admin)")
   };
 
