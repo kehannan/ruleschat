@@ -371,6 +371,22 @@ public class AskRuleschatButton extends AbstractConfigurable {
     return (dash >= 0 ? hexRef.substring(dash + 1) : hexRef).toUpperCase();
   }
 
+  /** Board names as getHex(name + hex, map) matches them (its localized name, "r43" kept). */
+  static List<String> boardNames(ASLMap map) {
+    final List<String> names = new ArrayList<>();
+    for (Board board : map.getBoards()) {
+      String name = board.getLocalizedName();
+      if (name == null) {
+        continue;
+      }
+      name = name.trim();
+      if (!name.isEmpty() && !names.contains(name)) {
+        names.add(name);
+      }
+    }
+    return names;
+  }
+
   private static String mapAwareLookupName(String hexRef) {
     if (hexRef == null) {
       return null;
@@ -1200,8 +1216,34 @@ public class AskRuleschatButton extends AbstractConfigurable {
         return null;
       }
       VASL.LOS.Map.Map losMap = gameMap.getVASLMap();
-      Hex source = losMap.getHex(mapAwareLookupName(from), gameMap);
-      Hex target = losMap.getHex(mapAwareLookupName(to), gameMap);
+      VASLGameInterface game = new VASLGameInterface(gameMap, losMap);
+      game.updatePieces();
+      Hex source = null;
+      Hex target = null;
+      // A bare "W7" on a multi-board map: use the board whose W7 holds the
+      // units the question is about. losMap.getHex("W7") takes the first
+      // board, which can be the wrong one.
+      if (from.indexOf('-') < 0 && to.indexOf('-') < 0) {
+        int bestScore = 0;
+        for (String board : boardNames(gameMap)) {
+          final Hex s = losMap.getHex(board + from, gameMap);
+          final Hex t = losMap.getHex(board + to, gameMap);
+          if (s == null || t == null) {
+            continue;
+          }
+          final int score = (unitLocation(gameMap, game, s) != null ? 1 : 0)
+            + (unitLocation(gameMap, game, t) != null ? 1 : 0);
+          if (score > bestScore) {
+            bestScore = score;
+            source = s;
+            target = t;
+          }
+        }
+      }
+      if (source == null || target == null) {
+        source = losMap.getHex(mapAwareLookupName(from), gameMap);
+        target = losMap.getHex(mapAwareLookupName(to), gameMap);
+      }
       if (source == null) {
         source = losMap.getHex(bareHex(from));
       }
@@ -1211,8 +1253,6 @@ public class AskRuleschatButton extends AbstractConfigurable {
       if (source == null || target == null) {
         return null;
       }
-      VASLGameInterface game = new VASLGameInterface(gameMap, losMap);
-      game.updatePieces();
       LOSResult result = new LOSResult();
       // Check LOS from where the units actually are (e.g. a building's first
       // floor), not from the hex's ground level.
